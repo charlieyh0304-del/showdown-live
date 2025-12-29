@@ -711,6 +711,12 @@
             
             // Firebase에서 프로젝트 데이터 실시간 감지
             database.ref('projects').on('value', (snapshot) => {
+                // 심판 모드에서 경기 중일 때는 동기화 건너뛰기 (서브 정보 보호)
+                if (isAuthenticated && screen === 'match' && currentMatch) {
+                    console.log('🛡️ 심판 모드 - 프로젝트 동기화 건너뜀');
+                    return;
+                }
+                
                 const firebaseProjects = snapshot.val();
                 if (firebaseProjects) {
                     // Object를 Array로 변환
@@ -723,41 +729,8 @@
                     const localProjects = JSON.parse(localStorage.getItem('projects') || '[]');
                     const mergedProjects = mergeDataArrays(localProjects, projectsArray, 'id');
                     
-                    // 심판 모드에서 현재 경기 정보 보존
-                    let savedCurrentMatch = null;
-                    if (currentMatch && isAuthenticated && screen === 'match') {
-                        savedCurrentMatch = {
-                            id: currentMatch.id,
-                            currentServe: currentMatch.currentServe,
-                            serveCount: currentMatch.serveCount,
-                            serveSelected: currentMatch.serveSelected,
-                            setScores: currentMatch.setScores,
-                            currentSet: currentMatch.currentSet,
-                            history: currentMatch.history
-                        };
-                    }
-                    
                     localStorage.setItem('projects', JSON.stringify(mergedProjects));
                     projects = mergedProjects; // 전역 변수 업데이트
-                    
-                    // 심판 모드에서 현재 경기 참조 및 데이터 복원
-                    if (savedCurrentMatch && currentProject) {
-                        const projectInArray = projects.find(p => p.id === currentProject.id);
-                        if (projectInArray) {
-                            currentProject = projectInArray;
-                            const matchInProject = projectInArray.matches?.find(m => m.id === savedCurrentMatch.id);
-                            if (matchInProject) {
-                                // 서브 정보 복원
-                                matchInProject.currentServe = savedCurrentMatch.currentServe;
-                                matchInProject.serveCount = savedCurrentMatch.serveCount;
-                                matchInProject.serveSelected = savedCurrentMatch.serveSelected;
-                                matchInProject.setScores = savedCurrentMatch.setScores;
-                                matchInProject.currentSet = savedCurrentMatch.currentSet;
-                                matchInProject.history = savedCurrentMatch.history;
-                                currentMatch = matchInProject;
-                            }
-                        }
-                    }
                     
                     console.log('✅ Firebase에서 프로젝트 데이터 동기화됨:', mergedProjects.length + '개');
                     
@@ -1095,6 +1068,7 @@
         let pauseSeconds = 0; // 일시정지 경과 시간
         let isOffline = !navigator.onLine; // 오프라인 상태
         let userRole = null; // 'referee' 또는 'viewer'
+        let livePracticeSortAsc = true; // 실시간 연습 경기 완료 목록 정렬 (true: 오래된순, false: 최신순)
         let favoritePlayers = []; // 즐겨찾기 선수
         let notifiedMatches = []; // 알림 설정된 경기
         let showFavoritesOnly = false; // 즐겨찾기만 표시
@@ -2866,7 +2840,14 @@
                     .filter(m => m.isShared);
                 
                 const inProgressMatches = liveMatches.filter(m => m.status === 'in-progress');
-                const completedMatches = liveMatches.filter(m => m.status === 'completed').slice(0, 10);
+                let completedMatches = liveMatches.filter(m => m.status === 'completed');
+                
+                // 완료된 경기 정렬 (기본: 오래된순)
+                completedMatches.sort((a, b) => {
+                    const timeA = new Date(a.finishedAt || a.startedAt || 0).getTime();
+                    const timeB = new Date(b.finishedAt || b.startedAt || 0).getTime();
+                    return livePracticeSortAsc ? timeA - timeB : timeB - timeA;
+                });
                 
                 const inProgressHTML = inProgressMatches.length > 0 ? inProgressMatches.map(m => `
                     <div style="padding:16px; margin:8px 0; background:linear-gradient(135deg, #ff9800 0%, #ff5722 100%); border-radius:12px; color:white; cursor:pointer;" onclick="watchLiveMatch(${m.id})">
@@ -2891,6 +2872,7 @@
                             ${m.setScores ? m.setScores.map(s => `[${s.player1}-${s.player2}]`).join(' ') : ''}
                             · 승자: ${m.winner || '미정'}
                         </div>
+                        ${m.finishedAt ? `<div style="font-size:11px; color:#999; margin-top:4px;">${new Date(m.finishedAt).toLocaleString('ko-KR')}</div>` : ''}
                     </div>
                 `).join('') : '';
                 
@@ -2909,7 +2891,12 @@
                     
                     ${completedMatches.length > 0 ? `
                         <div class="card">
-                            <h2>최근 완료 (${completedMatches.length})</h2>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <h2 style="margin:0;">완료된 경기 (${completedMatches.length})</h2>
+                                <button class="btn" onclick="toggleLivePracticeSort()" style="padding:6px 12px; font-size:12px;">
+                                    ${livePracticeSortAsc ? '오래된순 ↑' : '최신순 ↓'}
+                                </button>
+                            </div>
                             ${completedHTML}
                         </div>
                     ` : ''}
@@ -12890,6 +12877,12 @@
             const container = document.getElementById('match-history');
             const items = Array.from(container.children);
             items.reverse().forEach(item => container.appendChild(item));
+        }
+        
+        // 실시간 연습 경기 완료 목록 정렬 토글
+        function toggleLivePracticeSort() {
+            livePracticeSortAsc = !livePracticeSortAsc;
+            render();
         }
 
         function toggleFinishedHistoryOrder() {
