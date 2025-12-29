@@ -5467,6 +5467,11 @@
                 return;
             }
             
+            // history 배열이 없으면 초기화
+            if (!currentMatch.history) {
+                currentMatch.history = [];
+            }
+            
             // 완료된 경기는 기록만 표시
             if (currentMatch.status === 'completed') {
                 renderFinishedMatch();
@@ -5545,7 +5550,7 @@
                     
                     <!-- 최근 득점 실시간 알림 -->
                     <div aria-live="assertive" id="live-action-region" style="position:absolute; left:-9999px;">
-                        ${currentMatch.history.length > 0 ? currentMatch.history[0].player + ' ' + currentMatch.history[0].points + '점 득점' : ''}
+                        ${currentMatch.history && currentMatch.history.length > 0 ? currentMatch.history[0].player + ' ' + currentMatch.history[0].points + '점 득점' : ''}
                     </div>
                     
                     <div style="text-align:center; padding:12px; background:var(--bg-secondary); border-radius:8px; margin-bottom:16px;">
@@ -5706,7 +5711,7 @@
                     </div>
                     
                     <div class="action-row">
-                        <button class="btn btn-danger" onclick="undo()" ${currentMatch.history.length === 0 ? 'disabled' : ''}>↩️ 취소</button>
+                        <button class="btn btn-danger" onclick="undo()" ${!currentMatch.history || currentMatch.history.length === 0 ? 'disabled' : ''}>↩️ 취소</button>
                         <button class="btn btn-success" onclick="endSet()">${(() => {
                             // 현재까지 세트 승수 계산
                             let p1Wins = 0, p2Wins = 0;
@@ -5746,7 +5751,7 @@
                     ` : ''}
                 </div>
                 
-                ${currentMatch.history.length > 0 ? `
+                ${currentMatch.history && currentMatch.history.length > 0 ? `
                     <div class="card">
                         <h2>경기 기록</h2>
                         <div style="margin-bottom:12px; display:flex; gap:8px;">
@@ -5850,7 +5855,7 @@
                     </div>
                 </div>
                 
-                ${currentMatch.history.length > 0 ? `
+                ${currentMatch.history && currentMatch.history.length > 0 ? `
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                             <h2 style="margin:0;">전체 경기 기록</h2>
@@ -6287,6 +6292,11 @@
                 return;
             }
             
+            // history 배열이 없으면 초기화
+            if (!currentMatch.history) {
+                currentMatch.history = [];
+            }
+            
             const set = currentMatch.setScores[currentMatch.currentSet - 1];
             // 득점 전 스코어 저장
             const scoreBefore = { player1: set.player1, player2: set.player2 };
@@ -6410,7 +6420,7 @@
                 alert('심판만 취소할 수 있습니다');
                 return;
             }
-            if (currentMatch.history.length === 0) return;
+            if (!currentMatch.history || currentMatch.history.length === 0) return;
             
             const last = currentMatch.history.shift();
             const set = currentMatch.setScores[currentMatch.currentSet - 1];
