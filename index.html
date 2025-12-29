@@ -37,26 +37,6 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
-        /* 텍스트 입력 방향 고정 - 글자 뒤집힘 방지 */
-        input[type="text"],
-        input[type="number"],
-        input[type="password"],
-        input[type="search"],
-        input[type="email"],
-        input[type="tel"],
-        textarea {
-            direction: ltr !important;
-            text-align: left !important;
-            unicode-bidi: bidi-override !important;
-            writing-mode: horizontal-tb !important;
-            -webkit-rtl-ordering: logical !important;
-        }
-        
-        /* 전체 문서 방향 */
-        html, body, #app {
-            direction: ltr !important;
-        }
-        
         /* 테마 변수 */
         :root {
             --bg-primary: #ffffff;
@@ -1741,7 +1721,7 @@
                     <div class="card">
                         <h3>심판 등록</h3>
                         <div style="display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:12px;">
-                            <input type="text" id="new-referee-name" dir="ltr" lang="ko" placeholder="심판 이름" style="padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off" spellcheck="false">
+                            <input type="text" id="new-referee-name" placeholder="심판 이름" style="padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off">
                             <select id="new-referee-role" style="padding:12px; border:1px solid var(--border); border-radius:8px;">
                                 <option value="주심">주심</option>
                                 <option value="부심">부심</option>
@@ -1804,7 +1784,7 @@
                     <div class="card">
                         <h3>경기장 추가</h3>
                         <div style="margin-bottom:12px;">
-                            <input type="text" id="tournament-court-name" dir="ltr" lang="ko" placeholder="경기장 이름 (예: 1번 코트)" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off" spellcheck="false">
+                            <input type="text" id="tournament-court-name" placeholder="경기장 이름 (예: 1번 코트)" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off">
                         </div>
                         <button class="btn btn-primary" onclick="addTournamentCourt()" style="width:100%;">경기장 추가</button>
                         
@@ -1866,7 +1846,7 @@
                     <div class="card">
                         <h3>심판 추가</h3>
                         <div style="display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:12px;">
-                            <input type="text" id="tournament-referee-name" dir="ltr" lang="ko" placeholder="심판 이름" style="padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off" spellcheck="false">
+                            <input type="text" id="tournament-referee-name" placeholder="심판 이름" style="padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off">
                             <select id="tournament-referee-role" style="padding:12px; border:1px solid var(--border); border-radius:8px;">
                                 <option value="주심">주심</option>
                                 <option value="부심">부심</option>
@@ -1922,8 +1902,8 @@
                     <div class="card">
                         <h3>경기장 등록</h3>
                         <div style="margin-bottom:12px;">
-                            <input type="text" id="new-court-name" dir="ltr" lang="ko" placeholder="경기장 이름 (예: 1번 코트)" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;" autocomplete="off" spellcheck="false">
-                            <input type="text" id="new-court-location" dir="ltr" lang="ko" placeholder="위치 (선택)" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off" spellcheck="false">
+                            <input type="text" id="new-court-name" placeholder="경기장 이름 (예: 1번 코트)" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;" autocomplete="off">
+                            <input type="text" id="new-court-location" placeholder="위치 (선택)" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off">
                         </div>
                         <button class="btn btn-primary" onclick="addGlobalCourt()" style="width:100%;">경기장 등록</button>
                     </div>
@@ -1995,7 +1975,7 @@
                             <p style="font-size:13px; color:#666; margin-bottom:12px;">운영자를 추가하거나 권한을 관리합니다.</p>
                             
                             <div style="display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:8px;">
-                                <input type="text" id="new-operator-name" dir="ltr" lang="ko" placeholder="운영자 이름" style="padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off" spellcheck="false">
+                                <input type="text" id="new-operator-name" placeholder="운영자 이름" style="padding:12px; border:1px solid var(--border); border-radius:8px;" autocomplete="off">
                                 <select id="new-operator-role" style="padding:12px; border:1px solid var(--border); border-radius:8px;">
                                     <option value="admin">관리자</option>
                                     <option value="super">최고관리자</option>
@@ -2245,7 +2225,7 @@
                                     
                                     <div class="form-group">
                                         <label for="first-operator-name">운영자 이름</label>
-                                        <input type="text" id="first-operator-name" name="name" dir="ltr" lang="ko" placeholder="이름 입력" required autocomplete="name" spellcheck="false">
+                                        <input type="text" id="first-operator-name" name="name" placeholder="이름 입력" required autocomplete="name">
                                     </div>
                                     
                                     <div class="form-group">
@@ -2608,7 +2588,7 @@
                                     <legend class="sr-only">선수 이름 입력</legend>
                                     <div class="form-group">
                                         <label for="player-name-search">선수/팀 이름</label>
-                                        <input type="text" id="player-name-search" dir="ltr" lang="ko" placeholder="이름을 입력하세요" required autocomplete="off" spellcheck="false">
+                                        <input type="text" id="player-name-search" placeholder="이름을 입력하세요" required autocomplete="off">
                                     </div>
                                     <button type="submit" class="btn btn-primary" style="width:100%;">🔍 내 경기 찾기</button>
                                 </fieldset>
@@ -2643,7 +2623,7 @@
                                     <legend class="sr-only">심판 이름 입력</legend>
                                     <div class="form-group">
                                         <label for="referee-name-search">심판 이름</label>
-                                        <input type="text" id="referee-name-search" dir="ltr" lang="ko" placeholder="이름을 입력하세요" required autocomplete="off" spellcheck="false">
+                                        <input type="text" id="referee-name-search" placeholder="이름을 입력하세요" required autocomplete="off">
                                     </div>
                                     <button type="submit" class="btn btn-primary" style="width:100%;">🔍 내 심판 경기 찾기</button>
                                 </fieldset>
@@ -2699,11 +2679,11 @@
                             </h3>
                             
                             ${matches.map(match => {
-                                const endTime = new Date(\`\${match.scheduledDate}T\${match.scheduledTime}\`);
+                                const endTime = new Date(`\${match.scheduledDate}T\${match.scheduledTime}`);
                                 endTime.setMinutes(endTime.getMinutes() + match.estimatedDuration);
                                 const endTimeStr = endTime.toTimeString().slice(0, 5);
                                 
-                                return \`
+                                return `
                                     <div style="background:white; border:1px solid #ddd; border-radius:8px; padding:16px; margin-bottom:12px; position:relative;">
                                         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                                             <div>
@@ -2730,7 +2710,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                \`;
+                                `;
                             }).join('')}
                         </div>
                     `;
@@ -2969,12 +2949,12 @@
                         
                         <div class="form-group">
                             <label>선수/팀 1</label>
-                            <input type="text" id="practice-player1" dir="ltr" lang="ko" placeholder="이름 입력" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:16px;" autocomplete="off" spellcheck="false">
+                            <input type="text" id="practice-player1" placeholder="이름 입력" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:16px;" autocomplete="off">
                         </div>
                         
                         <div class="form-group">
                             <label>선수/팀 2</label>
-                            <input type="text" id="practice-player2" dir="ltr" lang="ko" placeholder="이름 입력" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:16px;" autocomplete="off" spellcheck="false">
+                            <input type="text" id="practice-player2" placeholder="이름 입력" style="width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:16px;" autocomplete="off">
                         </div>
                         
                         <div class="form-group">
@@ -3041,7 +3021,7 @@
                         
                         <div class="form-group">
                             <label>참가자 입력 <span style="color:#d32f2f;">*</span></label>
-                            <textarea id="qp-participants" dir="ltr" lang="ko" placeholder="한 줄에 한 명씩 입력하세요&#10;&#10;예시:&#10;홍길동&#10;김철수&#10;이영희&#10;박민수" style="width:100%; height:150px; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical; direction:ltr !important; text-align:left !important;"></textarea>
+                            <textarea id="qp-participants" placeholder="한 줄에 한 명씩 입력하세요&#10;&#10;예시:&#10;홍길동&#10;김철수&#10;이영희&#10;박민수" style="width:100%; height:150px; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical; text-align:left !important;"></textarea>
                             <div style="font-size:12px; color:#666; margin-top:4px;">쉼표(,)로 구분하거나 줄바꿈으로 입력</div>
                         </div>
                         
@@ -3334,7 +3314,7 @@
                     stepContent = `
                         <div class="form-group">
                             <label>대회명 <span style="color:#d32f2f;">*</span></label>
-                            <input type="text" id="tw-name" dir="ltr" lang="ko" value="${tw.info.name}" placeholder="대회 이름을 입력하세요" style="width:100%; direction:ltr !important; text-align:left !important;" autocomplete="off" spellcheck="false" onchange="window.tournamentWizard.info.name=this.value;">
+                            <input type="text" id="tw-name" value="${tw.info.name}" placeholder="대회 이름을 입력하세요" style="width:100%; text-align:left !important;" autocomplete="off" onchange="window.tournamentWizard.info.name=this.value;">
                         </div>
                         <div class="form-group">
                             <label>날짜</label>
@@ -3342,7 +3322,7 @@
                         </div>
                         <div class="form-group">
                             <label>장소</label>
-                            <input type="text" id="tw-location" dir="ltr" lang="ko" value="${tw.info.location}" placeholder="대회 장소를 입력하세요" style="width:100%; direction:ltr !important; text-align:left !important;" autocomplete="off" spellcheck="false" onchange="window.tournamentWizard.info.location=this.value;">
+                            <input type="text" id="tw-location" value="${tw.info.location}" placeholder="대회 장소를 입력하세요" style="width:100%; text-align:left !important;" autocomplete="off" onchange="window.tournamentWizard.info.location=this.value;">
                         </div>
                         
                         <div style="background:#e8f5e9; padding:16px; border-radius:12px; margin-top:8px;">
@@ -3379,15 +3359,13 @@
                     stepContent = `
                         <div style="background:#e8f5e9; padding:12px; border-radius:8px; margin-bottom:16px;">
                             <strong>입력 안내</strong>
-                            <p style="font-size:13px; margin-top:4px;">여러 명을 한 번에 입력하려면 쉼표(,)로 구분하세요. 순서를 변경하면 시드 순서로 사용됩니다.</p>
+                            <p style="font-size:13px; margin-top:4px;">참가자 이름을 한 줄에 하나씩 입력하고 "참가자 등록" 버튼을 누르세요.</p>
                         </div>
                         
                         <div class="form-group">
-                            <label>참가자 추가</label>
-                            <div style="display:flex; gap:8px; margin-top:8px;">
-                                <input type="text" id="tw-participant" dir="ltr" lang="ko" placeholder="이름 입력 (쉼표로 여러 명 구분)" style="flex:1; direction:ltr !important; text-align:left !important; unicode-bidi:bidi-override !important;" autocomplete="off" spellcheck="false" inputmode="text" onkeypress="if(event.key==='Enter')addTWParticipant()">
-                                <button class="btn btn-primary" onclick="addTWParticipant()">추가</button>
-                            </div>
+                            <label>참가자 명단 입력</label>
+                            <textarea id="tw-participant-textarea" placeholder="홍길동&#10;김철수&#10;이영희&#10;(한 줄에 한 명씩)" style="width:100%; height:120px; margin-top:8px; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea>
+                            <button class="btn btn-primary" onclick="addTWParticipantsFromTextarea()" style="width:100%; margin-top:8px;">참가자 등록</button>
                         </div>
                         
                         <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 12px 0;">
@@ -3944,7 +3922,7 @@
                             </div>
                             
                             <div style="display:grid; grid-template-columns:1fr auto auto; gap:8px; margin-bottom:16px;">
-                                <input type="text" id="rtl-name" dir="ltr" lang="ko" placeholder="이름" style="width:100%; direction:ltr !important; text-align:left !important;" autocomplete="off" spellcheck="false" aria-label="참가자 이름 입력">
+                                <input type="text" id="rtl-name" placeholder="이름" style="width:100%; text-align:left !important;" autocomplete="off" aria-label="참가자 이름 입력">
                                 <select id="rtl-gender" style="width:80px;" aria-label="성별 선택">
                                     <option value="M">남</option>
                                     <option value="F">여</option>
@@ -4241,10 +4219,10 @@
                     
                     const teamsHTML = rtl.teams.map((team, ti) => `
                         <div style="padding:12px; margin:8px 0; background:var(--bg-secondary); border-radius:8px; border-left:4px solid hsl(${ti * 60}, 70%, 50%);">
-                            <input type="text" id="team-name-${ti}" value="${team.name}" dir="ltr" lang="ko"
+                            <input type="text" id="team-name-${ti}" value="${team.name}"
                                    onchange="updateRTLTeamName(${ti}, this.value)"
                                    style="font-weight:bold; font-size:16px; border:2px dashed #ccc; padding:6px 10px; border-radius:6px; width:calc(100% - 24px);"
-                                   placeholder="팀 이름 입력" autocomplete="off" spellcheck="false">
+                                   placeholder="팀 이름 입력" autocomplete="off">
                             <div style="margin-top:8px;">
                                 ${team.members.map((m, mi) => {
                                     const isTopseed = team.topseed === m.name;
@@ -10043,21 +10021,68 @@
         function addTWParticipant() {
             const tw = window.tournamentWizard;
             const input = document.getElementById('tw-participant');
-            const value = input?.value.trim();
+            const name = input?.value.trim();
             
-            if (!value) return;
+            if (!name) return;
             
-            // 쉼표로 구분된 여러 명 처리
-            const names = value.split(',').map(n => n.trim()).filter(n => n);
-            names.forEach(name => {
-                if (!tw.participants.includes(name)) {
-                    tw.participants.push(name);
-                }
-            });
+            // 단일 입력 처리
+            if (!tw.participants.includes(name)) {
+                tw.participants.push(name);
+            }
             
             input.value = '';
             render();
+            
+            // render 후 다시 포커스
+            setTimeout(() => {
+                const newInput = document.getElementById('tw-participant');
+                if (newInput) newInput.focus();
+            }, 50);
         }
+        
+        // textarea에서 참가자 일괄 등록 (입력 완료 후에만 호출)
+        function addTWParticipantsFromTextarea() {
+            const tw = window.tournamentWizard;
+            const textarea = document.getElementById('tw-participant-textarea');
+            const value = textarea?.value.trim();
+            
+            if (!value) {
+                alert('참가자 이름을 입력해주세요.');
+                return;
+            }
+            
+            // 줄바꿈 또는 쉼표로 구분
+            const names = value.split(/[\n,]/).map(n => n.trim()).filter(n => n);
+            
+            if (names.length === 0) {
+                alert('유효한 이름이 없습니다.');
+                return;
+            }
+            
+            // 중복 제거하고 추가
+            let addedCount = 0;
+            names.forEach(name => {
+                if (!tw.participants.includes(name)) {
+                    tw.participants.push(name);
+                    addedCount++;
+                }
+            });
+            
+            textarea.value = '';
+            render();
+            
+            if (addedCount > 0) {
+                announce(addedCount + '명의 참가자가 등록되었습니다.');
+            }
+        }
+        
+        // IME 안전 Enter 처리
+        document.addEventListener('keydown', function(e) {
+            if (e.target.id === 'tw-participant' && e.key === 'Enter' && !e.isComposing) {
+                e.preventDefault();
+                addTWParticipant();
+            }
+        });
         
         function removeTWParticipant(index) {
             window.tournamentWizard.participants.splice(index, 1);
@@ -10106,26 +10131,37 @@
             const tw = window.tournamentWizard;
             const size = tw.finals.size || 8;
             const matchCount = size / 2;
+            const groupCount = tw.preliminary.groupCount || 4;
+            const advanceCount = tw.preliminary.advanceCount || 2;
             
             tw.finals.customBracket = [];
             
             // 조 라벨 생성
             const groupLabels = [];
-            for (let i = 0; i < tw.preliminary.groupCount; i++) {
+            for (let i = 0; i < groupCount; i++) {
                 groupLabels.push(String.fromCharCode(65 + i)); // A, B, C, ...
             }
             
-            // 기본 대진 생성 (A1 vs B2, B1 vs A2, ...)
-            for (let i = 0; i < matchCount; i++) {
-                const g1Idx = (i * 2) % groupLabels.length;
-                const g2Idx = (i * 2 + 1) % groupLabels.length;
+            // 진출자 슬롯 생성 (A1, A2, B1, B2, C1, C2, ...)
+            const slots = [];
+            for (let g = 0; g < groupCount; g++) {
+                for (let r = 1; r <= advanceCount; r++) {
+                    slots.push({ group: groupLabels[g], rank: r });
+                }
+            }
+            
+            // 교차 시드 대진 생성
+            // 상위권은 앞에서, 하위권은 뒤에서 매칭
+            for (let i = 0; i < matchCount && i * 2 + 1 < slots.length; i++) {
+                const p1 = slots[i];
+                const p2 = slots[slots.length - 1 - i];
                 
                 tw.finals.customBracket.push({
                     matchNum: i + 1,
-                    p1Group: groupLabels[g1Idx] || 'A',
-                    p1Rank: 1,
-                    p2Group: groupLabels[g2Idx] || 'B',
-                    p2Rank: 2
+                    p1Group: p1.group,
+                    p1Rank: p1.rank,
+                    p2Group: p2.group,
+                    p2Rank: p2.rank
                 });
             }
         }
@@ -10143,8 +10179,8 @@
             const tw = window.tournamentWizard;
             const size = tw.finals.size || 8;
             const matchCount = size / 2;
-            const groupCount = tw.preliminary.groupCount;
-            const advanceCount = tw.preliminary.advanceCount;
+            const groupCount = tw.preliminary.groupCount || 4;
+            const advanceCount = tw.preliminary.advanceCount || 2;
             
             // 조 라벨
             const groupLabels = [];
@@ -10152,33 +10188,28 @@
                 groupLabels.push(String.fromCharCode(65 + i));
             }
             
+            // 진출자 슬롯 생성
+            const slots = [];
+            for (let g = 0; g < groupCount; g++) {
+                for (let r = 1; r <= advanceCount; r++) {
+                    slots.push({ group: groupLabels[g], rank: r });
+                }
+            }
+            
             tw.finals.customBracket = [];
             
-            // 교차 시드 방식 (A1 vs B2, A2 vs B1, C1 vs D2, ...)
-            for (let i = 0; i < matchCount; i++) {
-                const pairIdx = Math.floor(i / 2);
-                const isFirstInPair = i % 2 === 0;
+            // 교차 시드: 상위 시드 vs 하위 시드
+            for (let i = 0; i < matchCount && i * 2 + 1 < slots.length; i++) {
+                const p1 = slots[i];
+                const p2 = slots[slots.length - 1 - i];
                 
-                const g1Idx = (pairIdx * 2) % groupCount;
-                const g2Idx = (pairIdx * 2 + 1) % groupCount;
-                
-                if (isFirstInPair) {
-                    tw.finals.customBracket.push({
-                        matchNum: i + 1,
-                        p1Group: groupLabels[g1Idx] || 'A',
-                        p1Rank: 1,
-                        p2Group: groupLabels[g2Idx] || 'B',
-                        p2Rank: Math.min(2, advanceCount)
-                    });
-                } else {
-                    tw.finals.customBracket.push({
-                        matchNum: i + 1,
-                        p1Group: groupLabels[g1Idx] || 'A',
-                        p1Rank: Math.min(2, advanceCount),
-                        p2Group: groupLabels[g2Idx] || 'B',
-                        p2Rank: 1
-                    });
-                }
+                tw.finals.customBracket.push({
+                    matchNum: i + 1,
+                    p1Group: p1.group,
+                    p1Rank: p1.rank,
+                    p2Group: p2.group,
+                    p2Rank: p2.rank
+                });
             }
             
             announce('대진이 자동 배정되었습니다');
@@ -13666,4 +13697,11 @@
         
     </script>
 </body>
+<script>
+// 페이지 로드 시 초기 렌더링
+window.addEventListener("DOMContentLoaded", function() {
+    console.log("✅ 쇼다운 심판 앱 로드됨");
+    render();
+});
+</script>
 </html>
