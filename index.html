@@ -723,8 +723,41 @@
                     const localProjects = JSON.parse(localStorage.getItem('projects') || '[]');
                     const mergedProjects = mergeDataArrays(localProjects, projectsArray, 'id');
                     
+                    // 심판 모드에서 현재 경기 정보 보존
+                    let savedCurrentMatch = null;
+                    if (currentMatch && isAuthenticated && screen === 'match') {
+                        savedCurrentMatch = {
+                            id: currentMatch.id,
+                            currentServe: currentMatch.currentServe,
+                            serveCount: currentMatch.serveCount,
+                            serveSelected: currentMatch.serveSelected,
+                            setScores: currentMatch.setScores,
+                            currentSet: currentMatch.currentSet,
+                            history: currentMatch.history
+                        };
+                    }
+                    
                     localStorage.setItem('projects', JSON.stringify(mergedProjects));
                     projects = mergedProjects; // 전역 변수 업데이트
+                    
+                    // 심판 모드에서 현재 경기 참조 및 데이터 복원
+                    if (savedCurrentMatch && currentProject) {
+                        const projectInArray = projects.find(p => p.id === currentProject.id);
+                        if (projectInArray) {
+                            currentProject = projectInArray;
+                            const matchInProject = projectInArray.matches?.find(m => m.id === savedCurrentMatch.id);
+                            if (matchInProject) {
+                                // 서브 정보 복원
+                                matchInProject.currentServe = savedCurrentMatch.currentServe;
+                                matchInProject.serveCount = savedCurrentMatch.serveCount;
+                                matchInProject.serveSelected = savedCurrentMatch.serveSelected;
+                                matchInProject.setScores = savedCurrentMatch.setScores;
+                                matchInProject.currentSet = savedCurrentMatch.currentSet;
+                                matchInProject.history = savedCurrentMatch.history;
+                                currentMatch = matchInProject;
+                            }
+                        }
+                    }
                     
                     console.log('✅ Firebase에서 프로젝트 데이터 동기화됨:', mergedProjects.length + '개');
                     
@@ -840,8 +873,15 @@
                     player1Name: match.player1Name,
                     player2Name: match.player2Name,
                     setScores: match.setScores,
+                    currentSet: match.currentSet,
+                    currentServe: match.currentServe,
+                    serveCount: match.serveCount,
+                    serveSelected: match.serveSelected,
+                    history: match.history || [],
                     status: match.status,
                     type: match.type,
+                    sets: match.sets,
+                    winScore: match.winScore,
                     isShared: match.isShared,
                     updatedAt: new Date().toISOString()
                 });
@@ -857,13 +897,23 @@
             Object.keys(liveMatches).forEach(matchId => {
                 const liveMatch = liveMatches[matchId];
                 
+                // 심판 모드로 진행 중인 경기는 업데이트하지 않음 (서브 정보 보호)
+                if (currentMatch && currentMatch.id == matchId && isAuthenticated) {
+                    return;
+                }
+                
                 // 로컬 프로젝트에서 해당 경기 찾아서 업데이트
                 projects.forEach(project => {
                     if (project.matches) {
                         const matchIndex = project.matches.findIndex(m => m.id == matchId);
                         if (matchIndex >= 0) {
-                            // 실시간 데이터로 업데이트
+                            // 실시간 데이터로 업데이트 (서브 정보 포함)
                             project.matches[matchIndex].setScores = liveMatch.setScores;
+                            project.matches[matchIndex].currentSet = liveMatch.currentSet;
+                            project.matches[matchIndex].currentServe = liveMatch.currentServe;
+                            project.matches[matchIndex].serveCount = liveMatch.serveCount;
+                            project.matches[matchIndex].serveSelected = liveMatch.serveSelected;
+                            project.matches[matchIndex].history = liveMatch.history || [];
                             project.matches[matchIndex].status = liveMatch.status;
                             project.matches[matchIndex].updatedAt = liveMatch.updatedAt;
                         }
@@ -13230,7 +13280,8 @@
             const serverName = player === 'player1' ? currentMatch.player1Name : currentMatch.player2Name;
             announce(serverName + ' 첫 서브');
             saveProjects();
-            render();
+            updateLiveMatch(); // 실시간 동기화
+            renderMatch(); // 경기 화면만 다시 렌더링
         }
 
         // 워밍업 시작 (IBSA 규칙: 개인전 60초, 팀전 90초)
