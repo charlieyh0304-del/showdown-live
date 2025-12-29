@@ -13695,13 +13695,12 @@
             announce('🏋️ 연습 경기 모드로 전환되었습니다');
         }
         
+        // 페이지 로드 시 초기 렌더링
+        window.addEventListener("DOMContentLoaded", function() {
+            console.log("✅ 쇼다운 심판 앱 로드됨");
+            render();
+        });
+        
     </script>
 </body>
-<script>
-// 페이지 로드 시 초기 렌더링
-window.addEventListener("DOMContentLoaded", function() {
-    console.log("✅ 쇼다운 심판 앱 로드됨");
-    render();
-});
-</script>
 </html>
