@@ -711,9 +711,9 @@
             
             // Firebase에서 프로젝트 데이터 실시간 감지
             database.ref('projects').on('value', (snapshot) => {
-                // 심판 모드에서 경기 중일 때는 동기화 건너뛰기 (서브 정보 보호)
-                if (isAuthenticated && screen === 'match' && currentMatch) {
-                    console.log('🛡️ 심판 모드 - 프로젝트 동기화 건너뜀');
+                // 심판 모드에서는 완전히 무시 (경기 데이터 보호)
+                if (isAuthenticated) {
+                    console.log('🛡️ 심판 모드 - 프로젝트 동기화 완전 차단');
                     return;
                 }
                 
@@ -762,9 +762,15 @@
             
             // 실시간 경기 진행 상태 감지
             database.ref('liveMatches').on('value', (snapshot) => {
+                // 심판 모드에서는 완전히 무시 (스코어/서브 보호)
+                if (isAuthenticated) {
+                    console.log('🛡️ 심판 모드 - liveMatches 동기화 완전 차단');
+                    return;
+                }
+                
                 const liveMatches = snapshot.val();
                 if (liveMatches) {
-                    // 진행 중인 경기 데이터 업데이트
+                    // 관람 모드에서만 경기 데이터 업데이트
                     updateLiveMatchesData(liveMatches);
                     
                     // 관람 모드 화면이면 자동 새로고침
@@ -2894,9 +2900,10 @@
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                                 <h2 style="margin:0;">완료된 경기 (${completedMatches.length})</h2>
                                 <button class="btn" onclick="toggleLivePracticeSort()" style="padding:6px 12px; font-size:12px;">
-                                    ${livePracticeSortAsc ? '오래된순 ↑' : '최신순 ↓'}
+                                    ${livePracticeSortAsc ? '🔼 시간순' : '🔽 최신순'}
                                 </button>
                             </div>
+                            <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">현재: ${livePracticeSortAsc ? '처음 기록부터' : '최신 기록부터'}</p>
                             ${completedHTML}
                         </div>
                     ` : ''}
@@ -5792,8 +5799,11 @@
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                             <h2 style="margin:0;">경기 기록</h2>
-                            <button class="btn" onclick="toggleHistoryOrder()" id="history-order-btn" style="font-size:12px; padding:6px 12px;">${historyOrderDesc ? '최신순 ↓' : '오래된순 ↑'}</button>
+                            <button class="btn" onclick="toggleHistoryOrder()" id="history-order-btn" style="font-size:12px; padding:6px 12px;">
+                                ${historyOrderDesc ? '🔽 최신순으로 보기' : '🔼 시간순으로 보기'}
+                            </button>
                         </div>
+                        <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px;">현재: ${historyOrderDesc ? '최신 기록부터' : '처음 기록부터'}</p>
                         <div id="match-history">
                             ${(() => {
                                 // 세트별로 그룹화
@@ -5804,54 +5814,58 @@
                                     setGroups[setNum].push(h);
                                 });
                                 
-                                // 세트 번호 정렬 (최신순이면 내림차순, 오래된순이면 오름차순)
-                                const sortedSets = Object.keys(setGroups).sort((a, b) => historyOrderDesc ? b - a : a - b);
+                                // 세트 번호 정렬
+                                const sortedSets = Object.keys(setGroups).sort((a, b) => {
+                                    return historyOrderDesc ? Number(b) - Number(a) : Number(a) - Number(b);
+                                });
                                 
                                 return sortedSets.map(setNum => {
-                                    // 각 세트 내 기록도 정렬
+                                    // history는 unshift로 추가되어 [최신, ..., 오래된] 순
+                                    // 시간순(오래된순)이면 reverse해서 [오래된, ..., 최신] 순으로
                                     let setHistory = [...setGroups[setNum]];
                                     if (!historyOrderDesc) {
-                                        setHistory = setHistory.reverse();
+                                        setHistory.reverse();
                                     }
-                                    setHistory = setHistory.slice(0, 20);
+                                    setHistory = setHistory.slice(0, 30);
                                     
                                     const setScore = currentMatch.setScores[setNum - 1];
-                                    return `
-                                        <div style="margin-bottom:16px;">
-                                            <h3 style="color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin-bottom:12px;">
-                                                세트 ${setNum} ${setScore ? '(' + setScore.player1 + ':' + setScore.player2 + ')' : ''}
-                                            </h3>
-                                            ${setHistory.map(h => {
-                                                let actionDesc = '';
-                                                let actionIcon = '';
-                                                let bgColor = 'var(--bg-secondary)';
-                                                
-                                                if (h.type.includes('골')) {
-                                                    actionIcon = '⚽';
-                                                    actionDesc = '<strong>' + h.player + '</strong> 골!';
-                                                    bgColor = '#e8f5e9';
-                                                } else {
-                                                    actionIcon = '🚫';
-                                                    const foulType = h.type.split(' ').slice(1).join(' ');
-                                                    const fouler = h.actionPlayer || h.type.split(' ')[0];
-                                                    actionDesc = '<span style="color:#d32f2f;">' + fouler + '</span> ' + foulType + ' → <strong>' + h.player + '</strong> 득점';
-                                                    bgColor = '#fff3e0';
-                                                }
-                                                
-                                                return '<div style="padding:12px; margin:8px 0; background:' + bgColor + '; border-radius:6px; border-left:4px solid ' + (h.type.includes('골') ? '#4caf50' : '#ff9800') + ';">' +
-                                                    '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">' +
-                                                        '<span style="font-size:12px; color:var(--text-secondary);">🎾 ' + (h.server || '?') + ' 서브 ' + (h.serveNumber || '?') + '회차</span>' +
-                                                        '<span style="font-size:12px; color:var(--text-secondary);">' + h.time + '</span>' +
-                                                    '</div>' +
-                                                    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-                                                        '<span>' + actionIcon + ' ' + actionDesc + '</span>' +
-                                                        '<span style="font-weight:700; color:var(--primary);">+' + h.points + '점</span>' +
-                                                    '</div>' +
-                                                    (h.scoreAfter ? '<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--border);"><span style="font-size:13px; font-weight:600;">스코어: ' + h.scoreAfter.player1 + ' : ' + h.scoreAfter.player2 + '</span></div>' : '') +
-                                                '</div>';
-                                            }).join('')}
-                                        </div>
-                                    `;
+                                    return '<div style="margin-bottom:16px;">' +
+                                        '<h3 style="color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin-bottom:12px;">' +
+                                            '세트 ' + setNum + (setScore ? ' (' + setScore.player1 + ':' + setScore.player2 + ')' : '') +
+                                        '</h3>' +
+                                        setHistory.map(h => {
+                                            let actionDesc = '';
+                                            let actionIcon = '';
+                                            let bgColor = 'var(--bg-secondary)';
+                                            let borderColor = '#999';
+                                            
+                                            if (h.type && h.type.includes('골')) {
+                                                actionIcon = '⚽';
+                                                actionDesc = '<strong>' + h.player + '</strong> 골!';
+                                                bgColor = '#e8f5e9';
+                                                borderColor = '#4caf50';
+                                            } else {
+                                                actionIcon = '🚫';
+                                                const foulType = h.type ? h.type.split(' ').slice(1).join(' ') : '파울';
+                                                const fouler = h.actionPlayer || (h.type ? h.type.split(' ')[0] : '');
+                                                actionDesc = '<span style="color:#d32f2f;">' + fouler + '</span> ' + foulType + ' → <strong>' + h.player + '</strong> 득점';
+                                                bgColor = '#fff3e0';
+                                                borderColor = '#ff9800';
+                                            }
+                                            
+                                            return '<div style="padding:12px; margin:8px 0; background:' + bgColor + '; border-radius:6px; border-left:4px solid ' + borderColor + ';">' +
+                                                '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">' +
+                                                    '<span style="font-size:12px; color:var(--text-secondary);">🎾 ' + (h.server || '?') + ' 서브 ' + (h.serveNumber || '?') + '회차</span>' +
+                                                    '<span style="font-size:12px; color:var(--text-secondary);">' + (h.time || '') + '</span>' +
+                                                '</div>' +
+                                                '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                                                    '<span>' + actionIcon + ' ' + actionDesc + '</span>' +
+                                                    '<span style="font-weight:700; color:var(--primary);">+' + h.points + '점</span>' +
+                                                '</div>' +
+                                                (h.scoreAfter ? '<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--border);"><span style="font-size:13px; font-weight:600;">스코어: ' + h.scoreAfter.player1 + ' : ' + h.scoreAfter.player2 + '</span></div>' : '') +
+                                            '</div>';
+                                        }).join('') +
+                                    '</div>';
                                 }).join('');
                             })()}
                         </div>
@@ -5912,7 +5926,9 @@
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                             <h2 style="margin:0;">전체 경기 기록</h2>
-                            <button class="btn" onclick="toggleFinishedHistoryOrder()" id="finished-history-order-btn" style="font-size:12px; padding:6px 12px;">${finishedHistoryOrderDesc ? '최신순 ↓' : '오래된순 ↑'}</button>
+                            <button class="btn" onclick="toggleFinishedHistoryOrder()" id="finished-history-order-btn" style="font-size:12px; padding:6px 12px;">
+                                ${finishedHistoryOrderDesc ? '📅 최신순' : '📅 시간순'}
+                            </button>
                         </div>
                         <div id="finished-match-history">
                             ${(() => {
@@ -5926,52 +5942,53 @@
                                 
                                 // 정렬 순서 결정
                                 const setKeys = Object.keys(setGroups).sort((a, b) => 
-                                    finishedHistoryOrderDesc ? b - a : a - b
+                                    finishedHistoryOrderDesc ? Number(b) - Number(a) : Number(a) - Number(b)
                                 );
                                 
                                 return setKeys.map(setNum => {
-                                    let setHistory = setGroups[setNum];
-                                    // 오래된순이면 세트 내 기록도 역순으로 (시간순)
+                                    let setHistory = [...setGroups[setNum]];
+                                    // 시간순(오래된순)이면 reverse
                                     if (!finishedHistoryOrderDesc) {
-                                        setHistory = [...setHistory].reverse();
+                                        setHistory.reverse();
                                     }
                                     const setScore = currentMatch.setScores[setNum - 1];
-                                    return `
-                                        <div style="margin-bottom:16px;">
-                                            <h3 style="color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin-bottom:12px;">
-                                                세트 ${setNum} ${setScore ? '(' + setScore.player1 + ':' + setScore.player2 + ')' : ''}
-                                            </h3>
-                                            ${setHistory.map(h => {
-                                                let actionDesc = '';
-                                                let actionIcon = '';
-                                                let bgColor = 'var(--bg-secondary)';
-                                                
-                                                if (h.type.includes('골')) {
-                                                    actionIcon = '⚽';
-                                                    actionDesc = '<strong>' + h.player + '</strong> 골!';
-                                                    bgColor = '#e8f5e9';
-                                                } else {
-                                                    actionIcon = '🚫';
-                                                    const foulType = h.type.split(' ').slice(1).join(' ');
-                                                    const fouler = h.actionPlayer || h.type.split(' ')[0];
-                                                    actionDesc = '<span style="color:#d32f2f;">' + fouler + '</span> ' + foulType + ' → <strong>' + h.player + '</strong> 득점';
-                                                    bgColor = '#fff3e0';
-                                                }
-                                                
-                                                return '<div style="padding:12px; margin:8px 0; background:' + bgColor + '; border-radius:6px; border-left:4px solid ' + (h.type.includes('골') ? '#4caf50' : '#ff9800') + ';">' +
-                                                    '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">' +
-                                                        '<span style="font-size:12px; color:var(--text-secondary);">🎾 ' + (h.server || '?') + ' 서브 ' + (h.serveNumber || '?') + '회차</span>' +
-                                                        '<span style="font-size:12px; color:var(--text-secondary);">' + h.time + '</span>' +
-                                                    '</div>' +
-                                                    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-                                                        '<span>' + actionIcon + ' ' + actionDesc + '</span>' +
-                                                        '<span style="font-weight:700; color:var(--primary);">+' + h.points + '점</span>' +
-                                                    '</div>' +
-                                                    (h.scoreAfter ? '<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--border);"><span style="font-size:13px; font-weight:600;">스코어: ' + h.scoreAfter.player1 + ' : ' + h.scoreAfter.player2 + '</span></div>' : '') +
-                                                '</div>';
-                                            }).join('')}
-                                        </div>
-                                    `;
+                                    return '<div style="margin-bottom:16px;">' +
+                                        '<h3 style="color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin-bottom:12px;">' +
+                                            '세트 ' + setNum + (setScore ? ' (' + setScore.player1 + ':' + setScore.player2 + ')' : '') +
+                                        '</h3>' +
+                                        setHistory.map(h => {
+                                            let actionDesc = '';
+                                            let actionIcon = '';
+                                            let bgColor = 'var(--bg-secondary)';
+                                            let borderColor = '#999';
+                                            
+                                            if (h.type && h.type.includes('골')) {
+                                                actionIcon = '⚽';
+                                                actionDesc = '<strong>' + h.player + '</strong> 골!';
+                                                bgColor = '#e8f5e9';
+                                                borderColor = '#4caf50';
+                                            } else {
+                                                actionIcon = '🚫';
+                                                const foulType = h.type ? h.type.split(' ').slice(1).join(' ') : '파울';
+                                                const fouler = h.actionPlayer || (h.type ? h.type.split(' ')[0] : '');
+                                                actionDesc = '<span style="color:#d32f2f;">' + fouler + '</span> ' + foulType + ' → <strong>' + h.player + '</strong> 득점';
+                                                bgColor = '#fff3e0';
+                                                borderColor = '#ff9800';
+                                            }
+                                            
+                                            return '<div style="padding:12px; margin:8px 0; background:' + bgColor + '; border-radius:6px; border-left:4px solid ' + borderColor + ';">' +
+                                                '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">' +
+                                                    '<span style="font-size:12px; color:var(--text-secondary);">🎾 ' + (h.server || '?') + ' 서브 ' + (h.serveNumber || '?') + '회차</span>' +
+                                                    '<span style="font-size:12px; color:var(--text-secondary);">' + (h.time || '') + '</span>' +
+                                                '</div>' +
+                                                '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                                                    '<span>' + actionIcon + ' ' + actionDesc + '</span>' +
+                                                    '<span style="font-weight:700; color:var(--primary);">+' + h.points + '점</span>' +
+                                                '</div>' +
+                                                (h.scoreAfter ? '<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--border);"><span style="font-size:13px; font-weight:600;">스코어: ' + h.scoreAfter.player1 + ' : ' + h.scoreAfter.player2 + '</span></div>' : '') +
+                                            '</div>';
+                                        }).join('') +
+                                    '</div>';
                                 }).join('');
                             })()}
                         </div>
@@ -11170,9 +11187,47 @@
         // 공장 초기화
         function factoryReset() {
             if (prompt('모든 데이터를 삭제하고 초기 상태로 되돌리시겠습니까?\n\n이 작업은 되돌릴 수 없습니다!\n\n확인하려면 "공장초기화"를 입력하세요:') === '공장초기화') {
+                // Firebase 리스너 해제 먼저
+                if (database) {
+                    try {
+                        database.ref('liveMatches').off();
+                        database.ref('projects').off();
+                        database.ref('operators').off();
+                        if (userId) {
+                            database.ref('userPreferences/' + userId).off();
+                            database.ref('practiceMatches/' + userId).off();
+                        }
+                        console.log('✅ Firebase 리스너 해제 완료');
+                    } catch (error) {
+                        console.warn('리스너 해제 오류:', error);
+                    }
+                }
+                
+                // 로컬 스토리지 삭제
                 localStorage.clear();
                 sessionStorage.clear();
                 projects = [];
+                currentProject = null;
+                currentMatch = null;
+                
+                // Firebase 데이터 삭제
+                if (database) {
+                    try {
+                        // 실시간 경기 데이터 삭제
+                        database.ref('liveMatches').remove();
+                        // 프로젝트 데이터 삭제
+                        database.ref('projects').remove();
+                        // 사용자 연습 경기 기록 삭제
+                        if (userId) {
+                            database.ref('practiceMatches/' + userId).remove();
+                            database.ref('userPreferences/' + userId).remove();
+                        }
+                        console.log('✅ Firebase 데이터 삭제 완료');
+                    } catch (error) {
+                        console.warn('Firebase 삭제 오류:', error);
+                    }
+                }
+                
                 alert('공장 초기화 완료!\n앱이 재시작됩니다.');
                 location.reload();
             }
@@ -12898,13 +12953,18 @@
         }
 
         // 경기 기록 순서 토글
-        let historyOrderDesc = false; // false: 오래된순 (기본), true: 최신순
-        let finishedHistoryOrderDesc = false; // false: 오래된순 (기본), true: 최신순
+        let historyOrderDesc = false; // false: 시간순(오래된순), true: 최신순
+        let finishedHistoryOrderDesc = false; // false: 시간순(오래된순), true: 최신순
 
         function toggleHistoryOrder() {
             historyOrderDesc = !historyOrderDesc;
-            // 전체 화면 다시 렌더링하여 정렬 적용
-            renderMatch();
+            console.log('🔄 정렬 변경:', historyOrderDesc ? '최신순' : '시간순(오래된순)');
+            // 경기 화면 다시 렌더링
+            if (screen === 'match') {
+                renderMatch();
+            } else {
+                render();
+            }
         }
         
         // 실시간 연습 경기 완료 목록 정렬 토글
@@ -13053,33 +13113,41 @@
             const player2 = document.getElementById('practice-player2').value.trim() || '선수 B';
             const shareEnabled = document.getElementById('practice-share')?.checked ?? true;
             
-            // 연습용 프로젝트 생성 (Firebase 동기화됨)
+            // 고유 ID 생성 (충분히 고유하게)
+            const now = Date.now();
+            const random = Math.floor(Math.random() * 100000);
+            const matchId = now * 1000 + random;
+            const projectId = matchId - 1;
+            
+            console.log('🆕 새 경기 ID:', matchId);
+            
+            // 연습용 프로젝트 생성
             const practiceProject = {
-                id: Date.now(),
+                id: projectId,
                 name: '연습 경기',
                 date: new Date().toISOString().split('T')[0],
                 location: '연습',
                 competitionType: type === 'team' ? 'team' : 'individual',
                 matches: [],
                 isPractice: true,
-                isShared: shareEnabled // 실시간 공유 여부
+                isShared: shareEnabled
             };
             
-            // 연습 경기 생성
+            // 연습 경기 생성 - 스코어 0:0 명시적 초기화
             const practiceMatch = {
-                id: Date.now() + 1,
-                type: type, // 개인전/팀전 구분 - 서브 횟수에 영향
+                id: matchId,
+                type: type,
                 player1Name: player1,
                 player2Name: player2,
                 mainReferee: '연습',
-                refereePin: null, // PIN 없음
+                refereePin: null,
                 sets: sets,
                 winScore: type === 'team' ? 31 : 11,
                 currentSet: 1,
-                setScores: [{ player1: 0, player2: 0 }], // 첫 세트만 생성
-                currentServe: 'player1',
+                setScores: [{ player1: 0, player2: 0 }],
+                currentServe: null,
                 serveCount: 0,
-                serveSelected: false, // 서브 미선택 상태
+                serveSelected: false,
                 timeouts: { player1: 1, player2: 1 },
                 history: [],
                 warmupUsed: false,
@@ -13090,27 +13158,43 @@
             };
             
             practiceProject.matches.push(practiceMatch);
-            
-            // 프로젝트 저장 (Firebase 동기화)
             projects.push(practiceProject);
+            
+            // 현재 프로젝트/경기 설정 먼저 (Firebase 동기화 전에)
+            currentProject = practiceProject;
+            currentMatch = practiceMatch;
+            isAuthenticated = true;
+            screen = 'match';
+            
+            // 로컬 저장
             saveProjects();
             
-            // 실시간 공유 활성화 시 Firebase에 별도 저장
+            // Firebase에 새 경기 저장 (shareEnabled일 때만)
             if (shareEnabled && database) {
-                database.ref('liveMatches/' + practiceMatch.id).set({
-                    ...practiceMatch,
+                database.ref('liveMatches/' + matchId).set({
+                    id: matchId,
+                    player1Name: player1,
+                    player2Name: player2,
+                    setScores: [{ player1: 0, player2: 0 }],
+                    currentSet: 1,
+                    currentServe: null,
+                    serveCount: 0,
+                    serveSelected: false,
+                    history: [],
+                    status: 'in-progress',
+                    type: type,
+                    sets: sets,
+                    winScore: type === 'team' ? 31 : 11,
+                    isShared: true,
                     projectName: practiceProject.name,
                     updatedAt: new Date().toISOString()
                 });
             }
             
-            // 현재 프로젝트/경기 설정
-            currentProject = practiceProject;
-            currentMatch = practiceMatch;
-            isAuthenticated = true; // 연습 모드는 항상 인증됨
+            console.log('🎮 연습 경기 시작:', player1, 'vs', player2);
+            console.log('📊 초기 스코어:', currentMatch.setScores[0].player1, '-', currentMatch.setScores[0].player2);
+            console.log('🎾 서브 선택:', currentMatch.serveSelected ? currentMatch.currentServe : '미선택');
             
-            // 경기 화면으로 이동
-            screen = 'match';
             announce('연습 경기가 시작되었습니다. ' + player1 + ' 대 ' + player2 + '. ' + sets + '세트');
             render();
         }
