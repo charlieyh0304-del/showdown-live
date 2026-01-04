@@ -2487,10 +2487,117 @@
                 const pending = total - completed - inProgress;
                 const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
                 
-                const typeLabel = p.tournamentType === 'group-knockout' ? '조별 리그 + 토너먼트' : 
-                                 p.tournamentType === 'knockout-only' ? '토너먼트' : 
+                const typeLabel = p.tournamentType === 'group-knockout' ? '조별 리그 + 토너먼트' :
+                                 p.tournamentType === 'knockout-only' ? '토너먼트' :
                                  p.tournamentType === 'group-only' ? '조별 리그' : '리그전';
-                
+
+                // ========== 진행 가이드 계산 ==========
+                const hasParticipants = isTeam ? (p.teams?.length > 0) : (p.players?.length > 0);
+                const hasGroups = p.groups?.length > 0;
+                const hasMatches = total > 0;
+                const hasReferees = p.referees?.length > 0;
+                const hasCourts = p.courts?.length > 0;
+                const hasSchedule = p.matches?.some(m => m.scheduledDate && m.scheduledTime) || false;
+                const groupMatches = p.matches?.filter(m => !m.bracketRound && !m.isLoserBracket) || [];
+                const groupCompleted = groupMatches.filter(m => m.status === 'completed').length;
+                const groupTotal = groupMatches.length;
+                const isGroupDone = groupTotal > 0 && groupCompleted === groupTotal;
+                const knockoutMatches = p.matches?.filter(m => m.bracketRound) || [];
+                const hasKnockout = knockoutMatches.length > 0;
+                const knockoutCompleted = knockoutMatches.filter(m => m.status === 'completed').length;
+                const isKnockoutDone = hasKnockout && knockoutCompleted === knockoutMatches.length;
+                const isTournamentComplete = (p.tournamentType === 'group-only' && isGroupDone) ||
+                                            (p.tournamentType === 'knockout-only' && isKnockoutDone) ||
+                                            (p.tournamentType === 'group-knockout' && isKnockoutDone);
+
+                // 현재 단계 및 다음 할 일 결정
+                let currentStep = 1;
+                let nextAction = { text: '', action: '', style: '' };
+
+                if (!hasParticipants || !hasMatches) {
+                    currentStep = 1;
+                    nextAction = { text: '⚠️ 대진표가 생성되지 않았습니다', action: '', style: 'background:#ffebee; border-left:4px solid #f44336;' };
+                } else if (!hasReferees || !hasCourts) {
+                    currentStep = 2;
+                    nextAction = {
+                        text: !hasReferees ? '👨‍⚖️ 심판을 등록하세요' : '🏟️ 경기장을 등록하세요',
+                        action: !hasReferees ? 'tournament-referee-manage' : 'tournament-court-manage',
+                        style: 'background:#fff3e0; border-left:4px solid #ff9800;'
+                    };
+                } else if (!hasSchedule) {
+                    currentStep = 3;
+                    nextAction = {
+                        text: '📅 경기 스케줄을 배정하세요',
+                        action: 'edit-matches',
+                        style: 'background:#e3f2fd; border-left:4px solid #2196f3;'
+                    };
+                } else if (p.tournamentType === 'group-knockout' && !isGroupDone) {
+                    currentStep = 4;
+                    nextAction = {
+                        text: `⚔️ 조별 예선 진행 중 (${groupCompleted}/${groupTotal})`,
+                        action: 'bracket-detail',
+                        style: 'background:#e8f5e9; border-left:4px solid #4caf50;'
+                    };
+                } else if (p.tournamentType === 'group-knockout' && isGroupDone && !hasKnockout) {
+                    currentStep = 5;
+                    nextAction = {
+                        text: '🏆 본선 대진표를 생성하세요!',
+                        action: 'bracket-detail',
+                        style: 'background:#fff3e0; border-left:4px solid #ff9800;'
+                    };
+                } else if (hasKnockout && !isKnockoutDone) {
+                    currentStep = 6;
+                    nextAction = {
+                        text: `🏆 본선 진행 중 (${knockoutCompleted}/${knockoutMatches.length})`,
+                        action: 'bracket-detail',
+                        style: 'background:#fce4ec; border-left:4px solid #e91e63;'
+                    };
+                } else if (isTournamentComplete) {
+                    currentStep = 7;
+                    nextAction = {
+                        text: '🎉 대회 완료! 결과를 확인하세요',
+                        action: 'standings',
+                        style: 'background:#e8f5e9; border-left:4px solid #4caf50;'
+                    };
+                } else {
+                    currentStep = 4;
+                    nextAction = {
+                        text: `⚔️ 경기 진행 중 (${completed}/${total})`,
+                        action: 'bracket-detail',
+                        style: 'background:#e8f5e9; border-left:4px solid #4caf50;'
+                    };
+                }
+
+                // 진행 가이드 HTML
+                const stepsHTML = (() => {
+                    const steps = [
+                        { num: 1, label: '대회생성', done: hasMatches },
+                        { num: 2, label: '심판/경기장', done: hasReferees && hasCourts },
+                        { num: 3, label: '스케줄', done: hasSchedule },
+                        { num: 4, label: p.tournamentType === 'knockout-only' ? '본선' : '예선', done: p.tournamentType === 'knockout-only' ? isKnockoutDone : isGroupDone },
+                    ];
+                    if (p.tournamentType === 'group-knockout') {
+                        steps.push({ num: 5, label: '본선생성', done: hasKnockout });
+                        steps.push({ num: 6, label: '본선진행', done: isKnockoutDone });
+                    }
+                    steps.push({ num: steps.length + 1, label: '완료', done: isTournamentComplete });
+
+                    return steps.map((s, i) => {
+                        const isCurrent = s.num === currentStep;
+                        const bg = s.done ? '#4caf50' : (isCurrent ? '#2196f3' : '#e0e0e0');
+                        const color = s.done || isCurrent ? 'white' : '#999';
+                        return `
+                            <div style="display:flex; flex-direction:column; align-items:center; flex:1; position:relative;">
+                                <div style="width:28px; height:28px; border-radius:50%; background:${bg}; color:${color}; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; z-index:1;">
+                                    ${s.done ? '✓' : s.num}
+                                </div>
+                                <div style="font-size:10px; color:${s.done ? '#4caf50' : (isCurrent ? '#2196f3' : '#999')}; margin-top:4px; text-align:center; white-space:nowrap;">${s.label}</div>
+                                ${i < steps.length - 1 ? `<div style="position:absolute; top:14px; left:calc(50% + 14px); width:calc(100% - 28px); height:2px; background:${s.done ? '#4caf50' : '#e0e0e0'};"></div>` : ''}
+                            </div>
+                        `;
+                    }).join('');
+                })();
+
                 // 조별 리그 상태
                 let groupStatus = '';
                 if (p.groups && p.groups.length > 0) {
@@ -2548,11 +2655,29 @@
                         <h1 style="color:white; margin:0;">${p.name}</h1>
                         <p style="color:rgba(255,255,255,0.9); margin:4px 0 0 0;">${p.date || ''} ${p.location ? '· ' + p.location : ''}</p>
                     </div>
-                    
+
                     <div class="card">
                         <button class="btn" onclick="goTo('project-list')" style="width:100%;">← 대회 목록</button>
                     </div>
-                    
+
+                    <!-- 진행 가이드 -->
+                    <div class="card" style="padding:20px;">
+                        <h3 style="margin:0 0 16px 0; font-size:14px; color:#666;">📋 진행 가이드</h3>
+                        <div style="display:flex; align-items:flex-start; margin-bottom:20px; overflow-x:auto; padding-bottom:8px;">
+                            ${stepsHTML}
+                        </div>
+                        ${nextAction.text ? `
+                            <div style="padding:16px; border-radius:8px; ${nextAction.style}">
+                                <div style="font-weight:600; margin-bottom:${nextAction.action ? '12px' : '0'};">${nextAction.text}</div>
+                                ${nextAction.action ? `
+                                    <button class="btn btn-primary" onclick="currentProject=projects.find(x=>x.id===${p.id});goTo('${nextAction.action}');" style="width:100%;">
+                                        지금 하러 가기 →
+                                    </button>
+                                ` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+
                     <!-- 대회 개요 -->
                     <div class="card">
                         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
