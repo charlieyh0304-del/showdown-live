@@ -3142,6 +3142,10 @@
             
             // 관리자용 전체 스케줄 타임라인
             else if (screen === 'schedule-overview') {
+                if (!currentProject) {
+                    goTo('project-list');
+                    return;
+                }
                 const allMatches = currentProject?.matches || [];
                 const scheduledMatches = allMatches.filter(m => m.scheduledDate && m.scheduledTime);
                 
@@ -5149,6 +5153,10 @@
                 `;
             }
             else if (screen === 'project-detail') {
+                if (!currentProject) {
+                    goTo('project-list');
+                    return;
+                }
                 const active = currentProject.matches ? currentProject.matches.filter(m => m.status === 'active') : [];
                 const finished = currentProject.matches ? currentProject.matches.filter(m => m.status === 'completed') : [];
                 const isReferee = (userRole === 'referee');
@@ -5310,6 +5318,10 @@
             }
             else if (screen === 'edit-matches') {
                 // ========== 대진 편집 - 심판/경기장 배정 ==========
+                if (!currentProject) {
+                    goTo('project-list');
+                    return;
+                }
                 const allMatches = currentProject.matches || [];
                 const referees = currentProject.referees || [];
                 const courts = currentProject.courts || [];
@@ -5348,18 +5360,34 @@
                             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
                                 <div>
                                     <label style="font-size:12px; color:#666;">날짜</label>
-                                    <input type="date" id="date-${idx}" value="${m.scheduledDate || ''}" 
+                                    <input type="text" id="date-${idx}" value="${m.scheduledDate || ''}"
+                                           placeholder="YYYY-MM-DD"
+                                           onfocus="this.type='date'" onblur="if(!this.value)this.type='text'"
                                            onchange="updateMatchSchedule(${idx}, 'date', this.value)"
                                            style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
                                 </div>
                                 <div>
                                     <label style="font-size:12px; color:#666;">시간</label>
-                                    <input type="time" id="time-${idx}" value="${m.scheduledTime || ''}" 
-                                           onchange="updateMatchSchedule(${idx}, 'time', this.value)"
-                                           style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                                    <select id="time-${idx}" onchange="updateMatchSchedule(${idx}, 'time', this.value)"
+                                            style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                                        <option value="">-- 선택 --</option>
+                                        ${(() => {
+                                            let options = '';
+                                            for (let h = 8; h <= 22; h++) {
+                                                for (let min = 0; min < 60; min += 15) {
+                                                    const hh = String(h).padStart(2, '0');
+                                                    const mm = String(min).padStart(2, '0');
+                                                    const timeVal = hh + ':' + mm;
+                                                    const selected = m.scheduledTime === timeVal ? 'selected' : '';
+                                                    options += '<option value="' + timeVal + '" ' + selected + '>' + hh + ':' + mm + '</option>';
+                                                }
+                                            }
+                                            return options;
+                                        })()}
+                                    </select>
                                 </div>
                                 <div>
-                                    <label style="font-size:12px; color:#666;">소요시간(분)</label>
+                                    <label style="font-size:12px; color:#666;">소요시간</label>
                                     <select id="duration-${idx}" onchange="updateMatchSchedule(${idx}, 'duration', this.value)"
                                             style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
                                         <option value="15" ${m.estimatedDuration === 15 ? 'selected' : ''}>15분</option>
