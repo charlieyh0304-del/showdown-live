@@ -5362,7 +5362,10 @@
                 const allMatches = currentProject.matches || [];
                 const referees = currentProject.referees || [];
                 const courts = currentProject.courts || [];
-                
+
+                // 뷰 모드 초기화
+                if (!window.scheduleViewMode) window.scheduleViewMode = 'list';
+
                 if (allMatches.length === 0) {
                     app.innerHTML = `
                         <div class="card">
@@ -5589,11 +5592,120 @@
                                 </button>
                             </div>
                         </div>
-                        
-                        <div style="max-height:500px; overflow-y:auto; margin-bottom:16px;">
-                            ${matchesEditHTML}
+
+                        <!-- 뷰 모드 전환 -->
+                        <div style="display:flex; gap:8px; margin-bottom:16px;">
+                            <button class="btn" onclick="window.scheduleViewMode='list';render();" style="flex:1; padding:12px; background:${window.scheduleViewMode==='list'?'#1976d2':'#e0e0e0'}; color:${window.scheduleViewMode==='list'?'white':'#333'}; font-weight:600;">
+                                📋 목록 뷰
+                            </button>
+                            <button class="btn" onclick="window.scheduleViewMode='timetable';render();" style="flex:1; padding:12px; background:${window.scheduleViewMode==='timetable'?'#1976d2':'#e0e0e0'}; color:${window.scheduleViewMode==='timetable'?'white':'#333'}; font-weight:600;">
+                                📅 타임테이블 뷰
+                            </button>
                         </div>
-                        
+
+                        ${window.scheduleViewMode === 'timetable' ? (() => {
+                            // 타임테이블 뷰
+                            if (courts.length === 0) {
+                                return `<div style="text-align:center; padding:40px; background:#fff3e0; border-radius:8px; margin-bottom:16px;">
+                                    <p style="color:#e65100; margin:0;">⚠️ 경기장을 먼저 등록해주세요</p>
+                                    <button class="btn" onclick="goTo('tournament-court-manage')" style="margin-top:12px;">경기장 등록하기</button>
+                                </div>`;
+                            }
+
+                            // 스케줄 날짜 선택
+                            const days = ['일', '월', '화', '수', '목', '금', '토'];
+                            const selectedDate = window.timetableDate || new Date().toISOString().split('T')[0];
+                            let dateOptions = '';
+                            for (let i = 0; i < 30; i++) {
+                                const d = new Date();
+                                d.setDate(d.getDate() + i);
+                                const dateVal = d.toISOString().split('T')[0];
+                                const label = (d.getMonth()+1) + '/' + d.getDate() + '(' + days[d.getDay()] + ')';
+                                dateOptions += '<option value="' + dateVal + '" ' + (selectedDate===dateVal?'selected':'') + '>' + label + '</option>';
+                            }
+
+                            // 시간 슬롯 생성 (30분 단위)
+                            const timeSlots = [];
+                            for (let h = 8; h <= 21; h++) {
+                                timeSlots.push(String(h).padStart(2,'0') + ':00');
+                                timeSlots.push(String(h).padStart(2,'0') + ':30');
+                            }
+
+                            // 배정된 경기 맵 생성
+                            const assignedMap = {};
+                            allMatches.forEach((m, idx) => {
+                                if (m.scheduledDate === selectedDate && m.scheduledTime && m.courtName) {
+                                    const key = m.scheduledTime + '_' + m.courtName;
+                                    assignedMap[key] = { match: m, idx };
+                                }
+                            });
+
+                            // 미배정 경기
+                            const unassigned = allMatches.filter(m => !m.scheduledDate || !m.scheduledTime || !m.courtName);
+
+                            // 테이블 헤더
+                            let tableHTML = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:13px;">';
+                            tableHTML += '<thead><tr><th style="border:1px solid #ddd; padding:8px; background:#f5f5f5; min-width:60px;">시간</th>';
+                            courts.forEach(c => {
+                                tableHTML += '<th style="border:1px solid #ddd; padding:8px; background:#e3f2fd; min-width:100px;">' + c.name + '</th>';
+                            });
+                            tableHTML += '</tr></thead><tbody>';
+
+                            // 테이블 본문
+                            timeSlots.forEach(time => {
+                                tableHTML += '<tr><td style="border:1px solid #ddd; padding:8px; background:#fafafa; font-weight:600; text-align:center;">' + time + '</td>';
+                                courts.forEach(c => {
+                                    const key = time + '_' + c.name;
+                                    const assigned = assignedMap[key];
+                                    if (assigned) {
+                                        const m = assigned.match;
+                                        tableHTML += '<td style="border:1px solid #ddd; padding:6px; background:#e8f5e9; cursor:pointer;" onclick="openTimetableMatch(' + assigned.idx + ')">';
+                                        tableHTML += '<div style="font-weight:600; font-size:12px; color:#2e7d32;">' + (m.player1Name||'?') + '</div>';
+                                        tableHTML += '<div style="font-size:11px; color:#666;">vs ' + (m.player2Name||'?') + '</div>';
+                                        tableHTML += '</td>';
+                                    } else {
+                                        tableHTML += '<td style="border:1px solid #ddd; padding:6px; background:#fff; cursor:pointer; text-align:center; color:#bbb;" onclick="openTimetableSlot(\'' + selectedDate + '\',\'' + time + '\',\'' + c.name + '\')">';
+                                        tableHTML += '<span style="font-size:18px;">+</span>';
+                                        tableHTML += '</td>';
+                                    }
+                                });
+                                tableHTML += '</tr>';
+                            });
+                            tableHTML += '</tbody></table></div>';
+
+                            // 미배정 경기 목록
+                            let unassignedHTML = '';
+                            if (unassigned.length > 0) {
+                                unassignedHTML = '<div style="margin-top:16px; padding:16px; background:#fff3e0; border-radius:8px; border-left:4px solid #ff9800;">';
+                                unassignedHTML += '<strong style="display:block; margin-bottom:12px;">⏳ 미배정 경기 (' + unassigned.length + ')</strong>';
+                                unassignedHTML += '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+                                unassigned.forEach((m, i) => {
+                                    const idx = allMatches.indexOf(m);
+                                    unassignedHTML += '<div onclick="selectMatchForTimetable(' + idx + ')" style="padding:8px 12px; background:white; border:2px solid ' + (window.selectedMatchIdx===idx?'#ff9800':'#ddd') + '; border-radius:6px; cursor:pointer; font-size:12px;">';
+                                    unassignedHTML += (m.player1Name||'?') + ' vs ' + (m.player2Name||'?');
+                                    unassignedHTML += '</div>';
+                                });
+                                unassignedHTML += '</div>';
+                                unassignedHTML += '<p style="font-size:12px; color:#666; margin:12px 0 0 0;">💡 경기를 선택한 후 타임테이블의 빈 칸을 클릭하면 배정됩니다</p>';
+                                unassignedHTML += '</div>';
+                            }
+
+                            return `
+                                <div style="margin-bottom:12px;">
+                                    <label style="font-size:13px; font-weight:600;">날짜 선택:</label>
+                                    <select onchange="window.timetableDate=this.value;render();" style="padding:8px 12px; border:1px solid #ddd; border-radius:6px; margin-left:8px;">
+                                        ${dateOptions}
+                                    </select>
+                                </div>
+                                ${tableHTML}
+                                ${unassignedHTML}
+                            `;
+                        })() : `
+                            <div style="max-height:500px; overflow-y:auto; margin-bottom:16px;">
+                                ${matchesEditHTML}
+                            </div>
+                        `}
+
                         <button class="btn btn-primary" onclick="goTo('project-detail')" style="width:100%;">✓ 편집 완료</button>
                     </div>
                 `;
@@ -14248,7 +14360,137 @@
             
             saveProjects();
         }
-        
+
+        // ========== 타임테이블 뷰 함수 ==========
+
+        // 미배정 경기 선택
+        function selectMatchForTimetable(idx) {
+            window.selectedMatchIdx = idx;
+            render();
+        }
+
+        // 빈 슬롯 클릭 시 경기 배정
+        function openTimetableSlot(date, time, court) {
+            const idx = window.selectedMatchIdx;
+            if (idx === undefined || idx === null) {
+                // 선택된 경기 없으면 경기 선택 모달 표시
+                showMatchSelectModal(date, time, court);
+                return;
+            }
+
+            if (!currentProject || !currentProject.matches[idx]) return;
+
+            const match = currentProject.matches[idx];
+            match.scheduledDate = date;
+            match.scheduledTime = time;
+            match.courtName = court;
+
+            saveProjects();
+            window.selectedMatchIdx = null;
+            announce(`경기 배정 완료: ${time} ${court}`);
+            render();
+        }
+
+        // 경기 선택 모달 표시
+        function showMatchSelectModal(date, time, court) {
+            const unassigned = currentProject.matches.filter(m => !m.scheduledDate || !m.scheduledTime || !m.courtName);
+            if (unassigned.length === 0) {
+                alert('배정할 경기가 없습니다.');
+                return;
+            }
+
+            let optionsHTML = unassigned.map((m, i) => {
+                const idx = currentProject.matches.indexOf(m);
+                return `<div onclick="assignMatchToSlot(${idx}, '${date}', '${time}', '${court}')"
+                    style="padding:12px; margin:6px 0; background:#f5f5f5; border-radius:8px; cursor:pointer; border:2px solid transparent;"
+                    onmouseover="this.style.borderColor='#1976d2'" onmouseout="this.style.borderColor='transparent'">
+                    <strong>${m.player1Name || '?'} vs ${m.player2Name || '?'}</strong>
+                    ${m.groupName ? '<span style="font-size:12px; color:#666; margin-left:8px;">[' + m.groupName + ']</span>' : ''}
+                </div>`;
+            }).join('');
+
+            const modal = document.createElement('div');
+            modal.id = 'match-select-modal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            modal.innerHTML = `
+                <div style="background:white;padding:24px;border-radius:12px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                    <h3 style="margin:0 0 8px 0;">경기 배정</h3>
+                    <p style="color:#666; font-size:13px; margin:0 0 16px 0;">${time} · ${court}</p>
+                    <div style="max-height:300px; overflow-y:auto;">
+                        ${optionsHTML}
+                    </div>
+                    <button onclick="document.getElementById('match-select-modal').remove();"
+                        style="width:100%; margin-top:16px; padding:12px; border:1px solid #ddd; border-radius:6px; background:white; cursor:pointer;">
+                        취소
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // 모달에서 경기 선택 후 배정
+        function assignMatchToSlot(idx, date, time, court) {
+            if (!currentProject || !currentProject.matches[idx]) return;
+
+            const match = currentProject.matches[idx];
+            match.scheduledDate = date;
+            match.scheduledTime = time;
+            match.courtName = court;
+
+            saveProjects();
+            document.getElementById('match-select-modal')?.remove();
+            announce(`경기 배정 완료: ${time} ${court}`);
+            render();
+        }
+
+        // 배정된 경기 클릭 시 수정/삭제 옵션
+        function openTimetableMatch(idx) {
+            if (!currentProject || !currentProject.matches[idx]) return;
+            const m = currentProject.matches[idx];
+
+            const modal = document.createElement('div');
+            modal.id = 'match-edit-modal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            modal.innerHTML = `
+                <div style="background:white;padding:24px;border-radius:12px;max-width:360px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                    <h3 style="margin:0 0 16px 0;">${m.player1Name} vs ${m.player2Name}</h3>
+                    <div style="background:#f5f5f5; padding:12px; border-radius:8px; margin-bottom:16px; font-size:13px;">
+                        <div>📅 ${m.scheduledDate || '미정'}</div>
+                        <div>🕐 ${m.scheduledTime || '미정'}</div>
+                        <div>🏟️ ${m.courtName || '미정'}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <button onclick="document.getElementById('match-edit-modal').remove(); window.scheduleViewMode='list'; render(); setTimeout(()=>document.getElementById('date-${idx}')?.scrollIntoView({behavior:'smooth'}), 100);"
+                            style="padding:12px; border:none; border-radius:6px; background:#2196f3; color:white; cursor:pointer; font-weight:600;">
+                            ✏️ 상세 편집
+                        </button>
+                        <button onclick="clearMatchSchedule(${idx})"
+                            style="padding:12px; border:none; border-radius:6px; background:#f44336; color:white; cursor:pointer;">
+                            🗑️ 배정 해제
+                        </button>
+                        <button onclick="document.getElementById('match-edit-modal').remove();"
+                            style="padding:12px; border:1px solid #ddd; border-radius:6px; background:white; cursor:pointer;">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // 경기 스케줄 배정 해제
+        function clearMatchSchedule(idx) {
+            if (!currentProject || !currentProject.matches[idx]) return;
+            const match = currentProject.matches[idx];
+            match.scheduledDate = null;
+            match.scheduledTime = null;
+            match.courtName = null;
+            saveProjects();
+            document.getElementById('match-edit-modal')?.remove();
+            announce('경기 배정이 해제되었습니다');
+            render();
+        }
+
         // 다음 경기에 연속 스케줄 배정
         function copyScheduleToNext(matchIdx) {
             if (!currentProject || !currentProject.matches[matchIdx]) return;
