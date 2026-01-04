@@ -8294,10 +8294,13 @@
         // 조별 순위 계산
         function calculateGroupStandings(group) {
             const playerStats = {};
-            
-            group.players.forEach(p => {
-                playerStats[p.name] = {
-                    name: p.name,
+
+            // group.players (객체 배열) 또는 group.members (문자열 배열) 지원
+            const participants = group.players || group.members || [];
+            participants.forEach(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                playerStats[name] = {
+                    name: name,
                     wins: 0,
                     losses: 0,
                     setWins: 0,
@@ -8306,10 +8309,12 @@
                     goalsAgainst: 0
                 };
             });
-            
-            // 완료된 경기에서 통계 수집
-            const matches = currentProject.matches?.filter(m => 
-                m.status === 'completed' && 
+
+            // 해당 조의 완료된 경기에서만 통계 수집 (groupIndex 또는 groupName 필터)
+            const groupIndex = currentProject.groups?.indexOf(group);
+            const matches = currentProject.matches?.filter(m =>
+                m.status === 'completed' &&
+                (m.groupIndex === groupIndex || m.groupName === group.name) &&
                 playerStats[m.player1Name] && playerStats[m.player2Name]
             ) || [];
             
@@ -8376,16 +8381,28 @@
                 });
             }
             
-            // 토너먼트 최종 순위
-            if (currentProject.bracket?.rounds) {
-                const lastRound = currentProject.bracket.rounds[currentProject.bracket.rounds.length - 1];
-                if (lastRound?.length === 1 && lastRound[0].status === 'completed') {
-                    result.final.push(lastRound[0].winner);
-                    // 준우승
-                    const loser = lastRound[0].player1.name === lastRound[0].winner.name ? 
-                        lastRound[0].player2 : lastRound[0].player1;
-                    result.final.push(loser);
-                }
+            // 토너먼트 최종 순위 (matches 배열에서 결승 찾기)
+            const knockoutMatches = currentProject.matches?.filter(m => m.bracketRound) || [];
+            const finalMatch = knockoutMatches.find(m =>
+                m.roundName === '결승' || m.bracketSize === 2
+            );
+            if (finalMatch?.status === 'completed' && finalMatch.winner) {
+                result.final.push(finalMatch.winner);
+                // 준우승
+                const loser = finalMatch.winner === finalMatch.player1Name
+                    ? finalMatch.player2Name
+                    : finalMatch.player1Name;
+                result.final.push(loser);
+            }
+
+            // 3/4위전 결과
+            const thirdPlaceMatch = knockoutMatches.find(m => m.isThirdPlace);
+            if (thirdPlaceMatch?.status === 'completed' && thirdPlaceMatch.winner) {
+                result.final.push(thirdPlaceMatch.winner); // 3위
+                const fourth = thirdPlaceMatch.winner === thirdPlaceMatch.player1Name
+                    ? thirdPlaceMatch.player2Name
+                    : thirdPlaceMatch.player1Name;
+                result.final.push(fourth); // 4위
             }
             
             return result;
@@ -11878,12 +11895,13 @@
                     }
                     
                     // 3. 나머지 선수들 스네이크 드래프트로 배정
+                    // 탑시드가 이미 각 조에 1명씩 있으므로, 2라운드부터 시작하는 것처럼 배정
                     remaining.forEach((p, idx) => {
-                        // 각 조에 이미 탑시드가 1명씩 있으므로 그 다음부터 배정
-                        const totalPlaced = topSeeds.filter(s => s).length;
-                        const adjustedIdx = idx;
-                        const round = Math.floor((adjustedIdx + groupCount) / groupCount);
-                        const groupIdx = round % 2 === 0 ? adjustedIdx % groupCount : groupCount - 1 - (adjustedIdx % groupCount);
+                        const round = Math.floor(idx / groupCount);
+                        // 스네이크 방식: 0라운드는 역순(탑시드 반대 조부터), 1라운드는 정순...
+                        const groupIdx = round % 2 === 0
+                            ? groupCount - 1 - (idx % groupCount)  // 역순: 마지막 조부터
+                            : idx % groupCount;                     // 정순: 첫 조부터
                         groups[groupIdx].push(p);
                     });
                     
@@ -13908,16 +13926,22 @@
                 // 해당 조 순위에서 선수 이름 찾기
                 const p1Standings = groupStandings[p1Group] || [];
                 const p2Standings = groupStandings[p2Group] || [];
-                
-                const player1 = p1Standings[p1Rank - 1]?.name || `${p1Group}${p1Rank}`;
-                const player2 = p2Standings[p2Rank - 1]?.name || `${p2Group}${p2Rank}`;
-                
-                console.log(`  ${roundName} 경기${idx + 1}: ${p1Group}${p1Rank}(${player1}) vs ${p2Group}${p2Rank}(${player2})`);
+
+                const player1Found = p1Standings[p1Rank - 1]?.name;
+                const player2Found = p2Standings[p2Rank - 1]?.name;
+                const player1 = player1Found || `TBD (${p1Group}${p1Rank})`;
+                const player2 = player2Found || `TBD (${p2Group}${p2Rank})`;
+                const hasTBD = !player1Found || !player2Found;
+
+                console.log(`  ${roundName} 경기${idx + 1}: ${p1Group}${p1Rank}(${player1}) vs ${p2Group}${p2Rank}(${player2})${hasTBD ? ' [TBD]' : ''}`);
                 
                 const knockoutMatch = {
                     id: Date.now() + idx * 100 + Math.floor(Math.random() * 100),
                     player1Name: player1,
                     player2Name: player2,
+                    player1Slot: `${p1Group}${p1Rank}`,
+                    player2Slot: `${p2Group}${p2Rank}`,
+                    hasTBD: hasTBD, // TBD 선수가 있으면 경기 시작 불가
                     type: isTeam ? 'team' : 'individual',
                     sets: sets,
                     winScore: winScore,
@@ -13928,10 +13952,10 @@
                     serveSelected: false,
                     timeouts: { player1: 1, player2: 1 },
                     history: [],
-                    status: 'pending',
-                    bracketRound: 1, // 1라운드
-                    bracketSize: finalsSize, // 본선 규모
-                    roundName: roundName, // 32강, 16강, 8강 등
+                    status: hasTBD ? 'waiting' : 'pending', // TBD면 대기 상태
+                    bracketRound: 1,
+                    bracketSize: finalsSize,
+                    roundName: roundName,
                     bracketMatchNum: idx + 1,
                     bracketSlot: `${p1Group}${p1Rank} vs ${p2Group}${p2Rank}`,
                     refereePin: generatePin()
@@ -13978,25 +14002,46 @@
             });
             
             console.log('🏆 기본 본선 대진표 생성:', advancers.length + '명 진출,', roundName);
-            
-            // 크로스 대진 생성 (A1 vs B2, A2 vs B1, C1 vs D2, C2 vs D1...)
+
+            // 시드 배정: 순위별로 정렬 후 크로스 시드 적용
+            // 1위들을 먼저, 2위들을 나중에 (같은 조끼리 바로 만나지 않도록)
+            const sortedAdvancers = advancers.sort((a, b) => {
+                if (a.rank !== b.rank) return a.rank - b.rank;
+                return a.group.localeCompare(b.group);
+            });
+
+            // 본선 규모에 맞게 조정 (2의 제곱수로 맞춤)
+            const targetSize = finalsSize;
+            while (sortedAdvancers.length < targetSize) {
+                sortedAdvancers.push({ name: 'BYE', group: 'BYE', rank: 99 });
+            }
+
+            // 표준 토너먼트 시드 배열 생성 (1 vs 8, 4 vs 5, 3 vs 6, 2 vs 7 순서)
+            function generateSeedOrder(n) {
+                if (n === 2) return [0, 1];
+                const half = generateSeedOrder(n / 2);
+                return half.flatMap((seed, i) => [seed, n - 1 - seed]);
+            }
+            const seedOrder = generateSeedOrder(targetSize);
+
+            // 시드 순서대로 매칭
             let matchNum = 0;
-            for (let i = 0; i < advancers.length; i += 4) {
-                // 4명씩 묶어서 크로스 대진
-                const a1 = advancers[i];     // A조 1위
-                const a2 = advancers[i + 1]; // A조 2위
-                const b1 = advancers[i + 2]; // B조 1위
-                const b2 = advancers[i + 3]; // B조 2위
-                
-                if (a1 && b2) {
+            for (let i = 0; i < targetSize; i += 2) {
+                const seed1 = seedOrder[i];
+                const seed2 = seedOrder[i + 1];
+                const player1 = sortedAdvancers[seed1];
+                const player2 = sortedAdvancers[seed2];
+
+                // BYE가 아닌 경우에만 경기 생성
+                if (player1 && player2 && player1.name !== 'BYE' && player2.name !== 'BYE') {
                     matchNum++;
-                    const match1 = createKnockoutMatch(a1.name, b2.name, matchNum, sets, winScore, isTeam, finalsSize, roundName);
-                    project.matches.push(match1);
-                }
-                if (a2 && b1) {
-                    matchNum++;
-                    const match2 = createKnockoutMatch(a2.name, b1.name, matchNum, sets, winScore, isTeam, finalsSize, roundName);
-                    project.matches.push(match2);
+                    const match = createKnockoutMatch(player1.name, player2.name, matchNum, sets, winScore, isTeam, finalsSize, roundName);
+                    project.matches.push(match);
+                } else if (player1 && player1.name !== 'BYE' && player2?.name === 'BYE') {
+                    // BYE 상대는 자동 진출 (다음 라운드에 추가)
+                    console.log(`${player1.name} 부전승`);
+                } else if (player2 && player2.name !== 'BYE' && player1?.name === 'BYE') {
+                    console.log(`${player2.name} 부전승`);
                 }
             }
             
