@@ -5408,22 +5408,6 @@
                                 ` : ''}
                             </div>
                             
-                            <!-- 자동 시뮬레이션 (가장 눈에 띄게) -->
-                            ${isReferee ? `
-                            <div style="margin-bottom:16px; padding:20px; background:linear-gradient(135deg, #9c27b0, #673ab7); border-radius:12px; color:white;">
-                                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-                                    <span style="font-size:32px;">🎮</span>
-                                    <div>
-                                        <h3 style="margin:0; font-size:18px;">자동 시뮬레이션</h3>
-                                        <p style="margin:4px 0 0; font-size:12px; opacity:0.9;">대진 설정 완료 후 대회를 자동으로 진행해 보세요</p>
-                                    </div>
-                                </div>
-                                <button class="btn" onclick="goTo('auto-tournament')" style="width:100%; padding:14px; background:white; color:#9c27b0; font-weight:700; font-size:15px; border-radius:8px;">
-                                    🚀 시뮬레이션 시작
-                                </button>
-                            </div>
-                            ` : ''}
-
                             <!-- 순위/통계 바로가기 -->
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; padding:16px; background:linear-gradient(135deg, #667eea11, #764ba211); border-radius:12px; border:1px solid #667eea33;">
                                 <button class="btn" onclick="goTo('standings')" style="padding:16px; background:white; border:2px solid #4caf50; border-radius:8px; font-weight:600;">
@@ -5469,6 +5453,25 @@
                     `;
                 }
                 
+                // 자동 시뮬레이션 카드 (항상 표시 - 심판 모드)
+                const simulationCardHTML = isReferee ? `
+                    <div class="card" style="background:linear-gradient(135deg, #9c27b0, #673ab7); color:white;">
+                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+                            <span style="font-size:48px;">🎮</span>
+                            <div>
+                                <h2 style="margin:0; color:white;">자동 시뮬레이션</h2>
+                                <p style="margin:8px 0 0; opacity:0.9;">참가자와 대진을 설정하면 대회를 자동으로 시뮬레이션합니다</p>
+                            </div>
+                        </div>
+                        <button class="btn" onclick="goTo('auto-tournament')" style="width:100%; padding:16px; background:white; color:#9c27b0; font-weight:700; font-size:16px; border-radius:8px;">
+                            🚀 시뮬레이션 시작하기
+                        </button>
+                        <p style="text-align:center; margin-top:12px; font-size:12px; opacity:0.8;">
+                            조별 리그 → 본선 토너먼트 → 최종 순위까지 자동 진행
+                        </p>
+                    </div>
+                ` : '';
+
                 app.innerHTML = `
                     <div class="card">
                         <button type="button" class="btn" onclick="goTo('project-list')" aria-label="프로젝트 목록으로 돌아가기" style="margin-bottom:16px;">← 프로젝트 목록</button>
@@ -5485,6 +5488,7 @@
                         </div>
                         ${currentProject.desc ? `<p style="margin-top:12px; color:var(--text-secondary)">${currentProject.desc}</p>` : ''}
                     </div>
+                    ${simulationCardHTML}
                     ${tournamentHTML}
                     <div class="card">
                         <h2>${titleHTML}</h2>
