@@ -3857,7 +3857,26 @@
                         </div>
                         <div class="form-group">
                             <label for="tw-date">날짜</label>
-                            <input type="date" id="tw-date" value="${tw.info.date || new Date().toISOString().split('T')[0]}" style="width:100%;" onchange="window.tournamentWizard.info.date=this.value;">
+                            <select id="tw-date" style="width:100%;" onchange="window.tournamentWizard.info.date=this.value;">
+                                ${(() => {
+                                    const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                    const currentVal = tw.info.date || new Date().toISOString().split('T')[0];
+                                    let options = '';
+                                    for (let i = 0; i < 60; i++) {
+                                        const d = new Date();
+                                        d.setDate(d.getDate() + i);
+                                        const yyyy = d.getFullYear();
+                                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                        const dd = String(d.getDate()).padStart(2, '0');
+                                        const dateVal = yyyy + '-' + mm + '-' + dd;
+                                        const dayName = days[d.getDay()];
+                                        const label = (d.getMonth() + 1) + '/' + d.getDate() + '(' + dayName + ')';
+                                        const selected = currentVal === dateVal ? 'selected' : '';
+                                        options += '<option value="' + dateVal + '" ' + selected + '>' + label + '</option>';
+                                    }
+                                    return options;
+                                })()}
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="tw-location">장소</label>
@@ -5035,7 +5054,25 @@
                         </div>
                         
                         <label for="project-date" style="margin-top:16px;">날짜 (선택사항)</label>
-                        <input type="text" id="project-date" placeholder="예: 2025-03-15 또는 3월 15일" style="text-align:left;" autocomplete="off" aria-label="대회 날짜 입력">
+                        <select id="project-date" style="width:100%;" aria-label="대회 날짜 선택">
+                            <option value="">-- 선택 안함 --</option>
+                            ${(() => {
+                                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                let options = '';
+                                for (let i = 0; i < 60; i++) {
+                                    const d = new Date();
+                                    d.setDate(d.getDate() + i);
+                                    const yyyy = d.getFullYear();
+                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(d.getDate()).padStart(2, '0');
+                                    const dateVal = yyyy + '-' + mm + '-' + dd;
+                                    const dayName = days[d.getDay()];
+                                    const label = (d.getMonth() + 1) + '/' + d.getDate() + '(' + dayName + ')';
+                                    options += '<option value="' + dateVal + '">' + label + '</option>';
+                                }
+                                return options;
+                            })()}
+                        </select>
                         <label for="project-location">장소 (선택사항)</label>
                         <input type="text" id="project-location" placeholder="예: 서울종합운동장" style="text-align:left;" autocomplete="off" aria-label="대회 장소 입력">
                         <label for="project-desc">설명 (선택사항)</label>
@@ -14247,31 +14284,92 @@
         // 전체 스케줄 자동 생성
         function generateAutoSchedule() {
             if (!currentProject || !currentProject.matches.length) return;
-            
-            const startDate = prompt('시작 날짜를 입력하세요 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-            if (!startDate) return;
-            
-            const startTime = prompt('시작 시간을 입력하세요 (HH:MM):', '09:00');
-            if (!startTime) return;
-            
-            const intervalMinutes = parseInt(prompt('경기 간격을 입력하세요 (분):', '45'));
-            if (isNaN(intervalMinutes)) return;
-            
-            let currentDateTime = new Date(`${startDate}T${startTime}`);
-            
-            currentProject.matches.forEach((match, idx) => {
-                match.scheduledDate = currentDateTime.toISOString().split('T')[0];
-                match.scheduledTime = currentDateTime.toTimeString().slice(0, 5);
-                match.estimatedDuration = intervalMinutes - 15; // 15분 여유시간
-                match.matchOrder = idx + 1;
-                
-                // 다음 경기 시간 계산
-                currentDateTime = new Date(currentDateTime.getTime() + (intervalMinutes * 60000));
-            });
-            
-            saveProjects();
-            announce(`전체 스케줄이 생성되었습니다 (${currentProject.matches.length}경기)`);
-            render();
+
+            // 날짜 옵션 생성
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            let dateOptions = '';
+            for (let i = 0; i < 60; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() + i);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const dateVal = yyyy + '-' + mm + '-' + dd;
+                const dayName = days[d.getDay()];
+                const label = (d.getMonth() + 1) + '/' + d.getDate() + '(' + dayName + ')';
+                const selected = i === 0 ? 'selected' : '';
+                dateOptions += `<option value="${dateVal}" ${selected}>${label}</option>`;
+            }
+
+            // 시간 옵션 생성
+            let timeOptions = '';
+            for (let h = 8; h <= 22; h++) {
+                for (let min = 0; min < 60; min += 30) {
+                    const hh = String(h).padStart(2, '0');
+                    const mm = String(min).padStart(2, '0');
+                    const timeVal = hh + ':' + mm;
+                    const selected = (h === 9 && min === 0) ? 'selected' : '';
+                    timeOptions += `<option value="${timeVal}" ${selected}>${hh}:${mm}</option>`;
+                }
+            }
+
+            // 모달 표시
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            modal.innerHTML = `
+                <div style="background:white;padding:24px;border-radius:12px;max-width:360px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                    <h3 style="margin:0 0 16px 0;">🚀 자동 스케줄 생성</h3>
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">시작 날짜</label>
+                        <select id="auto-sched-date" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                            ${dateOptions}
+                        </select>
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">시작 시간</label>
+                        <select id="auto-sched-time" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                            ${timeOptions}
+                        </select>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="font-size:13px;color:#666;display:block;margin-bottom:4px;">경기 간격</label>
+                        <select id="auto-sched-interval" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                            <option value="30">30분</option>
+                            <option value="45" selected>45분</option>
+                            <option value="60">60분</option>
+                            <option value="90">90분</option>
+                            <option value="120">2시간</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="auto-sched-cancel" style="flex:1;padding:12px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;">취소</button>
+                        <button id="auto-sched-confirm" style="flex:1;padding:12px;border:none;border-radius:6px;background:#2196f3;color:white;cursor:pointer;font-weight:600;">생성</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('auto-sched-cancel').onclick = () => modal.remove();
+            document.getElementById('auto-sched-confirm').onclick = () => {
+                const startDate = document.getElementById('auto-sched-date').value;
+                const startTime = document.getElementById('auto-sched-time').value;
+                const intervalMinutes = parseInt(document.getElementById('auto-sched-interval').value);
+
+                let currentDateTime = new Date(`${startDate}T${startTime}`);
+
+                currentProject.matches.forEach((match, idx) => {
+                    match.scheduledDate = currentDateTime.toISOString().split('T')[0];
+                    match.scheduledTime = currentDateTime.toTimeString().slice(0, 5);
+                    match.estimatedDuration = intervalMinutes - 15;
+                    match.matchOrder = idx + 1;
+                    currentDateTime = new Date(currentDateTime.getTime() + (intervalMinutes * 60000));
+                });
+
+                saveProjects();
+                announce(`전체 스케줄이 생성되었습니다 (${currentProject.matches.length}경기)`);
+                modal.remove();
+                render();
+            };
         }
         
         // ========== 스케줄 검색 함수들 ==========
