@@ -5408,6 +5408,18 @@
                                 ` : ''}
                             </div>
                             
+                            <!-- 순위/통계 바로가기 -->
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; padding:16px; background:linear-gradient(135deg, #667eea11, #764ba211); border-radius:12px; border:1px solid #667eea33;">
+                                <button class="btn" onclick="goTo('standings')" style="padding:16px; background:white; border:2px solid #4caf50; border-radius:8px; font-weight:600;">
+                                    <span style="display:block; font-size:24px; margin-bottom:4px;">🏆</span>
+                                    순위표
+                                </button>
+                                <button class="btn" onclick="goTo('statistics')" style="padding:16px; background:white; border:2px solid #2196f3; border-radius:8px; font-weight:600;">
+                                    <span style="display:block; font-size:24px; margin-bottom:4px;">📊</span>
+                                    통계
+                                </button>
+                            </div>
+
                             ${isReferee ? `
                                 <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
                                     ${isTeamCompetition ? `
@@ -5415,22 +5427,15 @@
                                     ` : `
                                         <button class="btn btn-primary" onclick="goTo('manage-players')">선수 관리</button>
                                     `}
-                                    ${(currentProject.tournamentType === 'group' || currentProject.tournamentType === 'group-tournament') ? 
+                                    ${(currentProject.tournamentType === 'group' || currentProject.tournamentType === 'group-tournament') ?
                                         '<button class="btn btn-primary" onclick="goTo(\'manage-groups\')">조 편성</button>' : ''}
-                                    ${(currentProject.tournamentType === 'tournament' || currentProject.tournamentType === 'group-tournament') ? 
+                                    ${(currentProject.tournamentType === 'tournament' || currentProject.tournamentType === 'group-tournament') ?
                                         '<button class="btn btn-primary" onclick="goTo(\'manage-bracket\')">🏅 대진표</button>' : ''}
-                                    <button class="btn" onclick="goTo('standings')">순위표</button>
-                                    <button class="btn" onclick="goTo('statistics')">📈 통계</button>
                                 </div>
                                 <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
                                     <button class="btn" onclick="goTo('auto-tournament')" style="background:#9c27b0; color:white;">자동 대회 진행</button>
                                 </div>
-                            ` : `
-                                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
-                                    <button class="btn" onclick="goTo('standings')">순위표</button>
-                                    <button class="btn" onclick="goTo('statistics')">📈 통계</button>
-                                </div>
-                            `}
+                            ` : ''}
                             
                             ${hasTournamentData || participantCount > 0 ? `
                                 <div style="margin-top:12px;">
@@ -6104,6 +6109,10 @@
                 `;
             }
             else if (screen === 'standings') {
+                if (!currentProject) {
+                    goTo('project-list');
+                    return;
+                }
                 const standings = calculateStandings();
                 const advanceCount = currentProject.groupSettings?.advanceCount || 2;
                 
@@ -6176,8 +6185,12 @@
                 `;
             }
             else if (screen === 'statistics') {
+                if (!currentProject) {
+                    goTo('project-list');
+                    return;
+                }
                 const stats = calculateStatistics();
-                
+
                 app.innerHTML = `
                     <div class="card">
                         <button class="btn" onclick="goTo('project-detail')" style="margin-bottom:16px;">← 돌아가기</button>
