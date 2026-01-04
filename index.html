@@ -5360,11 +5360,27 @@
                             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
                                 <div>
                                     <label style="font-size:12px; color:#666;">날짜</label>
-                                    <input type="text" id="date-${idx}" value="${m.scheduledDate || ''}"
-                                           placeholder="YYYY-MM-DD"
-                                           onfocus="this.type='date'" onblur="if(!this.value)this.type='text'"
-                                           onchange="updateMatchSchedule(${idx}, 'date', this.value)"
-                                           style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                                    <select id="date-${idx}" onchange="updateMatchSchedule(${idx}, 'date', this.value)"
+                                            style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                                        <option value="">-- 선택 --</option>
+                                        ${(() => {
+                                            const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                            let options = '';
+                                            for (let i = 0; i < 60; i++) {
+                                                const d = new Date();
+                                                d.setDate(d.getDate() + i);
+                                                const yyyy = d.getFullYear();
+                                                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                                const dd = String(d.getDate()).padStart(2, '0');
+                                                const dateVal = yyyy + '-' + mm + '-' + dd;
+                                                const dayName = days[d.getDay()];
+                                                const label = (d.getMonth() + 1) + '/' + d.getDate() + '(' + dayName + ')';
+                                                const selected = m.scheduledDate === dateVal ? 'selected' : '';
+                                                options += '<option value="' + dateVal + '" ' + selected + '>' + label + '</option>';
+                                            }
+                                            return options;
+                                        })()}
+                                    </select>
                                 </div>
                                 <div>
                                     <label style="font-size:12px; color:#666;">시간</label>
