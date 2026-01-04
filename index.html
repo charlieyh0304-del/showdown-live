@@ -6262,6 +6262,10 @@
             }
             // ========== 자동 대회 진행 화면 ==========
             else if (screen === 'auto-tournament') {
+                if (!currentProject) {
+                    goTo('project-list');
+                    return;
+                }
                 const isTeam = currentProject.competitionType === 'team';
                 const hasResult = currentProject.autoTournamentResult;
                 
@@ -6414,6 +6418,14 @@
                         </div>
                     </div>
                 `;
+
+                // 화면 로드 후 초기화
+                setTimeout(() => {
+                    // 참가자 모드 초기화
+                    autoParticipantMode = hasExistingParticipants ? 'existing' : 'random';
+                    // 조 편성 미리보기 초기화
+                    updateGroupPreview();
+                }, 0);
             }
             // ========== 대진 관리 화면 끝 ==========
             else if (screen === 'create-match') {
@@ -9088,22 +9100,54 @@
         }
         
         function runAutoTournament() {
-            const isTeam = currentProject.competitionType === 'team';
-            
-            // 기존 참가자 확인
-            const existingParticipants = isTeam 
-                ? (currentProject.teams?.map(t => t.name) || [])
-                : (currentProject.players || []);
-            const useExisting = autoParticipantMode === 'existing' && existingParticipants.length >= 2;
-            
-            const count = useExisting 
-                ? existingParticipants.length 
-                : parseInt(document.getElementById('auto-participant-count').value);
-            const groupCount = parseInt(document.getElementById('auto-group-count').value);
-            const advanceCount = parseInt(document.getElementById('auto-advance-count').value);
-            const thirdPlace = document.getElementById('auto-third-place').value === 'yes';
-            const fiveSetStart = !isTeam ? (document.getElementById('auto-5set-start')?.value || 'quarter') : null;
-            const rankingType = document.getElementById('auto-ranking-type').value;
+            try {
+                if (!currentProject) {
+                    alert('프로젝트가 선택되지 않았습니다.');
+                    return;
+                }
+
+                const isTeam = currentProject.competitionType === 'team';
+
+                // 기존 참가자 확인
+                const existingParticipants = isTeam
+                    ? (currentProject.teams?.map(t => t.name) || [])
+                    : (currentProject.players || []);
+                const useExisting = autoParticipantMode === 'existing' && existingParticipants.length >= 2;
+
+                const countEl = document.getElementById('auto-participant-count');
+                const groupCountEl = document.getElementById('auto-group-count');
+                const advanceCountEl = document.getElementById('auto-advance-count');
+                const thirdPlaceEl = document.getElementById('auto-third-place');
+                const rankingTypeEl = document.getElementById('auto-ranking-type');
+
+                const count = useExisting
+                    ? existingParticipants.length
+                    : parseInt(countEl?.value || 16);
+                const groupCount = parseInt(groupCountEl?.value || 4);
+                const advanceCount = parseInt(advanceCountEl?.value || 2);
+                const thirdPlace = thirdPlaceEl?.value === 'yes';
+                const fiveSetStart = !isTeam ? (document.getElementById('auto-5set-start')?.value || 'quarter') : null;
+                const rankingType = rankingTypeEl?.value || 'all-ranked';
+
+                // 유효성 검사
+                if (count < 2) {
+                    alert('참가자가 2명 이상 필요합니다.');
+                    return;
+                }
+                if (groupCount < 1) {
+                    alert('조가 1개 이상 필요합니다.');
+                    return;
+                }
+                if (advanceCount < 1) {
+                    alert('조별 진출자가 1명 이상 필요합니다.');
+                    return;
+                }
+                if (count < groupCount) {
+                    alert('참가자 수가 조 개수보다 적습니다.');
+                    return;
+                }
+
+                console.log('🚀 자동 대회 시작:', { count, groupCount, advanceCount, useExisting, isTeam });
             
             // 탑시드 수집 (랜덤 모드일 때만)
             const topSeeds = [];
@@ -9541,13 +9585,22 @@
             // 결과 저장
             currentProject.autoTournamentResult = result;
             saveProjects();
-            
+
             // 결과 표시
-            document.getElementById('auto-tournament-result').style.display = 'block';
-            document.getElementById('auto-tournament-result').innerHTML = renderAutoTournamentResult();
+            const resultEl = document.getElementById('auto-tournament-result');
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = renderAutoTournamentResult();
+            }
             announce('대회 진행 완료!');
+            console.log('✅ 자동 대회 완료:', result);
+
+            } catch (error) {
+                console.error('❌ 자동 대회 오류:', error);
+                alert('대회 진행 중 오류가 발생했습니다:\n' + error.message);
+            }
         }
-        
+
         function renderAutoTournamentResult() {
             const r = currentProject.autoTournamentResult;
             if (!r) return '';
