@@ -2360,6 +2360,20 @@
                         ${matchesHTML}
                     </div>
                     
+                    <!-- 자동 시뮬레이션 -->
+                    <div class="card" style="background:linear-gradient(135deg, #9c27b0, #673ab7); color:white;">
+                        <h3 style="margin:0 0 12px 0; color:white;">🎮 자동 시뮬레이션</h3>
+                        <p style="opacity:0.9; font-size:13px; margin-bottom:12px;">등록된 ${isTeam ? '팀' : '선수'}으로 대회를 시뮬레이션합니다</p>
+                        <button class="btn" onclick="runBracketSimulation()" style="width:100%; padding:14px; background:white; color:#9c27b0; font-weight:700; font-size:15px; border-radius:8px;">
+                            ⚡ 시뮬레이션 실행
+                        </button>
+                        ${p.autoTournamentResult ? `
+                            <button class="btn" onclick="goTo('auto-tournament-result')" style="width:100%; margin-top:8px; padding:10px; background:rgba(255,255,255,0.2); color:white; font-size:13px; border-radius:8px;">
+                                📊 이전 결과 보기
+                            </button>
+                        ` : ''}
+                    </div>
+
                     <!-- 대회 관리 메뉴 -->
                     <div class="card">
                         <h3 style="margin-bottom:12px;">대회 관리</h3>
@@ -2380,7 +2394,7 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     <div class="card">
                         <button class="btn btn-danger" onclick="deleteTournament()" style="width:100%;">대회 삭제</button>
                     </div>
@@ -2722,7 +2736,21 @@
                             </button>
                         ` : ''}
                     </div>
-                    
+
+                    <!-- 자동 시뮬레이션 -->
+                    <div class="card" style="background:linear-gradient(135deg, #9c27b0, #673ab7); color:white;">
+                        <h3 style="margin:0 0 8px 0; color:white;">🎮 자동 시뮬레이션</h3>
+                        <p style="opacity:0.9; font-size:13px; margin-bottom:12px;">등록된 ${isTeam ? '팀' : '선수'}으로 대회를 자동 시뮬레이션합니다</p>
+                        <button class="btn" onclick="currentProject=projects.find(x=>x.id===${p.id});runBracketSimulation();" style="width:100%; padding:14px; background:white; color:#9c27b0; font-weight:700; font-size:15px; border-radius:8px;">
+                            ⚡ 시뮬레이션 실행
+                        </button>
+                        ${p.autoTournamentResult ? `
+                            <button class="btn" onclick="currentProject=projects.find(x=>x.id===${p.id});goTo('auto-tournament-result');" style="width:100%; margin-top:8px; padding:10px; background:rgba(255,255,255,0.2); color:white; font-size:13px; border-radius:8px;">
+                                📊 이전 결과 보기
+                            </button>
+                        ` : ''}
+                    </div>
+
                     <!-- 관리 메뉴 -->
                     <div class="card">
                         <h3 style="margin:0 0 12px 0;">🔧 대회 관리</h3>
@@ -2765,7 +2793,7 @@
                     
                     <!-- 위험 영역 -->
                     <div class="card" style="border:1px solid #ffcdd2;">
-                        <button class="btn btn-danger" onclick="if(confirm('정말 이 대회를 삭제하시겠습니까?\\n\\n모든 경기 기록이 삭제됩니다.')){deleteTournament();goTo('project-list');}" style="width:100%;">
+                        <button class="btn btn-danger" onclick="deleteTournament()" style="width:100%;">
                             🗑️ 대회 삭제
                         </button>
                     </div>
@@ -5544,21 +5572,55 @@
                 }
                 
                 // 자동 시뮬레이션 카드 (항상 표시 - 심판 모드)
+                const hasParticipants = isTeamCompetition ?
+                    (currentProject.teams?.length >= 2) :
+                    (currentProject.players?.length >= 2);
+                const canRunSimulation = hasParticipants && currentProject.tournamentType && currentProject.tournamentType !== 'free';
+
                 const simulationCardHTML = isReferee ? `
                     <div class="card" style="background:linear-gradient(135deg, #9c27b0, #673ab7); color:white;">
                         <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
                             <span style="font-size:48px;">🎮</span>
                             <div>
                                 <h2 style="margin:0; color:white;">자동 시뮬레이션</h2>
-                                <p style="margin:8px 0 0; opacity:0.9;">참가자와 대진을 설정하면 대회를 자동으로 시뮬레이션합니다</p>
+                                <p style="margin:8px 0 0; opacity:0.9;">설정된 대회 정보로 시뮬레이션을 실행합니다</p>
                             </div>
                         </div>
-                        <button class="btn" onclick="goTo('auto-tournament')" style="width:100%; padding:16px; background:white; color:#9c27b0; font-weight:700; font-size:16px; border-radius:8px;">
-                            🚀 시뮬레이션 시작하기
+
+                        ${canRunSimulation ? `
+                            <div style="background:rgba(255,255,255,0.15); padding:12px; border-radius:8px; margin-bottom:16px;">
+                                <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
+                                    <span>📋 ${isTeamCompetition ? currentProject.teams.length + '팀' : currentProject.players.length + '명'}</span>
+                                    <span>🏆 ${
+                                        currentProject.tournamentType === 'group' ? '조별 리그' :
+                                        currentProject.tournamentType === 'tournament' ? '토너먼트' :
+                                        '조별+토너먼트'
+                                    }</span>
+                                    <span>🎯 ${isTeamCompetition ? '팀전' : '개인전'}</span>
+                                </div>
+                            </div>
+                            <button class="btn" onclick="runProjectSimulation()" style="width:100%; padding:16px; background:white; color:#9c27b0; font-weight:700; font-size:16px; border-radius:8px; margin-bottom:8px;">
+                                ⚡ 현재 설정으로 시뮬레이션 실행
+                            </button>
+                        ` : `
+                            <div style="background:rgba(255,255,255,0.15); padding:12px; border-radius:8px; margin-bottom:16px;">
+                                <p style="margin:0; font-size:13px;">⚠️ 시뮬레이션을 실행하려면:</p>
+                                <ul style="margin:8px 0 0; padding-left:20px; font-size:12px; opacity:0.9;">
+                                    ${!hasParticipants ? `<li>${isTeamCompetition ? '팀' : '선수'}을 2${isTeamCompetition ? '팀' : '명'} 이상 등록해주세요</li>` : ''}
+                                    ${!currentProject.tournamentType || currentProject.tournamentType === 'free' ? '<li>대회 유형을 설정해주세요 (조별리그/토너먼트)</li>' : ''}
+                                </ul>
+                            </div>
+                        `}
+
+                        <button class="btn" onclick="goTo('auto-tournament')" style="width:100%; padding:12px; background:rgba(255,255,255,0.2); color:white; font-weight:600; font-size:14px; border-radius:8px;">
+                            🎲 새 시뮬레이션 (다른 설정으로)
                         </button>
-                        <p style="text-align:center; margin-top:12px; font-size:12px; opacity:0.8;">
-                            조별 리그 → 본선 토너먼트 → 최종 순위까지 자동 진행
-                        </p>
+
+                        ${currentProject.autoTournamentResult ? `
+                            <button class="btn" onclick="viewProjectSimulationResult()" style="width:100%; padding:12px; margin-top:8px; background:rgba(76,175,80,0.3); color:white; font-weight:600; font-size:14px; border-radius:8px; border:1px solid rgba(76,175,80,0.5);">
+                                📊 이전 시뮬레이션 결과 보기
+                            </button>
+                        ` : ''}
                     </div>
                 ` : '';
 
@@ -7309,6 +7371,201 @@
         function viewSimulationResult(projectId) {
             currentProject = projects.find(p => p.id === projectId);
             goTo('simulation-detail');
+        }
+
+        // 현재 프로젝트 설정으로 시뮬레이션 실행
+        function runProjectSimulation() {
+            if (!currentProject) {
+                alert('프로젝트가 선택되지 않았습니다.');
+                return;
+            }
+
+            const isTeam = currentProject.competitionType === 'team';
+            const participants = isTeam ? currentProject.teams : currentProject.players;
+
+            if (!participants || participants.length < 2) {
+                alert(`${isTeam ? '팀' : '선수'}을 2${isTeam ? '팀' : '명'} 이상 등록해주세요.`);
+                return;
+            }
+
+            if (!currentProject.tournamentType || currentProject.tournamentType === 'free') {
+                alert('대회 유형을 설정해주세요 (조별리그/토너먼트).');
+                return;
+            }
+
+            // 대회 유형에 따라 형식 결정
+            let format;
+            switch (currentProject.tournamentType) {
+                case 'group':
+                    format = 'full-league';
+                    break;
+                case 'tournament':
+                    format = 'knockout-only';
+                    break;
+                case 'group-tournament':
+                default:
+                    format = 'group-knockout';
+                    break;
+            }
+
+            // 확인 메시지
+            const msg = `현재 설정으로 시뮬레이션을 실행합니다.\n\n` +
+                `• ${isTeam ? '팀' : '선수'}: ${participants.length}${isTeam ? '팀' : '명'}\n` +
+                `• 형식: ${format === 'full-league' ? '풀리그' : format === 'knockout-only' ? '토너먼트' : '조별+토너먼트'}\n\n` +
+                `계속하시겠습니까?`;
+
+            if (!confirm(msg)) return;
+
+            // 시뮬레이션 실행
+            try {
+                // 기존 참가자 사용 모드로 설정
+                autoParticipantMode = 'existing';
+
+                // 조 개수 및 진출자 수 계산
+                const participantCount = participants.length;
+                let groupCount;
+                if (participantCount <= 4) groupCount = 1;
+                else if (participantCount <= 8) groupCount = 2;
+                else if (participantCount <= 16) groupCount = 4;
+                else if (participantCount <= 32) groupCount = 4;
+                else if (participantCount <= 64) groupCount = 8;
+                else groupCount = 8;
+
+                // 전역 변수로 설정 (DOM 요소가 없을 때 사용)
+                window.projectSimulationSettings = {
+                    count: participantCount,
+                    groupCount: groupCount,
+                    advanceCount: 2,
+                    thirdPlace: true,
+                    fiveSetStart: 'quarter',
+                    rankingType: 'all-ranked'
+                };
+
+                // 시뮬레이션 실행
+                runAutoTournament(format);
+
+                // 설정 초기화
+                window.projectSimulationSettings = null;
+
+            } catch (error) {
+                console.error('시뮬레이션 실행 중 오류:', error);
+                alert('시뮬레이션 실행 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 현재 프로젝트의 시뮬레이션 결과 보기
+        function viewProjectSimulationResult() {
+            if (!currentProject || !currentProject.autoTournamentResult) {
+                alert('시뮬레이션 결과가 없습니다.');
+                return;
+            }
+            goTo('auto-tournament-result');
+        }
+
+        // bracket-detail 화면에서 시뮬레이션 실행
+        function runBracketSimulation() {
+            if (!currentProject) {
+                alert('프로젝트가 선택되지 않았습니다.');
+                return;
+            }
+
+            const p = currentProject;
+            const isTeam = p.competitionType === 'team';
+
+            // 참가자 목록 수집 (조 편성에서 또는 직접 등록된 선수/팀에서)
+            let participants = [];
+
+            if (p.groups && p.groups.length > 0) {
+                // 조 편성이 있으면 조에서 참가자 추출
+                p.groups.forEach(g => {
+                    g.members.forEach(m => {
+                        if (!participants.includes(m)) {
+                            participants.push(m);
+                        }
+                    });
+                });
+            } else if (isTeam && p.teams && p.teams.length > 0) {
+                participants = p.teams.map(t => t.name);
+            } else if (!isTeam && p.players && p.players.length > 0) {
+                participants = [...p.players];
+            }
+
+            if (participants.length < 2) {
+                alert(`시뮬레이션을 실행하려면 ${isTeam ? '팀' : '선수'}이 2${isTeam ? '팀' : '명'} 이상 필요합니다.\n\n조 편성을 하거나 ${isTeam ? '팀' : '선수'}을 등록해주세요.`);
+                return;
+            }
+
+            // 대회 유형에 따라 형식 결정
+            let format;
+            switch (p.tournamentType) {
+                case 'group-only':
+                    format = 'full-league';
+                    break;
+                case 'knockout-only':
+                    format = 'knockout-only';
+                    break;
+                case 'group-knockout':
+                default:
+                    format = 'group-knockout';
+                    break;
+            }
+
+            const formatNames = {
+                'group-knockout': '조별+토너먼트',
+                'full-league': '풀리그',
+                'knockout-only': '토너먼트'
+            };
+
+            // 확인 메시지
+            const msg = `시뮬레이션을 실행합니다.\n\n` +
+                `• ${isTeam ? '팀' : '선수'}: ${participants.length}${isTeam ? '팀' : '명'}\n` +
+                `• 형식: ${formatNames[format]}\n\n` +
+                `계속하시겠습니까?`;
+
+            if (!confirm(msg)) return;
+
+            try {
+                // 기존 참가자 사용 모드로 설정
+                autoParticipantMode = 'existing';
+
+                // 참가자를 프로젝트에 임시 저장 (runAutoTournament에서 사용)
+                if (isTeam) {
+                    if (!p.teams || p.teams.length === 0) {
+                        p.teams = participants.map(name => ({ name }));
+                    }
+                } else {
+                    if (!p.players || p.players.length === 0) {
+                        p.players = [...participants];
+                    }
+                }
+
+                // 조 개수 계산
+                let groupCount;
+                if (participants.length <= 4) groupCount = 1;
+                else if (participants.length <= 8) groupCount = 2;
+                else if (participants.length <= 16) groupCount = 4;
+                else if (participants.length <= 32) groupCount = 4;
+                else groupCount = 8;
+
+                // 전역 설정
+                window.projectSimulationSettings = {
+                    count: participants.length,
+                    groupCount: groupCount,
+                    advanceCount: 2,
+                    thirdPlace: true,
+                    fiveSetStart: 'quarter',
+                    rankingType: 'all-ranked'
+                };
+
+                // 시뮬레이션 실행
+                runAutoTournament(format);
+
+                window.projectSimulationSettings = null;
+
+            } catch (error) {
+                console.error('시뮬레이션 실행 중 오류:', error);
+                alert('시뮬레이션 실행 중 오류가 발생했습니다: ' + error.message);
+            }
         }
 
         // 프로젝트 검색
@@ -9395,6 +9652,9 @@
                     : (currentProject.players || []);
                 const useExisting = autoParticipantMode === 'existing' && existingParticipants.length >= 2;
 
+                // 프로젝트 설정에서 가져오기 (DOM 요소가 없을 때)
+                const projSettings = window.projectSimulationSettings;
+
                 const countEl = document.getElementById('auto-participant-count');
                 const groupCountEl = document.getElementById('auto-group-count');
                 const advanceCountEl = document.getElementById('auto-advance-count');
@@ -9403,12 +9663,12 @@
 
                 const count = useExisting
                     ? existingParticipants.length
-                    : parseInt(countEl?.value || 16);
-                const groupCount = parseInt(groupCountEl?.value || 4);
-                const advanceCount = parseInt(advanceCountEl?.value || 2);
-                const thirdPlace = thirdPlaceEl?.value === 'yes';
-                const fiveSetStart = !isTeam ? (document.getElementById('auto-5set-start')?.value || 'quarter') : null;
-                const rankingType = rankingTypeEl?.value || 'all-ranked';
+                    : parseInt(countEl?.value || projSettings?.count || 16);
+                const groupCount = parseInt(groupCountEl?.value || projSettings?.groupCount || 4);
+                const advanceCount = parseInt(advanceCountEl?.value || projSettings?.advanceCount || 2);
+                const thirdPlace = thirdPlaceEl ? (thirdPlaceEl.value === 'yes') : (projSettings?.thirdPlace ?? true);
+                const fiveSetStart = !isTeam ? (document.getElementById('auto-5set-start')?.value || projSettings?.fiveSetStart || 'quarter') : null;
+                const rankingType = rankingTypeEl?.value || projSettings?.rankingType || 'all-ranked';
 
                 // 유효성 검사
                 if (count < 2) {
@@ -15195,16 +15455,25 @@
         }
         
         function deleteTournament() {
-            if (!currentProject) return;
-            
+            if (!currentProject) {
+                alert('삭제할 대회가 선택되지 않았습니다.');
+                return;
+            }
+
             if (!confirm(`"${currentProject.name}" 대회를 삭제하시겠습니까?\n\n모든 경기 기록이 삭제됩니다.`)) return;
-            
-            const idx = projects.indexOf(currentProject);
+
+            // ID로 찾아서 삭제 (indexOf 대신 findIndex 사용)
+            const idx = projects.findIndex(p => p.id === currentProject.id);
             if (idx > -1) {
+                const deletedName = projects[idx].name;
                 projects.splice(idx, 1);
                 saveProjects();
                 currentProject = null;
-                announce('대회가 삭제되었습니다');
+                announce(`"${deletedName}" 대회가 삭제되었습니다`);
+                goTo('bracket-home');
+            } else {
+                alert('대회를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.');
+                currentProject = null;
                 goTo('bracket-home');
             }
         }
