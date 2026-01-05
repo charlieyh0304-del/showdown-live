@@ -7554,22 +7554,35 @@
             const p = currentProject;
             const isTeam = p.competitionType === 'team';
 
-            // 기존 대진표가 있는지 확인
-            const hasExistingMatches = p.matches && p.matches.length > 0;
-            const pendingMatches = hasExistingMatches ? p.matches.filter(m => m.status !== 'completed') : [];
+            // 기존 대진표가 있는지 확인 (project.matches 또는 groups[].matches)
+            let allMatches = [];
+            if (p.matches && p.matches.length > 0) {
+                allMatches = [...p.matches];
+            }
+            // groups 내의 matches도 확인
+            if (p.groups && p.groups.length > 0) {
+                p.groups.forEach(g => {
+                    if (g.matches && g.matches.length > 0) {
+                        allMatches = allMatches.concat(g.matches);
+                    }
+                });
+            }
+            const hasExistingMatches = allMatches.length > 0;
+            const pendingMatches = hasExistingMatches ? allMatches.filter(m => m.status !== 'completed') : [];
 
             // 참가자 목록 수집
             let participants = [];
 
             if (hasExistingMatches) {
                 // 기존 대진표에서 참가자 추출
-                p.matches.forEach(m => {
+                allMatches.forEach(m => {
                     if (m.player1 && !participants.includes(m.player1)) participants.push(m.player1);
                     if (m.player2 && !participants.includes(m.player2)) participants.push(m.player2);
                 });
             } else if (p.groups && p.groups.length > 0) {
-                // 조 편성이 있으면 조에서 참가자 추출
+                // 조 편성이 있으면 조에서 참가자 추출 (members 또는 players)
                 p.groups.forEach(g => {
+                    // members 배열 확인
                     if (g.members && Array.isArray(g.members)) {
                         g.members.forEach(m => {
                             if (!participants.includes(m)) {
@@ -7577,11 +7590,25 @@
                             }
                         });
                     }
+                    // players 배열 확인 (랜덤팀 리그 형식)
+                    if (g.players && Array.isArray(g.players)) {
+                        g.players.forEach(player => {
+                            const name = typeof player === 'string' ? player : player.name;
+                            if (name && !participants.includes(name)) {
+                                participants.push(name);
+                            }
+                        });
+                    }
                 });
-            } else if (isTeam && p.teams && p.teams.length > 0) {
-                participants = p.teams.map(t => t.name);
-            } else if (!isTeam && p.players && p.players.length > 0) {
-                participants = [...p.players];
+            }
+
+            // groups에서 못 찾으면 teams/players에서 추출
+            if (participants.length === 0) {
+                if (isTeam && p.teams && p.teams.length > 0) {
+                    participants = p.teams.map(t => t.name);
+                } else if (!isTeam && p.players && p.players.length > 0) {
+                    participants = [...p.players];
+                }
             }
 
             if (participants.length < 2) {
@@ -7700,8 +7727,21 @@
             let courtIndex = 0;
             let refereeIndex = 0;
 
+            // 모든 경기 수집 (project.matches + groups[].matches)
+            let allMatches = [];
+            if (p.matches && p.matches.length > 0) {
+                allMatches = [...p.matches];
+            }
+            if (p.groups && p.groups.length > 0) {
+                p.groups.forEach(g => {
+                    if (g.matches && g.matches.length > 0) {
+                        allMatches = allMatches.concat(g.matches);
+                    }
+                });
+            }
+
             // 미완료 경기 필터링
-            const pendingMatches = p.matches.filter(m => m.status !== 'completed');
+            const pendingMatches = allMatches.filter(m => m.status !== 'completed');
 
             // 각 경기 시뮬레이션
             pendingMatches.forEach((match, idx) => {
@@ -7825,8 +7865,21 @@
             const rankings = [];
             const playerStats = {};
 
+            // 모든 경기 수집 (project.matches + groups[].matches)
+            let allMatches = [];
+            if (p.matches && p.matches.length > 0) {
+                allMatches = [...p.matches];
+            }
+            if (p.groups && p.groups.length > 0) {
+                p.groups.forEach(g => {
+                    if (g.matches && g.matches.length > 0) {
+                        allMatches = allMatches.concat(g.matches);
+                    }
+                });
+            }
+
             // 모든 경기에서 통계 수집
-            p.matches.forEach(match => {
+            allMatches.forEach(match => {
                 if (match.status !== 'completed') return;
 
                 const p1 = match.player1;
