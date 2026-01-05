@@ -7718,8 +7718,9 @@
             const courts = p.courts && p.courts.length > 0 ? p.courts : ['1코트', '2코트', '3코트', '4코트'];
 
             // 심판 목록 (운영자 목록에서 가져오거나 기본값)
-            const referees = operators && operators.length > 0
-                ? operators.map(op => op.name)
+            const storedOperators = JSON.parse(localStorage.getItem('operators') || '[]');
+            const referees = storedOperators && storedOperators.length > 0
+                ? storedOperators.map(op => op.name)
                 : ['심판1', '심판2', '심판3'];
 
             // 시뮬레이션 결과 기록 초기화
