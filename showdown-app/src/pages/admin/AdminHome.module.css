@@ -1,0 +1,26 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+section {
+  margin-bottom: 16px;
+}
+
+.operatorInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.operatorIcon {
+  font-size: 32px;
+}
+
+.role {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 14px;
+}

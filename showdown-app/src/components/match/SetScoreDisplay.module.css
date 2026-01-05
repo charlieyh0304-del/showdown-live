@@ -1,0 +1,73 @@
+.container {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.title {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header,
+.row {
+  display: flex;
+  gap: 4px;
+}
+
+.playerCell {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: left;
+  min-width: 80px;
+}
+
+.setCell,
+.scoreCell {
+  width: 40px;
+  padding: 8px;
+  text-align: center;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+.setCell {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.setCell.current {
+  background: var(--primary);
+  color: white;
+}
+
+.scoreCell {
+  background: var(--bg-secondary);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.scoreCell.winner {
+  background: var(--success);
+  color: white;
+}
+
+.scoreCell.current {
+  border: 2px solid var(--primary);
+}
+
+.header .playerCell {
+  visibility: hidden;
+}
