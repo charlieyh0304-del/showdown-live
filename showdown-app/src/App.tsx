@@ -15,6 +15,7 @@ import { ProjectDetail } from '@/pages/admin/ProjectDetail'
 import { Match } from '@/pages/referee/Match'
 import { ManagePlayers } from '@/pages/tournament/ManagePlayers'
 import { ManageTeams } from '@/pages/tournament/ManageTeams'
+import { ManageGroups } from '@/pages/tournament/ManageGroups'
 
 // Placeholder component for routes not yet implemented
 function ComingSoon({ title }: { title: string }) {
@@ -116,7 +117,7 @@ function App() {
         <Route path="/tournament/wizard" element={<ComingSoon title="대회 마법사" />} />
         <Route path="/tournament/teams/:id" element={<ManageTeams />} />
         <Route path="/tournament/players/:id" element={<ManagePlayers />} />
-        <Route path="/tournament/groups/:id" element={<ComingSoon title="조 관리" />} />
+        <Route path="/tournament/groups/:id" element={<ManageGroups />} />
         <Route path="/tournament/bracket/:id" element={<ComingSoon title="브라켓 관리" />} />
         <Route path="/tournament/standings/:id" element={<ComingSoon title="순위표" />} />
         <Route path="/tournament/statistics/:id" element={<ComingSoon title="통계" />} />
