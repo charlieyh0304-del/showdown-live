@@ -6717,6 +6717,88 @@
             else if (screen === 'match') {
                 renderMatch();
             }
+            else if (screen === 'existing-simulation-result') {
+                renderExistingSimulationResult();
+            }
+        }
+
+        // 기존 대진표 시뮬레이션 결과 화면
+        function renderExistingSimulationResult() {
+            const app = document.getElementById('app');
+            const result = window.existingSimulationResult;
+
+            if (!result) {
+                app.innerHTML = `
+                    <div class="card">
+                        <h2>오류</h2>
+                        <p>시뮬레이션 결과를 불러올 수 없습니다.</p>
+                        <button type="button" class="btn btn-primary" onclick="goTo('bracket-detail')">돌아가기</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const { project, log, rankings } = result;
+            const isTeam = project.competitionType === 'team';
+
+            app.innerHTML = `
+                <div class="card">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                        <h2 style="margin:0;">시뮬레이션 완료</h2>
+                        <button type="button" class="btn" onclick="goTo('bracket-detail')">대회로 돌아가기</button>
+                    </div>
+
+                    <div style="background:#e8f5e9; padding:16px; border-radius:12px; margin-bottom:20px;">
+                        <div style="font-size:18px; font-weight:600; color:#2e7d32; margin-bottom:8px;">
+                            ${project.name}
+                        </div>
+                        <div style="color:#555;">
+                            총 ${log.length}경기 시뮬레이션 완료
+                        </div>
+                    </div>
+
+                    <h3 style="margin-bottom:12px;">최종 순위</h3>
+                    <div style="background:#f5f5f5; border-radius:12px; padding:16px; margin-bottom:20px;">
+                        ${rankings.slice(0, 10).map((r, i) => `
+                            <div style="display:flex; align-items:center; padding:10px 0; ${i > 0 ? 'border-top:1px solid #ddd;' : ''}">
+                                <div style="width:40px; font-size:20px; font-weight:700; color:${i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#666'};">
+                                    ${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : r.rank}
+                                </div>
+                                <div style="flex:1; font-weight:600;">${r.name}</div>
+                                <div style="color:#666; font-size:14px;">
+                                    ${r.wins}승 ${r.losses}패
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <h3 style="margin-bottom:12px;">경기 기록</h3>
+                    <div style="max-height:400px; overflow-y:auto;">
+                        ${log.map(m => `
+                            <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:12px; margin-bottom:8px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <span style="font-size:12px; color:#888;">${m.roundName || ''} #${m.matchNumber}</span>
+                                    <span style="font-size:12px; background:#e3f2fd; color:#1976d2; padding:2px 8px; border-radius:4px;">${m.court}</span>
+                                </div>
+                                <div style="font-weight:600; margin-bottom:4px;">
+                                    <span style="${m.winner === m.player1 ? 'color:#2e7d32;' : ''}">${m.player1}</span>
+                                    <span style="color:#888; margin:0 8px;">vs</span>
+                                    <span style="${m.winner === m.player2 ? 'color:#2e7d32;' : ''}">${m.player2}</span>
+                                </div>
+                                <div style="font-size:13px; color:#666;">
+                                    스코어: ${m.score} | 심판: ${m.referee}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div style="margin-top:20px; display:flex; gap:10px;">
+                        <button type="button" class="btn btn-primary" onclick="goTo('bracket-detail')" style="flex:1;">
+                            대회 상세 보기
+                        </button>
+                    </div>
+                </div>
+            `;
         }
 
         function renderMatch() {
@@ -7472,10 +7554,20 @@
             const p = currentProject;
             const isTeam = p.competitionType === 'team';
 
-            // 참가자 목록 수집 (조 편성에서 또는 직접 등록된 선수/팀에서)
+            // 기존 대진표가 있는지 확인
+            const hasExistingMatches = p.matches && p.matches.length > 0;
+            const pendingMatches = hasExistingMatches ? p.matches.filter(m => m.status !== 'completed') : [];
+
+            // 참가자 목록 수집
             let participants = [];
 
-            if (p.groups && p.groups.length > 0) {
+            if (hasExistingMatches) {
+                // 기존 대진표에서 참가자 추출
+                p.matches.forEach(m => {
+                    if (m.player1 && !participants.includes(m.player1)) participants.push(m.player1);
+                    if (m.player2 && !participants.includes(m.player2)) participants.push(m.player2);
+                });
+            } else if (p.groups && p.groups.length > 0) {
                 // 조 편성이 있으면 조에서 참가자 추출
                 p.groups.forEach(g => {
                     if (g.members && Array.isArray(g.members)) {
@@ -7494,6 +7586,26 @@
 
             if (participants.length < 2) {
                 alert(`시뮬레이션을 실행하려면 ${isTeam ? '팀' : '선수'}이 2${isTeam ? '팀' : '명'} 이상 필요합니다.\n\n조 편성을 하거나 ${isTeam ? '팀' : '선수'}을 등록해주세요.`);
+                return;
+            }
+
+            // 기존 대진표가 있고 미완료 경기가 있으면 기존 대진표 시뮬레이션
+            if (hasExistingMatches && pendingMatches.length > 0) {
+                const completedCount = p.matches.length - pendingMatches.length;
+                const msg = `기존 대진표로 시뮬레이션을 실행합니다.\n\n` +
+                    `• 전체 경기: ${p.matches.length}경기\n` +
+                    `• 완료된 경기: ${completedCount}경기\n` +
+                    `• 남은 경기: ${pendingMatches.length}경기\n\n` +
+                    `남은 경기들을 자동으로 진행합니다.\n계속하시겠습니까?`;
+
+                if (!confirm(msg)) return;
+
+                try {
+                    runExistingMatchesSimulation(p);
+                } catch (error) {
+                    console.error('시뮬레이션 실행 중 오류:', error);
+                    alert('시뮬레이션 실행 중 오류가 발생했습니다: ' + error.message);
+                }
                 return;
             }
 
@@ -7568,6 +7680,206 @@
                 console.error('시뮬레이션 실행 중 오류:', error);
                 alert('시뮬레이션 실행 중 오류가 발생했습니다: ' + error.message);
             }
+        }
+
+        // 기존 대진표 기반 시뮬레이션 실행
+        function runExistingMatchesSimulation(project) {
+            const p = project;
+            const isTeam = p.competitionType === 'team';
+
+            // 경기장 목록 (프로젝트에 설정된 것 또는 기본값)
+            const courts = p.courts && p.courts.length > 0 ? p.courts : ['1코트', '2코트', '3코트', '4코트'];
+
+            // 심판 목록 (운영자 목록에서 가져오거나 기본값)
+            const referees = operators && operators.length > 0
+                ? operators.map(op => op.name)
+                : ['심판1', '심판2', '심판3'];
+
+            // 시뮬레이션 결과 기록 초기화
+            const simulationLog = [];
+            let courtIndex = 0;
+            let refereeIndex = 0;
+
+            // 미완료 경기 필터링
+            const pendingMatches = p.matches.filter(m => m.status !== 'completed');
+
+            // 각 경기 시뮬레이션
+            pendingMatches.forEach((match, idx) => {
+                // 경기장 및 심판 배정
+                const court = courts[courtIndex % courts.length];
+                const referee = referees[refereeIndex % referees.length];
+                courtIndex++;
+                refereeIndex++;
+
+                // 경기 결과 시뮬레이션
+                const result = simulateMatchResult(match, isTeam);
+
+                // 경기 정보 업데이트
+                match.court = court;
+                match.referee = referee;
+                match.status = 'completed';
+                match.winner = result.winner;
+                match.loser = result.loser;
+                match.sets = result.sets;
+                match.completedAt = new Date().toISOString();
+
+                // 로그 기록
+                simulationLog.push({
+                    matchNumber: idx + 1,
+                    player1: match.player1,
+                    player2: match.player2,
+                    court: court,
+                    referee: referee,
+                    winner: result.winner,
+                    score: result.sets.map(s => `${s.score1}-${s.score2}`).join(', '),
+                    roundName: match.roundName || match.groupName || ''
+                });
+
+                // 토너먼트 다음 라운드 업데이트
+                if (match.nextMatchId) {
+                    const nextMatch = p.matches.find(m => m.id === match.nextMatchId);
+                    if (nextMatch) {
+                        if (match.nextMatchSlot === 1) {
+                            nextMatch.player1 = result.winner;
+                        } else {
+                            nextMatch.player2 = result.winner;
+                        }
+                    }
+                }
+
+                // 패자전 다음 경기 업데이트
+                if (match.loserNextMatchId) {
+                    const loserNextMatch = p.matches.find(m => m.id === match.loserNextMatchId);
+                    if (loserNextMatch) {
+                        if (match.loserNextMatchSlot === 1) {
+                            loserNextMatch.player1 = result.loser;
+                        } else {
+                            loserNextMatch.player2 = result.loser;
+                        }
+                    }
+                }
+            });
+
+            // 순위 계산
+            const rankings = calculateSimulationRankings(p);
+            p.rankings = rankings;
+            p.simulationLog = simulationLog;
+            p.simulationCompletedAt = new Date().toISOString();
+
+            // 프로젝트 저장
+            saveProjects();
+
+            // 결과 화면으로 이동
+            window.existingSimulationResult = {
+                project: p,
+                log: simulationLog,
+                rankings: rankings
+            };
+            goTo('existing-simulation-result');
+        }
+
+        // 경기 결과 시뮬레이션
+        function simulateMatchResult(match, isTeam) {
+            const player1 = match.player1;
+            const player2 = match.player2;
+
+            // 5세트 매치 여부 확인
+            const isFiveSet = match.isFiveSet || match.roundName === '결승' || match.roundName === '4강';
+            const setsToWin = isFiveSet ? 3 : 2;
+            const maxSets = isFiveSet ? 5 : 3;
+
+            let player1Sets = 0;
+            let player2Sets = 0;
+            const sets = [];
+
+            while (player1Sets < setsToWin && player2Sets < setsToWin) {
+                // 랜덤하게 세트 결과 생성
+                const isPlayer1Win = Math.random() > 0.5;
+                const winnerScore = 11;
+                const loserScore = Math.floor(Math.random() * 10); // 0-9
+
+                if (isPlayer1Win) {
+                    player1Sets++;
+                    sets.push({ score1: winnerScore, score2: loserScore, winner: 1 });
+                } else {
+                    player2Sets++;
+                    sets.push({ score1: loserScore, score2: winnerScore, winner: 2 });
+                }
+            }
+
+            const winner = player1Sets > player2Sets ? player1 : player2;
+            const loser = player1Sets > player2Sets ? player2 : player1;
+
+            return {
+                winner,
+                loser,
+                sets,
+                player1Sets,
+                player2Sets
+            };
+        }
+
+        // 시뮬레이션 순위 계산
+        function calculateSimulationRankings(project) {
+            const p = project;
+            const rankings = [];
+            const playerStats = {};
+
+            // 모든 경기에서 통계 수집
+            p.matches.forEach(match => {
+                if (match.status !== 'completed') return;
+
+                const p1 = match.player1;
+                const p2 = match.player2;
+
+                if (!playerStats[p1]) playerStats[p1] = { wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsWon: 0, pointsLost: 0 };
+                if (!playerStats[p2]) playerStats[p2] = { wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsWon: 0, pointsLost: 0 };
+
+                if (match.winner === p1) {
+                    playerStats[p1].wins++;
+                    playerStats[p2].losses++;
+                } else {
+                    playerStats[p2].wins++;
+                    playerStats[p1].losses++;
+                }
+
+                if (match.sets) {
+                    match.sets.forEach(set => {
+                        playerStats[p1].setsWon += set.winner === 1 ? 1 : 0;
+                        playerStats[p1].setsLost += set.winner === 2 ? 1 : 0;
+                        playerStats[p2].setsWon += set.winner === 2 ? 1 : 0;
+                        playerStats[p2].setsLost += set.winner === 1 ? 1 : 0;
+                        playerStats[p1].pointsWon += set.score1;
+                        playerStats[p1].pointsLost += set.score2;
+                        playerStats[p2].pointsWon += set.score2;
+                        playerStats[p2].pointsLost += set.score1;
+                    });
+                }
+            });
+
+            // 순위 정렬 (승리 수 > 세트 득실 > 점수 득실)
+            const sortedPlayers = Object.keys(playerStats).sort((a, b) => {
+                const statsA = playerStats[a];
+                const statsB = playerStats[b];
+
+                if (statsB.wins !== statsA.wins) return statsB.wins - statsA.wins;
+                const setDiffA = statsA.setsWon - statsA.setsLost;
+                const setDiffB = statsB.setsWon - statsB.setsLost;
+                if (setDiffB !== setDiffA) return setDiffB - setDiffA;
+                const pointDiffA = statsA.pointsWon - statsA.pointsLost;
+                const pointDiffB = statsB.pointsWon - statsB.pointsLost;
+                return pointDiffB - pointDiffA;
+            });
+
+            sortedPlayers.forEach((player, idx) => {
+                rankings.push({
+                    rank: idx + 1,
+                    name: player,
+                    ...playerStats[player]
+                });
+            });
+
+            return rankings;
         }
 
         // 프로젝트 검색
