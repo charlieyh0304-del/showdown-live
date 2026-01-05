@@ -31,6 +31,11 @@ export function ManageBracket() {
   const [bracketSize, setBracketSize] = useState(8)
   const [thirdPlaceMatch, setThirdPlaceMatch] = useState(true)
 
+  // Edit mode states
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [selectedSlot, setSelectedSlot] = useState<{ matchId: number; slot: 1 | 2 } | null>(null)
+  const [showPlayerModal, setShowPlayerModal] = useState(false)
+
   const project = projects.find((p) => p.id === parseInt(id || '0'))
   const isTeam = project?.competitionType === 'team'
 
@@ -132,6 +137,36 @@ export function ManageBracket() {
 
     return { rounds, totalRounds, size }
   }, [bracketMatches])
+
+  // Get all available players for custom assignment
+  const availablePlayers = useMemo(() => {
+    if (!project) return []
+
+    // Get all participants
+    const allParticipants = isTeam ? project.teams : project.players
+    const allNames = (allParticipants || []).map(p =>
+      typeof p === 'string' ? p : p.name
+    )
+
+    // Add qualifiers if any
+    qualifiers.forEach(q => {
+      if (!allNames.includes(q.name)) {
+        allNames.push(q.name)
+      }
+    })
+
+    // Get currently assigned players in first round
+    const assignedPlayers = bracketMatches
+      .filter(m => m.bracketRound === 1)
+      .flatMap(m => [m.player1, m.player2])
+      .filter(Boolean) as string[]
+
+    return {
+      all: allNames,
+      assigned: assignedPlayers,
+      unassigned: allNames.filter(n => !assignedPlayers.includes(n))
+    }
+  }, [project, isTeam, qualifiers, bracketMatches])
 
   // Generate bracket with IBSA cross-seeding
   const handleGenerateBracket = useCallback(() => {
@@ -342,9 +377,117 @@ export function ManageBracket() {
 
   // Navigate to match
   const handleMatchClick = (match: BracketMatch) => {
+    if (isEditMode) return  // Don't navigate in edit mode
     if (match.status === 'ready' || match.status === 'active') {
       navigate(`/referee/match/${match.id}`)
     }
+  }
+
+  // Handle slot click in edit mode
+  const handleSlotClick = (matchId: number, slot: 1 | 2, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!isEditMode) return
+
+    // Find the match
+    const match = bracketMatches.find(m => m.id === matchId)
+    if (!match || match.bracketRound !== 1) return  // Only edit first round
+    if (match.status === 'completed' || match.status === 'active') return
+
+    setSelectedSlot({ matchId, slot })
+    setShowPlayerModal(true)
+  }
+
+  // Assign player to selected slot
+  const handleAssignPlayer = (playerName: string) => {
+    if (!selectedSlot || !id || !project) return
+
+    const updatedMatches = project.matches?.map(m => {
+      if (m.id === selectedSlot.matchId) {
+        const newMatch = { ...m }
+
+        // If player is already in another slot, swap or remove
+        const otherMatches = project.matches?.filter(om =>
+          om.bracketRound === 1 && om.id !== selectedSlot.matchId
+        ) || []
+
+        // Remove player from any other slot in first round
+        otherMatches.forEach(om => {
+          if (om.player1Name === playerName) {
+            const idx = project.matches?.findIndex(pm => pm.id === om.id)
+            if (idx !== undefined && idx >= 0 && updatedMatches) {
+              updatedMatches[idx] = { ...om, player1Name: '' }
+            }
+          }
+          if (om.player2Name === playerName) {
+            const idx = project.matches?.findIndex(pm => pm.id === om.id)
+            if (idx !== undefined && idx >= 0 && updatedMatches) {
+              updatedMatches[idx] = { ...om, player2Name: '' }
+            }
+          }
+        })
+
+        // Assign to selected slot
+        if (selectedSlot.slot === 1) {
+          newMatch.player1Name = playerName
+        } else {
+          newMatch.player2Name = playerName
+        }
+
+        // Update status
+        if (newMatch.player1Name && newMatch.player2Name) {
+          newMatch.status = 'ready'
+        } else if (!newMatch.player1Name && !newMatch.player2Name) {
+          newMatch.status = 'pending'
+        } else {
+          // One player assigned - check for BYE
+          if (playerName === '') {
+            // Setting to BYE
+            newMatch.status = 'pending'
+          }
+        }
+
+        return newMatch
+      }
+      return m
+    }) || []
+
+    updateProject(parseInt(id), { matches: updatedMatches })
+    setShowPlayerModal(false)
+    setSelectedSlot(null)
+  }
+
+  // Set slot to BYE (empty)
+  const handleSetBye = () => {
+    if (!selectedSlot || !id || !project) return
+
+    const updatedMatches = project.matches?.map(m => {
+      if (m.id === selectedSlot.matchId) {
+        const newMatch = { ...m }
+        if (selectedSlot.slot === 1) {
+          newMatch.player1Name = ''
+        } else {
+          newMatch.player2Name = ''
+        }
+
+        // Check if other player wins by BYE
+        const otherPlayer = selectedSlot.slot === 1 ? newMatch.player2Name : newMatch.player1Name
+        if (otherPlayer) {
+          newMatch.status = 'completed'
+          newMatch.winner = selectedSlot.slot === 1 ? 2 : 1
+          newMatch.player1Sets = selectedSlot.slot === 1 ? 0 : (project.tournamentSettings?.setsPerMatch || 3)
+          newMatch.player2Sets = selectedSlot.slot === 2 ? 0 : (project.tournamentSettings?.setsPerMatch || 3)
+        } else {
+          newMatch.status = 'pending'
+        }
+
+        return newMatch
+      }
+      return m
+    }) || []
+
+    updateProject(parseInt(id), { matches: updatedMatches })
+    setShowPlayerModal(false)
+    setSelectedSlot(null)
   }
 
   if (!project) {
@@ -382,12 +525,25 @@ export function ManageBracket() {
               대진표 생성
             </Button>
             {bracketMatches.length > 0 && (
-              <Button variant="danger" onClick={handleClearBracket}>
-                대진표 초기화
-              </Button>
+              <>
+                <Button
+                  variant={isEditMode ? 'warning' : 'default'}
+                  onClick={() => setIsEditMode(!isEditMode)}
+                >
+                  {isEditMode ? '편집 완료' : '대진 편집'}
+                </Button>
+                <Button variant="danger" onClick={handleClearBracket}>
+                  대진표 초기화
+                </Button>
+              </>
             )}
           </div>
-          {qualifiers.length > 0 && (
+          {isEditMode && (
+            <p className={styles.editModeInfo}>
+              1라운드 선수를 클릭하여 변경할 수 있습니다.
+            </p>
+          )}
+          {qualifiers.length > 0 && !isEditMode && (
             <p className={styles.info}>
               조별 리그 진출자: {qualifiers.length}명
             </p>
@@ -431,20 +587,26 @@ export function ManageBracket() {
                           .map((match) => (
                             <div
                               key={match.id}
-                              className={`${styles.match} ${styles[match.status]}`}
+                              className={`${styles.match} ${styles[match.status]} ${isEditMode && match.bracketRound === 1 ? styles.editable : ''}`}
                               onClick={() => handleMatchClick(match)}
                             >
-                              <div className={`${styles.player} ${match.winner === 1 ? styles.winner : ''}`}>
+                              <div
+                                className={`${styles.player} ${match.winner === 1 ? styles.winner : ''} ${isEditMode && match.bracketRound === 1 ? styles.clickable : ''}`}
+                                onClick={(e) => handleSlotClick(match.id, 1, e)}
+                              >
                                 <span className={styles.playerName}>
-                                  {match.player1 || 'TBD'}
+                                  {match.player1 || (isEditMode ? '클릭하여 선택' : 'BYE')}
                                 </span>
                                 {match.status === 'completed' && (
                                   <span className={styles.score}>{match.player1Sets}</span>
                                 )}
                               </div>
-                              <div className={`${styles.player} ${match.winner === 2 ? styles.winner : ''}`}>
+                              <div
+                                className={`${styles.player} ${match.winner === 2 ? styles.winner : ''} ${isEditMode && match.bracketRound === 1 ? styles.clickable : ''}`}
+                                onClick={(e) => handleSlotClick(match.id, 2, e)}
+                              >
                                 <span className={styles.playerName}>
-                                  {match.player2 || 'TBD'}
+                                  {match.player2 || (isEditMode ? '클릭하여 선택' : 'BYE')}
                                 </span>
                                 {match.status === 'completed' && (
                                   <span className={styles.score}>{match.player2Sets}</span>
@@ -549,6 +711,70 @@ export function ManageBracket() {
           <div className={styles.modalActions}>
             <Button onClick={() => setShowGenerateModal(false)}>취소</Button>
             <Button variant="primary" onClick={handleGenerateBracket}>생성</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Player Selection Modal */}
+      <Modal
+        isOpen={showPlayerModal}
+        onClose={() => {
+          setShowPlayerModal(false)
+          setSelectedSlot(null)
+        }}
+        title="선수 선택"
+      >
+        <div className={styles.modalContent}>
+          <p className={styles.modalInfo}>
+            이 슬롯에 배치할 선수를 선택하세요.
+          </p>
+
+          <div className={styles.playerSelectList}>
+            {/* BYE option */}
+            <div
+              className={styles.playerSelectItem}
+              onClick={handleSetBye}
+            >
+              <span className={styles.byeLabel}>BYE (부전승)</span>
+            </div>
+
+            {/* Available players */}
+            {Array.isArray(availablePlayers) ? null : (
+              <>
+                {availablePlayers.all.map((name) => {
+                  const isAssigned = availablePlayers.assigned.includes(name)
+                  const currentMatch = bracketMatches.find(m =>
+                    m.bracketRound === 1 && (m.player1 === name || m.player2 === name)
+                  )
+                  const isCurrentSlot = selectedSlot && currentMatch?.id === selectedSlot.matchId &&
+                    ((currentMatch?.player1 === name && selectedSlot.slot === 1) ||
+                     (currentMatch?.player2 === name && selectedSlot.slot === 2))
+
+                  return (
+                    <div
+                      key={name}
+                      className={`${styles.playerSelectItem} ${isAssigned && !isCurrentSlot ? styles.assigned : ''}`}
+                      onClick={() => handleAssignPlayer(name)}
+                    >
+                      <span className={styles.playerSelectName}>{name}</span>
+                      {isAssigned && !isCurrentSlot && (
+                        <span className={styles.assignedLabel}>배정됨</span>
+                      )}
+                      {isCurrentSlot && (
+                        <span className={styles.currentLabel}>현재</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
+
+          <div className={styles.modalActions}>
+            <Button onClick={() => {
+              setShowPlayerModal(false)
+              setSelectedSlot(null)
+            }}>취소</Button>
           </div>
         </div>
       </Modal>
