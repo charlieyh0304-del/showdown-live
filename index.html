@@ -6741,60 +6741,259 @@
             const { project, log, rankings } = result;
             const isTeam = project.competitionType === 'team';
 
+            // 탭 상태 관리
+            const activeTab = window.simResultTab || 'summary';
+
+            // 경기장별 통계
+            const courtStats = {};
+            log.forEach(m => {
+                if (!courtStats[m.court]) courtStats[m.court] = { count: 0, matches: [] };
+                courtStats[m.court].count++;
+                courtStats[m.court].matches.push(m);
+            });
+
+            // 심판별 통계
+            const refereeStats = {};
+            log.forEach(m => {
+                if (!refereeStats[m.referee]) refereeStats[m.referee] = { count: 0, matches: [] };
+                refereeStats[m.referee].count++;
+                refereeStats[m.referee].matches.push(m);
+            });
+
             app.innerHTML = `
                 <div class="card">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
                         <h2 style="margin:0;">시뮬레이션 완료</h2>
-                        <button type="button" class="btn" onclick="goTo('bracket-detail')">대회로 돌아가기</button>
+                        <button type="button" class="btn" onclick="goTo('project-manage')">대회로 돌아가기</button>
                     </div>
 
                     <div style="background:#e8f5e9; padding:16px; border-radius:12px; margin-bottom:20px;">
                         <div style="font-size:18px; font-weight:600; color:#2e7d32; margin-bottom:8px;">
                             ${project.name}
                         </div>
-                        <div style="color:#555;">
-                            총 ${log.length}경기 시뮬레이션 완료
+                        <div style="color:#555; display:flex; gap:16px; flex-wrap:wrap;">
+                            <span>총 ${log.length}경기</span>
+                            <span>|</span>
+                            <span>${Object.keys(courtStats).length}개 경기장</span>
+                            <span>|</span>
+                            <span>${Object.keys(refereeStats).length}명 심판</span>
                         </div>
                     </div>
 
-                    <h3 style="margin-bottom:12px;">최종 순위</h3>
-                    <div style="background:#f5f5f5; border-radius:12px; padding:16px; margin-bottom:20px;">
-                        ${rankings.slice(0, 10).map((r, i) => `
-                            <div style="display:flex; align-items:center; padding:10px 0; ${i > 0 ? 'border-top:1px solid #ddd;' : ''}">
-                                <div style="width:40px; font-size:20px; font-weight:700; color:${i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#666'};">
-                                    ${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : r.rank}
-                                </div>
-                                <div style="flex:1; font-weight:600;">${r.name}</div>
-                                <div style="color:#666; font-size:14px;">
-                                    ${r.wins}승 ${r.losses}패
-                                </div>
-                            </div>
-                        `).join('')}
+                    <!-- 탭 메뉴 -->
+                    <div style="display:flex; gap:8px; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
+                        <button class="btn ${activeTab === 'summary' ? 'btn-primary' : ''}" onclick="window.simResultTab='summary';render();" style="white-space:nowrap;">
+                            📊 요약
+                        </button>
+                        <button class="btn ${activeTab === 'rankings' ? 'btn-primary' : ''}" onclick="window.simResultTab='rankings';render();" style="white-space:nowrap;">
+                            🏆 순위표
+                        </button>
+                        <button class="btn ${activeTab === 'schedule' ? 'btn-primary' : ''}" onclick="window.simResultTab='schedule';render();" style="white-space:nowrap;">
+                            📅 스케줄
+                        </button>
+                        <button class="btn ${activeTab === 'matches' ? 'btn-primary' : ''}" onclick="window.simResultTab='matches';render();" style="white-space:nowrap;">
+                            🎮 경기 기록
+                        </button>
+                        <button class="btn ${activeTab === 'courts' ? 'btn-primary' : ''}" onclick="window.simResultTab='courts';render();" style="white-space:nowrap;">
+                            🏟️ 경기장
+                        </button>
+                        <button class="btn ${activeTab === 'referees' ? 'btn-primary' : ''}" onclick="window.simResultTab='referees';render();" style="white-space:nowrap;">
+                            👨‍⚖️ 심판
+                        </button>
                     </div>
 
-                    <h3 style="margin-bottom:12px;">경기 기록</h3>
-                    <div style="max-height:400px; overflow-y:auto;">
-                        ${log.map(m => `
-                            <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:12px; margin-bottom:8px;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                    <span style="font-size:12px; color:#888;">${m.roundName || ''} #${m.matchNumber}</span>
-                                    <span style="font-size:12px; background:#e3f2fd; color:#1976d2; padding:2px 8px; border-radius:4px;">${m.court}</span>
-                                </div>
-                                <div style="font-weight:600; margin-bottom:4px;">
-                                    <span style="${m.winner === m.player1 ? 'color:#2e7d32;' : ''}">${m.player1}</span>
-                                    <span style="color:#888; margin:0 8px;">vs</span>
-                                    <span style="${m.winner === m.player2 ? 'color:#2e7d32;' : ''}">${m.player2}</span>
-                                </div>
-                                <div style="font-size:13px; color:#666;">
-                                    스코어: ${m.score} | 심판: ${m.referee}
-                                </div>
+                    ${activeTab === 'summary' ? `
+                        <!-- 요약 탭 -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:20px;">
+                            <div style="background:#e3f2fd; padding:16px; border-radius:12px; text-align:center;">
+                                <div style="font-size:28px; font-weight:700; color:#1976d2;">${log.length}</div>
+                                <div style="font-size:13px; color:#666;">총 경기</div>
                             </div>
-                        `).join('')}
-                    </div>
+                            <div style="background:#fff3e0; padding:16px; border-radius:12px; text-align:center;">
+                                <div style="font-size:28px; font-weight:700; color:#f57c00;">${rankings.length}</div>
+                                <div style="font-size:13px; color:#666;">${isTeam ? '팀' : '선수'}</div>
+                            </div>
+                            <div style="background:#e8f5e9; padding:16px; border-radius:12px; text-align:center;">
+                                <div style="font-size:28px; font-weight:700; color:#388e3c;">${Object.keys(courtStats).length}</div>
+                                <div style="font-size:13px; color:#666;">경기장</div>
+                            </div>
+                            <div style="background:#fce4ec; padding:16px; border-radius:12px; text-align:center;">
+                                <div style="font-size:28px; font-weight:700; color:#c2185b;">${Object.keys(refereeStats).length}</div>
+                                <div style="font-size:13px; color:#666;">심판</div>
+                            </div>
+                        </div>
+
+                        <h3 style="margin-bottom:12px;">🏆 TOP 3</h3>
+                        <div style="background:#f5f5f5; border-radius:12px; padding:16px;">
+                            ${rankings.slice(0, 3).map((r, i) => `
+                                <div style="display:flex; align-items:center; padding:12px 0; ${i > 0 ? 'border-top:1px solid #ddd;' : ''}">
+                                    <div style="width:50px; font-size:24px; font-weight:700; color:${i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : '#cd7f32'};">
+                                        ${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-weight:600; font-size:16px;">${r.name}</div>
+                                        <div style="font-size:13px; color:#666;">${r.wins}승 ${r.losses}패 (세트: ${r.setsWon}-${r.setsLost})</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${activeTab === 'rankings' ? `
+                        <!-- 순위표 탭 -->
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                                <thead>
+                                    <tr style="background:#f5f5f5;">
+                                        <th style="padding:12px 8px; text-align:center; border-bottom:2px solid #ddd;">순위</th>
+                                        <th style="padding:12px 8px; text-align:left; border-bottom:2px solid #ddd;">${isTeam ? '팀' : '선수'}</th>
+                                        <th style="padding:12px 8px; text-align:center; border-bottom:2px solid #ddd;">승</th>
+                                        <th style="padding:12px 8px; text-align:center; border-bottom:2px solid #ddd;">패</th>
+                                        <th style="padding:12px 8px; text-align:center; border-bottom:2px solid #ddd;">세트</th>
+                                        <th style="padding:12px 8px; text-align:center; border-bottom:2px solid #ddd;">득점</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rankings.map((r, i) => `
+                                        <tr style="${i < 3 ? 'background:#fffde7;' : ''}">
+                                            <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #eee; font-weight:600;">
+                                                ${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : r.rank}
+                                            </td>
+                                            <td style="padding:10px 8px; border-bottom:1px solid #eee; font-weight:500;">${r.name}</td>
+                                            <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #eee; color:#2e7d32; font-weight:600;">${r.wins}</td>
+                                            <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #eee; color:#c62828;">${r.losses}</td>
+                                            <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #eee;">${r.setsWon}-${r.setsLost}</td>
+                                            <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #eee;">${r.pointsWon}-${r.pointsLost}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+
+                    ${activeTab === 'schedule' ? `
+                        <!-- 스케줄 탭 -->
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                                <thead>
+                                    <tr style="background:#f5f5f5;">
+                                        <th style="padding:10px 6px; text-align:center; border-bottom:2px solid #ddd;">#</th>
+                                        <th style="padding:10px 6px; text-align:center; border-bottom:2px solid #ddd;">경기장</th>
+                                        <th style="padding:10px 6px; text-align:left; border-bottom:2px solid #ddd;">대진</th>
+                                        <th style="padding:10px 6px; text-align:center; border-bottom:2px solid #ddd;">심판</th>
+                                        <th style="padding:10px 6px; text-align:center; border-bottom:2px solid #ddd;">결과</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${log.map(m => `
+                                        <tr>
+                                            <td style="padding:8px 6px; text-align:center; border-bottom:1px solid #eee;">${m.matchNumber}</td>
+                                            <td style="padding:8px 6px; text-align:center; border-bottom:1px solid #eee;">
+                                                <span style="background:#e3f2fd; color:#1976d2; padding:2px 6px; border-radius:4px; font-size:12px;">${m.court}</span>
+                                            </td>
+                                            <td style="padding:8px 6px; border-bottom:1px solid #eee;">
+                                                <span style="${m.winner === m.player1 ? 'font-weight:600; color:#2e7d32;' : ''}">${m.player1}</span>
+                                                <span style="color:#888;"> vs </span>
+                                                <span style="${m.winner === m.player2 ? 'font-weight:600; color:#2e7d32;' : ''}">${m.player2}</span>
+                                            </td>
+                                            <td style="padding:8px 6px; text-align:center; border-bottom:1px solid #eee; font-size:12px;">${m.referee}</td>
+                                            <td style="padding:8px 6px; text-align:center; border-bottom:1px solid #eee; font-weight:500;">${m.score}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+
+                    ${activeTab === 'matches' ? `
+                        <!-- 경기 기록 탭 -->
+                        <div style="max-height:500px; overflow-y:auto;">
+                            ${log.map(m => `
+                                <div style="background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:16px; margin-bottom:12px;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                        <div>
+                                            <span style="font-size:14px; font-weight:600; color:#1976d2;">#${m.matchNumber}</span>
+                                            ${m.roundName ? `<span style="margin-left:8px; font-size:12px; background:#f5f5f5; padding:2px 8px; border-radius:4px;">${m.roundName}</span>` : ''}
+                                        </div>
+                                        <span style="font-size:12px; background:#e3f2fd; color:#1976d2; padding:4px 10px; border-radius:6px;">${m.court}</span>
+                                    </div>
+
+                                    <div style="display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:12px;">
+                                        <div style="text-align:center; flex:1;">
+                                            <div style="font-size:16px; font-weight:600; ${m.winner === m.player1 ? 'color:#2e7d32;' : 'color:#666;'}">${m.player1}</div>
+                                            ${m.winner === m.player1 ? '<div style="font-size:11px; color:#2e7d32;">승리</div>' : ''}
+                                        </div>
+                                        <div style="font-size:20px; font-weight:700; color:#1976d2; background:#e3f2fd; padding:8px 16px; border-radius:8px;">
+                                            ${m.score}
+                                        </div>
+                                        <div style="text-align:center; flex:1;">
+                                            <div style="font-size:16px; font-weight:600; ${m.winner === m.player2 ? 'color:#2e7d32;' : 'color:#666;'}">${m.player2}</div>
+                                            ${m.winner === m.player2 ? '<div style="font-size:11px; color:#2e7d32;">승리</div>' : ''}
+                                        </div>
+                                    </div>
+
+                                    <div style="display:flex; justify-content:center; gap:16px; font-size:12px; color:#888;">
+                                        <span>👨‍⚖️ ${m.referee}</span>
+                                        <span>🏆 ${m.winner}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${activeTab === 'courts' ? `
+                        <!-- 경기장 탭 -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+                            ${Object.entries(courtStats).map(([court, data]) => `
+                                <div style="background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:16px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                                        <h4 style="margin:0; color:#1976d2;">🏟️ ${court}</h4>
+                                        <span style="background:#e3f2fd; color:#1976d2; padding:4px 10px; border-radius:20px; font-size:13px; font-weight:600;">${data.count}경기</span>
+                                    </div>
+                                    <div style="max-height:200px; overflow-y:auto;">
+                                        ${data.matches.map(m => `
+                                            <div style="padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:13px;">
+                                                <div style="display:flex; justify-content:space-between;">
+                                                    <span>#${m.matchNumber}</span>
+                                                    <span style="color:#2e7d32; font-weight:500;">${m.winner}</span>
+                                                </div>
+                                                <div style="color:#888; font-size:12px;">${m.player1} vs ${m.player2}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${activeTab === 'referees' ? `
+                        <!-- 심판 탭 -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+                            ${Object.entries(refereeStats).map(([referee, data]) => `
+                                <div style="background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:16px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                                        <h4 style="margin:0; color:#7b1fa2;">👨‍⚖️ ${referee}</h4>
+                                        <span style="background:#f3e5f5; color:#7b1fa2; padding:4px 10px; border-radius:20px; font-size:13px; font-weight:600;">${data.count}경기</span>
+                                    </div>
+                                    <div style="max-height:200px; overflow-y:auto;">
+                                        ${data.matches.map(m => `
+                                            <div style="padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:13px;">
+                                                <div style="display:flex; justify-content:space-between;">
+                                                    <span>${m.court} #${m.matchNumber}</span>
+                                                    <span style="font-weight:500;">${m.score}</span>
+                                                </div>
+                                                <div style="color:#888; font-size:12px;">${m.player1} vs ${m.player2}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
 
                     <div style="margin-top:20px; display:flex; gap:10px;">
-                        <button type="button" class="btn btn-primary" onclick="goTo('bracket-detail')" style="flex:1;">
-                            대회 상세 보기
+                        <button type="button" class="btn btn-primary" onclick="goTo('project-manage')" style="flex:1;">
+                            대회 관리로 돌아가기
                         </button>
                     </div>
                 </div>
@@ -7826,10 +8025,23 @@
             const player1 = match.player1;
             const player2 = match.player2;
 
-            // 5세트 매치 여부 확인
-            const isFiveSet = match.isFiveSet || match.roundName === '결승' || match.roundName === '4강';
-            const setsToWin = isFiveSet ? 3 : 2;
-            const maxSets = isFiveSet ? 5 : 3;
+            // 세트 수 결정: match.sets가 1이면 단판, 아니면 기본값 사용
+            let setsToWin, maxSets;
+            const winScore = match.winScore || 11; // 승리 점수 (기본 11점, 31점 가능)
+
+            if (match.sets === 1) {
+                // 단판 경기
+                setsToWin = 1;
+                maxSets = 1;
+            } else if (match.isFiveSet || match.roundName === '결승' || match.roundName === '4강') {
+                // 5세트 매치
+                setsToWin = 3;
+                maxSets = 5;
+            } else {
+                // 기본 3세트 매치
+                setsToWin = 2;
+                maxSets = 3;
+            }
 
             let player1Sets = 0;
             let player2Sets = 0;
@@ -7838,15 +8050,14 @@
             while (player1Sets < setsToWin && player2Sets < setsToWin) {
                 // 랜덤하게 세트 결과 생성
                 const isPlayer1Win = Math.random() > 0.5;
-                const winnerScore = 11;
-                const loserScore = Math.floor(Math.random() * 10); // 0-9
+                const loserScore = Math.floor(Math.random() * (winScore - 2)); // 승리 점수보다 2점 이상 낮게
 
                 if (isPlayer1Win) {
                     player1Sets++;
-                    sets.push({ score1: winnerScore, score2: loserScore, winner: 1 });
+                    sets.push({ score1: winScore, score2: loserScore, winner: 1 });
                 } else {
                     player2Sets++;
-                    sets.push({ score1: loserScore, score2: winnerScore, winner: 2 });
+                    sets.push({ score1: loserScore, score2: winScore, winner: 2 });
                 }
             }
 
