@@ -7618,9 +7618,9 @@
 
             // 기존 대진표가 있고 미완료 경기가 있으면 기존 대진표 시뮬레이션
             if (hasExistingMatches && pendingMatches.length > 0) {
-                const completedCount = p.matches.length - pendingMatches.length;
+                const completedCount = allMatches.length - pendingMatches.length;
                 const msg = `기존 대진표로 시뮬레이션을 실행합니다.\n\n` +
-                    `• 전체 경기: ${p.matches.length}경기\n` +
+                    `• 전체 경기: ${allMatches.length}경기\n` +
                     `• 완료된 경기: ${completedCount}경기\n` +
                     `• 남은 경기: ${pendingMatches.length}경기\n\n` +
                     `남은 경기들을 자동으로 진행합니다.\n계속하시겠습니까?`;
@@ -7628,7 +7628,7 @@
                 if (!confirm(msg)) return;
 
                 try {
-                    runExistingMatchesSimulation(p);
+                    runExistingMatchesSimulation(p, allMatches);
                 } catch (error) {
                     console.error('시뮬레이션 실행 중 오류:', error);
                     alert('시뮬레이션 실행 중 오류가 발생했습니다: ' + error.message);
@@ -7710,7 +7710,7 @@
         }
 
         // 기존 대진표 기반 시뮬레이션 실행
-        function runExistingMatchesSimulation(project) {
+        function runExistingMatchesSimulation(project, providedMatches) {
             const p = project;
             const isTeam = p.competitionType === 'team';
 
@@ -7727,17 +7727,19 @@
             let courtIndex = 0;
             let refereeIndex = 0;
 
-            // 모든 경기 수집 (project.matches + groups[].matches)
-            let allMatches = [];
-            if (p.matches && p.matches.length > 0) {
-                allMatches = [...p.matches];
-            }
-            if (p.groups && p.groups.length > 0) {
-                p.groups.forEach(g => {
-                    if (g.matches && g.matches.length > 0) {
-                        allMatches = allMatches.concat(g.matches);
-                    }
-                });
+            // 모든 경기 수집 (전달받은 것 또는 직접 수집)
+            let allMatches = providedMatches || [];
+            if (allMatches.length === 0) {
+                if (p.matches && p.matches.length > 0) {
+                    allMatches = [...p.matches];
+                }
+                if (p.groups && p.groups.length > 0) {
+                    p.groups.forEach(g => {
+                        if (g.matches && g.matches.length > 0) {
+                            allMatches = allMatches.concat(g.matches);
+                        }
+                    });
+                }
             }
 
             // 미완료 경기 필터링
