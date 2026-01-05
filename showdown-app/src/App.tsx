@@ -18,6 +18,7 @@ import { ManageTeams } from '@/pages/tournament/ManageTeams'
 import { ManageGroups } from '@/pages/tournament/ManageGroups'
 import { Standings } from '@/pages/tournament/Standings'
 import { ManageBracket } from '@/pages/tournament/ManageBracket'
+import { Statistics } from '@/pages/tournament/Statistics'
 
 // Placeholder component for routes not yet implemented
 function ComingSoon({ title }: { title: string }) {
@@ -122,7 +123,7 @@ function App() {
         <Route path="/tournament/groups/:id" element={<ManageGroups />} />
         <Route path="/tournament/bracket/:id" element={<ManageBracket />} />
         <Route path="/tournament/standings/:id" element={<Standings />} />
-        <Route path="/tournament/statistics/:id" element={<ComingSoon title="통계" />} />
+        <Route path="/tournament/statistics/:id" element={<Statistics />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
