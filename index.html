@@ -6303,6 +6303,29 @@
                                 설정만 하면 경기 진행부터 최종 순위까지 자동으로 시뮬레이션됩니다.
                             </p>
                         </div>
+
+                        <!-- 빠른 시뮬레이션 버튼 -->
+                        <div style="margin-bottom:20px; padding:20px; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius:12px; text-align:center;">
+                            <h3 style="color:white; margin-bottom:8px;">빠른 테스트</h3>
+                            <p style="color:rgba(255,255,255,0.8); font-size:13px; margin-bottom:16px;">
+                                설정 없이 바로 16명 대회를 시뮬레이션합니다
+                            </p>
+                            <button class="btn" onclick="quickSimulation()" style="background:white; color:#667eea; font-weight:700; font-size:16px; padding:14px 32px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
+                                원클릭 시뮬레이션
+                            </button>
+                            <div style="margin-top:12px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+                                <button class="btn" onclick="quickSimulation(8)" style="background:rgba(255,255,255,0.2); color:white; font-size:12px; padding:6px 12px;">8명</button>
+                                <button class="btn" onclick="quickSimulation(16)" style="background:rgba(255,255,255,0.3); color:white; font-size:12px; padding:6px 12px; font-weight:600;">16명</button>
+                                <button class="btn" onclick="quickSimulation(32)" style="background:rgba(255,255,255,0.2); color:white; font-size:12px; padding:6px 12px;">32명</button>
+                                <button class="btn" onclick="quickSimulation(64)" style="background:rgba(255,255,255,0.2); color:white; font-size:12px; padding:6px 12px;">64명</button>
+                            </div>
+                        </div>
+
+                        <details style="margin-bottom:20px;">
+                            <summary style="cursor:pointer; padding:12px; background:var(--bg-secondary); border-radius:8px; font-weight:600;">
+                                상세 설정 (커스텀)
+                            </summary>
+                            <div style="padding-top:16px;">
                         
                         ${hasExistingParticipants ? `
                         <div style="margin-bottom:20px; padding:16px; background:#e8f5e9; border-radius:8px; border-left:4px solid #4caf50;">
@@ -6425,11 +6448,13 @@
                                 </p>
                             </div>
                         </div>
-                        
-                        <button class="btn btn-primary" onclick="runAutoTournament()" style="width:100%; padding:16px; font-size:16px;">
-                            🚀 대회 자동 진행
+
+                        <button class="btn btn-primary" onclick="runAutoTournament()" style="width:100%; padding:16px; font-size:16px; margin-top:16px;">
+                            🚀 대회 자동 진행 (상세 설정 사용)
                         </button>
-                        
+                        </div>
+                        </details>
+
                         <div id="auto-tournament-result" style="display:${hasResult ? 'block' : 'none'}; margin-top:20px;">
                             ${hasResult ? renderAutoTournamentResult() : ''}
                         </div>
@@ -9115,7 +9140,71 @@
                 };
             }
         }
-        
+
+        // 빠른 시뮬레이션 - 기본값으로 한번에 대회 진행
+        function quickSimulation(participantCount = 16) {
+            if (!currentProject) {
+                alert('프로젝트가 선택되지 않았습니다.');
+                return;
+            }
+
+            console.log(`🚀 빠른 시뮬레이션 시작: ${participantCount}명`);
+
+            // 참가자 수에 따른 기본 조 개수 계산
+            let groupCount;
+            if (participantCount <= 8) groupCount = 2;
+            else if (participantCount <= 16) groupCount = 4;
+            else if (participantCount <= 32) groupCount = 4;
+            else if (participantCount <= 64) groupCount = 8;
+            else groupCount = 8;
+
+            // 조별 진출자 수 (2명씩)
+            const advanceCount = 2;
+
+            // UI 값 설정 (details가 닫혀있어도 값 설정 가능)
+            autoParticipantMode = 'random'; // 랜덤 생성 모드
+
+            // hidden 상태의 input들에 값 설정
+            const countEl = document.getElementById('auto-participant-count');
+            const groupCountEl = document.getElementById('auto-group-count');
+            const advanceCountEl = document.getElementById('auto-advance-count');
+            const thirdPlaceEl = document.getElementById('auto-third-place');
+            const fiveSetStartEl = document.getElementById('auto-5set-start');
+            const rankingTypeEl = document.getElementById('auto-ranking-type');
+
+            if (countEl) countEl.value = participantCount;
+            if (groupCountEl) groupCountEl.value = groupCount;
+            if (advanceCountEl) advanceCountEl.value = advanceCount;
+            if (thirdPlaceEl) thirdPlaceEl.value = 'yes';
+            if (fiveSetStartEl) fiveSetStartEl.value = 'quarter';
+            if (rankingTypeEl) rankingTypeEl.value = 'all-ranked';
+
+            // 기존 참가자 모드 비활성화 (있더라도 랜덤 생성)
+            const existingRadio = document.getElementById('participant-mode-existing');
+            const randomRadio = document.getElementById('participant-mode-random');
+            if (randomRadio) {
+                randomRadio.checked = true;
+                if (existingRadio) existingRadio.checked = false;
+            }
+
+            // 참가자 수 입력 필드 표시
+            const participantCountWrapper = document.getElementById('participant-count-wrapper');
+            if (participantCountWrapper) participantCountWrapper.style.display = 'block';
+
+            // 탑시드 입력 초기화
+            for (let i = 0; i < 8; i++) {
+                const seedInput = document.getElementById(`seed-${String.fromCharCode(65 + i)}`);
+                if (seedInput) seedInput.value = '';
+            }
+
+            announce(`${participantCount}명 빠른 시뮬레이션 시작...`);
+
+            // 약간의 딜레이 후 대회 진행 (UI 업데이트 반영)
+            setTimeout(() => {
+                runAutoTournament();
+            }, 100);
+        }
+
         function runAutoTournament() {
             try {
                 if (!currentProject) {
@@ -12025,31 +12114,21 @@
                     standings: []
                 }));
                 
-                // 조별 리그 경기 생성
+                // 조별 리그 경기 생성 (새로운 시스템 사용)
                 project.groups.forEach((group, gIdx) => {
                     const members = group.members;
                     for (let i = 0; i < members.length; i++) {
                         for (let j = i + 1; j < members.length; j++) {
-                            const match = {
-                                id: Date.now() + gIdx * 1000 + i * 100 + j,
-                                player1Name: members[i],
-                                player2Name: members[j],
+                            const match = createMatchObject({
+                                player1: members[i],
+                                player2: members[j],
                                 type: isTeam ? 'team' : 'individual',
                                 sets: isTeam ? 1 : preliminarySets,
-                                winScore: winScore,
-                                currentSet: 1,
-                                setScores: [{ player1: 0, player2: 0 }],
-                                currentServe: 'player1',
-                                serveCount: 0,
-                                serveSelected: false,
-                                timeouts: { player1: 1, player2: 1 },
-                                history: [],
-                                status: 'pending',
                                 groupIndex: gIdx,
-                                groupName: group.name,
-                                phase: 'preliminary',
-                                refereePin: generatePin()
-                            };
+                                groupName: group.name
+                            });
+                            match.phase = 'preliminary';
+                            match.status = MatchStatus.READY; // 조별 리그 경기는 바로 시작 가능
                             project.matches.push(match);
                             group.matches.push(match.id);
                         }
@@ -12057,45 +12136,41 @@
                 });
             }
             
-            // 토너먼트만인 경우 바로 본선 경기 생성
+            // 토너먼트만인 경우 바로 본선 경기 생성 (새로운 시스템 사용)
             if (tournamentType === 'knockout-only') {
                 const participants = [...tw.participants];
                 const size = isCustom ? (tw.finals?.size || 8) : (tw.knockoutSettings?.size || participants.length);
-                
+                const roundName = getRoundNameBySize(size);
+
                 // 랜덤 섞기
                 for (let i = participants.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [participants[i], participants[j]] = [participants[j], participants[i]];
                 }
-                
+
+                let matchNum = 0;
                 for (let i = 0; i < Math.min(participants.length, size); i += 2) {
                     const p1 = participants[i];
                     const p2 = participants[i + 1];
-                    
+
                     if (p1 && p2) {
-                        const match = {
-                            id: Date.now() + i,
-                            player1Name: p1,
-                            player2Name: p2,
+                        matchNum++;
+                        const match = createMatchObject({
+                            player1: p1,
+                            player2: p2,
                             type: isTeam ? 'team' : 'individual',
                             sets: isTeam ? 1 : finalsSets,
-                            winScore: winScore,
-                            currentSet: 1,
-                            setScores: [{ player1: 0, player2: 0 }],
-                            currentServe: 'player1',
-                            serveCount: 0,
-                            serveSelected: false,
-                            timeouts: { player1: 1, player2: 1 },
-                            history: [],
-                            status: 'pending',
                             bracketRound: 1,
-                            bracketMatchNum: i / 2 + 1,
-                            phase: 'finals',
-                            refereePin: generatePin()
-                        };
+                            bracketMatchNum: matchNum,
+                            bracketSize: size,
+                            roundName: roundName
+                        });
+                        match.phase = 'finals';
                         project.matches.push(match);
                     }
                 }
+
+                project.finalsSize = size;
             }
             
             // 프로젝트 저장
@@ -13344,74 +13419,192 @@
         }
         // ========== 선수 일정 조회 함수 끝 ==========
         
-        // ========== 토너먼트 진행 함수 ==========
-        function processTournamentProgression(match, winner) {
-            if (!currentProject) return;
-            
-            const p = currentProject;
-            
-            // 1. 토너먼트 경기인 경우 다음 라운드 처리
-            if (match.bracketRound) {
-                advanceTournamentWinner(p, match, winner);
+        // ========== 새로운 대진/대회 관리 시스템 ==========
+
+        // 경기 상태 상수 정의
+        const MatchStatus = {
+            PENDING: 'pending',     // 대기 중 (선수 미확정 또는 이전 경기 미완료)
+            READY: 'ready',         // 준비 완료 (시작 가능)
+            ACTIVE: 'active',       // 진행 중
+            COMPLETED: 'completed', // 완료
+            WAITING: 'waiting'      // TBD 대기 (선수 확정 필요)
+        };
+
+        // 라운드 이름 매핑
+        const RoundNames = {
+            64: '64강', 32: '32강', 16: '16강', 8: '8강',
+            4: '준결승', 2: '결승', 1: '결승'
+        };
+
+        // ========== 경기 상태 관리 ==========
+
+        // 경기 상태 업데이트 (일관성 보장)
+        function updateMatchStatus(match) {
+            const hasTBD = match.player1Name === 'TBD' || match.player2Name === 'TBD' ||
+                          match.player1Name?.startsWith('TBD') || match.player2Name?.startsWith('TBD');
+
+            match.hasTBD = hasTBD;
+
+            if (match.status === MatchStatus.COMPLETED || match.status === MatchStatus.ACTIVE) {
+                return; // 이미 진행/완료된 경기는 변경 안함
             }
-            
-            // 2. 조별 리그 경기인 경우 조별 리그 완료 여부 체크
-            if (match.groupIndex !== undefined && p.tournamentType === 'group-knockout') {
-                checkGroupStageCompletion(p);
+
+            if (hasTBD) {
+                match.status = MatchStatus.WAITING;
+            } else {
+                match.status = MatchStatus.READY;
             }
         }
-        
-        function advanceTournamentWinner(project, match, winner) {
+
+        // 경기 객체 생성 헬퍼
+        function createMatchObject(config) {
+            const {
+                player1, player2, type = 'individual', sets = 3,
+                bracketRound, bracketMatchNum, bracketSize,
+                roundName, isLoserBracket = false, isThirdPlace = false,
+                loserRoundName, loserMatchNum, loserRoundSize,
+                groupIndex, groupName, player1Slot, player2Slot
+            } = config;
+
+            const isTeam = type === 'team';
+            const winScore = isTeam ? 31 : 11;
+            const hasTBD = player1 === 'TBD' || player2 === 'TBD' ||
+                          player1?.startsWith('TBD') || player2?.startsWith('TBD');
+
+            const match = {
+                id: Date.now() + Math.floor(Math.random() * 10000),
+                player1Name: player1,
+                player2Name: player2,
+                type: type,
+                sets: sets,
+                winScore: winScore,
+                currentSet: 1,
+                setScores: [{ player1: 0, player2: 0 }],
+                currentServe: null,
+                serveCount: 0,
+                serveSelected: false,
+                timeouts: { player1: 1, player2: 1 },
+                history: [],
+                status: hasTBD ? MatchStatus.WAITING : MatchStatus.PENDING,
+                hasTBD: hasTBD,
+                refereePin: generatePin()
+            };
+
+            // 토너먼트 관련 속성
+            if (bracketRound !== undefined) {
+                match.bracketRound = bracketRound;
+                match.bracketMatchNum = bracketMatchNum;
+                match.bracketSize = bracketSize;
+                match.roundName = roundName || RoundNames[bracketSize] || `${bracketSize}강`;
+            }
+
+            // 패자전 관련 속성
+            if (isLoserBracket) {
+                match.isLoserBracket = true;
+                match.loserRoundName = loserRoundName;
+                match.loserMatchNum = loserMatchNum;
+                match.loserRoundSize = loserRoundSize;
+                match.roundName = loserRoundName;
+            }
+
+            // 3/4위전
+            if (isThirdPlace) {
+                match.isThirdPlace = true;
+                match.roundName = '3/4위전';
+            }
+
+            // 조별 리그 관련 속성
+            if (groupIndex !== undefined) {
+                match.groupIndex = groupIndex;
+                match.groupName = groupName;
+            }
+
+            // 슬롯 정보 (A1 vs B2 형식)
+            if (player1Slot) match.player1Slot = player1Slot;
+            if (player2Slot) match.player2Slot = player2Slot;
+
+            return match;
+        }
+
+        // ========== 토너먼트 진행 관리 ==========
+
+        function processTournamentProgression(match, winner) {
+            if (!currentProject) return;
+
+            const project = currentProject;
+
+            // 1. 본선 토너먼트 경기
+            if (match.bracketRound) {
+                handleBracketProgression(project, match, winner);
+            }
+
+            // 2. 조별 리그 경기
+            if (match.groupIndex !== undefined) {
+                handleGroupCompletion(project);
+            }
+
+            saveProjects();
+        }
+
+        // 본선 토너먼트 진출 처리
+        function handleBracketProgression(project, match, winner) {
+            const loser = match.player1Name === winner ? match.player2Name : match.player1Name;
+
+            // 패자전 경기인 경우
+            if (match.isLoserBracket) {
+                handleLoserBracketProgression(project, match, winner, loser);
+                return;
+            }
+
+            // 3/4위전인 경우 (종료)
+            if (match.isThirdPlace) {
+                console.log(`🥉 3/4위전 완료: 3위 ${winner}, 4위 ${loser}`);
+                return;
+            }
+
+            // 현재 라운드 정보
             const currentRound = match.bracketRound;
             const matchNum = match.bracketMatchNum;
-            
-            // 패자 확인
-            const loser = match.player1Name === winner ? match.player2Name : match.player1Name;
-            
-            // 현재 라운드 경기 수 확인
-            const sameRoundMatches = project.matches.filter(m => 
-                m.bracketRound === currentRound && !m.isLoserBracket
+            const sameRoundMatches = project.matches.filter(m =>
+                m.bracketRound === currentRound && !m.isLoserBracket && !m.isThirdPlace
             );
-            
-            // 결승전(1경기만 있는 라운드)이면 대회 종료
-            if (sameRoundMatches.length === 1 && !match.isLoserBracket) {
+
+            // 결승전 완료
+            if (sameRoundMatches.length === 1) {
                 project.tournamentWinner = winner;
                 project.status = 'completed';
-                saveProjects();
                 announce(`🏆 우승: ${winner}!`);
                 return;
             }
-            
-            // 패자전 경기인 경우 패자전 진출 처리
-            if (match.isLoserBracket) {
-                advanceLoserBracketWinner(project, match, winner, loser);
-                saveProjects();
-                return;
-            }
-            
-            // 4강(2경기 라운드)이면 패자를 3/4위전에 배정
+
+            // 4강 패자 → 3/4위전
             if (sameRoundMatches.length === 2) {
-                assignThirdPlaceMatch(project, match, loser);
+                assignToThirdPlaceMatch(project, loser);
             }
-            
-            // 패자전 진행 시 - 8강 이상 패자를 패자전에 배정
+
+            // 패자전 진행 시 → 패자 배정
             if (project.loserBracket && sameRoundMatches.length >= 4) {
-                assignLoserBracket(project, match, loser, sameRoundMatches.length);
+                assignToLoserBracket(project, match, loser, sameRoundMatches.length);
             }
-            
+
+            // 승자 → 다음 라운드 진출
+            advanceWinnerToNextRound(project, match, winner);
+        }
+
+        // 승자를 다음 라운드로 진출
+        function advanceWinnerToNextRound(project, match, winner) {
+            const currentRound = match.bracketRound;
+            const matchNum = match.bracketMatchNum;
+            const nextRound = currentRound + 1;
+
+            // 다음 라운드 경기 번호 및 위치 결정
+            let nextMatchNum, isPlayer1;
+
             // 커스텀 nextRounds 설정 확인
-            const nextRoundsConfig = project.nextRounds || [];
-            
-            // 현재 라운드에 해당하는 다음 라운드 설정 찾기
-            // currentRound가 1이면 nextRounds[0] (8강→4강 등)
-            const roundConfigIndex = currentRound - 1;
-            const nextRoundConfig = nextRoundsConfig[roundConfigIndex];
-            
-            let nextMatchNum = null;
-            let isPlayer1 = true;
-            
-            if (nextRoundConfig && nextRoundConfig.matches) {
-                // 커스텀 설정에서 현재 경기 승자가 어디로 가는지 찾기
+            const nextRoundConfig = project.nextRounds?.[currentRound - 1];
+
+            if (nextRoundConfig?.matches) {
+                // 커스텀 대진에서 다음 경기 찾기
                 nextRoundConfig.matches.forEach((m, idx) => {
                     if (m.p1Match === matchNum) {
                         nextMatchNum = idx + 1;
@@ -13421,199 +13614,153 @@
                         isPlayer1 = false;
                     }
                 });
-                
-                if (nextMatchNum) {
-                    console.log(`🏆 커스텀 진출: 경기${matchNum} 승자(${winner}) → ${nextRoundConfig.name} 경기${nextMatchNum} (${isPlayer1 ? 'P1' : 'P2'})`);
-                }
             }
-            
-            // 커스텀 설정이 없으면 기본 로직 (1vs2 → 다음1, 3vs4 → 다음2)
-            if (nextMatchNum === null) {
+
+            // 기본 로직
+            if (nextMatchNum === undefined) {
                 nextMatchNum = Math.ceil(matchNum / 2);
                 isPlayer1 = (matchNum % 2 === 1);
-                console.log(`🏆 기본 진출: 경기${matchNum} 승자(${winner}) → 다음 경기${nextMatchNum} (${isPlayer1 ? 'P1' : 'P2'})`);
             }
-            
-            const nextRound = currentRound + 1;
-            
-            // 다음 라운드 경기 찾기
-            let nextMatch = project.matches.find(m => 
-                m.bracketRound === nextRound && m.bracketMatchNum === nextMatchNum && !m.isLoserBracket
+
+            // 다음 라운드 경기 찾기 또는 생성
+            let nextMatch = project.matches.find(m =>
+                m.bracketRound === nextRound &&
+                m.bracketMatchNum === nextMatchNum &&
+                !m.isLoserBracket
             );
-            
-            // 다음 라운드 경기가 없으면 생성
+
             if (!nextMatch) {
-                const isTeam = project.competitionType === 'team';
-                const sets = project.finalsSets || (isTeam ? 1 : 3);
-                const winScore = isTeam ? 31 : 11;
-                
-                nextMatch = {
-                    id: Date.now() + nextRound * 100 + nextMatchNum + Math.floor(Math.random() * 100),
-                    player1Name: isPlayer1 ? winner : 'TBD',
-                    player2Name: isPlayer1 ? 'TBD' : winner,
+                // 새 경기 생성
+                const nextBracketSize = Math.pow(2, Math.ceil(Math.log2(project.finalsSize)) - nextRound + 1);
+                nextMatch = createMatchObject({
+                    player1: isPlayer1 ? winner : 'TBD',
+                    player2: isPlayer1 ? 'TBD' : winner,
                     type: project.competitionType,
-                    sets: sets,
-                    winScore: winScore,
-                    currentSet: 1,
-                    setScores: [{ player1: 0, player2: 0 }],
-                    currentServe: null,
-                    serveCount: 0,
-                    serveSelected: false,
-                    timeouts: { player1: 1, player2: 1 },
-                    history: [],
-                    status: 'pending',
+                    sets: project.finalsSets || 3,
                     bracketRound: nextRound,
                     bracketMatchNum: nextMatchNum,
-                    roundName: nextRoundConfig?.name || null,
-                    refereePin: generatePin()
-                };
+                    bracketSize: nextBracketSize,
+                    roundName: nextRoundConfig?.name || RoundNames[nextBracketSize]
+                });
                 project.matches.push(nextMatch);
+                console.log(`🏆 다음 라운드 생성: ${winner} → ${nextMatch.roundName} 경기${nextMatchNum}`);
             } else {
-                // 기존 다음 라운드 경기에 승자 배정
+                // 기존 경기에 승자 배정
                 if (isPlayer1) {
                     nextMatch.player1Name = winner;
                 } else {
                     nextMatch.player2Name = winner;
                 }
-                
-                // 두 선수 모두 결정되면 경기 준비 완료
-                if (nextMatch.player1Name !== 'TBD' && nextMatch.player2Name !== 'TBD') {
-                    nextMatch.status = 'ready';
-                    console.log(`🏆 다음 경기 준비 완료: ${nextMatch.player1Name} vs ${nextMatch.player2Name}`);
-                }
+                updateMatchStatus(nextMatch);
+                console.log(`🏆 진출: ${winner} → ${nextMatch.roundName} (${nextMatch.player1Name} vs ${nextMatch.player2Name})`);
             }
-            
-            saveProjects();
         }
-        
-        // 패자전 배정 (8강 패자 → 5-8위전, 16강 패자 → 9-16위전)
-        function assignLoserBracket(project, match, loser, roundMatchCount) {
-            const isTeam = project.competitionType === 'team';
-            const winScore = isTeam ? 31 : 11;
+
+        // 3/4위전 배정
+        function assignToThirdPlaceMatch(project, loser) {
+            let thirdPlaceMatch = project.matches.find(m => m.isThirdPlace);
+
+            if (!thirdPlaceMatch) {
+                thirdPlaceMatch = createMatchObject({
+                    player1: loser,
+                    player2: 'TBD',
+                    type: project.competitionType,
+                    sets: 3,
+                    isThirdPlace: true
+                });
+                project.matches.push(thirdPlaceMatch);
+                console.log(`🥉 3/4위전 생성: ${loser} vs TBD`);
+            } else {
+                thirdPlaceMatch.player2Name = loser;
+                updateMatchStatus(thirdPlaceMatch);
+                console.log(`🥉 3/4위전 준비: ${thirdPlaceMatch.player1Name} vs ${thirdPlaceMatch.player2Name}`);
+            }
+        }
+
+        // 패자전 배정
+        function assignToLoserBracket(project, match, loser, roundMatchCount) {
             const matchNum = match.bracketMatchNum;
-            
-            // 라운드별 순위 결정전 이름
-            // 8강(4경기) → 5-8위전, 16강(8경기) → 9-16위전
             const startRank = roundMatchCount + 1;
             const endRank = roundMatchCount * 2;
             const loserRoundName = `${startRank}-${endRank}위전`;
-            
-            // 패자전 경기 번호: 1vs2→1, 3vs4→2 (기본)
             const loserMatchNum = Math.ceil(matchNum / 2);
             const isPlayer1 = (matchNum % 2 === 1);
-            
-            // 해당 패자전 경기 찾기
-            let loserMatch = project.matches.find(m => 
-                m.isLoserBracket && 
-                m.loserRoundName === loserRoundName && 
+
+            let loserMatch = project.matches.find(m =>
+                m.isLoserBracket &&
+                m.loserRoundName === loserRoundName &&
                 m.loserMatchNum === loserMatchNum
             );
-            
+
             if (!loserMatch) {
-                // 패자전 경기 생성
-                loserMatch = {
-                    id: Date.now() + 8000 + loserMatchNum + Math.floor(Math.random() * 100),
-                    player1Name: isPlayer1 ? loser : 'TBD',
-                    player2Name: isPlayer1 ? 'TBD' : loser,
+                loserMatch = createMatchObject({
+                    player1: isPlayer1 ? loser : 'TBD',
+                    player2: isPlayer1 ? 'TBD' : loser,
                     type: project.competitionType,
-                    sets: 3, // 패자전은 3세트
-                    winScore: winScore,
-                    currentSet: 1,
-                    setScores: [{ player1: 0, player2: 0 }],
-                    currentServe: null,
-                    serveCount: 0,
-                    serveSelected: false,
-                    timeouts: { player1: 1, player2: 1 },
-                    history: [],
-                    status: 'pending',
+                    sets: 3,
                     isLoserBracket: true,
                     loserRoundName: loserRoundName,
                     loserMatchNum: loserMatchNum,
-                    loserRoundSize: roundMatchCount, // 원래 라운드 경기 수 (4=8강, 8=16강)
-                    roundName: loserRoundName,
-                    refereePin: generatePin()
-                };
+                    loserRoundSize: roundMatchCount
+                });
                 project.matches.push(loserMatch);
-                console.log(`📉 패자전 생성: ${loser} → ${loserRoundName} 경기${loserMatchNum}`);
+                console.log(`📉 패자전 생성: ${loser} → ${loserRoundName}`);
             } else {
-                // 기존 패자전 경기에 배정
                 if (isPlayer1) {
                     loserMatch.player1Name = loser;
                 } else {
                     loserMatch.player2Name = loser;
                 }
-                
-                if (loserMatch.player1Name !== 'TBD' && loserMatch.player2Name !== 'TBD') {
-                    loserMatch.status = 'ready';
-                    console.log(`📉 ${loserRoundName} 경기${loserMatchNum} 준비 완료: ${loserMatch.player1Name} vs ${loserMatch.player2Name}`);
-                }
+                updateMatchStatus(loserMatch);
+                console.log(`📉 패자전 배정: ${loser} → ${loserRoundName}`);
             }
         }
-        
-        // 패자전 승자 진출 처리
-        function advanceLoserBracketWinner(project, match, winner, loser) {
+
+        // 패자전 진출 처리
+        function handleLoserBracketProgression(project, match, winner, loser) {
             const loserRoundSize = match.loserRoundSize;
             const matchNum = match.loserMatchNum;
-            const isTeam = project.competitionType === 'team';
-            const winScore = isTeam ? 31 : 11;
-            
-            // 다음 패자전 라운드 결정
-            // 5-8위전(2경기) 승자 → 5/6위전, 패자 → 7/8위전
-            const nextLoserMatchCount = loserRoundSize / 2;
-            
-            if (nextLoserMatchCount >= 1) {
-                // 승자용 다음 라운드
-                const startRank = loserRoundSize + 1;
-                const midRank = startRank + nextLoserMatchCount - 1;
-                const winnerRoundName = `${startRank}/${midRank + 1}위전`;
-                
-                // 패자용 다음 라운드
+            const nextMatchCount = loserRoundSize / 2;
+
+            if (nextMatchCount < 1) return;
+
+            // 승자용 순위결정전
+            const startRank = loserRoundSize + 1;
+            const midRank = startRank + nextMatchCount - 1;
+            const winnerRoundName = `${startRank}/${midRank + 1}위전`;
+
+            assignToNextLoserRound(project, winner, winnerRoundName, matchNum);
+
+            // 패자용 순위결정전 (2경기 이상일 때만)
+            if (nextMatchCount >= 2) {
                 const loserStartRank = midRank + 1;
                 const loserEndRank = loserRoundSize * 2;
-                const loserNextRoundName = `${loserStartRank}/${loserEndRank}위전`;
-                
-                // 승자 진출
-                assignNextLoserMatch(project, winner, winnerRoundName, matchNum, true, winScore, isTeam);
-                
-                // 패자 진출 (마지막 라운드가 아닌 경우)
-                if (nextLoserMatchCount >= 2) {
-                    assignNextLoserMatch(project, loser, loserNextRoundName, matchNum, false, winScore, isTeam);
-                }
+                const loserRoundName = `${loserStartRank}/${loserEndRank}위전`;
+                assignToNextLoserRound(project, loser, loserRoundName, matchNum);
             }
         }
-        
-        // 다음 패자전 경기 배정
-        function assignNextLoserMatch(project, player, roundName, prevMatchNum, isWinner, winScore, isTeam) {
+
+        // 다음 패자전 라운드 배정
+        function assignToNextLoserRound(project, player, roundName, prevMatchNum) {
             const nextMatchNum = Math.ceil(prevMatchNum / 2);
             const isPlayer1 = (prevMatchNum % 2 === 1);
-            
-            let nextMatch = project.matches.find(m => 
-                m.isLoserBracket && 
-                m.roundName === roundName && 
+
+            let nextMatch = project.matches.find(m =>
+                m.isLoserBracket &&
+                m.roundName === roundName &&
                 m.loserMatchNum === nextMatchNum
             );
-            
+
             if (!nextMatch) {
-                nextMatch = {
-                    id: Date.now() + 9000 + nextMatchNum + Math.floor(Math.random() * 100),
-                    player1Name: isPlayer1 ? player : 'TBD',
-                    player2Name: isPlayer1 ? 'TBD' : player,
-                    type: isTeam ? 'team' : 'individual',
+                nextMatch = createMatchObject({
+                    player1: isPlayer1 ? player : 'TBD',
+                    player2: isPlayer1 ? 'TBD' : player,
+                    type: project.competitionType,
                     sets: 3,
-                    winScore: winScore,
-                    currentSet: 1,
-                    setScores: [{ player1: 0, player2: 0 }],
-                    currentServe: null,
-                    serveCount: 0,
-                    serveSelected: false,
-                    timeouts: { player1: 1, player2: 1 },
-                    history: [],
-                    status: 'pending',
                     isLoserBracket: true,
-                    roundName: roundName,
-                    loserMatchNum: nextMatchNum,
-                    refereePin: generatePin()
-                };
+                    loserRoundName: roundName,
+                    loserMatchNum: nextMatchNum
+                });
                 project.matches.push(nextMatch);
                 console.log(`📉 ${roundName} 생성: ${player}`);
             } else {
@@ -13622,130 +13769,71 @@
                 } else {
                     nextMatch.player2Name = player;
                 }
-                
-                if (nextMatch.player1Name !== 'TBD' && nextMatch.player2Name !== 'TBD') {
-                    nextMatch.status = 'ready';
-                    console.log(`📉 ${roundName} 준비 완료: ${nextMatch.player1Name} vs ${nextMatch.player2Name}`);
-                }
+                updateMatchStatus(nextMatch);
             }
         }
-        
-        // 3/4위전 배정
-        function assignThirdPlaceMatch(project, match, loser) {
-            const isTeam = project.competitionType === 'team';
-            const winScore = isTeam ? 31 : 11;
-            
-            // 3/4위전 경기 찾기
-            let thirdPlaceMatch = project.matches.find(m => m.isThirdPlace === true);
-            
-            if (!thirdPlaceMatch) {
-                // 3/4위전 경기 생성
-                thirdPlaceMatch = {
-                    id: Date.now() + 9999 + Math.floor(Math.random() * 100),
-                    player1Name: loser,
-                    player2Name: 'TBD',
-                    type: project.competitionType,
-                    sets: 3, // 3/4위전은 항상 3세트
-                    winScore: winScore,
-                    currentSet: 1,
-                    setScores: [{ player1: 0, player2: 0 }],
-                    currentServe: null,
-                    serveCount: 0,
-                    serveSelected: false,
-                    timeouts: { player1: 1, player2: 1 },
-                    history: [],
-                    status: 'pending',
-                    isThirdPlace: true, // 3/4위전 표시
-                    roundName: '3/4위전',
-                    refereePin: generatePin()
-                };
-                project.matches.push(thirdPlaceMatch);
-                console.log(`🥉 3/4위전 생성: ${loser} vs TBD`);
-            } else {
-                // 기존 3/4위전에 두 번째 패자 배정
-                thirdPlaceMatch.player2Name = loser;
-                
-                // 두 선수 모두 결정되면 경기 준비 완료
-                if (thirdPlaceMatch.player1Name !== 'TBD' && thirdPlaceMatch.player2Name !== 'TBD') {
-                    thirdPlaceMatch.status = 'ready';
-                    console.log(`🥉 3/4위전 준비 완료: ${thirdPlaceMatch.player1Name} vs ${thirdPlaceMatch.player2Name}`);
-                }
-            }
-        }
-        
-        function checkGroupStageCompletion(project) {
-            if (!project.groups || project.groups.length === 0) return;
-            
-            // 조별 리그 경기가 모두 완료되었는지 확인
+
+        // ========== 조별 리그 관리 ==========
+
+        // 조별 리그 완료 체크
+        function handleGroupCompletion(project) {
+            if (!project.groups?.length) return;
+            if (project.tournamentType !== 'group-knockout') return;
+
             const groupMatches = project.matches.filter(m => m.groupIndex !== undefined);
-            const completedGroupMatches = groupMatches.filter(m => m.status === 'completed');
-            
-            if (groupMatches.length === 0 || completedGroupMatches.length < groupMatches.length) {
-                return; // 아직 조별 리그 진행 중
-            }
-            
-            // 이미 본선 생성됨?
-            const knockoutMatches = project.matches.filter(m => m.bracketRound);
-            if (knockoutMatches.length > 0) return;
-            
-            // 조별 순위 계산 및 본선 진출자 결정
-            const advanceCount = project.groupSettings?.advanceCount || 2;
-            const knockoutSize = project.knockoutSettings?.size || 8;
-            
-            const advancers = [];
-            
-            project.groups.forEach((group, gIdx) => {
-                const standings = calculateGroupStandings(project, gIdx);
-                const groupAdvancers = standings.slice(0, advanceCount);
-                advancers.push(...groupAdvancers.map((s, rank) => ({
-                    name: s.name,
-                    group: group.name,
-                    rank: rank + 1,
-                    seed: gIdx * advanceCount + rank + 1
-                })));
-            });
-            
-            // 본선 대진표 생성 (시드 배정)
-            generateKnockoutBracket(project, advancers, knockoutSize);
-            
-            announce(`조별 리그 완료! 본선 ${knockoutSize}강 대진표 생성`);
+            const completedMatches = groupMatches.filter(m => m.status === MatchStatus.COMPLETED);
+
+            // 아직 진행 중
+            if (completedMatches.length < groupMatches.length) return;
+
+            // 이미 본선 생성됨
+            if (project.matches.some(m => m.bracketRound)) return;
+
+            console.log('📢 조별 리그 완료 - 본선 자동 생성 시작');
+            generateFinalsFromCustomBracket();
         }
-        
+
+        // 조별 순위 계산
         function calculateGroupStandings(project, groupIndex) {
             const group = project.groups[groupIndex];
             if (!group) return [];
-            
+
             const records = {};
-            group.members.forEach(m => {
-                records[m] = { name: m, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 };
+            group.members.forEach(name => {
+                records[name] = {
+                    name, wins: 0, losses: 0,
+                    setsWon: 0, setsLost: 0,
+                    pointsFor: 0, pointsAgainst: 0
+                };
             });
-            
-            const groupMatches = project.matches.filter(m => 
-                m.groupIndex === groupIndex && m.status === 'completed'
+
+            const groupMatches = project.matches.filter(m =>
+                m.groupIndex === groupIndex && m.status === MatchStatus.COMPLETED
             );
-            
-            groupMatches.forEach(m => {
-                const p1 = m.player1Name;
-                const p2 = m.player2Name;
-                
+
+            groupMatches.forEach(match => {
+                const p1 = match.player1Name;
+                const p2 = match.player2Name;
+
                 if (!records[p1] || !records[p2]) return;
-                
+
                 let p1Sets = 0, p2Sets = 0;
-                m.setScores.forEach(s => {
-                    if (s.player1 > s.player2) p1Sets++;
-                    else if (s.player2 > s.player1) p2Sets++;
-                    
-                    records[p1].pointsFor += s.player1;
-                    records[p1].pointsAgainst += s.player2;
-                    records[p2].pointsFor += s.player2;
-                    records[p2].pointsAgainst += s.player1;
+
+                match.setScores.forEach(score => {
+                    if (score.player1 > score.player2) p1Sets++;
+                    else if (score.player2 > score.player1) p2Sets++;
+
+                    records[p1].pointsFor += score.player1;
+                    records[p1].pointsAgainst += score.player2;
+                    records[p2].pointsFor += score.player2;
+                    records[p2].pointsAgainst += score.player1;
                 });
-                
+
                 records[p1].setsWon += p1Sets;
                 records[p1].setsLost += p2Sets;
                 records[p2].setsWon += p2Sets;
                 records[p2].setsLost += p1Sets;
-                
+
                 if (p1Sets > p2Sets) {
                     records[p1].wins++;
                     records[p2].losses++;
@@ -13754,23 +13842,110 @@
                     records[p1].losses++;
                 }
             });
-            
+
             // 정렬: 승수 > 세트득실 > 점수득실
             return Object.values(records).sort((a, b) => {
                 if (b.wins !== a.wins) return b.wins - a.wins;
+
                 const aSetDiff = a.setsWon - a.setsLost;
                 const bSetDiff = b.setsWon - b.setsLost;
                 if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
+
                 const aPointDiff = a.pointsFor - a.pointsAgainst;
                 const bPointDiff = b.pointsFor - b.pointsAgainst;
                 return bPointDiff - aPointDiff;
             });
         }
-        
+
+        // ========== 본선 대진표 생성 ==========
+
+        // 표준 시드 순서 생성 (1 vs 8, 4 vs 5, 3 vs 6, 2 vs 7)
+        function generateSeedOrder(size) {
+            if (size === 2) return [0, 1];
+            const half = generateSeedOrder(size / 2);
+            return half.flatMap((seed, i) => [seed, size - 1 - seed]);
+        }
+
+        // 라운드 이름 반환
+        function getRoundNameBySize(size) {
+            return RoundNames[size] || `${size}강`;
+        }
+
+        // 시드 기반 자동 대진표 생성
         function generateKnockoutBracket(project, advancers, size) {
+            const seedOrder = generateSeedOrder(size);
+            const roundName = getRoundNameBySize(size);
+            let matchNum = 0;
+
+            for (let i = 0; i < size; i += 2) {
+                const seed1 = seedOrder[i];
+                const seed2 = seedOrder[i + 1];
+                const p1 = advancers[seed1];
+                const p2 = advancers[seed2];
+
+                // BYE 처리
+                if (p1?.name === 'BYE' || p2?.name === 'BYE') {
+                    const realPlayer = p1?.name !== 'BYE' ? p1 : p2;
+                    if (realPlayer) {
+                        console.log(`${realPlayer.name} 부전승`);
+                    }
+                    continue;
+                }
+
+                matchNum++;
+                const match = createMatchObject({
+                    player1: p1?.name || 'TBD',
+                    player2: p2?.name || 'TBD',
+                    type: project.competitionType,
+                    sets: project.finalsSets || 3,
+                    bracketRound: 1,
+                    bracketMatchNum: matchNum,
+                    bracketSize: size,
+                    roundName: roundName
+                });
+
+                project.matches.push(match);
+            }
+
+            project.finalsSize = size;
+            saveProjects();
+        }
+
+        // checkGroupStageCompletion - 이전 버전과의 호환성을 위해 유지
+        function checkGroupStageCompletion(project) {
+            handleGroupCompletion(project);
+        }
+
+        // advanceTournamentWinner - 이전 버전과의 호환성을 위한 래퍼
+        function advanceTournamentWinner(project, match, winner) {
+            handleBracketProgression(project, match, winner);
+        }
+
+        // assignLoserBracket - 이전 버전과의 호환성을 위한 래퍼
+        function assignLoserBracket(project, match, loser, roundMatchCount) {
+            assignToLoserBracket(project, match, loser, roundMatchCount);
+        }
+
+        // assignThirdPlaceMatch - 이전 버전과의 호환성을 위한 래퍼
+        function assignThirdPlaceMatch(project, match, loser) {
+            assignToThirdPlaceMatch(project, loser);
+        }
+
+        // advanceLoserBracketWinner - 이전 버전과의 호환성을 위한 래퍼
+        function advanceLoserBracketWinner(project, match, winner, loser) {
+            handleLoserBracketProgression(project, match, winner, loser);
+        }
+
+        // assignNextLoserMatch - 이전 버전과의 호환성을 위한 래퍼
+        function assignNextLoserMatch(project, player, roundName, prevMatchNum) {
+            assignToNextLoserRound(project, player, roundName, prevMatchNum);
+        }
+
+        // generateKnockoutBracket에서 사용하는 호환성 코드
+        function generateKnockoutBracketCompat(project, advancers, size) {
             // 시드 배정 (1번 시드 vs 마지막 시드가 결승에서 만나도록)
             const seededOrder = [];
-            
+
             // 기본 시드 배치 (8강 예시: 1-8, 4-5, 2-7, 3-6)
             function getSeedOrder(n) {
                 if (n === 2) return [1, 2];
@@ -13782,17 +13957,17 @@
                 });
                 return result;
             }
-            
+
             const seedOrder = getSeedOrder(size);
-            
+
             // 대진 생성
             for (let i = 0; i < size; i += 2) {
                 const seed1 = seedOrder[i];
                 const seed2 = seedOrder[i + 1];
-                
+
                 const p1 = advancers.find(a => a.seed === seed1);
                 const p2 = advancers.find(a => a.seed === seed2);
-                
+
                 const match = {
                     id: Date.now() + i,
                     player1Name: p1 ? p1.name : 'BYE',
@@ -13989,24 +14164,18 @@
             });
         }
         
-        // 커스텀 대진표 기반 본선 경기 생성
+        // 커스텀 대진표 기반 본선 경기 생성 (새로운 시스템 사용)
         function generateCustomFinals(project, customBracket, groupStandings, sets, finalsSize) {
-            const isTeam = project.competitionType === 'team';
-            const winScore = isTeam ? 31 : 11;
-            
-            // 라운드 이름 결정 (32강, 16강, 8강, 4강, 결승)
             const roundName = getRoundNameBySize(finalsSize);
-            
+
             console.log('🏆 커스텀 본선 대진표 생성:', customBracket.length + '경기,', roundName);
-            
+
             customBracket.forEach((match, idx) => {
-                // A1 -> A조 1위, B2 -> B조 2위
-                const p1Group = match.p1Group; // "A"
-                const p1Rank = match.p1Rank;   // 1
-                const p2Group = match.p2Group; // "B"
-                const p2Rank = match.p2Rank;   // 2
-                
-                // 해당 조 순위에서 선수 이름 찾기
+                const p1Group = match.p1Group;
+                const p1Rank = match.p1Rank;
+                const p2Group = match.p2Group;
+                const p2Rank = match.p2Rank;
+
                 const p1Standings = groupStandings[p1Group] || [];
                 const p2Standings = groupStandings[p2Group] || [];
 
@@ -14014,63 +14183,34 @@
                 const player2Found = p2Standings[p2Rank - 1]?.name;
                 const player1 = player1Found || `TBD (${p1Group}${p1Rank})`;
                 const player2 = player2Found || `TBD (${p2Group}${p2Rank})`;
-                const hasTBD = !player1Found || !player2Found;
 
-                console.log(`  ${roundName} 경기${idx + 1}: ${p1Group}${p1Rank}(${player1}) vs ${p2Group}${p2Rank}(${player2})${hasTBD ? ' [TBD]' : ''}`);
-                
-                const knockoutMatch = {
-                    id: Date.now() + idx * 100 + Math.floor(Math.random() * 100),
-                    player1Name: player1,
-                    player2Name: player2,
-                    player1Slot: `${p1Group}${p1Rank}`,
-                    player2Slot: `${p2Group}${p2Rank}`,
-                    hasTBD: hasTBD, // TBD 선수가 있으면 경기 시작 불가
-                    type: isTeam ? 'team' : 'individual',
+                console.log(`  ${roundName} 경기${idx + 1}: ${p1Group}${p1Rank}(${player1}) vs ${p2Group}${p2Rank}(${player2})`);
+
+                const knockoutMatch = createMatchObject({
+                    player1: player1,
+                    player2: player2,
+                    type: project.competitionType,
                     sets: sets,
-                    winScore: winScore,
-                    currentSet: 1,
-                    setScores: [{ player1: 0, player2: 0 }],
-                    currentServe: null,
-                    serveCount: 0,
-                    serveSelected: false,
-                    timeouts: { player1: 1, player2: 1 },
-                    history: [],
-                    status: hasTBD ? 'waiting' : 'pending', // TBD면 대기 상태
                     bracketRound: 1,
+                    bracketMatchNum: idx + 1,
                     bracketSize: finalsSize,
                     roundName: roundName,
-                    bracketMatchNum: idx + 1,
-                    bracketSlot: `${p1Group}${p1Rank} vs ${p2Group}${p2Rank}`,
-                    refereePin: generatePin()
-                };
-                
+                    player1Slot: `${p1Group}${p1Rank}`,
+                    player2Slot: `${p2Group}${p2Rank}`
+                });
+
+                knockoutMatch.bracketSlot = `${p1Group}${p1Rank} vs ${p2Group}${p2Rank}`;
                 project.matches.push(knockoutMatch);
             });
-            
-            // 프로젝트에 본선 규모 저장
+
             project.finalsSize = finalsSize;
         }
-        
-        // 본선 규모에 따른 라운드 이름
-        function getRoundNameBySize(size) {
-            switch(size) {
-                case 64: return '64강';
-                case 32: return '32강';
-                case 16: return '16강';
-                case 8: return '8강';
-                case 4: return '준결승';
-                case 2: return '결승';
-                default: return size + '강';
-            }
-        }
-        
-        // 기본 대진표 생성 (커스텀이 없을 때)
+
+        // 기본 대진표 생성 (커스텀이 없을 때) - 새로운 시스템 사용
         function generateDefaultFinals(project, groupStandings, advanceCount, sets, finalsSize) {
-            const isTeam = project.competitionType === 'team';
-            const winScore = isTeam ? 31 : 11;
             const groupNames = Object.keys(groupStandings).sort();
             const roundName = getRoundNameBySize(finalsSize);
-            
+
             // 진출자 목록 생성
             const advancers = [];
             groupNames.forEach(groupName => {
@@ -14083,123 +14223,112 @@
                     });
                 }
             });
-            
+
             console.log('🏆 기본 본선 대진표 생성:', advancers.length + '명 진출,', roundName);
 
             // 시드 배정: 순위별로 정렬 후 크로스 시드 적용
-            // 1위들을 먼저, 2위들을 나중에 (같은 조끼리 바로 만나지 않도록)
             const sortedAdvancers = advancers.sort((a, b) => {
                 if (a.rank !== b.rank) return a.rank - b.rank;
                 return a.group.localeCompare(b.group);
             });
 
-            // 본선 규모에 맞게 조정 (2의 제곱수로 맞춤)
-            const targetSize = finalsSize;
-            while (sortedAdvancers.length < targetSize) {
+            // 본선 규모에 맞게 BYE 추가
+            while (sortedAdvancers.length < finalsSize) {
                 sortedAdvancers.push({ name: 'BYE', group: 'BYE', rank: 99 });
             }
 
-            // 표준 토너먼트 시드 배열 생성 (1 vs 8, 4 vs 5, 3 vs 6, 2 vs 7 순서)
-            function generateSeedOrder(n) {
-                if (n === 2) return [0, 1];
-                const half = generateSeedOrder(n / 2);
-                return half.flatMap((seed, i) => [seed, n - 1 - seed]);
-            }
-            const seedOrder = generateSeedOrder(targetSize);
+            // 표준 토너먼트 시드 배열 생성
+            const seedOrder = generateSeedOrder(finalsSize);
 
             // 시드 순서대로 매칭
             let matchNum = 0;
-            for (let i = 0; i < targetSize; i += 2) {
+            for (let i = 0; i < finalsSize; i += 2) {
                 const seed1 = seedOrder[i];
                 const seed2 = seedOrder[i + 1];
                 const player1 = sortedAdvancers[seed1];
                 const player2 = sortedAdvancers[seed2];
 
-                // BYE가 아닌 경우에만 경기 생성
-                if (player1 && player2 && player1.name !== 'BYE' && player2.name !== 'BYE') {
-                    matchNum++;
-                    const match = createKnockoutMatch(player1.name, player2.name, matchNum, sets, winScore, isTeam, finalsSize, roundName);
-                    project.matches.push(match);
-                } else if (player1 && player1.name !== 'BYE' && player2?.name === 'BYE') {
-                    // BYE 상대는 자동 진출 (다음 라운드에 추가)
-                    console.log(`${player1.name} 부전승`);
-                } else if (player2 && player2.name !== 'BYE' && player1?.name === 'BYE') {
+                // BYE 처리
+                if (player1?.name === 'BYE' && player2?.name !== 'BYE') {
                     console.log(`${player2.name} 부전승`);
+                    continue;
+                } else if (player2?.name === 'BYE' && player1?.name !== 'BYE') {
+                    console.log(`${player1.name} 부전승`);
+                    continue;
+                } else if (player1?.name === 'BYE' && player2?.name === 'BYE') {
+                    continue;
                 }
+
+                matchNum++;
+                const match = createMatchObject({
+                    player1: player1?.name || 'TBD',
+                    player2: player2?.name || 'TBD',
+                    type: project.competitionType,
+                    sets: sets,
+                    bracketRound: 1,
+                    bracketMatchNum: matchNum,
+                    bracketSize: finalsSize,
+                    roundName: roundName
+                });
+                project.matches.push(match);
             }
-            
-            // 프로젝트에 본선 규모 저장
+
             project.finalsSize = finalsSize;
         }
-        
-        // 본선 경기 객체 생성 헬퍼
+
+        // 본선 경기 객체 생성 헬퍼 (호환성 유지)
         function createKnockoutMatch(player1, player2, matchNum, sets, winScore, isTeam, finalsSize, roundName) {
-            return {
-                id: Date.now() + matchNum * 100 + Math.floor(Math.random() * 100),
-                player1Name: player1,
-                player2Name: player2,
+            return createMatchObject({
+                player1: player1,
+                player2: player2,
                 type: isTeam ? 'team' : 'individual',
                 sets: sets,
-                winScore: winScore,
-                currentSet: 1,
-                setScores: [{ player1: 0, player2: 0 }],
-                currentServe: null,
-                serveCount: 0,
-                serveSelected: false,
-                timeouts: { player1: 1, player2: 1 },
-                history: [],
-                status: 'pending',
                 bracketRound: 1,
-                bracketSize: finalsSize,
-                roundName: roundName,
                 bracketMatchNum: matchNum,
-                refereePin: generatePin()
-            };
+                bracketSize: finalsSize,
+                roundName: roundName
+            });
         }
-        
+
         function editGroup(groupIndex) {
             const p = currentProject;
             if (!p || !p.groups[groupIndex]) return;
-            
+
             const group = p.groups[groupIndex];
             const currentMembers = group.members.join(', ');
             const newMembers = prompt(`${group.name} 멤버 (쉼표로 구분):`, currentMembers);
-            
+
             if (newMembers !== null) {
                 const members = newMembers.split(',').map(m => m.trim()).filter(m => m);
                 if (members.length > 0) {
                     group.members = members;
-                    
-                    // 해당 조 경기 재생성
+
+                    // 해당 조 경기 재생성 (새로운 시스템 사용)
                     p.matches = p.matches.filter(m => m.groupIndex !== groupIndex);
-                    
+
+                    const groupSets = p.groupSettings?.setsPerMatch ||
+                                     (p.competitionType === 'individual' ? 3 : 1);
+
                     for (let i = 0; i < members.length; i++) {
                         for (let j = i + 1; j < members.length; j++) {
-                            const match = {
-                                id: Date.now() + groupIndex * 1000 + i * 100 + j,
-                                player1Name: members[i],
-                                player2Name: members[j],
+                            const match = createMatchObject({
+                                player1: members[i],
+                                player2: members[j],
                                 type: p.competitionType,
-                                sets: p.competitionType === 'individual' ? 3 : 1,
-                                winScore: p.competitionType === 'individual' ? 11 : 31,
-                                currentSet: 1,
-                                setScores: [{ player1: 0, player2: 0 }],
-                                currentServe: 'player1',
-                                serveCount: 0,
-                                serveSelected: false,
-                                timeouts: { player1: 1, player2: 1 },
-                                history: [],
-                                status: 'pending',
+                                sets: groupSets,
                                 groupIndex: groupIndex,
-                                groupName: group.name,
-                                refereePin: generatePin()
-                            };
+                                groupName: group.name
+                            });
+
+                            // 조별 리그 경기는 바로 시작 가능
+                            match.status = MatchStatus.READY;
+
                             p.matches.push(match);
                             if (!group.matches) group.matches = [];
                             group.matches.push(match.id);
                         }
                     }
-                    
+
                     saveProjects();
                     announce(`${group.name} 수정 완료`);
                     render();
@@ -14211,13 +14340,19 @@
         function startMatchFromBracket(matchId) {
             const p = currentProject;
             if (!p) return;
-            
+
             const match = p.matches.find(m => m.id === matchId);
             if (!match) {
                 alert('경기를 찾을 수 없습니다.');
                 return;
             }
-            
+
+            // TBD 체크 - 선수가 확정되지 않은 경기는 시작 불가
+            if (match.hasTBD || match.status === MatchStatus.WAITING) {
+                alert('아직 선수가 확정되지 않은 경기입니다.\n이전 경기가 완료되면 선수가 자동으로 배정됩니다.');
+                return;
+            }
+
             // PIN 확인
             if (match.refereePin) {
                 const inputPin = prompt('심판 PIN을 입력하세요:');
@@ -14226,11 +14361,11 @@
                     return;
                 }
             }
-            
+
             // 경기 상태 변경
-            match.status = 'in-progress';
+            match.status = MatchStatus.ACTIVE;
             saveProjects();
-            
+
             // 경기 화면으로 이동
             currentMatch = match;
             isAuthenticated = true;
@@ -14238,7 +14373,7 @@
             announce(`${match.player1Name} 대 ${match.player2Name} 경기를 시작합니다.`);
             render();
         }
-        
+
         // 프로젝트 관리 화면에서 경기 시작
         function startMatchFromProject(matchId) {
             const p = currentProject;
@@ -14247,16 +14382,22 @@
                 goTo('project-list');
                 return;
             }
-            
+
             const match = p.matches.find(m => m.id === matchId);
             if (!match) {
                 alert('경기를 찾을 수 없습니다.');
                 return;
             }
-            
+
+            // TBD 체크 - 선수가 확정되지 않은 경기는 시작 불가
+            if (match.hasTBD || match.status === MatchStatus.WAITING) {
+                alert('아직 선수가 확정되지 않은 경기입니다.\n이전 경기가 완료되면 선수가 자동으로 배정됩니다.');
+                return;
+            }
+
             // 관리자 모드에서는 PIN 생략 가능
             const skipPin = sessionStorage.getItem('currentOperator');
-            
+
             if (!skipPin && match.refereePin) {
                 const inputPin = prompt('심판 PIN을 입력하세요:');
                 if (inputPin !== match.refereePin) {
@@ -14264,13 +14405,13 @@
                     return;
                 }
             }
-            
+
             // 경기 상태 변경
-            if (match.status !== 'in-progress') {
-                match.status = 'in-progress';
+            if (match.status !== MatchStatus.ACTIVE && match.status !== 'in-progress') {
+                match.status = MatchStatus.ACTIVE;
                 saveProjects();
             }
-            
+
             // 경기 화면으로 이동
             currentMatch = match;
             isAuthenticated = true;
