@@ -74,7 +74,7 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/showdown-test">
       <OfflineIndicator />
       <Routes>
         {/* Home */}
