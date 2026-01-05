@@ -2211,7 +2211,7 @@
                                         <span>${g.name}</span>
                                         <button class="btn" onclick="editGroup(${gIdx})" style="padding:2px 8px; min-width:auto; font-size:12px;">✏️ 수정</button>
                                     </div>
-                                    ${g.members.map((m, i) => `<div style="font-size:13px; padding:4px 0;">${i+1}. ${m}</div>`).join('')}
+                                    ${(g.members || []).map((m, i) => `<div style="font-size:13px; padding:4px 0;">${i+1}. ${m}</div>`).join('')}
                                 </div>
                             `).join('')}
                         </div>
@@ -7478,11 +7478,13 @@
             if (p.groups && p.groups.length > 0) {
                 // 조 편성이 있으면 조에서 참가자 추출
                 p.groups.forEach(g => {
-                    g.members.forEach(m => {
-                        if (!participants.includes(m)) {
-                            participants.push(m);
-                        }
-                    });
+                    if (g.members && Array.isArray(g.members)) {
+                        g.members.forEach(m => {
+                            if (!participants.includes(m)) {
+                                participants.push(m);
+                            }
+                        });
+                    }
                 });
             } else if (isTeam && p.teams && p.teams.length > 0) {
                 participants = p.teams.map(t => t.name);
