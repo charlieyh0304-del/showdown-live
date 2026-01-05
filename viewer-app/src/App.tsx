@@ -368,7 +368,7 @@ function MatchCard({ match }: { match: Match }) {
 // App Router
 function App() {
   return (
-    <BrowserRouter basename="/viewer-app">
+    <BrowserRouter basename="/showdown-test/viewer-app">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/project/:id" element={<ProjectDetail />} />
