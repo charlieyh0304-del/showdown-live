@@ -75,6 +75,8 @@ export interface Match {
   groupName?: string
   player1Slot?: string
   player2Slot?: string
+  nextMatchId?: number
+  nextSlot?: number
 
   // Scheduling
   scheduledDate?: string
