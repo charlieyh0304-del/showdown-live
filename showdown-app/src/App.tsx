@@ -19,6 +19,8 @@ import { ManageGroups } from '@/pages/tournament/ManageGroups'
 import { Standings } from '@/pages/tournament/Standings'
 import { ManageBracket } from '@/pages/tournament/ManageBracket'
 import { Statistics } from '@/pages/tournament/Statistics'
+import { ViewerProjects } from '@/pages/viewer/ViewerProjects'
+import { ViewerProjectDetail } from '@/pages/viewer/ViewerProjectDetail'
 
 // Placeholder component for routes not yet implemented
 function ComingSoon({ title }: { title: string }) {
@@ -89,8 +91,9 @@ function App() {
         {/* Viewer Mode */}
         <Route path="/viewer" element={<ViewerHome />} />
         <Route path="/viewer/live-practice" element={<ComingSoon title="실시간 연습 경기" />} />
-        <Route path="/viewer/projects" element={<ComingSoon title="대회 목록" />} />
-        <Route path="/viewer/results" element={<ComingSoon title="대회 결과" />} />
+        <Route path="/viewer/projects" element={<ViewerProjects />} />
+        <Route path="/viewer/project/:id" element={<ViewerProjectDetail />} />
+        <Route path="/viewer/results" element={<ViewerProjects />} />
         <Route path="/viewer/player-schedule" element={<ComingSoon title="선수별 일정" />} />
         <Route path="/viewer/referee-schedule" element={<ComingSoon title="심판별 일정" />} />
         <Route path="/viewer/schedule-overview" element={<ComingSoon title="전체 일정" />} />
