@@ -3144,7 +3144,7 @@
                             </button>
                         </div>
                         
-                        <button type="button" onclick="goTo('viewer-select-project')" aria-label="대회 결과 보기, 조별 순위, 토너먼트, 개인 기록" style="width:100%; padding:14px; background:#e8f5e9; border:none; border-radius:10px; cursor:pointer; text-align:left; margin-bottom:16px;">
+                        <button type="button" onclick="goTo('viewer-select-project')" aria-label="대회 결과 보기, 조별 순위, 토너먼트, 개인 기록" style="width:100%; padding:14px; background:#e8f5e9; border:none; border-radius:10px; cursor:pointer; text-align:left; margin-bottom:10px;">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <span style="font-size:18px;">📊</span>
                                 <div>
@@ -3153,12 +3153,102 @@
                                 </div>
                             </div>
                         </button>
+
+                        <button type="button" onclick="goTo('simulation-results')" aria-label="시뮬레이션 결과 보기" style="width:100%; padding:14px; background:linear-gradient(135deg, #667eea22, #764ba222); border:2px solid #667eea44; border-radius:10px; cursor:pointer; text-align:left; margin-bottom:16px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span style="font-size:18px;">🎮</span>
+                                <div>
+                                    <div style="font-weight:600; font-size:14px; color:#667eea;">시뮬레이션 결과</div>
+                                    <div style="font-size:12px; color:#666;">자동 대회 시뮬레이션 전체 기록</div>
+                                </div>
+                            </div>
+                        </button>
                         
                         <button type="button" class="btn" onclick="goTo('home')" style="width:100%;" aria-label="모드 선택으로 돌아가기">← 모드 선택으로</button>
                     </div>
                 `;
             }
-            
+
+            // ========== 시뮬레이션 결과 화면 ==========
+            else if (screen === 'simulation-results') {
+                // 시뮬레이션 결과가 있는 프로젝트들
+                const simProjects = projects.filter(p => p.autoTournamentResult);
+
+                let content = `
+                    <header class="header" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <h1 style="color:white;">🎮 시뮬레이션 결과</h1>
+                        <p style="color:rgba(255,255,255,0.9);">자동 대회 전체 기록 확인</p>
+                    </header>
+                    <main>
+                        <div class="card">
+                            <button class="btn" onclick="goTo('viewer-home')" style="margin-bottom:16px;">← 관람 모드로</button>
+                `;
+
+                if (simProjects.length === 0) {
+                    content += `
+                        <div style="padding:40px; text-align:center; color:#666;">
+                            <div style="font-size:48px; margin-bottom:16px;">📭</div>
+                            <div style="font-size:16px; margin-bottom:8px;">시뮬레이션 결과가 없습니다</div>
+                            <div style="font-size:13px;">심판 모드에서 자동 대회를 진행해보세요</div>
+                        </div>
+                    `;
+                } else {
+                    content += `<h3 style="margin-bottom:16px;">시뮬레이션 완료된 대회 (${simProjects.length}개)</h3>`;
+
+                    simProjects.forEach(p => {
+                        const r = p.autoTournamentResult;
+                        const isTeam = r.settings.isTeam;
+                        const formatNames = { 'group-knockout': '조별+토너먼트', 'full-league': '풀리그', 'knockout-only': '토너먼트' };
+                        const format = r.settings.tournamentFormat || 'group-knockout';
+                        const winner = r.finalStandings[0]?.name || '-';
+
+                        content += `
+                            <div onclick="viewSimulationResult(${p.id})" style="padding:16px; margin-bottom:12px; background:linear-gradient(135deg, #f5f5f5, #e8e8e8); border-radius:12px; cursor:pointer; border-left:4px solid #667eea;">
+                                <div style="font-weight:600; font-size:16px; margin-bottom:6px;">${p.name}</div>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+                                    <span style="background:#667eea22; color:#667eea; padding:2px 8px; border-radius:10px; font-size:11px;">${formatNames[format]}</span>
+                                    <span style="background:#4caf5022; color:#4caf50; padding:2px 8px; border-radius:10px; font-size:11px;">${r.settings.count}${isTeam ? '팀' : '명'}</span>
+                                </div>
+                                <div style="font-size:13px; color:#666;">
+                                    🏆 우승: <strong>${winner}</strong>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                content += `</div></main>`;
+                app.innerHTML = content;
+            }
+
+            // ========== 시뮬레이션 상세 결과 화면 ==========
+            else if (screen === 'simulation-detail') {
+                const project = projects.find(p => p.id === currentProject?.id);
+                const r = project?.autoTournamentResult;
+
+                if (!r) {
+                    app.innerHTML = `
+                        <div class="card">
+                            <button class="btn" onclick="goTo('simulation-results')">← 목록으로</button>
+                            <p style="text-align:center; padding:40px; color:#666;">시뮬레이션 결과가 없습니다</p>
+                        </div>
+                    `;
+                } else {
+                    app.innerHTML = `
+                        <header class="header" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <h1 style="color:white;">🎮 ${project.name}</h1>
+                            <p style="color:rgba(255,255,255,0.9);">시뮬레이션 상세 결과</p>
+                        </header>
+                        <main>
+                            <div class="card">
+                                <button class="btn" onclick="goTo('simulation-results')" style="margin-bottom:16px;">← 목록으로</button>
+                                <div id="simulation-detail-content">${renderAutoTournamentResult()}</div>
+                            </div>
+                        </main>
+                    `;
+                }
+            }
+
             // ========== 스케줄 조회 화면들 ==========
             // 참가자 스케줄 조회
             else if (screen === 'player-schedule') {
@@ -6306,10 +6396,29 @@
 
                         <!-- 빠른 시뮬레이션 버튼 -->
                         <div style="margin-bottom:20px; padding:20px; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius:12px; text-align:center;">
-                            <h3 style="color:white; margin-bottom:8px;">빠른 테스트</h3>
-                            <p style="color:rgba(255,255,255,0.8); font-size:13px; margin-bottom:16px;">
-                                설정 없이 바로 16명 대회를 시뮬레이션합니다
+                            <h3 style="color:white; margin-bottom:12px;">빠른 테스트</h3>
+
+                            <!-- 대회 형식 선택 -->
+                            <div style="margin-bottom:16px;">
+                                <p style="color:rgba(255,255,255,0.7); font-size:11px; margin-bottom:8px;">대회 형식</p>
+                                <div style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap;">
+                                    <button class="btn quick-format-btn" id="fmt-group-knockout" onclick="setQuickFormat('group-knockout')" style="background:white; color:#667eea; font-size:12px; padding:8px 14px; font-weight:600;">
+                                        조별+토너먼트
+                                    </button>
+                                    <button class="btn quick-format-btn" id="fmt-full-league" onclick="setQuickFormat('full-league')" style="background:rgba(255,255,255,0.2); color:white; font-size:12px; padding:8px 14px;">
+                                        풀리그
+                                    </button>
+                                    <button class="btn quick-format-btn" id="fmt-knockout-only" onclick="setQuickFormat('knockout-only')" style="background:rgba(255,255,255,0.2); color:white; font-size:12px; padding:8px 14px;">
+                                        토너먼트만
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 형식별 설명 -->
+                            <p id="quick-format-desc" style="color:rgba(255,255,255,0.8); font-size:12px; margin-bottom:16px;">
+                                조별 예선 리그 → 상위 진출 → 결선 토너먼트
                             </p>
+
                             <button class="btn" onclick="quickSimulation()" style="background:white; color:#667eea; font-weight:700; font-size:16px; padding:14px 32px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
                                 원클릭 시뮬레이션
                             </button>
@@ -7195,7 +7304,13 @@
             currentProject = projects[index];
             goTo('project-detail');
         }
-        
+
+        // 시뮬레이션 결과 보기 (관람 모드)
+        function viewSimulationResult(projectId) {
+            currentProject = projects.find(p => p.id === projectId);
+            goTo('simulation-detail');
+        }
+
         // 프로젝트 검색
         function searchProjects() {
             const query = document.getElementById('project-search').value.trim();
@@ -9041,7 +9156,54 @@
         
         function autoSimulateMatch(p1, p2, isTeam, sets = 3) {
             const history = [];
-            
+            const scoreTypes = ['골', '상대 부정서브', '상대 센터보드', '상대 하이볼'];
+            const maxServes = isTeam ? 3 : 2;
+            let currentServer = Math.random() < 0.5 ? 'p1' : 'p2';
+            let serveCount = 0;
+            let rallyNum = 0;
+
+            // 서브권 교체 함수
+            function switchServe() {
+                serveCount++;
+                if (serveCount >= maxServes) {
+                    currentServer = currentServer === 'p1' ? 'p2' : 'p1';
+                    serveCount = 0;
+                }
+            }
+
+            // 득점 기록 함수
+            function recordScore(scorer, points, s1, s2, prevS1, prevS2, setNum = 1) {
+                rallyNum++;
+                const isP1Score = scorer === 'p1';
+                const scorerName = isP1Score ? p1 : p2;
+                const server = currentServer === 'p1' ? p1 : p2;
+
+                // 득점 유형 결정 (골 80%, 파울 20%)
+                let type;
+                if (Math.random() < 0.8) {
+                    type = `${scorerName} 골`;
+                } else {
+                    const foulType = scoreTypes[Math.floor(Math.random() * (scoreTypes.length - 1)) + 1];
+                    type = `${isP1Score ? p2 : p1} ${foulType.replace('상대 ', '')}`;
+                }
+
+                history.push({
+                    rallyNum,
+                    time: `00:${String(Math.floor(rallyNum * 15 / 60)).padStart(2, '0')}:${String((rallyNum * 15) % 60).padStart(2, '0')}`,
+                    player: scorerName,
+                    actionPlayer: type.includes('골') ? scorerName : (isP1Score ? p2 : p1),
+                    type,
+                    points,
+                    set: setNum,
+                    server,
+                    serveNumber: serveCount + 1,
+                    scoreBefore: { player1: prevS1, player2: prevS2 },
+                    scoreAfter: { player1: s1, player2: s2 }
+                });
+
+                switchServe();
+            }
+
             if (isTeam) {
                 // 팀전: 31점 2점차
                 let s1 = 0, s2 = 0;
@@ -9049,33 +9211,21 @@
                     const prevS1 = s1, prevS2 = s2;
                     const points = Math.random() < 0.3 ? 2 : 1;
                     const isP1Score = Math.random() < 0.5;
-                    
+
                     if (isP1Score) {
                         s1 += points;
-                        history.push({
-                            player: p1,
-                            type: 'goal',
-                            points: points,
-                            scoreBefore: `${prevS1}:${prevS2}`,
-                            scoreAfter: `${s1}:${s2}`
-                        });
+                        recordScore('p1', points, s1, s2, prevS1, prevS2);
                     } else {
                         s2 += points;
-                        history.push({
-                            player: p2,
-                            type: 'goal',
-                            points: points,
-                            scoreBefore: `${prevS1}:${prevS2}`,
-                            scoreAfter: `${s1}:${s2}`
-                        });
+                        recordScore('p2', points, s1, s2, prevS1, prevS2);
                     }
-                    
-                    if (s1 >= 31 && s1 - s2 >= 2) return { winner: p1, loser: p2, score: `${s1}:${s2}`, s1, s2, setScores: [{s1, s2}], history };
-                    if (s2 >= 31 && s2 - s1 >= 2) return { winner: p2, loser: p1, score: `${s2}:${s1}`, s1: s2, s2: s1, setScores: [{s1: s2, s2: s1}], history };
+
+                    if (s1 >= 31 && s1 - s2 >= 2) return { winner: p1, loser: p2, score: `${s1}:${s2}`, s1, s2, setScores: [{s1, s2}], history, totalP1: s1, totalP2: s2 };
+                    if (s2 >= 31 && s2 - s1 >= 2) return { winner: p2, loser: p1, score: `${s2}:${s1}`, s1: s2, s2: s1, setScores: [{s1: s2, s2: s1}], history, totalP1: s2, totalP2: s1 };
                     if (s1 > 40 || s2 > 40) {
-                        return s1 > s2 ? 
-                            { winner: p1, loser: p2, score: `${s1}:${s2}`, s1, s2, setScores: [{s1, s2}], history } : 
-                            { winner: p2, loser: p1, score: `${s2}:${s1}`, s1: s2, s2: s1, setScores: [{s1: s2, s2: s1}], history };
+                        return s1 > s2 ?
+                            { winner: p1, loser: p2, score: `${s1}:${s2}`, s1, s2, setScores: [{s1, s2}], history, totalP1: s1, totalP2: s2 } :
+                            { winner: p2, loser: p1, score: `${s2}:${s1}`, s1: s2, s2: s1, setScores: [{s1: s2, s2: s1}], history, totalP1: s2, totalP2: s1 };
                     }
                 }
             } else {
@@ -9084,38 +9234,25 @@
                 let sets1 = 0, sets2 = 0;
                 const setScores = [];
                 let totalP1 = 0, totalP2 = 0;
-                
+
                 while (sets1 < winsNeeded && sets2 < winsNeeded) {
                     let s1 = 0, s2 = 0;
                     const setNum = setScores.length + 1;
-                    
+                    serveCount = 0; // 세트 시작 시 서브 카운트 리셋
+
                     // 세트 진행 시뮬레이션
                     while (true) {
                         const prevS1 = s1, prevS2 = s2;
                         const isP1Score = Math.random() < 0.5;
-                        
+
                         if (isP1Score) {
                             s1++;
-                            history.push({
-                                player: p1,
-                                type: 'goal',
-                                points: 1,
-                                set: setNum,
-                                scoreBefore: `${prevS1}:${prevS2}`,
-                                scoreAfter: `${s1}:${s2}`
-                            });
+                            recordScore('p1', 1, s1, s2, prevS1, prevS2, setNum);
                         } else {
                             s2++;
-                            history.push({
-                                player: p2,
-                                type: 'goal',
-                                points: 1,
-                                set: setNum,
-                                scoreBefore: `${prevS1}:${prevS2}`,
-                                scoreAfter: `${s1}:${s2}`
-                            });
+                            recordScore('p2', 1, s1, s2, prevS1, prevS2, setNum);
                         }
-                        
+
                         // 세트 종료 조건: 11점 이상, 2점차
                         if (s1 >= 11 && s1 - s2 >= 2) break;
                         if (s2 >= 11 && s2 - s1 >= 2) break;
@@ -9123,21 +9260,54 @@
                         if (s1 >= 15 && s1 > s2) break;
                         if (s2 >= 15 && s2 > s1) break;
                     }
-                    
+
                     setScores.push({ s1, s2 });
                     totalP1 += s1; totalP2 += s2;
                     if (s1 > s2) sets1++; else sets2++;
                 }
                 const winner = sets1 > sets2 ? p1 : p2;
-                return { 
-                    winner, 
-                    loser: winner === p1 ? p2 : p1, 
-                    score: `${sets1}:${sets2}`, 
-                    sets1, sets2, 
+                return {
+                    winner,
+                    loser: winner === p1 ? p2 : p1,
+                    score: `${sets1}:${sets2}`,
+                    sets1, sets2,
                     setScores,
                     totalP1, totalP2,
                     history
                 };
+            }
+        }
+
+        // 빠른 시뮬레이션 대회 형식
+        let quickTournamentFormat = 'group-knockout'; // 'group-knockout', 'full-league', 'knockout-only'
+
+        // 대회 형식 선택
+        function setQuickFormat(format) {
+            quickTournamentFormat = format;
+
+            // 버튼 스타일 업데이트
+            document.querySelectorAll('.quick-format-btn').forEach(btn => {
+                btn.style.background = 'rgba(255,255,255,0.2)';
+                btn.style.color = 'white';
+                btn.style.fontWeight = 'normal';
+            });
+
+            const selectedBtn = document.getElementById(`fmt-${format}`);
+            if (selectedBtn) {
+                selectedBtn.style.background = 'white';
+                selectedBtn.style.color = '#667eea';
+                selectedBtn.style.fontWeight = '600';
+            }
+
+            // 설명 텍스트 업데이트
+            const descEl = document.getElementById('quick-format-desc');
+            if (descEl) {
+                const descriptions = {
+                    'group-knockout': '조별 예선 리그 → 상위 진출 → 결선 토너먼트',
+                    'full-league': '모든 참가자가 서로 한 번씩 대전 → 최종 순위 결정',
+                    'knockout-only': '조별 예선 없이 바로 토너먼트 진행 (싱글 엘리미네이션)'
+                };
+                descEl.textContent = descriptions[format] || '';
             }
         }
 
@@ -9197,15 +9367,20 @@
                 if (seedInput) seedInput.value = '';
             }
 
-            announce(`${participantCount}명 빠른 시뮬레이션 시작...`);
+            const formatNames = {
+                'group-knockout': '조별+토너먼트',
+                'full-league': '풀리그',
+                'knockout-only': '토너먼트'
+            };
+            announce(`${participantCount}명 ${formatNames[quickTournamentFormat]} 시뮬레이션 시작...`);
 
             // 약간의 딜레이 후 대회 진행 (UI 업데이트 반영)
             setTimeout(() => {
-                runAutoTournament();
+                runAutoTournament(quickTournamentFormat);
             }, 100);
         }
 
-        function runAutoTournament() {
+        function runAutoTournament(tournamentFormat = 'group-knockout') {
             try {
                 if (!currentProject) {
                     alert('프로젝트가 선택되지 않았습니다.');
@@ -9278,7 +9453,7 @@
             }
             
             const result = {
-                settings: { count, groupCount, advanceCount, thirdPlace, isTeam, fiveSetStart, rankingType, topSeeds, useExisting },
+                settings: { count, groupCount, advanceCount, thirdPlace, isTeam, fiveSetStart, rankingType, topSeeds, useExisting, tournamentFormat },
                 participants: [],
                 groups: [],
                 groupMatches: [],
@@ -9357,7 +9532,242 @@
                     knockoutRound: null, finalRank: null
                 };
             });
-            
+
+            // ===== 형식별 대회 진행 =====
+
+            if (tournamentFormat === 'full-league') {
+                // ========== 풀리그: 모든 참가자 vs 모든 참가자 ==========
+                console.log('📋 풀리그 형식 진행');
+
+                const stats = {};
+                result.participants.forEach(p => {
+                    stats[p.name] = { wins: 0, losses: 0, pf: 0, pa: 0, sw: 0, sl: 0 };
+                });
+
+                const allMatches = [];
+                for (let i = 0; i < result.participants.length; i++) {
+                    for (let j = i + 1; j < result.participants.length; j++) {
+                        const p1 = result.participants[i].name;
+                        const p2 = result.participants[j].name;
+                        const m = autoSimulateMatch(p1, p2, isTeam, getSetsForRound('group'));
+
+                        // 기록 저장
+                        const matchRecord = {
+                            stage: '리그',
+                            opponent: null,
+                            result: null,
+                            score: m.score,
+                            setScores: m.setScores,
+                            history: m.history || []
+                        };
+
+                        result.playerRecords[p1].matches.push({ ...matchRecord, opponent: p2, result: m.winner === p1 ? '승' : '패' });
+                        result.playerRecords[p2].matches.push({ ...matchRecord, opponent: p1, result: m.winner === p2 ? '승' : '패' });
+
+                        allMatches.push({ p1, p2, winner: m.winner, loser: m.loser, score: m.score, setScores: m.setScores, history: m.history || [] });
+
+                        stats[m.winner].wins++;
+                        stats[m.loser].losses++;
+
+                        if (isTeam) {
+                            stats[p1].pf += m.s1 || 0; stats[p1].pa += m.s2 || 0;
+                            stats[p2].pf += m.s2 || 0; stats[p2].pa += m.s1 || 0;
+                        } else {
+                            stats[p1].sw += m.sets1; stats[p1].sl += m.sets2;
+                            stats[p2].sw += m.sets2; stats[p2].sl += m.sets1;
+                            stats[p1].pf += m.totalP1 || 0; stats[p1].pa += m.totalP2 || 0;
+                            stats[p2].pf += m.totalP2 || 0; stats[p2].pa += m.totalP1 || 0;
+                        }
+                    }
+                }
+
+                result.groupMatches.push({ group: '전체 리그', matches: allMatches });
+
+                // 순위 정렬
+                const sorted = Object.keys(stats).sort((a, b) => {
+                    if (stats[b].wins !== stats[a].wins) return stats[b].wins - stats[a].wins;
+                    if (!isTeam) {
+                        const setDiffB = stats[b].sw - stats[b].sl;
+                        const setDiffA = stats[a].sw - stats[a].sl;
+                        if (setDiffB !== setDiffA) return setDiffB - setDiffA;
+                    }
+                    return (stats[b].pf - stats[b].pa) - (stats[a].pf - stats[a].pa);
+                });
+
+                // 최종 순위 저장
+                sorted.forEach((name, idx) => {
+                    result.playerRecords[name].finalRank = idx + 1;
+                    result.playerRecords[name].totalWins = stats[name].wins;
+                    result.playerRecords[name].totalLosses = stats[name].losses;
+                    result.finalStandings.push({
+                        rank: idx + 1,
+                        name,
+                        ...stats[name],
+                        record: result.playerRecords[name]
+                    });
+                });
+
+                result.groupStandings.push({
+                    group: '전체 리그',
+                    standings: sorted.map((name, idx) => ({
+                        rank: idx + 1,
+                        name,
+                        ...stats[name],
+                        qualified: false
+                    }))
+                });
+
+            } else if (tournamentFormat === 'knockout-only') {
+                // ========== 토너먼트만: 바로 싱글 엘리미네이션 ==========
+                console.log('🏆 토너먼트 형식 진행');
+
+                // 참가자를 바로 토너먼트 진출자로 설정
+                const qualifiers = result.participants.map((p, idx) => ({
+                    name: p.name,
+                    group: '-',
+                    rank: idx + 1,
+                    stats: {}
+                }));
+
+                // 셔플하여 랜덤 대진
+                qualifiers.sort(() => Math.random() - 0.5);
+
+                // 토너먼트 크기 결정 (2의 거듭제곱으로)
+                let bracketSize = 2;
+                while (bracketSize < qualifiers.length) bracketSize *= 2;
+
+                // 부전승 추가
+                while (qualifiers.length < bracketSize) {
+                    qualifiers.push({ name: 'BYE', group: '-', rank: 99 });
+                }
+
+                // 대진표 생성
+                const bracket = [];
+                for (let i = 0; i < bracketSize / 2; i++) {
+                    bracket.push([qualifiers[i], qualifiers[bracketSize - 1 - i]]);
+                }
+
+                function getRoundName(remaining) {
+                    if (remaining === 2) return '결승';
+                    if (remaining === 4) return '준결승';
+                    if (remaining === 8) return '8강';
+                    if (remaining === 16) return '16강';
+                    if (remaining === 32) return '32강';
+                    return `${remaining}강`;
+                }
+
+                function getRoundCode(remaining) {
+                    if (remaining === 2) return 'final';
+                    if (remaining === 4) return 'semi';
+                    if (remaining === 8) return 'quarter';
+                    if (remaining === 16) return 'r16';
+                    return 'r32';
+                }
+
+                let currentBracket = bracket;
+                let losers = [];
+
+                while (currentBracket.length >= 1) {
+                    const remaining = currentBracket.length * 2;
+                    const roundName = getRoundName(remaining);
+                    const roundCode = getRoundCode(remaining);
+                    const setsForRound = getSetsForRound(roundCode);
+                    const roundMatches = [];
+                    const nextBracket = [];
+                    const roundLosers = [];
+
+                    for (const match of currentBracket) {
+                        const p1 = match[0];
+                        const p2 = match[1];
+
+                        if (p2.name === 'BYE') { nextBracket.push([p1, null]); continue; }
+                        if (p1.name === 'BYE') { nextBracket.push([p2, null]); continue; }
+
+                        const m = autoSimulateMatch(p1.name, p2.name, isTeam, setsForRound);
+
+                        roundMatches.push({
+                            p1: p1.name, p2: p2.name,
+                            winner: m.winner, loser: m.loser,
+                            score: m.score, setScores: m.setScores,
+                            history: m.history || [], sets: setsForRound
+                        });
+
+                        [p1.name, p2.name].forEach(pName => {
+                            const isWinner = m.winner === pName;
+                            result.playerRecords[pName].matches.push({
+                                stage: roundName,
+                                opponent: isWinner ? m.loser : m.winner,
+                                result: isWinner ? '승' : '패',
+                                score: m.score, setScores: m.setScores
+                            });
+                            result.playerRecords[pName].totalWins += isWinner ? 1 : 0;
+                            result.playerRecords[pName].totalLosses += isWinner ? 0 : 1;
+                            result.playerRecords[pName].knockoutRound = roundName;
+                        });
+
+                        const winner = m.winner === p1.name ? p1 : p2;
+                        const loser = m.winner === p1.name ? p2 : p1;
+                        nextBracket.push([winner, null]);
+                        roundLosers.push({ ...loser, eliminatedAt: roundName });
+                    }
+
+                    if (roundMatches.length > 0) {
+                        result.knockoutRounds.push({ round: roundName, sets: setsForRound, matches: roundMatches });
+                    }
+
+                    losers.push(...roundLosers);
+
+                    if (currentBracket.length === 1) break;
+
+                    currentBracket = [];
+                    for (let i = 0; i < nextBracket.length; i += 2) {
+                        if (nextBracket[i + 1]) {
+                            currentBracket.push([nextBracket[i][0], nextBracket[i + 1][0]]);
+                        } else if (nextBracket[i]) {
+                            currentBracket.push([nextBracket[i][0], { name: 'BYE' }]);
+                        }
+                    }
+                }
+
+                // 3/4위전
+                if (thirdPlace && losers.length >= 2) {
+                    const semiLosers = losers.filter(l => l.eliminatedAt === '준결승');
+                    if (semiLosers.length === 2) {
+                        const m = autoSimulateMatch(semiLosers[0].name, semiLosers[1].name, isTeam, getSetsForRound('semi'));
+                        result.knockoutRounds.push({
+                            round: '3/4위전', sets: getSetsForRound('semi'),
+                            matches: [{ p1: semiLosers[0].name, p2: semiLosers[1].name, winner: m.winner, loser: m.loser, score: m.score, setScores: m.setScores }]
+                        });
+                        result.playerRecords[m.winner].finalRank = 3;
+                        result.playerRecords[m.loser].finalRank = 4;
+                    }
+                }
+
+                // 최종 순위
+                const finalRound = result.knockoutRounds.find(r => r.round === '결승');
+                if (finalRound && finalRound.matches.length > 0) {
+                    result.playerRecords[finalRound.matches[0].winner].finalRank = 1;
+                    result.playerRecords[finalRound.matches[0].loser].finalRank = 2;
+                }
+
+                // 순위별 정렬
+                const roundOrder = { '결승': 1, '준결승': 2, '8강': 3, '16강': 4, '32강': 5 };
+                const allPlayers = Object.values(result.playerRecords).sort((a, b) => {
+                    if (a.finalRank && b.finalRank) return a.finalRank - b.finalRank;
+                    if (a.finalRank) return -1;
+                    if (b.finalRank) return 1;
+                    return (roundOrder[a.knockoutRound] || 99) - (roundOrder[b.knockoutRound] || 99);
+                });
+
+                allPlayers.forEach((p, idx) => {
+                    if (!p.finalRank) p.finalRank = idx + 1;
+                    result.finalStandings.push({ rank: p.finalRank, name: p.name, record: p });
+                });
+
+            } else {
+                // ========== 조별 + 토너먼트 (기본) ==========
+                console.log('📊 조별+토너먼트 형식 진행');
+
             // 2. 조 편성 (스네이크 방식)
             const shuffled = [...result.participants].sort(() => Math.random() - 0.5);
             for (let i = 0; i < groupCount; i++) {
@@ -9369,7 +9779,7 @@
                 result.groups[gi].players.push(p.name);
                 result.playerRecords[p.name].group = String.fromCharCode(65 + gi) + '조';
             });
-            
+
             // 3. 조별 리그 진행
             result.groups.forEach((group, gi) => {
                 const stats = {};
@@ -9687,7 +10097,8 @@
                         result.finalStandings.push({ rank: p.finalRank, name: p.name, record: p });
                     });
             }
-            
+            } // end of group-knockout format
+
             // 결과 저장
             currentProject.autoTournamentResult = result;
             saveProjects();
@@ -9715,12 +10126,24 @@
             let html = '';
             
             // 대회 설정 요약
+            const formatNames = {
+                'group-knockout': '조별+토너먼트',
+                'full-league': '풀리그',
+                'knockout-only': '토너먼트'
+            };
+            const format = r.settings.tournamentFormat || 'group-knockout';
+
             html += `<div style="margin-bottom:16px; padding:12px; background:#e3f2fd; border-radius:8px;">`;
             html += `<h4 style="margin-bottom:8px;">대회 설정</h4>`;
             html += `<p style="font-size:13px; margin:0;">`;
-            html += `${r.settings.count}${isTeam ? '팀' : '명'} / ${r.settings.groupCount}개조 / `;
-            html += `조별 ${r.settings.advanceCount}${isTeam ? '팀' : '명'} 진출 / `;
-            html += `${r.settings.thirdPlace ? '3/4위전 진행' : '3/4위전 생략'}`;
+            html += `<strong>${formatNames[format]}</strong> · `;
+            html += `${r.settings.count}${isTeam ? '팀' : '명'}`;
+            if (format === 'group-knockout') {
+                html += ` / ${r.settings.groupCount}개조 / 조별 ${r.settings.advanceCount}${isTeam ? '팀' : '명'} 진출`;
+            }
+            if (format !== 'full-league') {
+                html += ` / ${r.settings.thirdPlace ? '3/4위전 진행' : '3/4위전 생략'}`;
+            }
             if (!isTeam && r.settings.fiveSetStart) {
                 const fiveSetText = { 'final': '결승만', 'semi': '4강부터', 'quarter': '8강부터', 'r16': '16강부터', 'all': '본선 전체' };
                 html += ` / ${fiveSetText[r.settings.fiveSetStart]} 5세트`;
@@ -9733,20 +10156,24 @@
             html += `<p style="font-size:13px;">${r.participants.map(p => p.name).join(', ')}</p>`;
             html += `</div>`;
             
-            // 조 편성
+            // 조 편성 (조별+토너먼트인 경우만)
+            if (format === 'group-knockout' && r.groups.length > 0) {
+                html += `<div style="margin-bottom:16px;">`;
+                html += `<h4 style="margin-bottom:8px;">조 편성 (${r.groups.length}개조)</h4>`;
+                html += `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px;">`;
+                r.groups.forEach(g => {
+                    html += `<div style="padding:8px; background:var(--bg-secondary); border-radius:4px;">`;
+                    html += `<strong>${g.name}</strong>: ${g.players.join(', ')}`;
+                    html += `</div>`;
+                });
+                html += `</div></div>`;
+            }
+
+            // 리그/조별 리그 결과 + 순위
+            const leagueTitle = format === 'full-league' ? '리그 결과' : format === 'group-knockout' ? '조별 리그' : '';
+            if (r.groupStandings.length > 0 && leagueTitle) {
             html += `<div style="margin-bottom:16px;">`;
-            html += `<h4 style="margin-bottom:8px;">조 편성 (${r.groups.length}개조)</h4>`;
-            html += `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px;">`;
-            r.groups.forEach(g => {
-                html += `<div style="padding:8px; background:var(--bg-secondary); border-radius:4px;">`;
-                html += `<strong>${g.name}</strong>: ${g.players.join(', ')}`;
-                html += `</div>`;
-            });
-            html += `</div></div>`;
-            
-            // 조별 리그 결과 + 순위
-            html += `<div style="margin-bottom:16px;">`;
-            html += `<h4 style="margin-bottom:8px;">⚽ 조별 리그</h4>`;
+            html += `<h4 style="margin-bottom:8px;">${leagueTitle}</h4>`;
             
             r.groupStandings.forEach((gs, gi) => {
                 const gm = r.groupMatches[gi];
@@ -9786,19 +10213,36 @@
                     html += `<div style="padding:8px; margin:4px 0; background:#f5f5f5; border-radius:4px;">`;
                     html += `<div>${m.p1} vs ${m.p2}: <strong>${m.winner}</strong> (${m.score}) ${setDetail ? `[${setDetail}]` : ''}</div>`;
                     
-                    // 득점 히스토리
+                    // 득점 히스토리 (심판 기록 수준)
                     if (m.history && m.history.length > 0) {
-                        html += `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:10px; color:var(--primary);">득점 기록 (${m.history.length}개)</summary>`;
-                        html += `<div style="margin-top:4px; max-height:150px; overflow-y:auto; background:white; padding:4px; border-radius:3px;">`;
-                        m.history.slice(-20).forEach(h => {
-                            const color = h.player === m.p1 ? '#1976d2' : '#c62828';
-                            html += `<div style="font-size:10px; padding:2px 4px; border-left:2px solid ${color}; margin:1px 0;">`;
-                            html += `${h.player} ${h.scoreBefore}→${h.scoreAfter}`;
-                            if (h.set) html += ` (${h.set}세트)`;
-                            html += `</div>`;
+                        html += `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:10px; color:var(--primary);">경기 진행 기록 (${m.history.length}개)</summary>`;
+                        html += `<div style="margin-top:4px; max-height:250px; overflow-y:auto; background:white; border-radius:4px; border:1px solid #e0e0e0;">`;
+
+                        // 테이블 헤더
+                        html += `<table style="width:100%; font-size:10px; border-collapse:collapse;">`;
+                        html += `<thead style="background:#f5f5f5; position:sticky; top:0;"><tr>`;
+                        html += `<th style="padding:4px; text-align:center; border-bottom:1px solid #ddd;">번호</th>`;
+                        html += `<th style="padding:4px; text-align:left; border-bottom:1px solid #ddd;">시간</th>`;
+                        html += `<th style="padding:4px; text-align:left; border-bottom:1px solid #ddd;">득점 내용</th>`;
+                        html += `<th style="padding:4px; text-align:center; border-bottom:1px solid #ddd;">서브</th>`;
+                        html += `<th style="padding:4px; text-align:center; border-bottom:1px solid #ddd;">스코어</th>`;
+                        html += `</tr></thead><tbody>`;
+
+                        m.history.forEach((h, idx) => {
+                            const isP1 = h.player === m.p1;
+                            const bgColor = isP1 ? '#e3f2fd' : '#ffebee';
+                            const scoreBefore = typeof h.scoreBefore === 'object' ? `${h.scoreBefore.player1}-${h.scoreBefore.player2}` : h.scoreBefore;
+                            const scoreAfter = typeof h.scoreAfter === 'object' ? `${h.scoreAfter.player1}-${h.scoreAfter.player2}` : h.scoreAfter;
+
+                            html += `<tr style="background:${bgColor};">`;
+                            html += `<td style="padding:3px 4px; text-align:center; border-bottom:1px solid #eee;">${h.rallyNum || idx + 1}</td>`;
+                            html += `<td style="padding:3px 4px; border-bottom:1px solid #eee; font-family:monospace;">${h.time || '-'}</td>`;
+                            html += `<td style="padding:3px 4px; border-bottom:1px solid #eee;"><strong>${h.type || (h.player + ' 득점')}</strong> (+${h.points}점)</td>`;
+                            html += `<td style="padding:3px 4px; text-align:center; border-bottom:1px solid #eee; font-size:9px;">${h.server || '-'}<br>${h.serveNumber || '-'}회차</td>`;
+                            html += `<td style="padding:3px 4px; text-align:center; border-bottom:1px solid #eee; font-weight:bold;">${scoreAfter}</td>`;
+                            html += `</tr>`;
                         });
-                        if (m.history.length > 20) html += `<div style="font-size:9px; color:#999;">... 외 ${m.history.length - 20}개</div>`;
-                        html += `</div></details>`;
+                        html += `</tbody></table></div></details>`;
                     }
                     html += `</div>`;
                 });
@@ -9806,12 +10250,14 @@
                 html += `</div>`;
             });
             html += `</div>`;
-            
+            } // end of groupStandings section
+
             // 결선 토너먼트
             if (r.knockoutRounds.length > 0) {
+                const knockoutTitle = format === 'knockout-only' ? '토너먼트' : '결선 토너먼트';
                 html += `<div style="margin-bottom:16px;">`;
-                html += `<h4 style="margin-bottom:8px;">🏅 결선 토너먼트</h4>`;
-                
+                html += `<h4 style="margin-bottom:8px;">🏅 ${knockoutTitle}</h4>`;
+
                 r.knockoutRounds.forEach(round => {
                     const bg = round.round === '결승' ? '#fff3cd' : round.round === '3/4위전' ? '#ffe4c4' : 'var(--bg-secondary)';
                     html += `<div style="padding:12px; margin:8px 0; background:${bg}; border-radius:8px;">`;
@@ -9820,20 +10266,37 @@
                         const setDetail = m.setScores ? m.setScores.map(s => `${s.s1}-${s.s2}`).join(', ') : '';
                         html += `<div style="padding:6px; margin:4px 0; background:rgba(255,255,255,0.5); border-radius:4px;">`;
                         html += `<div>${m.p1} vs ${m.p2}: <strong>${m.winner}</strong> (${m.score}) ${setDetail ? `[${setDetail}]` : ''}</div>`;
-                        
-                        // 득점 히스토리
+
+                        // 득점 히스토리 (심판 기록 수준)
                         if (m.history && m.history.length > 0) {
-                            html += `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:10px; color:var(--primary);">득점 기록 (${m.history.length}개)</summary>`;
-                            html += `<div style="margin-top:4px; max-height:150px; overflow-y:auto; background:white; padding:4px; border-radius:3px;">`;
-                            m.history.slice(-20).forEach(h => {
-                                const color = h.player === m.p1 ? '#1976d2' : '#c62828';
-                                html += `<div style="font-size:10px; padding:2px 4px; border-left:2px solid ${color}; margin:1px 0;">`;
-                                html += `${h.player} ${h.scoreBefore}→${h.scoreAfter}`;
-                                if (h.set) html += ` (${h.set}세트)`;
-                                html += `</div>`;
+                            html += `<details style="margin-top:4px;"><summary style="cursor:pointer; font-size:10px; color:var(--primary);">경기 진행 기록 (${m.history.length}개)</summary>`;
+                            html += `<div style="margin-top:4px; max-height:250px; overflow-y:auto; background:white; border-radius:4px; border:1px solid #e0e0e0;">`;
+
+                            // 테이블 헤더
+                            html += `<table style="width:100%; font-size:10px; border-collapse:collapse;">`;
+                            html += `<thead style="background:#f5f5f5; position:sticky; top:0;"><tr>`;
+                            html += `<th style="padding:4px; text-align:center; border-bottom:1px solid #ddd;">번호</th>`;
+                            html += `<th style="padding:4px; text-align:left; border-bottom:1px solid #ddd;">시간</th>`;
+                            html += `<th style="padding:4px; text-align:left; border-bottom:1px solid #ddd;">득점 내용</th>`;
+                            html += `<th style="padding:4px; text-align:center; border-bottom:1px solid #ddd;">서브</th>`;
+                            html += `<th style="padding:4px; text-align:center; border-bottom:1px solid #ddd;">스코어</th>`;
+                            html += `</tr></thead><tbody>`;
+
+                            m.history.forEach((h, idx) => {
+                                const isP1 = h.player === m.p1;
+                                const bgColor = isP1 ? '#e3f2fd' : '#ffebee';
+                                const scoreBefore = typeof h.scoreBefore === 'object' ? `${h.scoreBefore.player1}-${h.scoreBefore.player2}` : h.scoreBefore;
+                                const scoreAfter = typeof h.scoreAfter === 'object' ? `${h.scoreAfter.player1}-${h.scoreAfter.player2}` : h.scoreAfter;
+
+                                html += `<tr style="background:${bgColor};">`;
+                                html += `<td style="padding:3px 4px; text-align:center; border-bottom:1px solid #eee;">${h.rallyNum || idx + 1}</td>`;
+                                html += `<td style="padding:3px 4px; border-bottom:1px solid #eee; font-family:monospace;">${h.time || '-'}</td>`;
+                                html += `<td style="padding:3px 4px; border-bottom:1px solid #eee;"><strong>${h.type || (h.player + ' 득점')}</strong> (+${h.points}점)</td>`;
+                                html += `<td style="padding:3px 4px; text-align:center; border-bottom:1px solid #eee; font-size:9px;">${h.server || '-'}<br>${h.serveNumber || '-'}회차</td>`;
+                                html += `<td style="padding:3px 4px; text-align:center; border-bottom:1px solid #eee; font-weight:bold;">${scoreAfter}</td>`;
+                                html += `</tr>`;
                             });
-                            if (m.history.length > 20) html += `<div style="font-size:9px; color:#999;">... 외 ${m.history.length - 20}개</div>`;
-                            html += `</div></details>`;
+                            html += `</tbody></table></div></details>`;
                         }
                         html += `</div>`;
                     });
@@ -9842,32 +10305,93 @@
                 html += `</div>`;
             }
             
-            // 개인별 상세 기록
+            // ========== 대회 통계 요약 ==========
+            const allRecords = Object.values(r.playerRecords);
+            const allMatches = [...(r.groupMatches?.flatMap(g => g.matches) || []), ...(r.knockoutRounds?.flatMap(round => round.matches) || [])];
+            const totalMatches = allMatches.length;
+            const totalPoints = allRecords.reduce((sum, p) => sum + p.pointsFor, 0);
+            const totalSets = allRecords.reduce((sum, p) => sum + p.setWins, 0);
+
+            html += `<div style="margin-bottom:16px; padding:16px; background:linear-gradient(135deg, #667eea22, #764ba222); border-radius:12px; border:2px solid #667eea44;">`;
+            html += `<h4 style="margin-bottom:12px; color:#667eea;">대회 통계</h4>`;
+            html += `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px, 1fr)); gap:12px;">`;
+            html += `<div style="text-align:center; padding:10px; background:white; border-radius:8px;"><div style="font-size:24px; font-weight:bold; color:#667eea;">${totalMatches}</div><div style="font-size:11px; color:#666;">총 경기 수</div></div>`;
+            html += `<div style="text-align:center; padding:10px; background:white; border-radius:8px;"><div style="font-size:24px; font-weight:bold; color:#e91e63;">${totalPoints}</div><div style="font-size:11px; color:#666;">총 득점</div></div>`;
+            if (!isTeam) {
+                html += `<div style="text-align:center; padding:10px; background:white; border-radius:8px;"><div style="font-size:24px; font-weight:bold; color:#4caf50;">${totalSets}</div><div style="font-size:11px; color:#666;">총 세트</div></div>`;
+            }
+            html += `<div style="text-align:center; padding:10px; background:white; border-radius:8px;"><div style="font-size:24px; font-weight:bold; color:#ff9800;">${r.participants.length}</div><div style="font-size:11px; color:#666;">참가${isTeam ? '팀' : '자'}</div></div>`;
+            html += `</div>`;
+            html += `</div>`;
+
+            // ========== 개인별 상세 기록 (강화) ==========
             html += `<div style="margin-bottom:16px;">`;
             html += `<h4 style="margin-bottom:8px;">개인별 상세 기록</h4>`;
             html += `<details><summary style="cursor:pointer; padding:8px; background:var(--bg-secondary); border-radius:4px;">전체 ${r.participants.length}${isTeam ? '팀' : '명'} 기록 보기</summary>`;
-            html += `<div style="margin-top:8px; max-height:400px; overflow-y:auto;">`;
-            
-            Object.values(r.playerRecords).forEach(p => {
+            html += `<div style="margin-top:8px; max-height:500px; overflow-y:auto;">`;
+
+            // 순위대로 정렬
+            const sortedRecords = [...allRecords].sort((a, b) => (a.finalRank || 999) - (b.finalRank || 999));
+
+            sortedRecords.forEach(p => {
                 const setDiff = p.setWins - p.setLosses;
                 const ptDiff = p.pointsFor - p.pointsAgainst;
-                html += `<div style="padding:10px; margin:6px 0; background:var(--bg-secondary); border-radius:6px; border-left:3px solid ${p.finalRank <= 3 ? 'gold' : 'var(--primary)'};">`;
-                html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">`;
-                html += `<strong>${p.finalRank ? `#${p.finalRank} ` : ''}${p.name}</strong>`;
-                html += `<span style="font-size:12px; color:var(--text-secondary);">${p.group} ${p.groupRank}위</span>`;
+                const winRate = p.totalWins + p.totalLosses > 0 ? Math.round(p.totalWins / (p.totalWins + p.totalLosses) * 100) : 0;
+                const avgPoints = p.matches.length > 0 ? Math.round(p.pointsFor / p.matches.length) : 0;
+                const borderColor = p.finalRank === 1 ? '#ffd700' : p.finalRank === 2 ? '#c0c0c0' : p.finalRank === 3 ? '#cd7f32' : p.finalRank <= 8 ? '#667eea' : '#ddd';
+
+                html += `<div style="padding:12px; margin:8px 0; background:white; border-radius:8px; border-left:4px solid ${borderColor}; box-shadow:0 1px 3px rgba(0,0,0,0.1);">`;
+
+                // 헤더 (이름, 순위)
+                html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">`;
+                html += `<div>`;
+                if (p.finalRank <= 3) html += `<span style="font-size:18px;">${['🥇','🥈','🥉'][p.finalRank-1]}</span> `;
+                html += `<strong style="font-size:15px;">${p.finalRank ? `#${p.finalRank} ` : ''}${p.name}</strong>`;
                 html += `</div>`;
-                html += `<div style="font-size:12px;">`;
-                html += `전적: ${p.totalWins}승 ${p.totalLosses}패 | `;
-                if (!isTeam) html += `세트: +${p.setWins}/-${p.setLosses} | `;
-                html += `득실: +${p.pointsFor}/-${p.pointsAgainst}`;
+                if (p.group && p.groupRank) {
+                    html += `<span style="font-size:12px; padding:4px 8px; background:#e3f2fd; border-radius:12px;">${p.group} ${p.groupRank}위</span>`;
+                } else if (p.knockoutRound) {
+                    html += `<span style="font-size:12px; padding:4px 8px; background:#fff3e0; border-radius:12px;">${p.knockoutRound}</span>`;
+                }
                 html += `</div>`;
-                html += `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:11px;">경기 기록 (${p.matches.length}경기)</summary>`;
-                html += `<div style="font-size:11px; margin-top:4px;">`;
-                p.matches.forEach(m => {
-                    const color = m.result === '승' ? 'green' : 'red';
-                    html += `[${m.stage}] vs ${m.opponent}: <span style="color:${color};">${m.result}</span> (${m.score})<br>`;
+
+                // 통계 그리드
+                html += `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(80px, 1fr)); gap:8px; margin-bottom:8px;">`;
+                html += `<div style="text-align:center; padding:6px; background:#f5f5f5; border-radius:4px;"><div style="font-size:16px; font-weight:bold;">${p.totalWins}승 ${p.totalLosses}패</div><div style="font-size:10px; color:#666;">전적</div></div>`;
+                html += `<div style="text-align:center; padding:6px; background:#f5f5f5; border-radius:4px;"><div style="font-size:16px; font-weight:bold; color:${winRate >= 50 ? '#4caf50' : '#f44336'};">${winRate}%</div><div style="font-size:10px; color:#666;">승률</div></div>`;
+                if (!isTeam) {
+                    const setDiffColor = setDiff > 0 ? '#4caf50' : setDiff < 0 ? '#f44336' : '#666';
+                    html += `<div style="text-align:center; padding:6px; background:#f5f5f5; border-radius:4px;"><div style="font-size:16px; font-weight:bold; color:${setDiffColor};">${setDiff > 0 ? '+' : ''}${setDiff}</div><div style="font-size:10px; color:#666;">세트득실</div></div>`;
+                }
+                const ptDiffColor = ptDiff > 0 ? '#4caf50' : ptDiff < 0 ? '#f44336' : '#666';
+                html += `<div style="text-align:center; padding:6px; background:#f5f5f5; border-radius:4px;"><div style="font-size:16px; font-weight:bold; color:${ptDiffColor};">${ptDiff > 0 ? '+' : ''}${ptDiff}</div><div style="font-size:10px; color:#666;">득점득실</div></div>`;
+                html += `<div style="text-align:center; padding:6px; background:#f5f5f5; border-radius:4px;"><div style="font-size:16px; font-weight:bold;">${p.pointsFor}</div><div style="font-size:10px; color:#666;">총득점</div></div>`;
+                html += `<div style="text-align:center; padding:6px; background:#f5f5f5; border-radius:4px;"><div style="font-size:16px; font-weight:bold;">${avgPoints}</div><div style="font-size:10px; color:#666;">경기당득점</div></div>`;
+                html += `</div>`;
+
+                // 경기 상세 기록
+                html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; padding:6px; background:#fafafa; border-radius:4px;">경기별 상세 기록 (${p.matches.length}경기)</summary>`;
+                html += `<div style="margin-top:8px;">`;
+                p.matches.forEach((m, idx) => {
+                    const resultColor = m.result === '승' ? '#4caf50' : '#f44336';
+                    const resultBg = m.result === '승' ? '#e8f5e9' : '#ffebee';
+                    html += `<div style="padding:8px; margin:4px 0; background:${resultBg}; border-radius:4px; font-size:12px;">`;
+                    html += `<div style="display:flex; justify-content:space-between; align-items:center;">`;
+                    html += `<span><strong style="color:${resultColor};">${m.result}</strong> vs ${m.opponent}</span>`;
+                    html += `<span style="font-weight:bold;">${m.score}</span>`;
+                    html += `</div>`;
+                    html += `<div style="font-size:11px; color:#666; margin-top:4px;">${m.stage}`;
+                    if (m.group) html += ` · ${m.group}`;
+                    html += `</div>`;
+                    // 세트별 스코어
+                    if (m.setScores && m.setScores.length > 0) {
+                        html += `<div style="font-size:10px; color:#999; margin-top:2px;">세트: ${m.setScores.map(s => s.s1 !== undefined ? `${s.s1}-${s.s2}` : `${s.player1}-${s.player2}`).join(', ')}</div>`;
+                    }
+                    html += `</div>`;
                 });
-                html += `</div></details></div>`;
+                html += `</div></details>`;
+
+                html += `</div>`;
             });
             html += `</div></details></div>`;
             
@@ -9897,8 +10421,172 @@
                 }
                 html += `</div>`;
             }
-            
+
+            // ========== 결과 내보내기 버튼 ==========
+            html += `<div style="margin-top:20px; padding:16px; background:#f5f5f5; border-radius:8px; text-align:center;">`;
+            html += `<h4 style="margin-bottom:12px;">결과 내보내기</h4>`;
+            html += `<div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">`;
+            html += `<button class="btn" onclick="exportTournamentResultAsText()" style="background:#4caf50; color:white;">텍스트로 복사</button>`;
+            html += `<button class="btn" onclick="exportTournamentResultAsJSON()" style="background:#2196f3; color:white;">JSON 다운로드</button>`;
+            html += `</div></div>`;
+
             return html;
+        }
+
+        // 대회 결과 텍스트로 내보내기
+        function exportTournamentResultAsText() {
+            const r = currentProject?.autoTournamentResult;
+            if (!r) { alert('내보낼 결과가 없습니다.'); return; }
+
+            const isTeam = r.settings.isTeam;
+            const formatNames = { 'group-knockout': '조별+토너먼트', 'full-league': '풀리그', 'knockout-only': '토너먼트' };
+            let text = '';
+
+            // 헤더
+            text += `═══════════════════════════════════════\n`;
+            text += `        ${currentProject.name || '대회'} 결과\n`;
+            text += `═══════════════════════════════════════\n\n`;
+
+            // 설정
+            text += `【대회 정보】\n`;
+            text += `• 형식: ${formatNames[r.settings.tournamentFormat] || '조별+토너먼트'}\n`;
+            text += `• 참가자: ${r.settings.count}${isTeam ? '팀' : '명'}\n`;
+            if (r.settings.tournamentFormat === 'group-knockout') {
+                text += `• 조 개수: ${r.settings.groupCount}개\n`;
+                text += `• 조별 진출: ${r.settings.advanceCount}${isTeam ? '팀' : '명'}\n`;
+            }
+            text += `\n`;
+
+            // 조별 리그 결과 (조별+토너먼트 형식인 경우)
+            if (r.settings.tournamentFormat === 'group-knockout' && r.groupStandings.length > 0) {
+                text += `【조별 리그 결과】\n`;
+                r.groupStandings.forEach(gs => {
+                    text += `\n▶ ${gs.group}\n`;
+                    text += `  순위 | 이름        | 전적    | ${isTeam ? '득실' : '세트득실'}\n`;
+                    text += `  ────────────────────────────────\n`;
+                    gs.standings.forEach(p => {
+                        const diff = isTeam ? (p.pf - p.pa) : (p.sw - p.sl);
+                        const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
+                        const qualified = p.qualified ? '★' : ' ';
+                        text += `  ${qualified}${p.rank}위 | ${p.name.padEnd(10)} | ${p.wins}승 ${p.losses}패 | ${diffStr}\n`;
+                    });
+                });
+                text += `\n`;
+
+                // 조별 경기 상세
+                text += `【조별 경기 상세】\n`;
+                r.groupMatches.forEach(gm => {
+                    text += `\n▶ ${gm.group}\n`;
+                    gm.matches.forEach(m => {
+                        const setScoreStr = m.setScores ? ` [${m.setScores.map(s => `${s.s1}-${s.s2}`).join(', ')}]` : '';
+                        text += `  ${m.p1} vs ${m.p2}: ${m.winner} 승 (${m.score})${setScoreStr}\n`;
+                    });
+                });
+                text += `\n`;
+            }
+
+            // 풀리그 결과
+            if (r.settings.tournamentFormat === 'full-league' && r.groupStandings.length > 0) {
+                text += `【리그 순위표】\n`;
+                text += `  순위 | 이름        | 전적    | ${isTeam ? '득실' : '세트득실'}\n`;
+                text += `  ────────────────────────────────\n`;
+                r.groupStandings[0].standings.forEach(p => {
+                    const diff = isTeam ? (p.pf - p.pa) : (p.sw - p.sl);
+                    const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
+                    text += `  ${p.rank}위 | ${p.name.padEnd(10)} | ${p.wins}승 ${p.losses}패 | ${diffStr}\n`;
+                });
+                text += `\n`;
+            }
+
+            // 토너먼트 결과
+            if (r.knockoutRounds.length > 0) {
+                const knockoutTitle = r.settings.tournamentFormat === 'knockout-only' ? '토너먼트 결과' : '결선 토너먼트 결과';
+                text += `【${knockoutTitle}】\n`;
+                r.knockoutRounds.forEach(round => {
+                    text += `\n▶ ${round.round} (${round.sets}세트)\n`;
+                    round.matches.forEach(m => {
+                        const setScoreStr = m.setScores ? ` [${m.setScores.map(s => `${s.s1}-${s.s2}`).join(', ')}]` : '';
+                        text += `  ${m.p1} vs ${m.p2}: ${m.winner} 승 (${m.score})${setScoreStr}\n`;
+                    });
+                });
+                text += `\n`;
+            }
+
+            // 최종 순위
+            text += `【최종 순위】\n`;
+            const medals = ['🥇', '🥈', '🥉'];
+            r.finalStandings.slice(0, 16).forEach((p, i) => {
+                const medal = i < 3 ? medals[i] : `${p.rank}위`;
+                const rec = p.record;
+                text += `${medal} ${p.name}`;
+                if (rec) text += ` (${rec.totalWins}승 ${rec.totalLosses}패)`;
+                text += `\n`;
+            });
+            text += `\n`;
+
+            // 개인 기록
+            const allRecords = Object.values(r.playerRecords);
+            text += `【개인별 기록】\n`;
+            text += `─────────────────────────────────────\n`;
+            allRecords.sort((a, b) => (a.finalRank || 999) - (b.finalRank || 999)).forEach(p => {
+                const winRate = p.totalWins + p.totalLosses > 0 ? Math.round(p.totalWins / (p.totalWins + p.totalLosses) * 100) : 0;
+                text += `#${p.finalRank || '-'} ${p.name}\n`;
+                text += `   전적: ${p.totalWins}승 ${p.totalLosses}패 (${winRate}%)\n`;
+                if (!isTeam) text += `   세트: +${p.setWins}/-${p.setLosses} (${p.setWins - p.setLosses > 0 ? '+' : ''}${p.setWins - p.setLosses})\n`;
+                text += `   득점: ${p.pointsFor} / 실점: ${p.pointsAgainst}\n`;
+                text += `   경기:\n`;
+                p.matches.forEach(m => {
+                    let matchLine = `     [${m.stage}] vs ${m.opponent}: ${m.result} (${m.score})`;
+                    if (m.setScores && m.setScores.length > 0) {
+                        const setStr = m.setScores.map(s => s.s1 !== undefined ? `${s.s1}-${s.s2}` : `${s.player1}-${s.player2}`).join(', ');
+                        matchLine += ` [${setStr}]`;
+                    }
+                    text += matchLine + `\n`;
+                });
+                text += `\n`;
+            });
+
+            // 클립보드에 복사
+            navigator.clipboard.writeText(text).then(() => {
+                announce('결과가 클립보드에 복사되었습니다!');
+            }).catch(() => {
+                // 폴백: textarea 사용
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                announce('결과가 클립보드에 복사되었습니다!');
+            });
+        }
+
+        // 대회 결과 JSON으로 내보내기
+        function exportTournamentResultAsJSON() {
+            const r = currentProject?.autoTournamentResult;
+            if (!r) { alert('내보낼 결과가 없습니다.'); return; }
+
+            const exportData = {
+                projectName: currentProject.name,
+                exportDate: new Date().toISOString(),
+                settings: r.settings,
+                participants: r.participants,
+                groups: r.groups,
+                groupMatches: r.groupMatches,
+                groupStandings: r.groupStandings,
+                knockoutRounds: r.knockoutRounds,
+                playerRecords: r.playerRecords,
+                finalStandings: r.finalStandings
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentProject.name || 'tournament'}_result_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            announce('JSON 파일이 다운로드되었습니다!');
         }
         
         // 탑시드 입력 필드 업데이트
