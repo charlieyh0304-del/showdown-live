@@ -16,8 +16,8 @@ export default defineConfig({
         theme_color: '#ff9800',
         background_color: '#f5f5f5',
         display: 'standalone',
-        scope: '/showdown-test/referee-app/dist/',
-        start_url: '/showdown-test/referee-app/dist/',
+        scope: '/showdown-test/referee-app/',
+        start_url: '/showdown-test/referee-app/',
         icons: [
           {
             src: 'pwa-192x192.svg',
@@ -55,5 +55,5 @@ export default defineConfig({
       }
     })
   ],
-  base: '/showdown-test/referee-app/dist/',
+  base: '/showdown-test/referee-app/',
 })

@@ -16,8 +16,8 @@ export default defineConfig({
         theme_color: '#2196f3',
         background_color: '#f5f5f5',
         display: 'standalone',
-        scope: '/showdown-test/admin-app/dist/',
-        start_url: '/showdown-test/admin-app/dist/',
+        scope: '/showdown-test/admin-app/',
+        start_url: '/showdown-test/admin-app/',
         icons: [
           {
             src: 'pwa-192x192.svg',
@@ -55,5 +55,5 @@ export default defineConfig({
       }
     })
   ],
-  base: '/showdown-test/admin-app/dist/',
+  base: '/showdown-test/admin-app/',
 })
