@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -9,15 +10,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-192x192.svg'],
       manifest: {
-        name: '쇼다운 관람',
-        short_name: '관람',
-        description: '쇼다운 경기 관람용 앱',
-        theme_color: '#9c27b0',
-        background_color: '#f5f5f5',
+        name: '쇼다운 심판',
+        short_name: '심판',
+        description: '쇼다운 경기 심판용 앱',
+        theme_color: '#4caf50',
+        background_color: '#1a1a2e',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/showdown-test/viewer-app/',
-        scope: '/showdown-test/viewer-app/',
+        start_url: '/showdown-test/referee-app/',
+        scope: '/showdown-test/referee-app/',
         icons: [
           {
             src: 'pwa-192x192.svg',
@@ -42,7 +43,7 @@ export default defineConfig({
               cacheName: 'firebase-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               networkTimeoutSeconds: 10
             }
@@ -51,5 +52,5 @@ export default defineConfig({
       }
     })
   ],
-  base: '/showdown-test/viewer-app/',
+  base: '/showdown-test/referee-app/',
 })

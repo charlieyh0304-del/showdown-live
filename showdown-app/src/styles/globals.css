@@ -77,21 +77,57 @@ body.dark {
   --danger: #f87171;
 }
 
-/* Large Text Mode */
-body.large-text {
+/* Font Size Modes */
+body.font-large {
   font-size: 18px;
 }
 
-body.large-text .btn {
+body.font-large .btn {
   min-height: 56px;
   font-size: 18px;
 }
 
-body.large-text input,
-body.large-text select,
-body.large-text textarea {
+body.font-large input,
+body.font-large select,
+body.font-large textarea {
   font-size: 18px;
   padding: 16px;
+}
+
+body.font-extra-large {
+  font-size: 22px;
+}
+
+body.font-extra-large .btn {
+  min-height: 64px;
+  font-size: 22px;
+}
+
+body.font-extra-large input,
+body.font-extra-large select,
+body.font-extra-large textarea {
+  font-size: 22px;
+  padding: 18px;
+}
+
+body.font-extra-large h1 {
+  font-size: 2.5rem;
+}
+
+body.font-extra-large h2 {
+  font-size: 2rem;
+}
+
+body.font-extra-large h3 {
+  font-size: 1.5rem;
+}
+
+/* Reduce Motion */
+body.reduce-motion,
+body.reduce-motion * {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }
 
 /* Body Base Styles */

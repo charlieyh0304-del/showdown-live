@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useUIStore } from '@/stores'
 import { useFirebase, processOfflineQueue } from '@/hooks'
 import { OfflineIndicator, LoadingSpinner } from '@/components/common'
+import { AccessibilityProvider } from '@/components/accessibility'
 
 // Pages
 import { Home } from '@/pages/Home'
@@ -82,9 +83,10 @@ function App() {
   }
 
   return (
-    <BrowserRouter basename="/showdown-test">
-      <OfflineIndicator />
-      <Routes>
+    <AccessibilityProvider>
+      <BrowserRouter basename="/showdown-test">
+        <OfflineIndicator />
+        <Routes>
         {/* Home */}
         <Route path="/" element={<Home />} />
 
@@ -130,8 +132,9 @@ function App() {
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </AccessibilityProvider>
   )
 }
 

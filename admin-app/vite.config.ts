@@ -9,15 +9,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-192x192.svg'],
       manifest: {
-        name: '쇼다운 관람',
-        short_name: '관람',
-        description: '쇼다운 경기 관람용 앱',
-        theme_color: '#9c27b0',
+        name: '쇼다운 관리자',
+        short_name: '관리자',
+        description: '쇼다운 대회 관리용 앱',
+        theme_color: '#2196F3',
         background_color: '#f5f5f5',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/showdown-test/viewer-app/',
-        scope: '/showdown-test/viewer-app/',
+        start_url: '/showdown-test/admin-app/',
+        scope: '/showdown-test/admin-app/',
         icons: [
           {
             src: 'pwa-192x192.svg',
@@ -51,5 +51,5 @@ export default defineConfig({
       }
     })
   ],
-  base: '/showdown-test/viewer-app/',
+  base: '/showdown-test/admin-app/',
 })

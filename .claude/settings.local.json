@@ -14,7 +14,8 @@
       "Bash(timeout 10 npm run dev:*)",
       "Bash(git ls-tree:*)",
       "Bash(git fetch:*)",
-      "WebFetch(domain:charlieyh0304-del.github.io)"
+      "WebFetch(domain:charlieyh0304-del.github.io)",
+      "Bash(cat:*)"
     ]
   }
 }
