@@ -1,55 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
 
+// https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['pwa-192x192.svg'],
-      manifest: {
-        name: '쇼다운 관람',
-        short_name: '관람',
-        description: '쇼다운 경기 관람용 앱',
-        theme_color: '#9c27b0',
-        background_color: '#f5f5f5',
-        display: 'standalone',
-        orientation: 'portrait',
-        start_url: '/showdown-test/viewer-app/',
-        scope: '/showdown-test/viewer-app/',
-        icons: [
-          {
-            src: 'pwa-192x192.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml'
-          },
-          {
-            src: 'pwa-192x192.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          }
-        ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/showdown1-838bf-default-rtdb\.asia-southeast1\.firebasedatabase\.app\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firebase-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24
-              },
-              networkTimeoutSeconds: 10
-            }
-          }
-        ]
-      }
-    })
-  ],
+  plugins: [react()],
   base: '/showdown-test/viewer-app/',
 })

@@ -1,14 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom'
+import { HashRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom'
 import { database, ref, onValue, update } from './firebase'
-import { useMatchScoring } from './hooks/useMatchScoring'
-import { useAccessibilityStore } from './stores/useAccessibilityStore'
-import { useMatchStore } from './stores/useMatchStore'
-import { useSpeech } from './hooks/useSpeech'
 import type { Project, Match } from './types'
 import './App.css'
 
-// 홈 - 대회/경기 선택
 function Home() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
@@ -16,70 +11,39 @@ function Home() {
 
   useEffect(() => {
     const projectsRef = ref(database, 'projects')
-    const unsubscribe = onValue(projectsRef, (snapshot) => {
+    return onValue(projectsRef, (snapshot) => {
       const data = snapshot.val()
       if (data) {
-        const list = Object.entries(data).map(([key, value]) => ({
+        setProjects(Object.entries(data).map(([key, value]) => ({
           ...(value as Project),
           firebaseKey: key
-        }))
-        setProjects(list)
+        })))
       }
       setLoading(false)
     })
-    return () => unsubscribe()
   }, [])
 
-  const getReadyMatches = (project: Project) => {
-    return (project.matches || []).filter(
-      m => m.status === 'pending' || m.status === 'ready' || m.status === 'active'
-    )
-  }
-
-  if (loading) {
-    return <div className="container"><div className="loading">대회 불러오는 중...</div></div>
-  }
+  if (loading) return <div className="container"><div className="loading">로딩 중...</div></div>
 
   return (
     <div className="container">
       <header className="header">
-        <h1>🏓 심판 모드</h1>
-        <p>경기를 선택하여 진행하세요</p>
-        <button className="settings-btn" onClick={() => navigate('/settings')}>
-          ⚙️ 설정
-        </button>
+        <h1>심판 모드</h1>
+        <p>경기를 선택하여 점수를 기록하세요</p>
       </header>
-
       <main>
         {projects.length === 0 ? (
-          <div className="empty">등록된 대회가 없습니다.</div>
+          <div className="empty">등록된 대회가 없습니다</div>
         ) : (
           projects.map(project => {
-            const matches = getReadyMatches(project)
-            if (matches.length === 0) return null
-
+            const ready = (project.matches || []).filter(m => m.status === 'ready' || m.status === 'active').length
             return (
-              <div key={project.firebaseKey} className="card project-card">
-                <h2>{project.name}</h2>
-                <p className="project-meta">{project.date} • {project.location || '장소 미정'}</p>
-
-                <div className="match-list">
-                  {matches.map(match => (
-                    <button
-                      key={match.id}
-                      className={`match-item ${match.status}`}
-                      onClick={() => navigate(`/match/${project.firebaseKey}/${match.id}`)}
-                    >
-                      <span className="match-players">
-                        {match.player1Name} vs {match.player2Name}
-                      </span>
-                      <span className="match-info">
-                        {match.groupName ? `${match.groupName}조` : match.roundName || ''}
-                        {match.status === 'active' && <span className="live-badge">진행중</span>}
-                      </span>
-                    </button>
-                  ))}
+              <div key={project.firebaseKey} className="card" onClick={() => navigate(`/project/${project.firebaseKey}`)}>
+                <div className="card-header">
+                  <h2>{project.name}</h2>
+                  {ready > 0 && <span className="badge">{ready} 경기</span>}
                 </div>
+                <p className="meta">{project.date} • {project.location || '장소 미정'}</p>
               </div>
             )
           })
@@ -89,350 +53,311 @@ function Home() {
   )
 }
 
-// 경기 진행
-function MatchPage() {
+function ProjectView() {
+  const { id } = useParams()
   const navigate = useNavigate()
-  const { projectId, matchId } = useParams<{ projectId: string; matchId: string }>()
   const [project, setProject] = useState<Project | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showEndModal, setShowEndModal] = useState(false)
 
-  const { currentMatch, addScore, undo, startMatch, endMatch, getCurrentSetScores, clearHistory } = useMatchScoring()
-  const scoreHistory = useMatchStore(state => state.scoreHistory)
-
-  // Firebase에서 프로젝트 로드
   useEffect(() => {
-    if (!projectId) return
-
-    const projectRef = ref(database, `projects/${projectId}`)
-    const unsubscribe = onValue(projectRef, (snapshot) => {
+    if (!id) return
+    return onValue(ref(database, `projects/${id}`), (snapshot) => {
       const data = snapshot.val()
-      if (data) {
-        setProject({ ...data, firebaseKey: projectId })
-      }
-      setLoading(false)
-    }, { onlyOnce: true })
+      if (data) setProject({ ...data, firebaseKey: id })
+    })
+  }, [id])
 
-    return () => unsubscribe()
-  }, [projectId])
+  if (!project) return <div className="container"><div className="loading">로딩 중...</div></div>
 
-  // 경기 시작
-  useEffect(() => {
-    if (project && matchId && !currentMatch) {
-      const match = project.matches?.find(m => m.id === parseInt(matchId))
-      if (match) {
-        startMatch(match)
-        clearHistory()
-      }
-    }
-  }, [project, matchId, currentMatch, startMatch, clearHistory])
-
-  // Firebase에 경기 상태 저장
-  const saveToFirebase = useCallback((match: Match) => {
-    if (!projectId || !project) return
-
-    const updatedMatches = project.matches?.map(m =>
-      m.id === match.id ? match : m
-    ) || []
-
-    update(ref(database, `projects/${projectId}`), { matches: updatedMatches })
-  }, [projectId, project])
-
-  const handleScore = useCallback((player: 1 | 2) => {
-    const updated = addScore(player)
-    if (updated) {
-      saveToFirebase(updated)
-      if (updated.status === 'completed') {
-        setShowEndModal(true)
-      }
-    }
-  }, [addScore, saveToFirebase])
-
-  const handleUndo = useCallback(() => {
-    const updated = undo()
-    if (updated) saveToFirebase(updated)
-  }, [undo, saveToFirebase])
-
-  const handleForfeit = useCallback((winner: 1 | 2) => {
-    const updated = endMatch(winner)
-    if (updated) {
-      saveToFirebase(updated)
-      setShowEndModal(true)
-    }
-  }, [endMatch, saveToFirebase])
-
-  if (loading || !currentMatch) {
-    return <div className="container"><div className="loading">경기 불러오는 중...</div></div>
-  }
-
-  const scores = getCurrentSetScores()
-  const isComplete = currentMatch.status === 'completed'
-
-  return (
-    <div className="container match-container">
-      {/* 헤더 */}
-      <header className="match-header">
-        <button className="back-btn" onClick={() => navigate('/')}>← 목록</button>
-        <span className="match-stage">
-          {currentMatch.groupName ? `${currentMatch.groupName}조` : currentMatch.roundName || '경기'}
-        </span>
-        <span className="set-info">세트 {currentMatch.currentSet}/{currentMatch.setsToWin * 2 - 1}</span>
-      </header>
-
-      {/* 스코어보드 */}
-      <div className="scoreboard">
-        <div className={`player-section ${currentMatch.currentServer === 1 ? 'serving' : ''}`}>
-          <div className="player-name">{currentMatch.player1Name}</div>
-          <div className="set-score">{currentMatch.player1Sets || 0}</div>
-          <div className="point-score">{scores.player1Score}</div>
-          {currentMatch.currentServer === 1 && <div className="serve-indicator">서브</div>}
-        </div>
-
-        <div className="vs">VS</div>
-
-        <div className={`player-section right ${currentMatch.currentServer === 2 ? 'serving' : ''}`}>
-          <div className="player-name">{currentMatch.player2Name}</div>
-          <div className="set-score">{currentMatch.player2Sets || 0}</div>
-          <div className="point-score">{scores.player2Score}</div>
-          {currentMatch.currentServer === 2 && <div className="serve-indicator">서브</div>}
-        </div>
-      </div>
-
-      {/* 득점 버튼 */}
-      {!isComplete && (
-        <div className="score-buttons">
-          <button className="score-btn player1" onClick={() => handleScore(1)}>
-            {currentMatch.player1Name}<br />득점
-          </button>
-          <button className="score-btn player2" onClick={() => handleScore(2)}>
-            {currentMatch.player2Name}<br />득점
-          </button>
-        </div>
-      )}
-
-      {/* 취소 버튼 */}
-      {!isComplete && scoreHistory.length > 0 && (
-        <button className="undo-btn" onClick={handleUndo}>
-          ↩ 실행 취소
-        </button>
-      )}
-
-      {/* 세트 기록 */}
-      {currentMatch.sets && currentMatch.sets.length > 0 && (
-        <div className="set-history">
-          <h3>세트 기록</h3>
-          <div className="set-list">
-            {currentMatch.sets.map((set, idx) => (
-              <div key={idx} className={`set-item ${set.isComplete ? 'complete' : ''} ${idx === currentMatch.currentSet - 1 ? 'current' : ''}`}>
-                <span>세트 {idx + 1}</span>
-                <span className="set-result">{set.player1Score} - {set.player2Score}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 기권 버튼 */}
-      {!isComplete && (
-        <div className="forfeit-buttons">
-          <button className="forfeit-btn" onClick={() => handleForfeit(2)}>
-            {currentMatch.player1Name} 기권
-          </button>
-          <button className="forfeit-btn" onClick={() => handleForfeit(1)}>
-            {currentMatch.player2Name} 기권
-          </button>
-        </div>
-      )}
-
-      {/* 경기 종료 결과 */}
-      {isComplete && (
-        <div className="match-result">
-          <div className="trophy">🏆</div>
-          <h2>{currentMatch.winner === 1 ? currentMatch.player1Name : currentMatch.player2Name} 승리!</h2>
-          <p>최종: {currentMatch.player1Sets} - {currentMatch.player2Sets}</p>
-          <button className="primary-btn" onClick={() => navigate('/')}>
-            목록으로
-          </button>
-        </div>
-      )}
-
-      {/* 종료 모달 */}
-      {showEndModal && isComplete && (
-        <div className="modal-overlay" onClick={() => setShowEndModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="trophy">🏆</div>
-            <h2>{currentMatch.winner === 1 ? currentMatch.player1Name : currentMatch.player2Name} 승리!</h2>
-            <p>{currentMatch.player1Sets} - {currentMatch.player2Sets}</p>
-            <button className="primary-btn" onClick={() => navigate('/')}>확인</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 설정 페이지
-function Settings() {
-  const navigate = useNavigate()
-  const {
-    voiceEnabled, voiceVolume, theme, fontSize, reduceMotion,
-    announceScore, announceSetScore, announceServe,
-    setVoiceEnabled, setVoiceVolume, setTheme, setFontSize,
-    setReduceMotion, setAnnounceScore, setAnnounceSetScore, setAnnounceServe
-  } = useAccessibilityStore()
-  const { speak, isSupported } = useSpeech()
-
-  const handleVoiceToggle = () => {
-    const newValue = !voiceEnabled
-    setVoiceEnabled(newValue)
-    if (newValue) {
-      setTimeout(() => speak('음성 안내가 활성화되었습니다.'), 100)
-    }
-  }
+  const readyMatches = (project.matches || []).filter(m => m.status === 'ready')
+  const activeMatches = (project.matches || []).filter(m => m.status === 'active')
 
   return (
     <div className="container">
       <header className="header small">
-        <button className="back-btn" onClick={() => navigate('/')}>← 뒤로</button>
-        <h1>접근성 설정</h1>
+        <button className="back" onClick={() => navigate('/')}>←</button>
+        <div>
+          <h1>{project.name}</h1>
+          <p>경기 선택</p>
+        </div>
       </header>
-
-      <main className="settings-main">
-        {/* 음성 설정 */}
-        <section className="setting-section">
-          <h2>🔊 음성 안내</h2>
-
-          <div className="setting-item">
-            <span>음성 안내 사용</span>
-            <button
-              className={`toggle ${voiceEnabled ? 'active' : ''}`}
-              onClick={handleVoiceToggle}
-              disabled={!isSupported}
-            >
-              {voiceEnabled ? 'ON' : 'OFF'}
-            </button>
-          </div>
-
-          {!isSupported && (
-            <p className="warning">이 브라우저는 음성 합성을 지원하지 않습니다.</p>
-          )}
-
-          {voiceEnabled && (
-            <>
-              <div className="setting-item">
-                <span>음량</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={voiceVolume}
-                  onChange={(e) => setVoiceVolume(parseFloat(e.target.value))}
-                />
-                <span>{Math.round(voiceVolume * 100)}%</span>
+      <main>
+        {activeMatches.length > 0 && (
+          <>
+            <h3 className="section-title">진행 중</h3>
+            {activeMatches.map(m => (
+              <div key={m.id} className="card active" onClick={() => navigate(`/match/${project.firebaseKey}/${m.id}`)}>
+                <div className="match-info">
+                  <span className="badge live">LIVE</span>
+                  <span className="group">{m.groupName ? `${m.groupName}조` : m.roundName}</span>
+                </div>
+                <div className="match-players">
+                  <span>{m.player1Name}</span>
+                  <span className="score">{m.player1Sets || 0} - {m.player2Sets || 0}</span>
+                  <span>{m.player2Name}</span>
+                </div>
               </div>
-
-              <button className="test-btn" onClick={() => speak('테스트 음성입니다. 3 대 2')}>
-                음성 테스트
-              </button>
-
-              <div className="checkbox-group">
-                <label>
-                  <input type="checkbox" checked={announceScore} onChange={e => setAnnounceScore(e.target.checked)} />
-                  매 득점 시 안내
-                </label>
-                <label>
-                  <input type="checkbox" checked={announceSetScore} onChange={e => setAnnounceSetScore(e.target.checked)} />
-                  세트 점수 안내
-                </label>
-                <label>
-                  <input type="checkbox" checked={announceServe} onChange={e => setAnnounceServe(e.target.checked)} />
-                  서브 교대 안내
-                </label>
+            ))}
+          </>
+        )}
+        {readyMatches.length > 0 && (
+          <>
+            <h3 className="section-title">대기 중</h3>
+            {readyMatches.map(m => (
+              <div key={m.id} className="card" onClick={() => navigate(`/match/${project.firebaseKey}/${m.id}`)}>
+                <div className="match-info">
+                  <span className="group">{m.groupName ? `${m.groupName}조` : m.roundName}</span>
+                </div>
+                <div className="match-players">
+                  <span>{m.player1Name}</span>
+                  <span className="vs">VS</span>
+                  <span>{m.player2Name}</span>
+                </div>
               </div>
-            </>
-          )}
-        </section>
-
-        {/* 시각 설정 */}
-        <section className="setting-section">
-          <h2>👁️ 시각 설정</h2>
-
-          <div className="setting-item">
-            <span>테마</span>
-          </div>
-          <div className="theme-buttons">
-            {(['default', 'dark', 'high-contrast', 'inverted'] as const).map(t => (
-              <button
-                key={t}
-                className={`theme-btn ${theme === t ? 'selected' : ''}`}
-                onClick={() => setTheme(t)}
-              >
-                <span className={`theme-preview ${t}`} />
-                {t === 'default' ? '기본' : t === 'dark' ? '다크' : t === 'high-contrast' ? '고대비' : '반전'}
-              </button>
             ))}
-          </div>
-
-          <div className="setting-item">
-            <span>글꼴 크기</span>
-          </div>
-          <div className="font-buttons">
-            {(['normal', 'large', 'extra-large'] as const).map(f => (
-              <button
-                key={f}
-                className={`font-btn ${f} ${fontSize === f ? 'selected' : ''}`}
-                onClick={() => setFontSize(f)}
-              >
-                가
-              </button>
-            ))}
-          </div>
-
-          <div className="setting-item">
-            <label>
-              <input type="checkbox" checked={reduceMotion} onChange={e => setReduceMotion(e.target.checked)} />
-              애니메이션 줄이기
-            </label>
-          </div>
-        </section>
+          </>
+        )}
+        {readyMatches.length === 0 && activeMatches.length === 0 && (
+          <div className="empty">진행 가능한 경기가 없습니다</div>
+        )}
       </main>
     </div>
   )
 }
 
-// 접근성 Provider
-function AccessibilityProvider({ children }: { children: React.ReactNode }) {
-  const { theme, fontSize, reduceMotion } = useAccessibilityStore()
+function MatchView() {
+  const { projectId, matchId } = useParams()
+  const navigate = useNavigate()
+  const [match, setMatch] = useState<Match | null>(null)
+  const [matchIndex, setMatchIndex] = useState<number>(-1)
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
 
   useEffect(() => {
-    const body = document.body
-    body.classList.remove('default', 'dark', 'high-contrast', 'inverted')
-    if (theme !== 'default') body.classList.add(theme)
+    if (!projectId) return
+    return onValue(ref(database, `projects/${projectId}/matches`), (snapshot) => {
+      const data = snapshot.val()
+      if (data && matchId) {
+        const idx = data.findIndex((m: Match) => m.id === parseInt(matchId))
+        if (idx !== -1) {
+          setMatch(data[idx])
+          setMatchIndex(idx)
+        }
+      }
+    })
+  }, [projectId, matchId])
 
-    body.classList.remove('font-normal', 'font-large', 'font-extra-large')
-    if (fontSize !== 'normal') body.classList.add(`font-${fontSize}`)
+  const speak = useCallback((text: string) => {
+    if (voiceEnabled && 'speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = 'ko-KR'
+      utterance.rate = 0.9
+      speechSynthesis.speak(utterance)
+    }
+  }, [voiceEnabled])
 
-    if (reduceMotion) body.classList.add('reduce-motion')
-    else body.classList.remove('reduce-motion')
-  }, [theme, fontSize, reduceMotion])
+  const updateMatch = useCallback(async (updates: Partial<Match>) => {
+    if (!projectId || matchIndex === -1) return
+    await update(ref(database, `projects/${projectId}/matches/${matchIndex}`), updates)
+  }, [projectId, matchIndex])
 
-  return <>{children}</>
-}
+  const startMatch = async () => {
+    if (!match) return
+    const initialSets = [{ player1Score: 0, player2Score: 0, isComplete: false }]
+    await updateMatch({
+      status: 'active',
+      sets: initialSets,
+      currentSet: 1,
+      player1Sets: 0,
+      player2Sets: 0
+    })
+    speak('경기 시작')
+  }
 
-// 앱
-function App() {
+  const addScore = async (player: 1 | 2) => {
+    if (!match || match.status !== 'active') return
+
+    const sets = [...(match.sets || [])]
+    const currentSetIndex = (match.currentSet || 1) - 1
+
+    if (!sets[currentSetIndex]) {
+      sets[currentSetIndex] = { player1Score: 0, player2Score: 0, isComplete: false }
+    }
+
+    const currentSet = { ...sets[currentSetIndex] }
+    if (player === 1) currentSet.player1Score++
+    else currentSet.player2Score++
+
+    sets[currentSetIndex] = currentSet
+
+    const p1Score = currentSet.player1Score
+    const p2Score = currentSet.player2Score
+    speak(player === 1 ? `${p1Score} 대 ${p2Score}` : `${p1Score} 대 ${p2Score}`)
+
+    // 세트 승리 체크 (11점, 2점차 / 듀스 시 계속)
+    const isSetWin = (p1Score >= 11 || p2Score >= 11) && Math.abs(p1Score - p2Score) >= 2
+
+    if (isSetWin) {
+      currentSet.isComplete = true
+      currentSet.winner = p1Score > p2Score ? 1 : 2
+      sets[currentSetIndex] = currentSet
+
+      const newP1Sets = (match.player1Sets || 0) + (currentSet.winner === 1 ? 1 : 0)
+      const newP2Sets = (match.player2Sets || 0) + (currentSet.winner === 2 ? 1 : 0)
+
+      const setsToWin = match.setsToWin || 3
+
+      // 경기 종료 체크
+      if (newP1Sets >= setsToWin || newP2Sets >= setsToWin) {
+        const winner = newP1Sets >= setsToWin ? 1 : 2
+        const winnerName = winner === 1 ? match.player1Name : match.player2Name
+        speak(`경기 종료. ${winnerName} 승리`)
+
+        await updateMatch({
+          sets,
+          player1Sets: newP1Sets,
+          player2Sets: newP2Sets,
+          status: 'completed',
+          winner
+        })
+      } else {
+        // 다음 세트
+        speak(`세트 종료. ${newP1Sets} 대 ${newP2Sets}`)
+        sets.push({ player1Score: 0, player2Score: 0, isComplete: false })
+
+        await updateMatch({
+          sets,
+          player1Sets: newP1Sets,
+          player2Sets: newP2Sets,
+          currentSet: (match.currentSet || 1) + 1
+        })
+      }
+    } else {
+      await updateMatch({ sets })
+    }
+  }
+
+  const undoScore = async () => {
+    if (!match || match.status !== 'active') return
+
+    const sets = [...(match.sets || [])]
+    const currentSetIndex = (match.currentSet || 1) - 1
+    const currentSet = sets[currentSetIndex]
+
+    if (!currentSet) return
+
+    if (currentSet.player1Score === 0 && currentSet.player2Score === 0) {
+      // 이전 세트로
+      if (currentSetIndex > 0) {
+        sets.pop()
+        const prevSet = sets[currentSetIndex - 1]
+        prevSet.isComplete = false
+        prevSet.winner = undefined
+
+        await updateMatch({
+          sets,
+          currentSet: match.currentSet! - 1,
+          player1Sets: Math.max(0, (match.player1Sets || 0) - (prevSet.player1Score > prevSet.player2Score ? 1 : 0)),
+          player2Sets: Math.max(0, (match.player2Sets || 0) - (prevSet.player2Score > prevSet.player1Score ? 1 : 0))
+        })
+      }
+      return
+    }
+
+    // 마지막 점수 취소 (가장 최근 득점자 추정)
+    if (currentSet.player1Score > currentSet.player2Score) {
+      currentSet.player1Score--
+    } else if (currentSet.player2Score > currentSet.player1Score) {
+      currentSet.player2Score--
+    } else if (currentSet.player1Score > 0) {
+      currentSet.player1Score--
+    }
+
+    sets[currentSetIndex] = currentSet
+    await updateMatch({ sets })
+    speak('취소')
+  }
+
+  if (!match) return <div className="container"><div className="loading">로딩 중...</div></div>
+
+  const currentSet = match.sets?.[(match.currentSet || 1) - 1]
+
   return (
-    <AccessibilityProvider>
-      <BrowserRouter basename="/showdown-test/referee-app">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/match/:projectId/:matchId" element={<MatchPage />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </BrowserRouter>
-    </AccessibilityProvider>
+    <div className="container scoring">
+      <header className="header small">
+        <button className="back" onClick={() => navigate(`/project/${projectId}`)}>←</button>
+        <div>
+          <span className="group">{match.groupName ? `${match.groupName}조` : match.roundName}</span>
+          <button
+            className={`voice-btn ${voiceEnabled ? 'active' : ''}`}
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+          >
+            {voiceEnabled ? '🔊' : '🔇'}
+          </button>
+        </div>
+      </header>
+
+      <main>
+        {match.status === 'ready' ? (
+          <div className="start-screen">
+            <div className="players-preview">
+              <div className="player-name">{match.player1Name}</div>
+              <div className="vs-large">VS</div>
+              <div className="player-name">{match.player2Name}</div>
+            </div>
+            <button className="start-btn" onClick={startMatch}>경기 시작</button>
+          </div>
+        ) : match.status === 'completed' ? (
+          <div className="result-screen">
+            <h2>경기 종료</h2>
+            <div className="final-score">
+              <div className={match.winner === 1 ? 'winner' : ''}>
+                <span className="name">{match.player1Name}</span>
+                <span className="sets">{match.player1Sets}</span>
+              </div>
+              <span className="divider">-</span>
+              <div className={match.winner === 2 ? 'winner' : ''}>
+                <span className="sets">{match.player2Sets}</span>
+                <span className="name">{match.player2Name}</span>
+              </div>
+            </div>
+            <button className="back-btn" onClick={() => navigate(`/project/${projectId}`)}>목록으로</button>
+          </div>
+        ) : (
+          <>
+            <div className="set-score">
+              <span>세트 {match.currentSet}</span>
+              <span className="sets-display">{match.player1Sets || 0} - {match.player2Sets || 0}</span>
+            </div>
+
+            <div className="score-board">
+              <div className="player-section" onClick={() => addScore(1)}>
+                <div className="player-name">{match.player1Name}</div>
+                <div className="current-score">{currentSet?.player1Score || 0}</div>
+              </div>
+              <div className="divider-line"></div>
+              <div className="player-section" onClick={() => addScore(2)}>
+                <div className="player-name">{match.player2Name}</div>
+                <div className="current-score">{currentSet?.player2Score || 0}</div>
+              </div>
+            </div>
+
+            <div className="controls">
+              <button className="undo-btn" onClick={undoScore}>↩ 취소</button>
+            </div>
+          </>
+        )}
+      </main>
+    </div>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/project/:id" element={<ProjectView />} />
+        <Route path="/match/:projectId/:matchId" element={<MatchView />} />
+      </Routes>
+    </HashRouter>
+  )
+}

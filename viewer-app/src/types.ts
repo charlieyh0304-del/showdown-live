@@ -9,8 +9,6 @@ export interface Match {
   id: number
   player1Name: string
   player2Name: string
-  player1Score?: number
-  player2Score?: number
   player1Sets?: number
   player2Sets?: number
   sets: SetScore[]
@@ -20,32 +18,13 @@ export interface Match {
   status: 'pending' | 'ready' | 'active' | 'completed' | 'waiting'
   winner?: 1 | 2
   groupName?: string
-  groupIndex?: number
   bracketRound?: number
-  bracketMatchNum?: number
   roundName?: string
-  isThirdPlace?: boolean
-  startTime?: string
-  endTime?: string
 }
 
 export interface Group {
   name: string
-  members?: string[]
-  players?: string[]
-  matches: Match[]
-}
-
-export interface GroupSettings {
-  groupCount: number
-  advanceCount: number
-  setsPerMatch: number
-}
-
-export interface TournamentSettings {
-  size: number
-  thirdPlaceMatch: boolean
-  setsPerMatch: number
+  members: string[]
 }
 
 export interface Project {
@@ -53,12 +32,9 @@ export interface Project {
   name: string
   date: string
   location: string
-  desc: string
-  competitionType: 'individual' | 'team'
-  tournamentType: string
+  players?: string[]
   matches: Match[]
   groups: Group[]
-  groupSettings?: GroupSettings
-  tournamentSettings?: TournamentSettings
+  groupSettings?: { advanceCount: number }
   firebaseKey?: string
 }
