@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/showdown-test/referee-app/sw.js', { scope: '/showdown-test/referee-app/' })})}
