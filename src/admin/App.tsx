@@ -3,6 +3,10 @@ import Home from './pages/Home';
 import Players from './pages/Players';
 import Tournament from './pages/Tournament';
 import Match from './pages/Match';
+import Referees from './pages/Referees';
+import Courts from './pages/Courts';
+import RandomTeamLeagues from './pages/RandomTeamLeagues';
+import RandomTeamLeagueDetail from './pages/RandomTeamLeagueDetail';
 
 function App() {
   const location = useLocation();
@@ -35,6 +39,30 @@ function App() {
                 >
                   선수
                 </NavLink>
+                <NavLink
+                  to="/team-leagues"
+                  className={({ isActive }) =>
+                    `nav-link ${isActive ? 'active' : ''}`
+                  }
+                >
+                  팀리그
+                </NavLink>
+                <NavLink
+                  to="/referees"
+                  className={({ isActive }) =>
+                    `nav-link ${isActive ? 'active' : ''}`
+                  }
+                >
+                  심판
+                </NavLink>
+                <NavLink
+                  to="/courts"
+                  className={({ isActive }) =>
+                    `nav-link ${isActive ? 'active' : ''}`
+                  }
+                >
+                  경기장
+                </NavLink>
               </div>
             </div>
           </div>
@@ -47,6 +75,10 @@ function App() {
           <Route path="/players" element={<Players />} />
           <Route path="/tournament/:id" element={<Tournament />} />
           <Route path="/match/:tournamentId/:matchId" element={<Match />} />
+          <Route path="/referees" element={<Referees />} />
+          <Route path="/courts" element={<Courts />} />
+          <Route path="/team-leagues" element={<RandomTeamLeagues />} />
+          <Route path="/team-league/:id" element={<RandomTeamLeagueDetail />} />
         </Routes>
       </main>
     </div>

@@ -23,6 +23,17 @@ body {
   min-height: 100vh;
 }
 
+/* 접근성: 포커스 스타일 개선 */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(255, 255, 0, 0.3);
+}
+
 /* 카드 */
 .card {
   background-color: #111827;
@@ -43,9 +54,10 @@ body {
   min-height: 48px;
 }
 
-.btn:focus {
-  outline: none;
-  box-shadow: 0 0 0 4px #facc15;
+.btn:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.4);
 }
 
 .btn-primary {

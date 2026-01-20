@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ref, onValue, set, push, remove, update } from 'firebase/database';
 import { database } from '../config/firebase';
-import type { Player, Tournament, Match } from '../types';
+import type { Player, Tournament, Match, Referee, Court, RandomTeamLeague, TeamMatch } from '../types';
 
 // 선수 관리 훅
 export function usePlayers() {
@@ -183,4 +183,226 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
   }, [tournamentId, matchId]);
 
   return { match, loading, updateMatch };
+}
+
+// 심판 관리 훅
+export function useReferees() {
+  const [referees, setReferees] = useState<Referee[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const refereesRef = ref(database, 'referees');
+    const unsubscribe = onValue(refereesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const refereeList = Object.entries(data).map(([id, referee]) => ({
+          id,
+          ...(referee as Omit<Referee, 'id'>),
+        }));
+        setReferees(refereeList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+      } else {
+        setReferees([]);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const addReferee = useCallback(async (referee: Omit<Referee, 'id' | 'createdAt'>) => {
+    const refereesRef = ref(database, 'referees');
+    const newRef = push(refereesRef);
+    await set(newRef, { ...referee, createdAt: Date.now() });
+    return newRef.key;
+  }, []);
+
+  const updateReferee = useCallback(async (id: string, data: Partial<Referee>) => {
+    const refereeRef = ref(database, `referees/${id}`);
+    await update(refereeRef, data);
+  }, []);
+
+  const deleteReferee = useCallback(async (id: string) => {
+    const refereeRef = ref(database, `referees/${id}`);
+    await remove(refereeRef);
+  }, []);
+
+  return { referees, loading, addReferee, updateReferee, deleteReferee };
+}
+
+// 경기장 관리 훅
+export function useCourts() {
+  const [courts, setCourts] = useState<Court[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const courtsRef = ref(database, 'courts');
+    const unsubscribe = onValue(courtsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const courtList = Object.entries(data).map(([id, court]) => ({
+          id,
+          ...(court as Omit<Court, 'id'>),
+        }));
+        setCourts(courtList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
+      } else {
+        setCourts([]);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const addCourt = useCallback(async (court: Omit<Court, 'id' | 'createdAt'>) => {
+    const courtsRef = ref(database, 'courts');
+    const newRef = push(courtsRef);
+    await set(newRef, { ...court, createdAt: Date.now() });
+    return newRef.key;
+  }, []);
+
+  const updateCourt = useCallback(async (id: string, data: Partial<Court>) => {
+    const courtRef = ref(database, `courts/${id}`);
+    await update(courtRef, data);
+  }, []);
+
+  const deleteCourt = useCallback(async (id: string) => {
+    const courtRef = ref(database, `courts/${id}`);
+    await remove(courtRef);
+  }, []);
+
+  return { courts, loading, addCourt, updateCourt, deleteCourt };
+}
+
+// 랜덤 팀 리그전 관리 훅
+export function useRandomTeamLeagues() {
+  const [leagues, setLeagues] = useState<RandomTeamLeague[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const leaguesRef = ref(database, 'randomTeamLeagues');
+    const unsubscribe = onValue(leaguesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const leagueList = Object.entries(data).map(([id, league]) => ({
+          id,
+          ...(league as Omit<RandomTeamLeague, 'id'>),
+        }));
+        setLeagues(leagueList.sort((a, b) => b.createdAt - a.createdAt));
+      } else {
+        setLeagues([]);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const addLeague = useCallback(async (league: Omit<RandomTeamLeague, 'id' | 'createdAt'>) => {
+    const leaguesRef = ref(database, 'randomTeamLeagues');
+    const newRef = push(leaguesRef);
+    await set(newRef, { ...league, createdAt: Date.now() });
+    return newRef.key;
+  }, []);
+
+  const updateLeague = useCallback(async (id: string, data: Partial<RandomTeamLeague>) => {
+    const leagueRef = ref(database, `randomTeamLeagues/${id}`);
+    await update(leagueRef, data);
+  }, []);
+
+  const deleteLeague = useCallback(async (id: string) => {
+    const leagueRef = ref(database, `randomTeamLeagues/${id}`);
+    await remove(leagueRef);
+    // 관련 팀경기도 삭제
+    const matchesRef = ref(database, `teamMatches/${id}`);
+    await remove(matchesRef);
+  }, []);
+
+  return { leagues, loading, addLeague, updateLeague, deleteLeague };
+}
+
+// 단일 랜덤 팀 리그전 구독
+export function useRandomTeamLeague(leagueId: string | null) {
+  const [league, setLeague] = useState<RandomTeamLeague | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!leagueId) {
+      setLeague(null);
+      setLoading(false);
+      return;
+    }
+
+    const leagueRef = ref(database, `randomTeamLeagues/${leagueId}`);
+    const unsubscribe = onValue(leagueRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setLeague({ id: leagueId, ...data });
+      } else {
+        setLeague(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [leagueId]);
+
+  const updateLeague = useCallback(async (data: Partial<RandomTeamLeague>) => {
+    if (!leagueId) return;
+    const leagueRef = ref(database, `randomTeamLeagues/${leagueId}`);
+    await update(leagueRef, data);
+  }, [leagueId]);
+
+  return { league, loading, updateLeague };
+}
+
+// 팀 경기 관리 훅
+export function useTeamMatches(leagueId: string | null) {
+  const [teamMatches, setTeamMatches] = useState<TeamMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!leagueId) {
+      setTeamMatches([]);
+      setLoading(false);
+      return;
+    }
+
+    const matchesRef = ref(database, `teamMatches/${leagueId}`);
+    const unsubscribe = onValue(matchesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const matchList = Object.entries(data).map(([id, match]) => ({
+          id,
+          ...(match as Omit<TeamMatch, 'id'>),
+        }));
+        setTeamMatches(matchList.sort((a, b) => a.round - b.round));
+      } else {
+        setTeamMatches([]);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [leagueId]);
+
+  const addTeamMatch = useCallback(async (match: Omit<TeamMatch, 'id'>) => {
+    if (!leagueId) return null;
+    const matchesRef = ref(database, `teamMatches/${leagueId}`);
+    const newRef = push(matchesRef);
+    await set(newRef, match);
+    return newRef.key;
+  }, [leagueId]);
+
+  const updateTeamMatch = useCallback(async (matchId: string, data: Partial<TeamMatch>) => {
+    if (!leagueId) return;
+    const matchRef = ref(database, `teamMatches/${leagueId}/${matchId}`);
+    await update(matchRef, data);
+  }, [leagueId]);
+
+  const setTeamMatchesBulk = useCallback(async (newMatches: Omit<TeamMatch, 'id'>[]) => {
+    if (!leagueId) return;
+    const matchesRef = ref(database, `teamMatches/${leagueId}`);
+    await remove(matchesRef);
+    for (const match of newMatches) {
+      const newRef = push(matchesRef);
+      await set(newRef, match);
+    }
+  }, [leagueId]);
+
+  return { teamMatches, loading, addTeamMatch, updateTeamMatch, setTeamMatchesBulk };
 }

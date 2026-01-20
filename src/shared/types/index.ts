@@ -1,3 +1,30 @@
+// 대회 유형
+export type TournamentType = 'group' | 'group-tournament' | 'tournament' | 'knockout-only' | 'group-only' | 'full-league' | 'random-team-league';
+
+// 팀전 점수 설정
+export interface TeamMatchSettings {
+  setsToWin: 1;
+  winScore: 11 | 21 | 31;
+  minLead: 2;
+}
+
+// 심판
+export interface Referee {
+  id: string;
+  name: string;
+  role: 'main' | 'assistant';
+  createdAt: number;
+}
+
+// 경기장
+export interface Court {
+  id: string;
+  name: string;
+  location?: string;
+  assignedReferees: string[]; // 1-2명 심판 ID
+  createdAt: number;
+}
+
 // 선수
 export interface Player {
   id: string;
@@ -15,6 +42,66 @@ export interface Tournament {
   status: 'draft' | 'in_progress' | 'completed';
   playerIds: string[];
   createdAt: number;
+  // 확장 필드
+  type?: TournamentType;
+  teamMatchSettings?: TeamMatchSettings;
+}
+
+// 랜덤 팀 리그전
+export interface RandomTeamLeague {
+  id: string;
+  name: string;
+  date: string;
+  status: 'draft' | 'team_assignment' | 'in_progress' | 'completed';
+  playerIds: string[];
+  teams?: Team[];
+  fixtures?: TeamMatch[];
+  teamMatchSettings: TeamMatchSettings;
+  createdAt: number;
+}
+
+// 팀
+export interface Team {
+  id: string;
+  name: string;
+  memberIds: string[]; // 3명
+}
+
+// 팀 경기
+export interface TeamMatch {
+  id: string;
+  leagueId: string;
+  team1Id: string;
+  team2Id: string;
+  round: number;
+  status: 'pending' | 'in_progress' | 'completed';
+  winnerId?: string;
+  courtId?: string;
+  scheduledTime?: string;
+  matches: IndividualMatch[]; // 9경기 (3x3)
+  scoreHistory?: ScoreEvent[];
+}
+
+// 개인 경기 (팀전 내)
+export interface IndividualMatch {
+  id: string;
+  player1Id: string;
+  player2Id: string;
+  player1Score: number;
+  player2Score: number;
+  winnerId?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+// 점수 이벤트 (히스토리)
+export interface ScoreEvent {
+  id: string;
+  timestamp: number;
+  matchIndex: number; // 몇 번째 개인경기
+  playerId: string;
+  player1Score: number;
+  player2Score: number;
+  description?: string;
 }
 
 // 세트 점수
