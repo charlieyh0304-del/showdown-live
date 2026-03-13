@@ -32,8 +32,8 @@ button, a, input, select {
   font-size: inherit;
 }
 
-/* 접근성: 포커스 스타일 개선 */
-*:focus {
+/* 접근성: 포커스 스타일 개선 - mouse/touch에서만 outline 숨김 */
+*:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -41,6 +41,19 @@ button, a, input, select {
   outline: 3px solid var(--color-primary);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgba(255, 255, 0, 0.3);
+}
+
+/* 접근성: 스크린리더 전용 텍스트 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 /* 버튼 스타일 */
@@ -55,9 +68,9 @@ button, a, input, select {
 }
 
 .btn:focus-visible {
-  outline: 3px solid #facc15;
+  outline: 3px solid var(--color-primary);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.4);
+  box-shadow: 0 0 0 4px rgba(255, 255, 0, 0.3);
 }
 
 .btn:disabled {
@@ -133,7 +146,7 @@ button, a, input, select {
 
 .input:focus {
   outline: none;
-  border-color: #ffff00;
+  border-color: var(--color-primary);
 }
 
 .input::placeholder {
@@ -153,6 +166,13 @@ button, a, input, select {
   font-size: 6rem;
   font-weight: bold;
   font-variant-numeric: tabular-nums;
+}
+
+.score-large {
+  font-size: 10rem;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 /* 네비게이션 */
@@ -195,4 +215,23 @@ button, a, input, select {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+}
+
+/* 애니메이션 */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-10px); }
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s ease-in-out infinite;
 }

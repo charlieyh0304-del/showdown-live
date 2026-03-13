@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCourts, useReferees } from '@shared/hooks/useFirebase';
 import type { Court } from '@shared/types';
 
@@ -11,23 +11,44 @@ export default function Courts() {
   const [location, setLocation] = useState('');
   const [assignedReferees, setAssignedReferees] = useState<string[]>([]);
 
-  const handleSubmit = async () => {
-    if (!name.trim()) return;
+  const [submitting, setSubmitting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
-    const courtData = {
-      name: name.trim(),
-      location: location.trim() || undefined,
-      assignedReferees,
-    };
-
-    if (editingId) {
-      await updateCourt(editingId, courtData);
-      setEditingId(null);
-    } else {
-      await addCourt(courtData as Omit<Court, 'id' | 'createdAt'>);
+  useEffect(() => {
+    if (!showAdd) return;
+    document.body.style.overflow = 'hidden';
+    const el = modalRef.current;
+    if (el) {
+      const focusable = el.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length > 0) focusable[0].focus();
     }
+    return () => { document.body.style.overflow = ''; };
+  }, [showAdd]);
 
-    resetForm();
+  const handleSubmit = async () => {
+    if (!name.trim() || submitting) return;
+    setSubmitting(true);
+
+    try {
+      const courtData = {
+        name: name.trim(),
+        location: location.trim() || undefined,
+        assignedReferees,
+      };
+
+      if (editingId) {
+        await updateCourt(editingId, courtData);
+        setEditingId(null);
+      } else {
+        await addCourt(courtData as Omit<Court, 'id' | 'createdAt'>);
+      }
+
+      resetForm();
+    } catch (error) {
+      console.error('Failed to save court:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleEdit = (court: Court) => {
@@ -67,7 +88,7 @@ export default function Courts() {
   };
 
   if (loading) {
-    return <div className="text-center py-20 text-2xl">로딩 중...</div>;
+    return <div className="text-center py-20 text-2xl" role="status" aria-live="polite">로딩 중...</div>;
   }
 
   return (
@@ -121,6 +142,7 @@ export default function Courts() {
                 <button
                   onClick={() => handleEdit(court)}
                   className="btn btn-secondary"
+                  aria-label={`${court.name} 경기장 수정`}
                 >
                   수정
                 </button>
@@ -131,6 +153,7 @@ export default function Courts() {
                     }
                   }}
                   className="btn btn-danger"
+                  aria-label={`${court.name} 경기장 삭제`}
                 >
                   삭제
                 </button>
@@ -142,9 +165,16 @@ export default function Courts() {
 
       {/* 경기장 추가/수정 모달 */}
       {showAdd && (
-        <div className="modal-backdrop" onClick={resetForm}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold mb-6 text-primary">
+        <div className="modal-backdrop" onClick={resetForm} onKeyDown={e => { if (e.key === 'Escape') resetForm(); }}>
+          <div
+            ref={modalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="court-form-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="court-form-title" className="text-2xl font-bold mb-6 text-primary">
               {editingId ? '경기장 수정' : '경기장 추가'}
             </h2>
 
@@ -186,6 +216,7 @@ export default function Courts() {
                       <button
                         key={referee.id}
                         onClick={() => toggleReferee(referee.id)}
+                        aria-pressed={assignedReferees.includes(referee.id)}
                         disabled={!assignedReferees.includes(referee.id) && assignedReferees.length >= 2}
                         className={`p-3 rounded-lg text-left transition-all ${
                           assignedReferees.includes(referee.id)
@@ -217,10 +248,10 @@ export default function Courts() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!name.trim()}
+                disabled={!name.trim() || submitting}
                 className="btn btn-primary flex-1"
               >
-                {editingId ? '수정' : '추가'}
+                {submitting ? '저장 중...' : editingId ? '수정' : '추가'}
               </button>
             </div>
           </div>

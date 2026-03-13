@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
       manifest: {
-        name: '쇼다운 대회 관리',
+        name: '쇼다운',
         short_name: '쇼다운',
-        description: '시각장애인 스포츠 쇼다운 대회 진행 앱',
+        description: '시각장애인 스포츠 쇼다운 경기 관리 앱',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
@@ -35,17 +35,7 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './src'),
       '@shared': resolve(__dirname, './src/shared'),
-      '@admin': resolve(__dirname, './src/admin'),
-      '@viewer': resolve(__dirname, './src/viewer'),
-    },
-  },
-  build: {
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        admin: resolve(__dirname, 'admin.html'),
-        viewer: resolve(__dirname, 'viewer.html'),
-      },
+      '@app': resolve(__dirname, './src/app'),
     },
   },
 })

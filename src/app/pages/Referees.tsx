@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useReferees } from '@shared/hooks/useFirebase';
 import type { Referee } from '@shared/types';
 
@@ -9,19 +9,40 @@ export default function Referees() {
   const [name, setName] = useState('');
   const [role, setRole] = useState<'main' | 'assistant'>('main');
 
-  const handleSubmit = async () => {
-    if (!name.trim()) return;
+  const [submitting, setSubmitting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
-    if (editingId) {
-      await updateReferee(editingId, { name: name.trim(), role });
-      setEditingId(null);
-    } else {
-      await addReferee({ name: name.trim(), role });
+  useEffect(() => {
+    if (!showAdd) return;
+    document.body.style.overflow = 'hidden';
+    const el = modalRef.current;
+    if (el) {
+      const focusable = el.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length > 0) focusable[0].focus();
     }
+    return () => { document.body.style.overflow = ''; };
+  }, [showAdd]);
 
-    setName('');
-    setRole('main');
-    setShowAdd(false);
+  const handleSubmit = async () => {
+    if (!name.trim() || submitting) return;
+    setSubmitting(true);
+
+    try {
+      if (editingId) {
+        await updateReferee(editingId, { name: name.trim(), role });
+        setEditingId(null);
+      } else {
+        await addReferee({ name: name.trim(), role });
+      }
+
+      setName('');
+      setRole('main');
+      setShowAdd(false);
+    } catch (error) {
+      console.error('Failed to save referee:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleEdit = (referee: Referee) => {
@@ -39,7 +60,7 @@ export default function Referees() {
   };
 
   if (loading) {
-    return <div className="text-center py-20 text-2xl">로딩 중...</div>;
+    return <div className="text-center py-20 text-2xl" role="status" aria-live="polite">로딩 중...</div>;
   }
 
   return (
@@ -83,6 +104,7 @@ export default function Referees() {
                 <button
                   onClick={() => handleEdit(referee)}
                   className="btn btn-secondary"
+                  aria-label={`${referee.name} 심판 수정`}
                 >
                   수정
                 </button>
@@ -93,6 +115,7 @@ export default function Referees() {
                     }
                   }}
                   className="btn btn-danger"
+                  aria-label={`${referee.name} 심판 삭제`}
                 >
                   삭제
                 </button>
@@ -104,9 +127,16 @@ export default function Referees() {
 
       {/* 심판 추가/수정 모달 */}
       {showAdd && (
-        <div className="modal-backdrop" onClick={handleCancel}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold mb-6 text-primary">
+        <div className="modal-backdrop" onClick={handleCancel} onKeyDown={e => { if (e.key === 'Escape') handleCancel(); }}>
+          <div
+            ref={modalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="referee-form-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="referee-form-title" className="text-2xl font-bold mb-6 text-primary">
               {editingId ? '심판 수정' : '심판 추가'}
             </h2>
 
@@ -128,6 +158,7 @@ export default function Referees() {
                 <div className="flex gap-4">
                   <button
                     onClick={() => setRole('main')}
+                    aria-pressed={role === 'main'}
                     className={`flex-1 p-4 rounded-lg text-center font-bold transition-all ${
                       role === 'main'
                         ? 'bg-yellow-600 text-white'
@@ -138,6 +169,7 @@ export default function Referees() {
                   </button>
                   <button
                     onClick={() => setRole('assistant')}
+                    aria-pressed={role === 'assistant'}
                     className={`flex-1 p-4 rounded-lg text-center font-bold transition-all ${
                       role === 'assistant'
                         ? 'bg-blue-600 text-white'
@@ -159,10 +191,10 @@ export default function Referees() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!name.trim()}
+                disabled={!name.trim() || submitting}
                 className="btn btn-primary flex-1"
               >
-                {editingId ? '수정' : '추가'}
+                {submitting ? '저장 중...' : editingId ? '수정' : '추가'}
               </button>
             </div>
           </div>

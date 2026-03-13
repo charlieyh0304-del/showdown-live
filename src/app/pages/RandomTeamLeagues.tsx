@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRandomTeamLeagues, usePlayers } from '@shared/hooks/useFirebase';
 import type { TeamMatchSettings } from '@shared/types';
@@ -13,28 +13,49 @@ export default function RandomTeamLeagues() {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [winScore, setWinScore] = useState<11 | 21 | 31>(11);
 
+  const [submitting, setSubmitting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showCreate) return;
+    document.body.style.overflow = 'hidden';
+    const el = modalRef.current;
+    if (el) {
+      const focusable = el.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length > 0) focusable[0].focus();
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showCreate]);
+
   const handleCreate = async () => {
-    if (!newName.trim() || selectedPlayers.length < 6) return;
+    if (!newName.trim() || selectedPlayers.length < 6 || submitting) return;
+    setSubmitting(true);
 
-    const teamMatchSettings: TeamMatchSettings = {
-      setsToWin: 1,
-      winScore,
-      minLead: 2,
-    };
+    try {
+      const teamMatchSettings: TeamMatchSettings = {
+        setsToWin: 1,
+        winScore,
+        minLead: 2,
+      };
 
-    const id = await addLeague({
-      name: newName.trim(),
-      date: newDate,
-      status: 'draft',
-      playerIds: selectedPlayers,
-      teamMatchSettings,
-    });
+      const id = await addLeague({
+        name: newName.trim(),
+        date: newDate,
+        status: 'draft',
+        playerIds: selectedPlayers,
+        teamMatchSettings,
+      });
 
-    setShowCreate(false);
-    setNewName('');
-    setSelectedPlayers([]);
-    setWinScore(11);
-    if (id) navigate(`/team-league/${id}`);
+      setShowCreate(false);
+      setNewName('');
+      setSelectedPlayers([]);
+      setWinScore(11);
+      if (id) navigate(`/team-league/${id}`);
+    } catch (error) {
+      console.error('Failed to create league:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const togglePlayer = (playerId: string) => {
@@ -65,7 +86,7 @@ export default function RandomTeamLeagues() {
   };
 
   if (loading) {
-    return <div className="text-center py-20 text-2xl">로딩 중...</div>;
+    return <div className="text-center py-20 text-2xl" role="status" aria-live="polite">로딩 중...</div>;
   }
 
   return (
@@ -110,6 +131,7 @@ export default function RandomTeamLeagues() {
                 <button
                   onClick={() => navigate(`/team-league/${league.id}`)}
                   className="btn btn-secondary"
+                  aria-label={`${league.name} 리그전 열기`}
                 >
                   열기
                 </button>
@@ -120,6 +142,7 @@ export default function RandomTeamLeagues() {
                     }
                   }}
                   className="btn btn-danger"
+                  aria-label={`${league.name} 리그전 삭제`}
                 >
                   삭제
                 </button>
@@ -131,9 +154,16 @@ export default function RandomTeamLeagues() {
 
       {/* 리그전 생성 모달 */}
       {showCreate && (
-        <div className="modal-backdrop" onClick={() => setShowCreate(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold mb-6 text-primary">새 랜덤 팀 리그전</h2>
+        <div className="modal-backdrop" onClick={() => setShowCreate(false)} onKeyDown={e => { if (e.key === 'Escape') setShowCreate(false); }}>
+          <div
+            ref={modalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-league-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="create-league-title" className="text-2xl font-bold mb-6 text-primary">새 랜덤 팀 리그전</h2>
 
             <div className="space-y-4">
               <div>
@@ -165,6 +195,7 @@ export default function RandomTeamLeagues() {
                     <button
                       key={score}
                       onClick={() => setWinScore(score)}
+                      aria-pressed={winScore === score}
                       className={`flex-1 p-4 rounded-lg text-center font-bold text-xl transition-all ${
                         winScore === score
                           ? 'bg-primary text-black'
@@ -194,6 +225,7 @@ export default function RandomTeamLeagues() {
                       <button
                         key={player.id}
                         onClick={() => togglePlayer(player.id)}
+                        aria-pressed={selectedPlayers.includes(player.id)}
                         className={`p-3 rounded-lg text-left transition-all ${
                           selectedPlayers.includes(player.id)
                             ? 'bg-primary text-black'
@@ -220,10 +252,10 @@ export default function RandomTeamLeagues() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!newName.trim() || selectedPlayers.length < 6}
+                disabled={!newName.trim() || selectedPlayers.length < 6 || submitting}
                 className="btn btn-primary flex-1"
               >
-                생성
+                {submitting ? '생성 중...' : '생성'}
               </button>
             </div>
           </div>

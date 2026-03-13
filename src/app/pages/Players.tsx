@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePlayers } from '@shared/hooks/useFirebase';
 import type { Player } from '@shared/types';
 
@@ -12,24 +12,43 @@ export default function Players() {
     class: '',
   });
 
-  const handleSubmit = async () => {
-    if (!formData.name.trim()) return;
+  const [submitting, setSubmitting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
-    if (editingPlayer) {
-      await updatePlayer(editingPlayer.id, {
-        name: formData.name.trim(),
-        club: formData.club.trim() || undefined,
-        class: formData.class || undefined,
-      });
-    } else {
-      await addPlayer({
-        name: formData.name.trim(),
-        club: formData.club.trim() || undefined,
-        class: formData.class || undefined,
-      });
+  useEffect(() => {
+    if (!showForm) return;
+    document.body.style.overflow = 'hidden';
+    const el = modalRef.current;
+    if (el) {
+      const focusable = el.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length > 0) focusable[0].focus();
     }
+    return () => { document.body.style.overflow = ''; };
+  }, [showForm]);
 
-    closeForm();
+  const handleSubmit = async () => {
+    if (!formData.name.trim() || submitting) return;
+    setSubmitting(true);
+
+    try {
+      const data = {
+        name: formData.name.trim(),
+        club: formData.club.trim() || undefined,
+        class: formData.class || undefined,
+      };
+
+      if (editingPlayer) {
+        await updatePlayer(editingPlayer.id, data);
+      } else {
+        await addPlayer(data);
+      }
+
+      closeForm();
+    } catch (error) {
+      console.error('Failed to save player:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const openEdit = (player: Player) => {
@@ -49,7 +68,7 @@ export default function Players() {
   };
 
   if (loading) {
-    return <div className="text-center py-20 text-2xl">로딩 중...</div>;
+    return <div className="text-center py-20 text-2xl" role="status" aria-live="polite">로딩 중...</div>;
   }
 
   return (
@@ -94,6 +113,7 @@ export default function Players() {
                 <button
                   onClick={() => openEdit(player)}
                   className="btn bg-gray-700 hover:bg-gray-600"
+                  aria-label={`${player.name} 선수 수정`}
                 >
                   수정
                 </button>
@@ -104,6 +124,7 @@ export default function Players() {
                     }
                   }}
                   className="btn btn-danger"
+                  aria-label={`${player.name} 선수 삭제`}
                 >
                   삭제
                 </button>
@@ -115,9 +136,16 @@ export default function Players() {
 
       {/* 선수 등록/수정 모달 */}
       {showForm && (
-        <div className="modal-backdrop" onClick={closeForm}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold mb-6 text-primary">
+        <div className="modal-backdrop" onClick={closeForm} onKeyDown={e => { if (e.key === 'Escape') closeForm(); }}>
+          <div
+            ref={modalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="player-form-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="player-form-title" className="text-2xl font-bold mb-6 text-primary">
               {editingPlayer ? '선수 수정' : '선수 등록'}
             </h2>
 
@@ -169,10 +197,10 @@ export default function Players() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!formData.name.trim()}
+                disabled={!formData.name.trim() || submitting}
                 className="btn btn-primary flex-1"
               >
-                {editingPlayer ? '수정' : '등록'}
+                {submitting ? '저장 중...' : editingPlayer ? '수정' : '등록'}
               </button>
             </div>
           </div>

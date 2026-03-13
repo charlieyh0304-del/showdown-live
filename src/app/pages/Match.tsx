@@ -1,10 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ref, update, onValue } from 'firebase/database';
+import { ref, update, get, onValue } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { usePlayers, useMatch } from '@shared/hooks/useFirebase';
-import { checkSetWinner, checkMatchWinner, createEmptySet, GAME_CONFIG } from '@shared/types';
-import type { Match as MatchType, MatchEvent } from '@shared/types';
+import { usePlayers, useMatch, useReferees, useCourts } from '@shared/hooks/useFirebase';
+import { checkSetWinner, checkMatchWinner, createEmptySet, getEffectiveGameConfig } from '@shared/types';
+import type { Match as MatchType, MatchEvent, Tournament } from '@shared/types';
 
 const MAX_TIMEOUTS = 1; // 세트당 타임아웃 횟수
 const TIMEOUT_DURATION = 60; // 타임아웃 시간 (초)
@@ -13,12 +13,31 @@ export default function Match() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
   const navigate = useNavigate();
   const { players } = usePlayers();
+  const { referees } = useReferees();
+  const { courts } = useCourts();
   const { match, loading, updateMatch } = useMatch(tournamentId || null, matchId || null);
 
-  const getPlayer = (playerId: string | null) => {
+  // 대회별 게임 설정 로드
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  useEffect(() => {
+    if (!tournamentId) return;
+    const tournamentRef = ref(database, `tournaments/${tournamentId}`);
+    const unsubscribe = onValue(tournamentRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) setTournament({ id: tournamentId, ...data });
+    });
+    return () => unsubscribe();
+  }, [tournamentId]);
+
+  const gameConfig = useMemo(
+    () => getEffectiveGameConfig(tournament?.gameConfig),
+    [tournament?.gameConfig]
+  );
+
+  const getPlayer = useCallback((playerId: string | null) => {
     if (!playerId) return null;
     return players.find(p => p.id === playerId);
-  };
+  }, [players]);
 
   const player1 = getPlayer(match?.player1Id || null);
   const player2 = getPlayer(match?.player2Id || null);
@@ -26,7 +45,7 @@ export default function Match() {
   const currentSet = match?.sets?.[match.currentSet] || createEmptySet();
 
   // 이벤트 생성 헬퍼
-  const createEvent = (
+  const createEvent = useCallback((
     type: MatchEvent['type'],
     playerId: string | null,
     description?: string,
@@ -38,7 +57,44 @@ export default function Match() {
     timestamp: Date.now(),
     description,
     data,
-  });
+  }), []);
+
+  // 다음 라운드로 승자 진출
+  const advanceWinner = useCallback(async (winnerId: string | null) => {
+    if (!match || !tournamentId || !winnerId) return;
+
+    const nextRound = match.round + 1;
+    const nextPosition = Math.floor(match.position / 2);
+
+    const matchesRef = ref(database, `matches/${tournamentId}`);
+
+    try {
+      const snapshot = await get(matchesRef);
+      const data = snapshot.val();
+      if (!data) return;
+
+      const allMatches = Object.entries(data).map(([id, m]) => ({
+        id,
+        ...(m as Omit<MatchType, 'id'>),
+      }));
+
+      const nextMatch = allMatches.find(
+        m => m.round === nextRound && m.position === nextPosition
+      );
+
+      if (nextMatch) {
+        const isPlayer1 = match.position % 2 === 0;
+        const updateData = isPlayer1
+          ? { player1Id: winnerId }
+          : { player2Id: winnerId };
+
+        const nextMatchRef = ref(database, `matches/${tournamentId}/${nextMatch.id}`);
+        await update(nextMatchRef, updateData);
+      }
+    } catch (error) {
+      console.error('Failed to advance winner:', error);
+    }
+  }, [match, tournamentId]);
 
   // 점수 증감
   const updateScore = useCallback(async (
@@ -68,14 +124,14 @@ export default function Match() {
       : undefined;
 
     // 세트 승자 확인
-    const setWinner = checkSetWinner(current.player1Score, current.player2Score);
+    const setWinner = checkSetWinner(current.player1Score, current.player2Score, gameConfig);
 
     if (setWinner) {
       current.winnerId = setWinner === 1 ? match.player1Id : match.player2Id;
       sets[match.currentSet] = current;
 
       // 경기 승자 확인
-      const matchWinner = checkMatchWinner(sets);
+      const matchWinner = checkMatchWinner(sets, gameConfig);
 
       if (matchWinner) {
         // 경기 종료
@@ -96,7 +152,7 @@ export default function Match() {
       } else {
         // 세트 종료, 다음 세트
         const setWinnerName = getPlayer(current.winnerId)?.name || '선수';
-        if (sets.length < GAME_CONFIG.MAX_SETS) {
+        if (sets.length < gameConfig.MAX_SETS) {
           sets.push(createEmptySet());
           await updateMatch({
             sets,
@@ -110,48 +166,7 @@ export default function Match() {
     }
 
     await updateMatch({ sets, lastEvent });
-  }, [match, updateMatch, players]);
-
-  // 다음 라운드로 승자 진출
-  const advanceWinner = async (winnerId: string | null) => {
-    if (!match || !tournamentId || !winnerId) return;
-
-    const nextRound = match.round + 1;
-    const nextPosition = Math.floor(match.position / 2);
-
-    const matchesRef = ref(database, `matches/${tournamentId}`);
-
-    return new Promise<void>((resolve) => {
-      onValue(matchesRef, async (snapshot) => {
-        const data = snapshot.val();
-        if (!data) {
-          resolve();
-          return;
-        }
-
-        const allMatches = Object.entries(data).map(([id, m]) => ({
-          id,
-          ...(m as Omit<MatchType, 'id'>),
-        }));
-
-        const nextMatch = allMatches.find(
-          m => m.round === nextRound && m.position === nextPosition
-        );
-
-        if (nextMatch) {
-          const isPlayer1 = match.position % 2 === 0;
-          const updateData = isPlayer1
-            ? { player1Id: winnerId }
-            : { player2Id: winnerId };
-
-          const nextMatchRef = ref(database, `matches/${tournamentId}/${nextMatch.id}`);
-          await update(nextMatchRef, updateData);
-        }
-
-        resolve();
-      }, { onlyOnce: true });
-    });
-  };
+  }, [match, updateMatch, getPlayer, createEvent, advanceWinner, gameConfig]);
 
   // 평터 기록
   const recordFault = useCallback(async (player: 'player1' | 'player2') => {
@@ -171,7 +186,7 @@ export default function Match() {
       sets,
       lastEvent: createEvent('fault', playerId, `${playerName} 평터`),
     });
-  }, [match, updateMatch, players]);
+  }, [match, updateMatch, getPlayer, createEvent]);
 
   // 반칙 기록
   const recordViolation = useCallback(async (player: 'player1' | 'player2') => {
@@ -191,7 +206,7 @@ export default function Match() {
       sets,
       lastEvent: createEvent('violation', playerId, `${playerName} 반칙`),
     });
-  }, [match, updateMatch, players]);
+  }, [match, updateMatch, getPlayer, createEvent]);
 
   // 타임아웃 시작
   const startTimeout = useCallback(async (player: 'player1' | 'player2') => {
@@ -213,7 +228,7 @@ export default function Match() {
       },
       lastEvent: createEvent('timeout_start', playerId, `${playerName} 타임아웃`),
     });
-  }, [match, updateMatch, players]);
+  }, [match, updateMatch, getPlayer, createEvent]);
 
   // 타임아웃 종료
   const endTimeout = useCallback(async () => {
@@ -223,10 +238,10 @@ export default function Match() {
       activeTimeout: null,
       lastEvent: createEvent('timeout_end', null, '타임아웃 종료'),
     });
-  }, [match, updateMatch]);
+  }, [match, updateMatch, createEvent]);
 
   // 경기 시작
-  const startMatch = async () => {
+  const startMatch = useCallback(async () => {
     if (!match) return;
     await updateMatch({
       status: 'in_progress',
@@ -234,31 +249,58 @@ export default function Match() {
       player1Timeouts: 0,
       player2Timeouts: 0,
     });
-  };
+  }, [match, updateMatch]);
 
   // 세트 점수 요약
-  const getSetScores = () => {
+  const setScores = useMemo(() => {
     if (!match?.sets) return { player1: 0, player2: 0 };
     let p1 = 0, p2 = 0;
     for (const set of match.sets) {
-      const winner = checkSetWinner(set.player1Score, set.player2Score);
+      const winner = checkSetWinner(set.player1Score, set.player2Score, gameConfig);
       if (winner === 1) p1++;
       if (winner === 2) p2++;
     }
     return { player1: p1, player2: p2 };
-  };
+  }, [match?.sets, gameConfig]);
 
-  const setScores = getSetScores();
-
-  // 타임아웃 남은 시간
-  const getTimeoutRemaining = () => {
+  // 타임아웃 남은 시간 (1초마다 자동 업데이트)
+  const [timeoutRemaining, setTimeoutRemaining] = useState(() => {
     if (!match?.activeTimeout) return 0;
     const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
     return Math.max(0, TIMEOUT_DURATION - elapsed);
-  };
+  });
+
+  useEffect(() => {
+    if (!match?.activeTimeout) {
+      // Reset via a microtask to avoid synchronous setState in effect
+      const id = setTimeout(() => setTimeoutRemaining(0), 0);
+      return () => clearTimeout(id);
+    }
+
+    const calcRemaining = () => {
+      const elapsed = Math.floor((Date.now() - match.activeTimeout!.startTime) / 1000);
+      return Math.max(0, TIMEOUT_DURATION - elapsed);
+    };
+
+    // Set initial value via microtask
+    const initId = setTimeout(() => setTimeoutRemaining(calcRemaining()), 0);
+
+    const interval = setInterval(() => {
+      const remaining = calcRemaining();
+      setTimeoutRemaining(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => {
+      clearTimeout(initId);
+      clearInterval(interval);
+    };
+  }, [match?.activeTimeout]);
 
   if (loading) {
-    return <div className="min-h-screen bg-black flex items-center justify-center text-3xl">로딩 중...</div>;
+    return <div className="min-h-screen bg-black flex items-center justify-center text-3xl" role="status" aria-live="polite">로딩 중...</div>;
   }
 
   if (!match) {
@@ -273,15 +315,14 @@ export default function Match() {
   }
 
   const isTimeout = !!match.activeTimeout;
-  const timeoutRemaining = getTimeoutRemaining();
 
   return (
     <div className="min-h-screen bg-black p-4 flex flex-col">
       {/* 타임아웃 오버레이 */}
       {isTimeout && (
-        <div className="fixed inset-0 bg-blue-900/90 flex flex-col items-center justify-center z-50">
+        <div className="fixed inset-0 bg-blue-900/90 flex flex-col items-center justify-center z-50" role="alert" aria-live="assertive">
           <div className="text-4xl text-white mb-4">타임아웃</div>
-          <div className="text-8xl font-bold text-primary mb-8">
+          <div className="text-8xl font-bold text-primary mb-8" aria-label={`남은 시간 ${timeoutRemaining}초`}>
             {timeoutRemaining}초
           </div>
           <div className="text-2xl text-white mb-8">
@@ -296,18 +337,39 @@ export default function Match() {
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-4">
         <button
-          onClick={() => navigate(`/tournament/${tournamentId}`)}
+          onClick={() => navigate(-1)}
           className="btn bg-gray-800"
+          aria-label="뒤로가기"
         >
-          ← 대진표
+          ← 뒤로
         </button>
-        <div className="text-center">
+        <div className="text-center" aria-live="polite">
           <div className="text-xl text-gray-400">
-            세트 {match.currentSet + 1} / {GAME_CONFIG.MAX_SETS}
+            세트 {match.currentSet + 1} / {gameConfig.MAX_SETS}
           </div>
-          <div className="text-3xl font-bold text-primary">
+          <div className="text-3xl font-bold text-primary" aria-label={`세트 점수 ${setScores.player1} 대 ${setScores.player2}`}>
             {setScores.player1} - {setScores.player2}
           </div>
+          {/* 심판/경기장/시간 정보 */}
+          {(match.refereeId || match.courtId || match.scheduledTime) && (
+            <div className="flex items-center justify-center gap-3 mt-1 text-sm text-gray-400">
+              {match.refereeId && (() => {
+                const referee = referees.find(r => r.id === match.refereeId);
+                return referee ? (
+                  <span aria-label={`심판: ${referee.name}`}>심판: {referee.name}</span>
+                ) : null;
+              })()}
+              {match.courtId && (() => {
+                const court = courts.find(c => c.id === match.courtId);
+                return court ? (
+                  <span aria-label={`경기장: ${court.name}`}>| 경기장: {court.name}</span>
+                ) : null;
+              })()}
+              {match.scheduledTime && (
+                <span aria-label={`시간: ${match.scheduledTime}`}>| 시간: {match.scheduledTime}</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="w-24"></div>
       </div>
@@ -333,10 +395,10 @@ export default function Match() {
             {setScores.player1} - {setScores.player2}
           </div>
           <button
-            onClick={() => navigate(`/tournament/${tournamentId}`)}
+            onClick={() => navigate(-1)}
             className="btn btn-primary btn-large"
           >
-            대진표로
+            뒤로가기
           </button>
         </div>
       ) : (
@@ -348,13 +410,14 @@ export default function Match() {
               <div className="text-2xl font-bold mb-2 text-primary">
                 {player1?.name}
               </div>
-              <div className="score-display text-8xl my-6">
+              <div className="score-display text-8xl my-6" aria-live="polite" aria-label={`${player1?.name} 점수 ${currentSet.player1Score}`}>
                 {currentSet.player1Score}
               </div>
               <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
                 <button
                   onClick={() => updateScore('player1', 1)}
                   className="btn btn-success btn-large text-4xl"
+                  aria-label={`${player1?.name} 1점 추가`}
                 >
                   +1
                 </button>
@@ -362,6 +425,7 @@ export default function Match() {
                   onClick={() => updateScore('player1', -1)}
                   className="btn btn-danger btn-large text-4xl"
                   disabled={currentSet.player1Score === 0}
+                  aria-label={`${player1?.name} 1점 감소`}
                 >
                   -1
                 </button>
@@ -394,13 +458,14 @@ export default function Match() {
               <div className="text-2xl font-bold mb-2 text-secondary">
                 {player2?.name}
               </div>
-              <div className="score-display text-8xl my-6">
+              <div className="score-display text-8xl my-6" aria-live="polite" aria-label={`${player2?.name} 점수 ${currentSet.player2Score}`}>
                 {currentSet.player2Score}
               </div>
               <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
                 <button
                   onClick={() => updateScore('player2', 1)}
                   className="btn btn-success btn-large text-4xl"
+                  aria-label={`${player2?.name} 1점 추가`}
                 >
                   +1
                 </button>
@@ -408,6 +473,7 @@ export default function Match() {
                   onClick={() => updateScore('player2', -1)}
                   className="btn btn-danger btn-large text-4xl"
                   disabled={currentSet.player2Score === 0}
+                  aria-label={`${player2?.name} 1점 감소`}
                 >
                   -1
                 </button>
