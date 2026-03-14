@@ -705,13 +705,23 @@
                     const localProjects = JSON.parse(localStorage.getItem('projects') || '[]');
                     const mergedProjects = mergeDataArrays(localProjects, projectsArray, 'id');
                     
+                    // Firebase에서 matches가 object로 반환될 수 있으므로 배열로 변환
+                    mergedProjects.forEach(p => {
+                        if (p.matches && !Array.isArray(p.matches)) {
+                            p.matches = Object.values(p.matches);
+                        }
+                        if (p.teams && !Array.isArray(p.teams)) {
+                            p.teams = Object.values(p.teams);
+                        }
+                    });
+
                     localStorage.setItem('projects', JSON.stringify(mergedProjects));
                     projects = mergedProjects; // 전역 변수 업데이트
-                    
+
                     console.log('✅ Firebase에서 프로젝트 데이터 동기화됨:', mergedProjects.length + '개');
-                    
+
                     // 화면이 프로젝트 관련이면 자동 새로고침
-                    if (['project-list', 'bracket-home', 'project-detail'].includes(screen)) {
+                    if (['project-list', 'bracket-home', 'project-detail', 'viewer-home', 'viewer-select-project'].includes(screen)) {
                         render();
                     }
                 }
@@ -1097,6 +1107,28 @@
                 database.ref('projects').on('value', (snapshot) => {
                     const data = snapshot.val();
                     projects = data ? Object.keys(data).map(key => ({...data[key], firebaseKey: key})) : [];
+                    // Firebase에서 matches가 object로 반환될 수 있으므로 배열로 변환
+                    projects.forEach(p => {
+                        if (p.matches && !Array.isArray(p.matches)) {
+                            p.matches = Object.values(p.matches);
+                        }
+                        if (p.groups && Array.isArray(p.groups)) {
+                            p.groups.forEach(g => {
+                                if (g.matches && !Array.isArray(g.matches)) {
+                                    g.matches = Object.values(g.matches);
+                                }
+                                if (g.players && !Array.isArray(g.players)) {
+                                    g.players = Object.values(g.players);
+                                }
+                            });
+                        }
+                        if (p.teams && !Array.isArray(p.teams)) {
+                            p.teams = Object.values(p.teams);
+                        }
+                        if (p.players && !Array.isArray(p.players)) {
+                            p.players = Object.values(p.players);
+                        }
+                    });
                     console.log('로드된 프로젝트:', projects.length);
                     
                     // 첫 로드시 URL 파라미터 확인
@@ -1594,7 +1626,8 @@
             }
             else if (screen === 'viewer-home') {
                 // 진행 중인 대회 목록 (연습 경기 제외)
-                const activeProjects = projects.filter(p => !p.isPractice && p.matches?.some(m => m.status === 'in-progress' || m.status === 'active'));
+                const matchesArray = (p) => Array.isArray(p.matches) ? p.matches : (p.matches ? Object.values(p.matches) : []);
+                const activeProjects = projects.filter(p => !p.isPractice && matchesArray(p).some(m => m.status !== 'completed'));
                 
                 // 실시간 진행 중인 연습 경기 수
                 const liveMatchCount = projects
@@ -1615,8 +1648,9 @@
                                 ${activeProjects.length > 0 ? '<span style="background:#4caf50; color:white; padding:2px 8px; border-radius:12px; font-size:12px;">LIVE</span>' : ''}
                             </h2>
                             ${activeProjects.length > 0 ? activeProjects.map(p => {
-                                const inProgressCount = p.matches?.filter(m => m.status === 'in-progress' || m.status === 'active').length || 0;
-                                const totalCount = p.matches?.length || 0;
+                                const pMatches = matchesArray(p);
+                                const inProgressCount = pMatches.filter(m => m.status !== 'completed').length;
+                                const totalCount = pMatches.length;
                                 const isTeam = p.competitionType === 'team';
                                 const typeLabel = p.tournamentType === 'group-knockout' ? '조별+토너먼트' : 
                                                  p.tournamentType === 'knockout-only' ? '토너먼트' : 
@@ -2699,8 +2733,10 @@
                 app.innerHTML = content;
             }
             else if (screen === 'project-detail') {
-                const active = currentProject.matches ? currentProject.matches.filter(m => m.status === 'active' || m.status === 'in-progress' || m.status === 'inprogress') : [];
-                const finished = currentProject.matches ? currentProject.matches.filter(m => m.status === 'completed') : [];
+                const projMatches = Array.isArray(currentProject.matches) ? currentProject.matches : (currentProject.matches ? Object.values(currentProject.matches) : []);
+                if (!Array.isArray(currentProject.matches) && currentProject.matches) currentProject.matches = projMatches;
+                const active = projMatches.filter(m => m.status !== 'completed');
+                const finished = projMatches.filter(m => m.status === 'completed');
                 const isReferee = (userRole === 'referee');
                 const hasMatches = (active.length > 0 || finished.length > 0);
                 
