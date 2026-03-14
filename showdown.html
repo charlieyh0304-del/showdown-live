@@ -2365,12 +2365,24 @@
                             <!-- 대회 방식 선택 -->
                             <fieldset style="background:#e3f2fd; padding:16px; border-radius:8px; margin-bottom:16px; border:none;">
                                 <legend style="font-weight:600; margin-bottom:12px;">대회 방식</legend>
-                                
+
                                 <div role="radiogroup" aria-label="대회 방식 선택">
-                                    <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; background:white; border-radius:6px; margin-bottom:8px; cursor:pointer; border:2px solid transparent;" 
+                                    <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; background:white; border-radius:6px; margin-bottom:8px; cursor:pointer; border:2px solid transparent;"
+                                           id="rtl-type-single-match-label">
+                                        <input type="radio" name="rtl-tournament-type" value="single-match" id="rtl-type-single-match"
+                                               ${savedTournamentType === 'single-match' ? 'checked' : ''}
+                                               aria-label="단판 진행 - 대진표 순서대로 한 경기씩 진행"
+                                               onchange="selectRTLTournamentType('single-match')" style="margin-top:3px;">
+                                        <span>
+                                            <strong>단판 진행</strong>
+                                            <span style="font-size:12px; color:#666; margin-top:2px; display:block;">대진표 순서대로 한 경기씩 진행 (순위 없음)</span>
+                                        </span>
+                                    </label>
+
+                                    <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; background:white; border-radius:6px; margin-bottom:8px; cursor:pointer; border:2px solid transparent;"
                                            id="rtl-type-full-league-label">
-                                        <input type="radio" name="rtl-tournament-type" value="full-league" id="rtl-type-full-league" 
-                                               ${savedTournamentType === 'full-league' ? 'checked' : ''} 
+                                        <input type="radio" name="rtl-tournament-type" value="full-league" id="rtl-type-full-league"
+                                               ${savedTournamentType === 'full-league' ? 'checked' : ''}
                                                aria-label="풀리그 - 모든 팀이 서로 한 번씩 대전하여 최종 순위 결정"
                                                onchange="selectRTLTournamentType('full-league')" style="margin-top:3px;">
                                         <span>
@@ -2378,7 +2390,7 @@
                                             <span style="font-size:12px; color:#666; margin-top:2px; display:block;">모든 팀이 서로 한 번씩 대전 → 최종 순위 결정</span>
                                         </span>
                                     </label>
-                                    
+
                                     <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; background:white; border-radius:6px; cursor:pointer; border:2px solid transparent;"
                                            id="rtl-type-group-tournament-label">
                                         <input type="radio" name="rtl-tournament-type" value="group-tournament" id="rtl-type-group-tournament"
@@ -2549,6 +2561,7 @@
                     // 팀 생성 완료 - 팀 이름 입력 가능
                     const tournamentType = rtl.tournamentType || 'full-league';
                     const isGroupTournament = tournamentType === 'group-tournament';
+                    const isSingleMatch = tournamentType === 'single-match';
                     const groupCount = rtl.groupCount || 2;
                     const advanceCount = rtl.advanceCount || 2;
                     const rtlSets = rtl.sets || 3;
@@ -2581,6 +2594,17 @@
                         groupAssignmentHTML += `</div>`;
                         groupAssignmentHTML += `<p style="font-size:12px; margin-top:6px; color:#1976d2;">각 조 상위 ${advanceCount}팀 → 결선 토너먼트</p>`;
                         groupAssignmentHTML += '</div>';
+                    } else if (isSingleMatch) {
+                        const totalMatches = rtl.teams.length * (rtl.teams.length - 1) / 2;
+                        groupAssignmentHTML = `<div style="background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:16px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <strong>단판 진행</strong>
+                                <button class="btn" onclick="goToRTLMatchOrder()" style="padding:4px 12px; font-size:12px;">대진표 보기</button>
+                            </div>
+                            <p style="font-size:12px; margin-top:4px; color:#666;">
+                                대진표 순서대로 경기 진행 → 총 ${totalMatches}경기 (순위 집계 없음)
+                            </p>
+                        </div>`;
                     } else {
                         const totalMatches = rtl.teams.length * (rtl.teams.length - 1) / 2;
                         groupAssignmentHTML = `<div style="background:#e8f5e9; padding:12px; border-radius:8px; margin-bottom:16px;">
@@ -2656,7 +2680,7 @@
                             
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px;">
                                 <button class="btn" onclick="generateRandomTeamsWithTopseeds()">다시 섞기</button>
-                                <button class="btn btn-primary" onclick="startRTLLeague()">${isGroupTournament ? '대회 시작 →' : '리그전 시작 →'}</button>
+                                <button class="btn btn-primary" onclick="startRTLLeague()">${isSingleMatch ? '경기 시작 →' : isGroupTournament ? '대회 시작 →' : '리그전 시작 →'}</button>
                             </div>
                         </div>
                     `;
@@ -4418,41 +4442,44 @@
         function selectRTLTournamentType(type) {
             const rtl = window.randomTeamLeague;
             rtl.tournamentType = type;
-            
+
+            document.getElementById('rtl-type-single-match').checked = (type === 'single-match');
             document.getElementById('rtl-type-full-league').checked = (type === 'full-league');
             document.getElementById('rtl-type-group-tournament').checked = (type === 'group-tournament');
-            
+
             updateRTLTournamentOptions();
         }
         
         // 대회 방식 옵션 업데이트
         function updateRTLTournamentOptions() {
             const rtl = window.randomTeamLeague;
+            const singleMatchRadio = document.getElementById('rtl-type-single-match');
             const fullLeagueRadio = document.getElementById('rtl-type-full-league');
             const groupTournamentRadio = document.getElementById('rtl-type-group-tournament');
             const optionsDiv = document.getElementById('rtl-group-tournament-options');
-            
+
             if (!fullLeagueRadio || !optionsDiv) return;
-            
-            const type = groupTournamentRadio?.checked ? 'group-tournament' : 'full-league';
+
+            const type = singleMatchRadio?.checked ? 'single-match' :
+                         groupTournamentRadio?.checked ? 'group-tournament' : 'full-league';
             rtl.tournamentType = type;
-            
+
             // 스타일 업데이트
-            const fullLabel = document.getElementById('rtl-type-full-league-label');
-            const groupLabel = document.getElementById('rtl-type-group-tournament-label');
-            
-            if (fullLabel) {
-                fullLabel.style.border = type === 'full-league' ? '2px solid #1976d2' : '2px solid transparent';
-                fullLabel.style.background = type === 'full-league' ? '#e3f2fd' : 'white';
-            }
-            if (groupLabel) {
-                groupLabel.style.border = type === 'group-tournament' ? '2px solid #1976d2' : '2px solid transparent';
-                groupLabel.style.background = type === 'group-tournament' ? '#e3f2fd' : 'white';
-            }
-            
+            const labels = {
+                'single-match': document.getElementById('rtl-type-single-match-label'),
+                'full-league': document.getElementById('rtl-type-full-league-label'),
+                'group-tournament': document.getElementById('rtl-type-group-tournament-label')
+            };
+            Object.entries(labels).forEach(([key, label]) => {
+                if (label) {
+                    label.style.border = type === key ? '2px solid #1976d2' : '2px solid transparent';
+                    label.style.background = type === key ? '#e3f2fd' : 'white';
+                }
+            });
+
             // 옵션 표시/숨김
             optionsDiv.style.display = type === 'group-tournament' ? 'block' : 'none';
-            
+
             updateRTLGroupPreview();
         }
         
@@ -4764,8 +4791,8 @@
             }
             
             const tournamentType = rtl.tournamentType || 'full-league';
-            const typeLabel = tournamentType === 'group-tournament' ? '조별+토너먼트' : '풀리그';
-            
+            const typeLabel = tournamentType === 'single-match' ? '단판' : tournamentType === 'group-tournament' ? '조별+토너먼트' : '풀리그';
+
             // 프로젝트명 입력
             const projectName = prompt('프로젝트명을 입력하세요:', `랜덤팀 ${typeLabel} ${new Date().toLocaleDateString()}`);
             if (!projectName) return;
@@ -4780,7 +4807,7 @@
                 matches: [],
                 createdAt: new Date().toISOString(),
                 competitionType: 'team',
-                tournamentType: tournamentType === 'group-tournament' ? 'group-tournament' : 'group',
+                tournamentType: tournamentType === 'group-tournament' ? 'group-tournament' : tournamentType === 'single-match' ? 'single-match' : 'group',
                 groups: [],
                 players: [],
                 teams: [],
@@ -4811,7 +4838,57 @@
                 });
             });
             
-            if (tournamentType === 'group-tournament') {
+            if (tournamentType === 'single-match') {
+                // === 단판 진행 ===
+                // 대진표 순서대로 경기 생성 (순위 집계 없음)
+                const matchSets = parseInt(rtl.sets || 1);
+                const matchType = rtl.matchType || 'team';
+                const winScore = matchType === 'team' ? 31 : 11;
+
+                // matchOrder가 있으면 그 순서로, 없으면 라운드 로빈
+                let matchPairs = [];
+                if (rtl.matchOrder && rtl.matchOrder.length > 0) {
+                    matchPairs = rtl.matchOrder.map(m => ({
+                        team1: rtl.teams[m.team1],
+                        team2: rtl.teams[m.team2]
+                    }));
+                } else {
+                    for (let i = 0; i < rtl.teams.length; i++) {
+                        for (let j = i + 1; j < rtl.teams.length; j++) {
+                            matchPairs.push({ team1: rtl.teams[i], team2: rtl.teams[j] });
+                        }
+                    }
+                }
+
+                // 경기 목록 생성
+                matchPairs.forEach((pair, idx) => {
+                    project.matches.push({
+                        id: Date.now() + idx,
+                        player1Name: pair.team1.name,
+                        player2Name: pair.team2.name,
+                        team1Lineup: pair.team1.members.map(m => m.name),
+                        team2Lineup: pair.team2.members.map(m => m.name),
+                        type: matchType,
+                        sets: matchSets,
+                        winScore: winScore,
+                        status: 'active',
+                        currentSet: 1,
+                        setScores: Array.from({length: matchSets}, () => ({player1: 0, player2: 0})),
+                        timeouts: {player1: 1, player2: 1},
+                        currentServe: null,
+                        serveCount: 0,
+                        serveSelected: false,
+                        history: [],
+                        isShared: true,
+                        isPractice: false,
+                        matchNumber: idx + 1
+                    });
+                });
+
+                project.tournamentType = 'single-match';
+                project.groups = [];
+
+            } else if (tournamentType === 'group-tournament') {
                 // === 조별 리그 + 토너먼트 ===
                 const groupCount = rtl.groupCount || 2;
                 const advanceCount = rtl.advanceCount || 2;
