@@ -1734,6 +1734,7 @@
                 `;
                 renderViewerResults();
                 return;
+            }
             else if (screen === 'live-practice') {
                 // 실시간 연습 경기 목록
                 const liveMatches = projects
@@ -2129,6 +2130,7 @@
                         ${projectList}
                     </div>
                 `;
+            }
             else if (screen === 'viewer-results') {
                 // 선택된 프로젝트의 결과 표시
                 if (!currentProject) {
@@ -3420,6 +3422,13 @@
         // 검색 초기화
         function clearSearch() {
             window.projectSearchQuery = '';
+            const searchInput = document.getElementById('viewer-search');
+            if (searchInput) {
+                searchInput.value = '';
+                renderViewerResults();
+                announce('검색어 초기화됨');
+                return;
+            }
             render();
         }
         function createMatch() {
@@ -4102,7 +4111,6 @@
             });
             
             stats.playerStats = Object.values(playerData)
-                .map(p => ({
             .sort((a, b) => b.wins - a.wins || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst))
             .map(p => ({
                 ...p,
@@ -8028,12 +8036,6 @@
             }).join('');
         }
         
-        // ✨ 탭 전환 함수
-        function switchViewerTab(tab) {
-            window.viewerTab = tab;
-            render(); // 전체 화면 다시 렌더링
-        }
-        
         // ✨ 경기 결과 보기
         function viewMatchResult(type, idx) {
             if (type === 'actual') {
@@ -8081,15 +8083,6 @@
             announce(`알림 ${idx > -1 ? '해제' : '설정'}`);
         }
         
-        // 검색어 초기화
-        function clearSearch() {
-            const searchInput = document.getElementById('viewer-search');
-            if (searchInput) {
-                searchInput.value = '';
-                renderViewerResults();
-                announce('검색어 초기화됨');
-            }
-        }
         
         // 즐겨찾기만 보기
         function filterFavoritesOnly() {
