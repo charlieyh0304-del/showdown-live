@@ -624,6 +624,15 @@
     </div>
 
     <script>
+        // Service Worker 등록 (PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(reg => console.log('SW 등록 완료:', reg.scope))
+                    .catch(err => console.log('SW 등록 실패:', err));
+            });
+        }
+
         // Firebase 초기화
         const firebaseConfig = {
             apiKey: "AIzaSyAKv3QOpSg-hLnyXSnE299fHRV-akpPQCs",
