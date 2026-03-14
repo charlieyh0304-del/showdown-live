@@ -2699,7 +2699,7 @@
                 app.innerHTML = content;
             }
             else if (screen === 'project-detail') {
-                const active = currentProject.matches ? currentProject.matches.filter(m => m.status === 'active') : [];
+                const active = currentProject.matches ? currentProject.matches.filter(m => m.status === 'active' || m.status === 'in-progress' || m.status === 'inprogress') : [];
                 const finished = currentProject.matches ? currentProject.matches.filter(m => m.status === 'completed') : [];
                 const isReferee = (userRole === 'referee');
                 const hasMatches = (active.length > 0 || finished.length > 0);
@@ -2712,7 +2712,7 @@
                             const idx = currentProject.matches.indexOf(m);
                             return `
                                 <div class="match-item" onclick="selectMatch(${idx})" tabindex="0" aria-label="${m.player1Name} vs ${m.player2Name} 경기 열기">
-                                    <h4>${m.player1Name} vs ${m.player2Name}</h4>
+                                    <h4>${m.player1Name} vs ${m.player2Name} ${m.status === 'in-progress' || m.status === 'inprogress' ? '<span style="background:#ff9800; color:white; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:8px;">진행중</span>' : ''}</h4>
                                     <p style="color:var(--text-secondary); font-size:14px; margin-top:4px">
                                         세트 ${m.currentSet}/${m.sets} · ${m.setScores[m.currentSet - 1].player1}-${m.setScores[m.currentSet - 1].player2} · 주심: ${m.mainReferee || '미정'}
                                     </p>
