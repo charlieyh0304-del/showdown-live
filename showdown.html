@@ -2194,22 +2194,43 @@
                 let content = '';
                 
                 if (rtl.phase === 'input') {
+                    // 소속 목록 추출
+                    const groups = [...new Set(rtl.participants.map(p => p.group).filter(Boolean))];
+                    const groupColors = {'A': '#1976d2', 'B': '#e65100'};
+                    const getGroupColor = (g) => {
+                        if (!g) return '#999';
+                        const idx = groups.indexOf(g);
+                        return ['#1976d2', '#e65100', '#2e7d32', '#7b1fa2', '#c62828'][idx % 5];
+                    };
+                    const getGroupBg = (g) => {
+                        if (!g) return '#f5f5f5';
+                        const idx = groups.indexOf(g);
+                        return ['#e3f2fd', '#fff3e0', '#e8f5e9', '#f3e5f5', '#ffebee'][idx % 5];
+                    };
+
                     // 참가자 입력 단계
                     const participantList = rtl.participants.map((p, i) => `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:${p.gender === 'M' ? '#e3f2fd' : '#fce4ec'}; border-radius:4px; margin:4px 0;">
-                            <span>${p.gender === 'M' ? '👨' : '👩'} ${p.name}</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:${getGroupBg(p.group)}; border-radius:4px; margin:4px 0; border-left:3px solid ${getGroupColor(p.group)};">
+                            <span>${p.gender === 'M' ? '👨' : '👩'} ${p.name} ${p.group ? '<span style="font-size:11px; background:' + getGroupColor(p.group) + '; color:white; padding:1px 6px; border-radius:8px; margin-left:4px;">' + p.group + '</span>' : ''}</span>
                             <button class="btn btn-danger" onclick="removeRTLParticipant(${i})" style="padding:4px 8px; min-width:auto;" aria-label="${p.name} 삭제">✕</button>
                         </div>
                     `).join('') || '<p style="color:var(--text-secondary); text-align:center; padding:20px;">참가자를 추가해주세요</p>';
-                    
+
                     const maleCount = rtl.participants.filter(p => p.gender === 'M').length;
                     const femaleCount = rtl.participants.filter(p => p.gender === 'F').length;
-                    
+
+                    // 소속별 인원 표시
+                    const groupStats = groups.map(g => {
+                        const count = rtl.participants.filter(p => p.group === g).length;
+                        return `<span style="background:${getGroupColor(g)}; color:white; padding:4px 12px; border-radius:12px; font-size:14px;">${g} ${count}명</span>`;
+                    }).join('');
+                    const noGroupCount = rtl.participants.filter(p => !p.group).length;
+
                     content = `
                         <div class="card">
-                            <button class="btn" onclick="goTo('referee-home')" style="margin-bottom:16px;">← 대회 설정으로</button>
+                            <button class="btn" onclick="goTo('referee-home')" style="margin-bottom:16px;">← 홈으로</button>
                             <h2>🎲 랜덤 팀 리그전</h2>
-                            
+
                             <!-- 자동 시뮬레이션 옵션 -->
                             <div style="background:linear-gradient(135deg, #667eea22 0%, #764ba222 100%); padding:16px; border-radius:8px; margin-bottom:16px; border:2px dashed #667eea;">
                                 <strong style="display:block; margin-bottom:8px;">🚀 빠른 시작</strong>
@@ -2232,42 +2253,59 @@
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div style="background:#e8f5e9; padding:12px; border-radius:8px; margin-bottom:16px;">
                                 <strong>1단계: 참가자 입력</strong>
-                                <p style="font-size:13px; margin-top:4px;">참가자 이름과 성별을 입력하세요.</p>
+                                <p style="font-size:13px; margin-top:4px;">참가자 이름, 성별, 소속을 입력하세요.</p>
                             </div>
-                            
-                            <div style="display:grid; grid-template-columns:1fr auto auto; gap:8px; margin-bottom:16px;">
-                                <input type="text" id="rtl-name" placeholder="이름" style="width:100%; text-align:left !important;" autocomplete="off" aria-label="참가자 이름 입력">
-                                <select id="rtl-gender" style="width:80px;" aria-label="성별 선택">
+
+                            <!-- 소속 빠른 설정 -->
+                            <div style="background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:12px;">
+                                <strong style="font-size:13px;">소속 설정</strong>
+                                <p style="font-size:12px; color:#666; margin:4px 0 8px;">교류회 참가 그룹명을 입력하세요 (두 자조모임 이름 등)</p>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    ${groups.map(g => `
+                                        <span style="background:${getGroupColor(g)}; color:white; padding:4px 12px; border-radius:16px; font-size:13px; cursor:pointer;" onclick="document.getElementById('rtl-group').value='${g}'">${g}</span>
+                                    `).join('')}
+                                    ${groups.length === 0 ? '<span style="color:#999; font-size:12px;">아래에서 소속명을 입력하면 자동 등록됩니다</span>' : ''}
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:1fr auto auto auto; gap:8px; margin-bottom:16px;">
+                                <input type="text" id="rtl-name" placeholder="이름" style="width:100%; text-align:left !important;" autocomplete="off" aria-label="참가자 이름 입력"
+                                       onkeydown="if(event.key==='Enter'){event.preventDefault();addRTLParticipant();}">
+                                <input type="text" id="rtl-group" placeholder="소속" style="width:90px; text-align:left !important;" autocomplete="off" aria-label="소속 입력"
+                                       onkeydown="if(event.key==='Enter'){event.preventDefault();addRTLParticipant();}">
+                                <select id="rtl-gender" style="width:50px;" aria-label="성별 선택">
                                     <option value="M">남</option>
                                     <option value="F">여</option>
                                 </select>
-                                <button class="btn btn-primary" onclick="addRTLParticipant()" style="min-width:60px;" aria-label="참가자 추가">추가</button>
+                                <button class="btn btn-primary" onclick="addRTLParticipant()" style="min-width:50px;" aria-label="참가자 추가">추가</button>
                             </div>
-                            
+
                             <div style="background:#f5f5f5; padding:12px; border-radius:8px; margin-bottom:12px;" aria-live="polite">
                                 <div style="font-size:18px; font-weight:bold; margin-bottom:8px;">
                                     총 ${rtl.participants.length}명
                                 </div>
-                                <div style="display:flex; gap:12px;">
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
                                     <span style="background:#e3f2fd; padding:4px 12px; border-radius:12px; font-size:14px;">👨 남 ${maleCount}명</span>
                                     <span style="background:#fce4ec; padding:4px 12px; border-radius:12px; font-size:14px;">👩 여 ${femaleCount}명</span>
+                                    ${groupStats}
+                                    ${noGroupCount > 0 ? '<span style="background:#999; color:white; padding:4px 12px; border-radius:12px; font-size:14px;">미지정 ' + noGroupCount + '명</span>' : ''}
                                 </div>
                             </div>
-                            
+
                             <div style="max-height:250px; overflow-y:auto; margin-bottom:16px;">
                                 ${participantList}
                             </div>
-                            
-                            ${rtl.participants.length >= 6 ? `
+
+                            ${rtl.participants.length >= 4 ? `
                                 <button class="btn btn-primary" onclick="goToRTLTeamSetup()" style="width:100%;" aria-label="팀 설정 단계로 이동">
                                     다음: 팀 설정 →
                                 </button>
                             ` : `
                                 <p style="color:var(--text-secondary); text-align:center; font-size:13px;">
-                                    최소 6명 이상 필요합니다 (현재 ${rtl.participants.length}명)
+                                    최소 4명 이상 필요합니다 (현재 ${rtl.participants.length}명)
                                 </p>
                             `}
                         </div>
@@ -2382,15 +2420,33 @@
                                 <strong>각 팀 탑시드 선택</strong>
                                 <p style="font-size:12px; margin-top:4px; color:#666;">탑시드는 각 팀에 고정 배치되고, 나머지 인원만 랜덤 배정됩니다.</p>
                             </div>
-                            
+
                             <div id="rtl-topseed-container">
                                 <!-- 탑시드 선택 UI가 여기에 동적 생성 -->
                             </div>
-                            
-                            <label for="rtl-balance-gender" style="display:flex; align-items:center; gap:8px; margin:16px 0;">
-                                <input type="checkbox" id="rtl-balance-gender" checked aria-label="성별 균형 맞추기 옵션">
-                                성별 균형 맞추기 (가능한 경우)
-                            </label>
+
+                            <!-- 팀 배정 옵션 -->
+                            <div style="background:#f3e5f5; padding:16px; border-radius:8px; margin:16px 0; border:1px solid #ce93d8;">
+                                <strong style="display:block; margin-bottom:12px;">🔀 팀 배정 옵션</strong>
+
+                                <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer;">
+                                    <input type="checkbox" id="rtl-balance-gender" checked aria-label="성별 균형 맞추기 옵션">
+                                    <span>성별 균형 맞추기</span>
+                                </label>
+
+                                ${(() => {
+                                    const grps = [...new Set(rtl.participants.map(p => p.group).filter(Boolean))];
+                                    if (grps.length >= 2) {
+                                        const grpInfo = grps.map(g => g + ' ' + rtl.participants.filter(p => p.group === g).length + '명').join(', ');
+                                        return '<label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer;">' +
+                                            '<input type="checkbox" id="rtl-balance-group" checked aria-label="소속 믹싱 옵션">' +
+                                            '<span>소속 믹싱 (각 팀에 다른 소속 회원 골고루 배정)</span>' +
+                                        '</label>' +
+                                        '<div style="font-size:12px; color:#7b1fa2; margin-left:28px; margin-bottom:4px;">현재 소속: ' + grpInfo + '</div>';
+                                    }
+                                    return '';
+                                })()}
+                            </div>
                             
                             <div id="rtl-validation-msg" style="margin-bottom:12px;" aria-live="assertive"></div>
                             
@@ -2549,9 +2605,10 @@
                                     const isTopseed = team.topseed === m.name;
                                     const bgColor = m.gender === 'M' ? '#e3f2fd' : '#fce4ec';
                                     const border = isTopseed ? '2px solid #ffc107' : 'none';
+                                    const groupBadge = m.group ? '<span style="font-size:10px; background:#7b1fa2; color:white; padding:0 4px; border-radius:6px; margin-left:2px;">' + m.group + '</span>' : '';
                                     return `
                                         <span style="display:inline-block; padding:2px 8px; margin:2px; background:${bgColor}; border-radius:12px; font-size:13px; border:${border};">
-                                            ${isTopseed ? '🏆' : ''} ${m.gender === 'M' ? '👨' : '👩'} ${m.name}
+                                            ${isTopseed ? '🏆' : ''} ${m.gender === 'M' ? '👨' : '👩'} ${m.name} ${groupBadge}
                                         </span>
                                     `;
                                 }).join('')}
@@ -4134,17 +4191,19 @@
         function addRTLParticipant() {
             const name = document.getElementById('rtl-name')?.value?.trim();
             const gender = document.getElementById('rtl-gender')?.value;
-            
+            const group = document.getElementById('rtl-group')?.value?.trim() || '';
+
             if (!name) {
                 alert('이름을 입력하세요.');
                 return;
             }
-            
+
             if (!window.randomTeamLeague) window.randomTeamLeague = { participants: [], teams: [], matches: [], phase: 'input' };
-            
-            window.randomTeamLeague.participants.push({ name, gender });
+
+            window.randomTeamLeague.participants.push({ name, gender, group });
             document.getElementById('rtl-name').value = '';
             document.getElementById('rtl-name').focus();
+            // 소속은 유지 (같은 소속 연속 입력 편의)
             render();
         }
         
@@ -4178,18 +4237,21 @@
             const participants = [];
             const usedNames = [];
             
+            // 소속 자동 할당 (두 그룹으로 나눔)
+            const autoGroups = ['A모임', 'B모임'];
+
             for (let i = 0; i < maleCount; i++) {
                 let name;
                 do { name = generateRandomName('male'); } while (usedNames.includes(name));
                 usedNames.push(name);
-                participants.push({ name, gender: 'M' });
+                participants.push({ name, gender: 'M', group: autoGroups[i % 2] });
             }
-            
+
             for (let i = 0; i < femaleCount; i++) {
                 let name;
                 do { name = generateRandomName('female'); } while (usedNames.includes(name));
                 usedNames.push(name);
-                participants.push({ name, gender: 'F' });
+                participants.push({ name, gender: 'F', group: autoGroups[i % 2] });
             }
             
             // 섞기
@@ -4445,28 +4507,28 @@
             previewDiv.innerHTML = html;
         }
         
-        // 탑시드 포함 랜덤 팀 생성
+        // 탑시드 포함 랜덤 팀 생성 (소속 믹싱 지원)
         function generateRandomTeamsWithTopseeds() {
             const rtl = window.randomTeamLeague;
             const teamCount = parseInt(document.getElementById('rtl-team-count')?.value || 2);
             const membersPerTeam = parseInt(document.getElementById('rtl-members-per-team')?.value || 3);
             const balanceGender = document.getElementById('rtl-balance-gender')?.checked ?? true;
-            
+            const balanceGroup = document.getElementById('rtl-balance-group')?.checked ?? false;
+
             // 검증: 인원 수
             const totalNeeded = teamCount * membersPerTeam;
             if (totalNeeded > rtl.participants.length) {
                 alert(`인원이 부족합니다!\n필요: ${totalNeeded}명, 현재: ${rtl.participants.length}명`);
                 return;
             }
-            
+
             // 탑시드 수집
             const topseeds = [];
             const topseedIndices = new Set();
-            
+
             for (let t = 0; t < teamCount; t++) {
                 const topseedIdx = rtl.topseeds?.[t];
                 if (topseedIdx !== null && topseedIdx !== undefined && topseedIdx !== '') {
-                    // 중복 체크
                     if (topseedIndices.has(topseedIdx)) {
                         alert(`탑시드가 중복되었습니다: ${rtl.participants[topseedIdx].name}`);
                         return;
@@ -4477,7 +4539,7 @@
                     topseeds[t] = null;
                 }
             }
-            
+
             // 팀 초기화 및 탑시드 배치
             rtl.teams = [];
             for (let t = 0; t < teamCount; t++) {
@@ -4488,31 +4550,117 @@
                 }
                 rtl.teams.push(team);
             }
-            
+
             // 탑시드 제외한 나머지 참가자
             const remainingParticipants = rtl.participants.filter((p, i) => !topseedIndices.has(i));
-            
-            // 나머지 인원 배정
             const remainingNeeded = teamCount * membersPerTeam - topseedIndices.size;
             let toAssign = [...remainingParticipants].slice(0, remainingNeeded);
-            
-            if (balanceGender) {
-                // 성별 균형 - 남녀 분리 후 교대 배정
+
+            if (balanceGroup) {
+                // === 소속 믹싱 모드 ===
+                // 소속별로 분류
+                const groupNames = [...new Set(rtl.participants.map(p => p.group).filter(Boolean))];
+                const grouped = {};
+                const noGroup = [];
+                toAssign.forEach(p => {
+                    if (p.group && groupNames.includes(p.group)) {
+                        if (!grouped[p.group]) grouped[p.group] = [];
+                        grouped[p.group].push(p);
+                    } else {
+                        noGroup.push(p);
+                    }
+                });
+
+                // 각 소속 내에서 셔플
+                Object.values(grouped).forEach(arr => shuffleArray(arr));
+                shuffleArray(noGroup);
+
+                // 소속별로 성별 균형도 적용
+                if (balanceGender) {
+                    Object.keys(grouped).forEach(g => {
+                        const males = grouped[g].filter(p => p.gender === 'M');
+                        const females = grouped[g].filter(p => p.gender === 'F');
+                        shuffleArray(males);
+                        shuffleArray(females);
+                        // 교대로 배치
+                        grouped[g] = [];
+                        let mi = 0, fi = 0;
+                        while (mi < males.length || fi < females.length) {
+                            if (mi < males.length) grouped[g].push(males[mi++]);
+                            if (fi < females.length) grouped[g].push(females[fi++]);
+                        }
+                    });
+                }
+
+                // 팀별 필요 인원
+                const neededPerTeam = rtl.teams.map(t => membersPerTeam - t.members.length);
+
+                // 각 소속을 라운드 로빈으로 팀에 배정 (스네이크)
+                // 소속별 할당량 계산: 각 팀에 각 소속이 최대한 균등하게
+                groupNames.forEach(gName => {
+                    const members = grouped[gName] || [];
+                    if (members.length === 0) return;
+
+                    // 팀별로 이 소속이 이미 몇 명 있는지 계산 (탑시드 포함)
+                    const existingCount = rtl.teams.map(t => t.members.filter(m => m.group === gName).length);
+
+                    // 소속 멤버를 가장 적은 팀부터 배정
+                    members.forEach(p => {
+                        // 아직 인원이 필요하고, 이 소속이 가장 적은 팀 찾기
+                        let bestTeam = -1;
+                        let bestCount = Infinity;
+                        for (let t = 0; t < teamCount; t++) {
+                            if (neededPerTeam[t] <= 0) continue;
+                            if (existingCount[t] < bestCount) {
+                                bestCount = existingCount[t];
+                                bestTeam = t;
+                            }
+                        }
+                        // 동률이면 랜덤 선택
+                        const candidates = [];
+                        for (let t = 0; t < teamCount; t++) {
+                            if (neededPerTeam[t] > 0 && existingCount[t] === bestCount) {
+                                candidates.push(t);
+                            }
+                        }
+                        const targetTeam = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : bestTeam;
+
+                        if (targetTeam >= 0) {
+                            rtl.teams[targetTeam].members.push(p);
+                            neededPerTeam[targetTeam]--;
+                            existingCount[targetTeam]++;
+                        }
+                    });
+                });
+
+                // 소속 미지정 인원 나머지 빈자리에 배정
+                noGroup.forEach(p => {
+                    let bestTeam = -1;
+                    let bestNeed = 0;
+                    for (let t = 0; t < teamCount; t++) {
+                        if (neededPerTeam[t] > bestNeed) {
+                            bestNeed = neededPerTeam[t];
+                            bestTeam = t;
+                        }
+                    }
+                    if (bestTeam >= 0) {
+                        rtl.teams[bestTeam].members.push(p);
+                        neededPerTeam[bestTeam]--;
+                    }
+                });
+
+            } else if (balanceGender) {
+                // === 성별 균형만 ===
                 const males = toAssign.filter(p => p.gender === 'M');
                 const females = toAssign.filter(p => p.gender === 'F');
                 shuffleArray(males);
                 shuffleArray(females);
-                
-                // 팀별 필요 인원 계산
+
                 const neededPerTeam = rtl.teams.map(t => membersPerTeam - t.members.length);
-                
-                // 스네이크 방식 배정
                 let teamIdx = 0;
                 let direction = 1;
-                
-                // 남성 먼저
-                males.forEach(p => {
-                    // 아직 인원이 필요한 팀 찾기
+
+                const assignToNextTeam = (p) => {
                     while (neededPerTeam[teamIdx] <= 0) {
                         teamIdx += direction;
                         if (teamIdx >= teamCount || teamIdx < 0) {
@@ -4527,27 +4675,12 @@
                         direction *= -1;
                         teamIdx += direction;
                     }
-                });
-                
-                // 여성
-                females.forEach(p => {
-                    while (neededPerTeam[teamIdx] <= 0) {
-                        teamIdx += direction;
-                        if (teamIdx >= teamCount || teamIdx < 0) {
-                            direction *= -1;
-                            teamIdx += direction;
-                        }
-                    }
-                    rtl.teams[teamIdx].members.push(p);
-                    neededPerTeam[teamIdx]--;
-                    teamIdx += direction;
-                    if (teamIdx >= teamCount || teamIdx < 0) {
-                        direction *= -1;
-                        teamIdx += direction;
-                    }
-                });
+                };
+
+                males.forEach(assignToNextTeam);
+                females.forEach(assignToNextTeam);
             } else {
-                // 완전 랜덤
+                // === 완전 랜덤 ===
                 shuffleArray(toAssign);
                 let idx = 0;
                 rtl.teams.forEach(team => {
@@ -4556,7 +4689,7 @@
                     }
                 });
             }
-            
+
             rtl.phase = 'teams-generated';
             render();
         }
