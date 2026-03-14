@@ -1585,7 +1585,7 @@
             }
             else if (screen === 'viewer-home') {
                 // 진행 중인 대회 목록 (연습 경기 제외)
-                const activeProjects = projects.filter(p => !p.isPractice && p.matches?.some(m => m.status === 'in-progress'));
+                const activeProjects = projects.filter(p => !p.isPractice && p.matches?.some(m => m.status === 'in-progress' || m.status === 'active'));
                 
                 // 실시간 진행 중인 연습 경기 수
                 const liveMatchCount = projects
@@ -1606,7 +1606,7 @@
                                 ${activeProjects.length > 0 ? '<span style="background:#4caf50; color:white; padding:2px 8px; border-radius:12px; font-size:12px;">LIVE</span>' : ''}
                             </h2>
                             ${activeProjects.length > 0 ? activeProjects.map(p => {
-                                const inProgressCount = p.matches?.filter(m => m.status === 'in-progress').length || 0;
+                                const inProgressCount = p.matches?.filter(m => m.status === 'in-progress' || m.status === 'active').length || 0;
                                 const totalCount = p.matches?.length || 0;
                                 const isTeam = p.competitionType === 'team';
                                 const typeLabel = p.tournamentType === 'group-knockout' ? '조별+토너먼트' : 
@@ -2738,11 +2738,9 @@
                 
                 // 미리 계산
                 const titleHTML = isReferee ? '경기 관리' : '경기 목록';
-                const createButtonHTML = isReferee ? 
-                    '<button type="button" class="btn btn-primary" onclick="goTo(\'create-match\')" aria-label="새 경기 생성">새 경기 생성</button>' : 
-                    '<div style="background:#e8f5e9; padding:12px; border-radius:8px; margin-bottom:16px;"><span style="color:#2e7d32;">관람 모드 - 경기를 선택하여 점수를 확인하세요</span></div>';
-                const editButtonHTML = (isReferee && hasMatches) ? 
-                    '<button type="button" class="btn btn-danger" onclick="goTo(\'edit-matches\')" aria-label="경기 편집 모드">편집</button>' : '';
+                const createButtonHTML = !isReferee ?
+                    '<div style="background:#e8f5e9; padding:12px; border-radius:8px; margin-bottom:16px;"><span style="color:#2e7d32;">관람 모드 - 경기를 선택하여 점수를 확인하세요</span></div>' : '';
+                const editButtonHTML = '';
                 
                 // 경기 종류 (개인전/팀전)
                 const isTeamCompetition = currentProject.competitionType === 'team';
@@ -2779,29 +2777,8 @@
                                 ` : ''}
                             </div>
                             
-                            ${isReferee ? `
-                                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
-                                    ${isTeamCompetition ? `
-                                        <button class="btn btn-primary" onclick="goTo('manage-teams')">🏅 팀 관리</button>
-                                    ` : `
-                                        <button class="btn btn-primary" onclick="goTo('manage-players')">선수 관리</button>
-                                    `}
-                                    ${(currentProject.tournamentType === 'group' || currentProject.tournamentType === 'group-tournament') ? 
-                                        '<button class="btn btn-primary" onclick="goTo(\'manage-groups\')">조 편성</button>' : ''}
-                                    ${(currentProject.tournamentType === 'tournament' || currentProject.tournamentType === 'group-tournament') ? 
-                                        '<button class="btn btn-primary" onclick="goTo(\'manage-bracket\')">🏅 대진표</button>' : ''}
-                                    <button class="btn" onclick="goTo('standings')">순위표</button>
-                                    <button class="btn" onclick="goTo('statistics')">📈 통계</button>
-                                </div>
-                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
-                                    <button class="btn" onclick="goTo('auto-tournament')" style="background:#9c27b0; color:white;">자동 대회 진행</button>
-                                </div>
-                            ` : `
-                                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
-                                    <button class="btn" onclick="goTo('standings')">순위표</button>
-                                    <button class="btn" onclick="goTo('statistics')">📈 통계</button>
-                                </div>
-                            `}
+                            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+                            </div>
                             
                             ${hasTournamentData || participantCount > 0 ? `
                                 <div style="margin-top:12px;">
@@ -2824,7 +2801,7 @@
                 
                 app.innerHTML = `
                     <div class="card">
-                        <button type="button" class="btn" onclick="goTo('project-list')" aria-label="프로젝트 목록으로 돌아가기" style="margin-bottom:16px;">← 프로젝트 목록</button>
+                        <button type="button" class="btn" onclick="goTo(userRole === 'referee' ? 'referee-project-list' : 'viewer-home')" aria-label="돌아가기" style="margin-bottom:16px;">← 돌아가기</button>
                         <h2>📁 ${currentProject.name}</h2>
                         <div class="info-grid">
                             <div class="info-item">
@@ -3675,16 +3652,23 @@
             
             // 심판 모드 - 먼저 screen을 match로 설정 (Firebase 방어)
             screen = 'match';
-            
+
+            // PIN이 없는 경기 (RTL 등)는 바로 인증
+            if (!currentMatch.refereePin) {
+                isAuthenticated = true;
+                render();
+                setTimeout(() => { matchSelectionInProgress = false; isUserAction = false; }, 2000);
+                return;
+            }
+
             // PIN 확인
             const inputPin = prompt('심판 PIN을 입력하세요:');
-            
+
             if (inputPin === currentMatch.refereePin) {
                 isAuthenticated = true;
                 render();
                 setTimeout(() => { matchSelectionInProgress = false; isUserAction = false; }, 2000);
             } else {
-                // PIN 틀리면 원래 화면으로
                 screen = 'project-detail';
                 currentMatch = null;
                 isAuthenticated = false;
@@ -4838,53 +4822,66 @@
                 });
             });
             
-            if (tournamentType === 'single-match') {
-                // === 단판 진행 ===
-                // 대진표 순서대로 경기 생성 (순위 집계 없음)
-                const matchSets = parseInt(rtl.sets || 1);
-                const matchType = rtl.matchType || 'team';
-                const winScore = matchType === 'team' ? 31 : 11;
+            // === 공통: 경기 설정 ===
+            const matchSets = parseInt(rtl.sets || 1);
+            const matchType = rtl.matchType || 'team';
+            const winScore = matchType === 'team' ? 31 : 11;
 
-                // matchOrder가 있으면 그 순서로, 없으면 라운드 로빈
-                let matchPairs = [];
+            // 팀 멤버 이름 맵 (라인업용)
+            const teamMemberMap = {};
+            rtl.teams.forEach(t => {
+                teamMemberMap[t.name] = t.members.map(m => m.name);
+            });
+
+            // 경기 객체 생성 헬퍼
+            function createMatchObj(team1Name, team2Name, idx, groupLabel) {
+                return {
+                    id: Date.now() + idx,
+                    player1Name: team1Name,
+                    player2Name: team2Name,
+                    team1Lineup: teamMemberMap[team1Name] || [],
+                    team2Lineup: teamMemberMap[team2Name] || [],
+                    type: matchType,
+                    sets: matchSets,
+                    winScore: winScore,
+                    status: 'active',
+                    currentSet: 1,
+                    setScores: Array.from({length: matchSets}, () => ({player1: 0, player2: 0})),
+                    timeouts: {player1: 1, player2: 1},
+                    currentServe: null,
+                    serveCount: 0,
+                    serveSelected: false,
+                    history: [],
+                    isShared: true,
+                    isPractice: false,
+                    matchNumber: idx + 1,
+                    groupLabel: groupLabel || ''
+                };
+            }
+
+            // 대진 쌍 생성 (matchOrder 반영)
+            function getMatchPairs() {
                 if (rtl.matchOrder && rtl.matchOrder.length > 0) {
-                    matchPairs = rtl.matchOrder.map(m => ({
+                    return rtl.matchOrder.map(m => ({
                         team1: rtl.teams[m.team1],
                         team2: rtl.teams[m.team2]
                     }));
-                } else {
-                    for (let i = 0; i < rtl.teams.length; i++) {
-                        for (let j = i + 1; j < rtl.teams.length; j++) {
-                            matchPairs.push({ team1: rtl.teams[i], team2: rtl.teams[j] });
-                        }
+                }
+                const pairs = [];
+                for (let i = 0; i < rtl.teams.length; i++) {
+                    for (let j = i + 1; j < rtl.teams.length; j++) {
+                        pairs.push({ team1: rtl.teams[i], team2: rtl.teams[j] });
                     }
                 }
+                return pairs;
+            }
 
-                // 경기 목록 생성
+            if (tournamentType === 'single-match') {
+                // === 단판 진행 ===
+                const matchPairs = getMatchPairs();
                 matchPairs.forEach((pair, idx) => {
-                    project.matches.push({
-                        id: Date.now() + idx,
-                        player1Name: pair.team1.name,
-                        player2Name: pair.team2.name,
-                        team1Lineup: pair.team1.members.map(m => m.name),
-                        team2Lineup: pair.team2.members.map(m => m.name),
-                        type: matchType,
-                        sets: matchSets,
-                        winScore: winScore,
-                        status: 'active',
-                        currentSet: 1,
-                        setScores: Array.from({length: matchSets}, () => ({player1: 0, player2: 0})),
-                        timeouts: {player1: 1, player2: 1},
-                        currentServe: null,
-                        serveCount: 0,
-                        serveSelected: false,
-                        history: [],
-                        isShared: true,
-                        isPractice: false,
-                        matchNumber: idx + 1
-                    });
+                    project.matches.push(createMatchObj(pair.team1.name, pair.team2.name, idx, ''));
                 });
-
                 project.tournamentType = 'single-match';
                 project.groups = [];
 
@@ -4892,8 +4889,7 @@
                 // === 조별 리그 + 토너먼트 ===
                 const groupCount = rtl.groupCount || 2;
                 const advanceCount = rtl.advanceCount || 2;
-                
-                // 조 생성
+
                 for (let i = 0; i < groupCount; i++) {
                     project.groups.push({
                         name: String.fromCharCode(65 + i) + '조',
@@ -4903,56 +4899,43 @@
                         isTeam: true
                     });
                 }
-                
-                // 팀을 조에 배정 (스네이크 방식)
+
                 project.teams.forEach((team, idx) => {
                     const round = Math.floor(idx / groupCount);
                     const groupIdx = round % 2 === 0 ? idx % groupCount : groupCount - 1 - (idx % groupCount);
                     team.group = String.fromCharCode(65 + groupIdx);
                     project.groups[groupIdx].players.push({ name: team.name, id: team.id });
                 });
-                
-                // 각 조별 라운드 로빈 대진 생성
+
+                let matchIdx = 0;
                 project.groups.forEach((group, gi) => {
                     const groupTeams = group.players;
                     for (let i = 0; i < groupTeams.length; i++) {
                         for (let j = i + 1; j < groupTeams.length; j++) {
-                            const matchId = `G${gi + 1}M${group.matches.length + 1}`;
+                            const matchObj = createMatchObj(groupTeams[i].name, groupTeams[j].name, matchIdx++, group.name);
+                            project.matches.push(matchObj);
                             group.matches.push({
-                                id: matchId,
+                                id: matchObj.id,
                                 player1: groupTeams[i].name,
                                 player2: groupTeams[j].name,
-                                status: 'pending',
+                                status: 'active',
                                 result: null,
-                                sets: 1,
+                                sets: matchSets,
                                 isTeam: true,
-                                winScore: 31
+                                winScore: winScore
                             });
                         }
                     }
                 });
-                
-                // 설정 저장
-                project.groupSettings = {
-                    groupCount: groupCount,
-                    advanceCount: advanceCount,
-                    setsPerMatch: 1
-                };
-                
-                // 토너먼트 설정 (결선용)
+
+                project.groupSettings = { groupCount, advanceCount, setsPerMatch: matchSets };
                 const totalAdvance = groupCount * advanceCount;
                 let bracketSize = 2;
                 while (bracketSize < totalAdvance) bracketSize *= 2;
-                
-                project.tournamentSettings = {
-                    size: bracketSize,
-                    thirdPlaceMatch: true,
-                    setsPerMatch: 1
-                };
-                
+                project.tournamentSettings = { size: bracketSize, thirdPlaceMatch: true, setsPerMatch: matchSets };
+
             } else {
                 // === 풀리그 ===
-                // 단일 조에 모든 팀 배정
                 project.groups = [{
                     name: 'A조',
                     players: project.teams.map(t => ({ name: t.name, id: t.id })),
@@ -4960,34 +4943,25 @@
                     standings: [],
                     isTeam: true
                 }];
-                
-                // 팀 조 정보 업데이트
                 project.teams.forEach(t => t.group = 'A');
-                
-                // 라운드 로빈 대진 생성
-                const teams = project.groups[0].players;
-                for (let i = 0; i < teams.length; i++) {
-                    for (let j = i + 1; j < teams.length; j++) {
-                        const matchId = `G1M${project.groups[0].matches.length + 1}`;
-                        project.groups[0].matches.push({
-                            id: matchId,
-                            player1: teams[i].name,
-                            player2: teams[j].name,
-                            status: 'pending',
-                            result: null,
-                            sets: 1,
-                            isTeam: true,
-                            winScore: 31
-                        });
-                    }
-                }
-                
-                // 설정 저장
-                project.groupSettings = {
-                    groupCount: 1,
-                    advanceCount: project.teams.length,
-                    setsPerMatch: 1
-                };
+
+                const matchPairs = getMatchPairs();
+                matchPairs.forEach((pair, idx) => {
+                    const matchObj = createMatchObj(pair.team1.name, pair.team2.name, idx, 'A조');
+                    project.matches.push(matchObj);
+                    project.groups[0].matches.push({
+                        id: matchObj.id,
+                        player1: pair.team1.name,
+                        player2: pair.team2.name,
+                        status: 'active',
+                        result: null,
+                        sets: matchSets,
+                        isTeam: true,
+                        winScore: winScore
+                    });
+                });
+
+                project.groupSettings = { groupCount: 1, advanceCount: project.teams.length, setsPerMatch: matchSets };
             }
             
             // Firebase에 저장
@@ -5001,7 +4975,7 @@
                         projects.push(project);
                         currentProject = project;
                         window.randomTeamLeague = null;
-                        goTo('project-manage');
+                        goTo('project-detail');
                         announce(`${projectName} 생성 완료. ${teamCount}팀 ${typeLabel}.`);
                     }).catch((error) => {
                         console.error('Firebase 저장 에러:', error);
@@ -5022,7 +4996,7 @@
             currentProject = project;
             const teamCount = rtl.teams.length;
             window.randomTeamLeague = null;
-            goTo('project-manage');
+            goTo('project-detail');
             announce(`${projectName} 생성 완료. ${teamCount}팀 ${typeLabel || '리그전'}.`);
         }
         
@@ -5662,6 +5636,15 @@
             });
         }
         
+        function viewerSelectProject(projectId) {
+            const p = projects.find(pr => pr.id === projectId);
+            if (p) {
+                currentProject = p;
+                userRole = 'viewer';
+                goTo('project-detail');
+            }
+        }
+
         function openRefereeProject(index) {
             currentProject = projects[index];
             userRole = 'referee';
