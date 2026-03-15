@@ -848,6 +848,28 @@
         
         // 페이지 로드 시 바로 화면 표시
         document.addEventListener('DOMContentLoaded', function() {
+            // localStorage 캐시에서 프로젝트 데이터 미리 로드 (Firebase 도착 전 빈 화면 방지)
+            try {
+                const cachedProjects = JSON.parse(localStorage.getItem('projects') || '[]');
+                if (cachedProjects.length > 0) {
+                    projects = cachedProjects;
+                    // 배열 변환 (Firebase에서 object로 저장된 경우 대비)
+                    projects.forEach(p => {
+                        if (p.matches && !Array.isArray(p.matches)) p.matches = Object.values(p.matches);
+                        if (p.teams && !Array.isArray(p.teams)) p.teams = Object.values(p.teams);
+                        if (p.groups && Array.isArray(p.groups)) {
+                            p.groups.forEach(g => {
+                                if (g.matches && !Array.isArray(g.matches)) g.matches = Object.values(g.matches);
+                                if (g.players && !Array.isArray(g.players)) g.players = Object.values(g.players);
+                            });
+                        }
+                        if (p.players && !Array.isArray(p.players)) p.players = Object.values(p.players);
+                    });
+                    console.log('📦 localStorage 캐시에서 프로젝트 로드:', projects.length + '개');
+                }
+            } catch (e) {
+                console.error('localStorage 캐시 로드 실패:', e);
+            }
             // 즉시 홈 화면 렌더링
             setTimeout(() => {
                 if (typeof render === 'function') {
@@ -1356,22 +1378,22 @@
             document.head.appendChild(style);
         }
         
-        // 초기 로드
+        // 초기 로드 (즉시 실행 - Firebase 데이터 빠르게 수신)
         setTimeout(() => {
             loadProjects();
             loadUserPreferences(); // 사용자 설정 로드
             loadPracticeMatchesFromFirebase(); // ✨ Firebase 연습 경기 로드
-            
+
             // 연결 상태 즉시 표시
             updateConnectionStatus();
-            
+
             // Firebase 연결 성공 시 알림
             if (database && !isOffline) {
                 setTimeout(() => {
                     announceSync('실시간 동기화 활성화됨');
                 }, 2000);
             }
-        }, 1000);
+        }, 0);
 
 
         const FOULS = [
@@ -1597,6 +1619,19 @@
                 `;
             }
             else if (screen === 'viewer-home') {
+                // projects가 비어있으면 localStorage에서 복원 시도
+                if (projects.length === 0) {
+                    try {
+                        const cached = JSON.parse(localStorage.getItem('projects') || '[]');
+                        if (cached.length > 0) {
+                            projects = cached;
+                            projects.forEach(p => {
+                                if (p.matches && !Array.isArray(p.matches)) p.matches = Object.values(p.matches);
+                                if (p.teams && !Array.isArray(p.teams)) p.teams = Object.values(p.teams);
+                            });
+                        }
+                    } catch (e) { /* ignore */ }
+                }
                 // 진행 중인 대회 목록 (연습 경기 제외)
                 const matchesArray = (p) => Array.isArray(p.matches) ? p.matches : (p.matches ? Object.values(p.matches) : []);
                 const activeProjects = projects.filter(p => !p.isPractice && matchesArray(p).some(m => m.status !== 'completed'));
