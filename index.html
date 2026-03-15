@@ -677,56 +677,12 @@
                 return;
             }
             console.log('Realtime sync starting...');
-            initializeProjectsSync();
+            // initializeProjectsSync() 제거 - loadProjects()가 유일한 projects 리스너
             initializeUserPreferencesSync();
             initializeMatchesSync();
         }
-        // 프로젝트 데이터 Firebase 동기화
-        function initializeProjectsSync() {
-            if (!database) return;
-            
-            // Firebase에서 프로젝트 데이터 실시간 감지
-            database.ref('projects').on('value', (snapshot) => {
-                // 심판 모드에서는 완전히 무시 (경기 데이터 보호)
-                if (isAuthenticated) {
-                    console.log('🛡️ 심판 모드 - 프로젝트 동기화 완전 차단');
-                    return;
-                }
-                
-                const firebaseProjects = snapshot.val();
-                if (firebaseProjects) {
-                    // Object를 Array로 변환
-                    const projectsArray = Object.keys(firebaseProjects).map(key => ({
-                        ...firebaseProjects[key],
-                        firebaseKey: key
-                    }));
-                    
-                    // 로컬과 병합 (firebaseKey 기준으로 중복 제거)
-                    const localProjects = JSON.parse(localStorage.getItem('projects') || '[]');
-                    const mergedProjects = mergeDataArrays(localProjects, projectsArray, 'id');
-                    
-                    // Firebase에서 matches가 object로 반환될 수 있으므로 배열로 변환
-                    mergedProjects.forEach(p => {
-                        if (p.matches && !Array.isArray(p.matches)) {
-                            p.matches = Object.values(p.matches);
-                        }
-                        if (p.teams && !Array.isArray(p.teams)) {
-                            p.teams = Object.values(p.teams);
-                        }
-                    });
-
-                    localStorage.setItem('projects', JSON.stringify(mergedProjects));
-                    projects = mergedProjects; // 전역 변수 업데이트
-
-                    console.log('✅ Firebase에서 프로젝트 데이터 동기화됨:', mergedProjects.length + '개');
-
-                    // 화면이 프로젝트 관련이면 자동 새로고침
-                    if (['project-list', 'bracket-home', 'project-detail', 'viewer-home', 'viewer-select-project'].includes(screen)) {
-                        render();
-                    }
-                }
-            });
-        }
+        // initializeProjectsSync() 제거됨 - loadProjects()가 유일한 projects 리스너로 통합
+        // 이전에 이중 리스너로 인해 stale localStorage 병합이 최신 Firebase 데이터를 덮어쓰는 버그 발생
         
         // 사용자 설정 동기화
         function initializeUserPreferencesSync() {
@@ -760,7 +716,7 @@
                     updateLiveMatchesData(liveMatches);
                     
                     // 관람 모드 화면이면 자동 새로고침
-                    if (['viewer-home', 'match-list', 'live-practice'].includes(screen)) {
+                    if (['viewer-home', 'match-list', 'live-practice', 'project-detail'].includes(screen)) {
                         render();
                     }
                 }
@@ -868,6 +824,20 @@
                             project.matches[matchIndex].status = liveMatch.status;
                             project.matches[matchIndex].updatedAt = liveMatch.updatedAt;
                         }
+                    }
+                    // groups[].matches[]도 동일하게 업데이트 (조별리그 경기 상태 동기화)
+                    if (project.groups && Array.isArray(project.groups)) {
+                        project.groups.forEach(group => {
+                            if (group.matches && Array.isArray(group.matches)) {
+                                const gMatchIndex = group.matches.findIndex(m => m.id == matchId);
+                                if (gMatchIndex >= 0) {
+                                    group.matches[gMatchIndex].status = liveMatch.status;
+                                    if (liveMatch.setScores) group.matches[gMatchIndex].setScores = liveMatch.setScores;
+                                    if (liveMatch.currentSet) group.matches[gMatchIndex].currentSet = liveMatch.currentSet;
+                                    group.matches[gMatchIndex].updatedAt = liveMatch.updatedAt;
+                                }
+                            }
+                        });
                     }
                 });
             });
@@ -1129,6 +1099,8 @@
                             p.players = Object.values(p.players);
                         }
                     });
+                    // 로컬 저장소에도 동기화 (오프라인 대비)
+                    localStorage.setItem('projects', JSON.stringify(projects));
                     console.log('로드된 프로젝트:', projects.length);
                     
                     // 첫 로드시 URL 파라미터 확인
@@ -1168,8 +1140,8 @@
                         return;
                     }
                     
-                    // project-detail 화면도 무시 (경기 진입 방해 방지)
-                    if (screen === 'project-detail') {
+                    // project-detail: 심판 모드에서만 무시 (경기 진입 방해 방지), 관람 모드에서는 실시간 갱신
+                    if (screen === 'project-detail' && isAuthenticated) {
                         return;
                     }
                     
