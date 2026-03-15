@@ -647,25 +647,53 @@
         let database = null;
         let auth = null; // Firebase Auth
         let userId = null; // ✨ 사용자 고유 ID
-        
-        // Firebase 초기화
-        try {
-            if (typeof firebase !== 'undefined') {
-                firebase.initializeApp(firebaseConfig);
-                database = firebase.database();
-                auth = firebase.auth();
-                console.log('✅ Firebase 연결됨');
-                
-                // ✨ 사용자 ID 초기화
-                initializeUserId();
-                
-                // ✨ 전체 데이터 실시간 동기화 시작
-                initializeRealtimeSync();
-            } else {
-                console.log('Firebase SDK 로드 안됨 - 로컬 모드');
+
+        // Firebase 초기화 함수
+        function tryInitFirebase() {
+            try {
+                if (typeof firebase !== 'undefined' && !database) {
+                    firebase.initializeApp(firebaseConfig);
+                    database = firebase.database();
+                    auth = firebase.auth();
+                    console.log('✅ Firebase 연결됨');
+
+                    // ✨ 사용자 ID 초기화
+                    initializeUserId();
+
+                    // ✨ 전체 데이터 실시간 동기화 시작
+                    initializeRealtimeSync();
+                    return true;
+                }
+            } catch (error) {
+                // 이미 초기화된 경우 에러 무시
+                if (error.code === 'app/duplicate-app') {
+                    database = firebase.database();
+                    auth = firebase.auth();
+                    initializeUserId();
+                    initializeRealtimeSync();
+                    return true;
+                }
+                console.log('Firebase 연결 실패:', error);
             }
-        } catch (error) {
-            console.log('Firebase 연결 실패 - 로컬 모드:', error);
+            return false;
+        }
+
+        // Firebase 즉시 초기화 시도
+        if (!tryInitFirebase()) {
+            console.log('Firebase SDK 아직 로드 안됨 - 재시도 예약');
+            // SDK가 늦게 로드될 경우 재시도 (모바일 네트워크 대비)
+            setTimeout(() => {
+                if (!database && tryInitFirebase()) {
+                    console.log('✅ Firebase 지연 초기화 성공');
+                    loadProjects(); // 데이터 로드 시작
+                }
+            }, 2000);
+            setTimeout(() => {
+                if (!database && tryInitFirebase()) {
+                    console.log('✅ Firebase 2차 지연 초기화 성공');
+                    loadProjects();
+                }
+            }, 5000);
         }
         
         // ========== 전체 데이터 실시간 동기화 시스템 ==========
@@ -1683,8 +1711,9 @@
                                 `;
                             }).join('') : `
                                 <div style="padding:20px; background:#f5f5f5; border-radius:8px; text-align:center; color:#888;">
-                                    진행 중인 대회가 없습니다
+                                    ${!database ? '서버 연결 중... 잠시만 기다려주세요' : (projects.length === 0 ? '데이터 로딩 중...' : '진행 중인 대회가 없습니다')}
                                 </div>
+                                ${!database || projects.length === 0 ? '<div style="text-align:center; margin-top:12px;"><button class="btn" onclick="location.reload()" style="background:#667eea; color:white;">새로고침</button></div>' : ''}
                             `}
                         </div>
                         
