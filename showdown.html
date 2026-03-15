@@ -1106,6 +1106,9 @@
         
         let matchSelectionInProgress = false; // 경기 선택 중 플래그
         
+        let projectsListenerRegistered = false; // 중복 리스너 방지
+        let projectsLoaded = false; // 데이터 로드 완료 플래그
+
         function loadProjects() {
             try {
                 if (!database) {
@@ -1117,14 +1120,43 @@
                         projects = [];
                         localStorage.removeItem('projects'); // 손상된 데이터 제거
                     }
+                    projectsLoaded = projects.length > 0;
                     checkUrlProjectParam();
                     render();
                     return;
                 }
+
+                // 이미 리스너 등록되어 있으면 중복 등록 방지
+                if (projectsListenerRegistered) {
+                    console.log('Firebase projects 리스너 이미 등록됨');
+                    return;
+                }
+                projectsListenerRegistered = true;
+
                 console.log('Firebase에서 프로젝트 로드 중...');
-                
+
+                // 타임아웃: 5초 내에 Firebase 응답 없으면 localStorage 폴백
+                const loadTimeout = setTimeout(() => {
+                    if (!projectsLoaded && projects.length === 0) {
+                        console.log('⚠️ Firebase 응답 지연 - localStorage 폴백');
+                        try {
+                            const cached = JSON.parse(localStorage.getItem('projects') || '[]');
+                            if (cached.length > 0) {
+                                projects = cached;
+                                projects.forEach(p => {
+                                    if (p.matches && !Array.isArray(p.matches)) p.matches = Object.values(p.matches);
+                                    if (p.teams && !Array.isArray(p.teams)) p.teams = Object.values(p.teams);
+                                });
+                                render();
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+                }, 5000);
+
                 let isFirstLoad = true;
                 database.ref('projects').on('value', (snapshot) => {
+                    clearTimeout(loadTimeout); // 타임아웃 취소
+                    projectsLoaded = true;
                     const data = snapshot.val();
                     projects = data ? Object.keys(data).map(key => ({...data[key], firebaseKey: key})) : [];
                     // Firebase에서 matches가 object로 반환될 수 있으므로 배열로 변환
@@ -1394,6 +1426,7 @@
             const style = document.createElement('style');
             style.id = 'sync-animations';
             style.textContent = `
+                @keyframes spin { to { transform: rotate(360deg); } }
                 @keyframes slideIn {
                     from { transform: translateX(100%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
@@ -1709,12 +1742,35 @@
                                         </div>
                                     </div>
                                 `;
-                            }).join('') : `
-                                <div style="padding:20px; background:#f5f5f5; border-radius:8px; text-align:center; color:#888;">
-                                    ${!database ? '서버 연결 중... 잠시만 기다려주세요' : (projects.length === 0 ? '데이터 로딩 중...' : '진행 중인 대회가 없습니다')}
-                                </div>
-                                ${!database || projects.length === 0 ? '<div style="text-align:center; margin-top:12px;"><button class="btn" onclick="location.reload()" style="background:#667eea; color:white;">새로고침</button></div>' : ''}
-                            `}
+                            }).join('') : (() => {
+                                // 데이터 미로딩 시 3초 후 자동 재시도
+                                if (!projectsLoaded && database) {
+                                    setTimeout(() => {
+                                        if (screen === 'viewer-home' && projects.length === 0) {
+                                            console.log('🔄 viewer-home 자동 재시도');
+                                            // Firebase 재연결 시도
+                                            if (!projectsListenerRegistered) loadProjects();
+                                            // localStorage 폴백
+                                            try {
+                                                const cached = JSON.parse(localStorage.getItem('projects') || '[]');
+                                                if (cached.length > 0) { projects = cached; }
+                                            } catch(e) {}
+                                            render();
+                                        }
+                                    }, 3000);
+                                }
+                                const statusMsg = !database ? '서버에 연결하고 있습니다...'
+                                    : !projectsLoaded ? '데이터를 불러오는 중입니다...'
+                                    : '진행 중인 대회가 없습니다';
+                                const showRetry = !projectsLoaded || projects.length === 0;
+                                return `
+                                    <div style="padding:20px; background:#f5f5f5; border-radius:8px; text-align:center; color:#888;">
+                                        ${!projectsLoaded ? '<div style="margin-bottom:8px;"><div style="width:24px;height:24px;border:3px solid #ddd;border-top-color:#667eea;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>' : ''}
+                                        ${statusMsg}
+                                    </div>
+                                    ${showRetry ? '<div style="text-align:center; margin-top:12px;"><button class="btn" onclick="projectsListenerRegistered=false;loadProjects();setTimeout(()=>render(),2000);" style="background:#667eea; color:white; margin-right:8px;">다시 시도</button><button class="btn" onclick="location.reload()" style="background:#999; color:white;">새로고침</button></div>' : ''}
+                                `;
+                            })()}
                         </div>
                         
                         <!-- 연습 경기 실시간 -->
@@ -3407,6 +3463,15 @@
             } else {
                 isAuthenticated = false;
                 screen = 'viewer-home';
+                // 관람 모드 진입 시 데이터 확인 - 없으면 로드 시도
+                if (!projectsLoaded && database && !projectsListenerRegistered) {
+                    loadProjects();
+                }
+                // Firebase 미연결이면 재연결 시도
+                if (!database) {
+                    tryInitFirebase();
+                    if (database) loadProjects();
+                }
             }
             render();
         }
