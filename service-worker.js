@@ -1,4 +1,4 @@
-const CACHE_NAME = 'showdown-v2';
+const CACHE_NAME = 'showdown-v3';
 const ASSETS = [
   './',
   './index.html',

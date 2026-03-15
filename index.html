@@ -648,6 +648,8 @@
         let auth = null; // Firebase Auth
         let userId = null; // ✨ 사용자 고유 ID
 
+        let firebaseReady = false; // Firebase 인증 완료 플래그
+
         // Firebase 초기화 함수
         function tryInitFirebase() {
             try {
@@ -655,17 +657,41 @@
                     firebase.initializeApp(firebaseConfig);
                     database = firebase.database();
                     auth = firebase.auth();
-                    console.log('✅ Firebase 연결됨');
+                    console.log('✅ Firebase SDK 초기화됨');
 
                     // ✨ 사용자 ID 초기화
                     initializeUserId();
 
                     // ✨ 전체 데이터 실시간 동기화 시작
                     initializeRealtimeSync();
+
+                    // 익명 인증 (DB 보안 규칙 대응 - 스마트폰 등 새 기기 지원)
+                    auth.signInAnonymously()
+                        .then(() => {
+                            console.log('✅ Firebase 익명 인증 성공');
+                            firebaseReady = true;
+                            // 인증 후 데이터 로드 (아직 안 됐으면)
+                            if (!projectsLoaded) {
+                                projectsListenerRegistered = false;
+                                loadProjects();
+                            }
+                        })
+                        .catch((err) => {
+                            console.log('익명 인증 불필요 또는 실패:', err.message);
+                            firebaseReady = true;
+                        });
+
+                    // 인증 상태 변경 감지
+                    auth.onAuthStateChanged((user) => {
+                        if (user) {
+                            console.log('✅ Firebase 인증 상태:', user.uid);
+                            firebaseReady = true;
+                        }
+                    });
+
                     return true;
                 }
             } catch (error) {
-                // 이미 초기화된 경우 에러 무시
                 if (error.code === 'app/duplicate-app') {
                     database = firebase.database();
                     auth = firebase.auth();
@@ -681,11 +707,10 @@
         // Firebase 즉시 초기화 시도
         if (!tryInitFirebase()) {
             console.log('Firebase SDK 아직 로드 안됨 - 재시도 예약');
-            // SDK가 늦게 로드될 경우 재시도 (모바일 네트워크 대비)
             setTimeout(() => {
                 if (!database && tryInitFirebase()) {
                     console.log('✅ Firebase 지연 초기화 성공');
-                    loadProjects(); // 데이터 로드 시작
+                    loadProjects();
                 }
             }, 2000);
             setTimeout(() => {
@@ -1135,27 +1160,61 @@
 
                 console.log('Firebase에서 프로젝트 로드 중...');
 
-                // 타임아웃: 5초 내에 Firebase 응답 없으면 localStorage 폴백
+                // 배열 변환 공통 함수
+                function normalizeProjects(arr) {
+                    arr.forEach(p => {
+                        if (p.matches && !Array.isArray(p.matches)) p.matches = Object.values(p.matches);
+                        if (p.groups && Array.isArray(p.groups)) {
+                            p.groups.forEach(g => {
+                                if (g.matches && !Array.isArray(g.matches)) g.matches = Object.values(g.matches);
+                                if (g.players && !Array.isArray(g.players)) g.players = Object.values(g.players);
+                            });
+                        }
+                        if (p.teams && !Array.isArray(p.teams)) p.teams = Object.values(p.teams);
+                        if (p.players && !Array.isArray(p.players)) p.players = Object.values(p.players);
+                    });
+                }
+
+                // 타임아웃: 5초 내에 Firebase 응답 없으면 REST API + localStorage 폴백
                 const loadTimeout = setTimeout(() => {
-                    if (!projectsLoaded && projects.length === 0) {
-                        console.log('⚠️ Firebase 응답 지연 - localStorage 폴백');
-                        try {
-                            const cached = JSON.parse(localStorage.getItem('projects') || '[]');
-                            if (cached.length > 0) {
-                                projects = cached;
-                                projects.forEach(p => {
-                                    if (p.matches && !Array.isArray(p.matches)) p.matches = Object.values(p.matches);
-                                    if (p.teams && !Array.isArray(p.teams)) p.teams = Object.values(p.teams);
-                                });
-                                render();
-                            }
-                        } catch (e) { /* ignore */ }
+                    if (!projectsLoaded) {
+                        console.log('⚠️ Firebase on() 응답 지연 - once() 단건 조회 시도');
+                        // once()로 단건 조회 시도 (WebSocket 문제 우회)
+                        database.ref('projects').once('value')
+                            .then((snapshot) => {
+                                if (!projectsLoaded) {
+                                    const data = snapshot.val();
+                                    projects = data ? Object.keys(data).map(key => ({...data[key], firebaseKey: key})) : [];
+                                    normalizeProjects(projects);
+                                    localStorage.setItem('projects', JSON.stringify(projects));
+                                    projectsLoaded = true;
+                                    console.log('✅ once() 조회 성공:', projects.length + '개');
+                                    render();
+                                }
+                            })
+                            .catch((err) => {
+                                console.log('⚠️ once() 실패:', err.message);
+                                // REST API 직접 호출 (최후 수단)
+                                fetch('https://showdown1-838bf-default-rtdb.asia-southeast1.firebasedatabase.app/projects.json')
+                                    .then(r => r.json())
+                                    .then(data => {
+                                        if (!projectsLoaded && data) {
+                                            projects = Object.keys(data).map(key => ({...data[key], firebaseKey: key}));
+                                            normalizeProjects(projects);
+                                            localStorage.setItem('projects', JSON.stringify(projects));
+                                            projectsLoaded = true;
+                                            console.log('✅ REST API 폴백 성공:', projects.length + '개');
+                                            render();
+                                        }
+                                    })
+                                    .catch(() => console.log('REST API도 실패'));
+                            });
                     }
                 }, 5000);
 
                 let isFirstLoad = true;
                 database.ref('projects').on('value', (snapshot) => {
-                    clearTimeout(loadTimeout); // 타임아웃 취소
+                    clearTimeout(loadTimeout);
                     projectsLoaded = true;
                     const data = snapshot.val();
                     projects = data ? Object.keys(data).map(key => ({...data[key], firebaseKey: key})) : [];
@@ -1229,6 +1288,38 @@
                     
                     // 나머지 화면만 자동 갱신
                     render();
+                }, (error) => {
+                    // on('value') 에러 핸들러 (권한 거부 등)
+                    console.error('❌ Firebase on() 에러:', error.message);
+                    clearTimeout(loadTimeout);
+                    // 에러 시 once() 또는 REST API 폴백
+                    if (!projectsLoaded) {
+                        console.log('🔄 on() 실패 - once() 재시도...');
+                        database.ref('projects').once('value')
+                            .then((snapshot) => {
+                                const data = snapshot.val();
+                                projects = data ? Object.keys(data).map(key => ({...data[key], firebaseKey: key})) : [];
+                                normalizeProjects(projects);
+                                localStorage.setItem('projects', JSON.stringify(projects));
+                                projectsLoaded = true;
+                                render();
+                            })
+                            .catch(() => {
+                                // REST API 최후 수단
+                                fetch('https://showdown1-838bf-default-rtdb.asia-southeast1.firebasedatabase.app/projects.json')
+                                    .then(r => r.json())
+                                    .then(data => {
+                                        if (data) {
+                                            projects = Object.keys(data).map(key => ({...data[key], firebaseKey: key}));
+                                            normalizeProjects(projects);
+                                            localStorage.setItem('projects', JSON.stringify(projects));
+                                            projectsLoaded = true;
+                                            render();
+                                        }
+                                    })
+                                    .catch(() => console.log('모든 로드 방법 실패'));
+                            });
+                    }
                 });
             } catch (error) {
                 console.log('Firebase 로드 실패 - 로컬 모드:', error);
