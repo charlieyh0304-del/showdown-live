@@ -50,7 +50,7 @@ export default function RandomTeamLeagues() {
       setNewName('');
       setSelectedPlayers([]);
       setWinScore(11);
-      if (id) navigate(`/team-league/${id}`);
+      if (id) navigate(`/random-league/${id}`);
     } catch (error) {
       console.error('Failed to create league:', error);
     } finally {
@@ -92,7 +92,10 @@ export default function RandomTeamLeagues() {
   return (
     <div className="py-6">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-primary">랜덤 팀 리그전</h1>
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/')} className="btn bg-gray-800" aria-label="홈으로">← 홈</button>
+          <h1 className="text-3xl font-bold text-primary">랜덤 팀 리그전</h1>
+        </div>
         <button
           onClick={() => setShowCreate(true)}
           className="btn btn-primary"
@@ -129,7 +132,7 @@ export default function RandomTeamLeagues() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => navigate(`/team-league/${league.id}`)}
+                  onClick={() => navigate(`/random-league/${league.id}`)}
                   className="btn btn-secondary"
                   aria-label={`${league.name} 리그전 열기`}
                 >

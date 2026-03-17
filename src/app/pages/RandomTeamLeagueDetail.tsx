@@ -242,7 +242,7 @@ export default function RandomTeamLeagueDetail() {
     return (
       <div className="text-center py-20">
         <p className="text-2xl text-gray-400 mb-4">리그전을 찾을 수 없습니다</p>
-        <button onClick={() => navigate('/')} className="btn btn-primary">
+        <button onClick={() => navigate('/random-league')} className="btn btn-primary">
           목록으로
         </button>
       </div>
@@ -258,7 +258,7 @@ export default function RandomTeamLeagueDetail() {
             {league.date} · {league.playerIds.length}명 · {league.teamMatchSettings.winScore}점제
           </p>
         </div>
-        <button onClick={() => navigate('/')} className="btn bg-gray-700 hover:bg-gray-600">
+        <button onClick={() => navigate('/random-league')} className="btn bg-gray-700 hover:bg-gray-600">
           목록
         </button>
       </div>
