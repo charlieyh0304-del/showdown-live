@@ -36,6 +36,9 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
       '@shared': resolve(__dirname, './src/shared'),
       '@app': resolve(__dirname, './src/app'),
+      '@admin': resolve(__dirname, './src/admin'),
+      '@referee': resolve(__dirname, './src/referee'),
+      '@spectator': resolve(__dirname, './src/spectator'),
     },
   },
 })

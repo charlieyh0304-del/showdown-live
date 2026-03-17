@@ -21,8 +21,10 @@
     "paths": {
       "@/*": ["src/*"],
       "@shared/*": ["src/shared/*"],
+      "@app/*": ["src/app/*"],
       "@admin/*": ["src/admin/*"],
-      "@viewer/*": ["src/viewer/*"]
+      "@referee/*": ["src/referee/*"],
+      "@spectator/*": ["src/spectator/*"]
     },
 
     /* Linting */

@@ -1,29 +1,25 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
-import Home from './pages/Home';
-import IndividualGames from './pages/IndividualGames';
-import IndividualGameScoring from './pages/IndividualGameScoring';
-import TeamMatchGames from './pages/TeamMatchGames';
-import TeamMatchScoring from './pages/TeamMatchScoring';
-import RandomTeamLeagues from './pages/RandomTeamLeagues';
-import RandomTeamLeagueDetail from './pages/RandomTeamLeagueDetail';
+import { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import ModeSelector from './ModeSelector';
+import ConnectionStatus from '@shared/components/ConnectionStatus';
+import LoadingSpinner from '@shared/components/LoadingSpinner';
+
+const AdminRoutes = lazy(() => import('../admin/AdminRoutes'));
+const RefereeRoutes = lazy(() => import('../referee/RefereeRoutes'));
+const SpectatorRoutes = lazy(() => import('../spectator/SpectatorRoutes'));
 
 function App() {
-  const location = useLocation();
-  const isFullScreen = location.pathname.match(/^\/individual\/[^/]+$/);
-
   return (
     <div className="min-h-screen bg-black text-white">
-      <main className={isFullScreen ? '' : 'max-w-4xl mx-auto p-4'}>
+      <ConnectionStatus />
+      <Suspense fallback={<LoadingSpinner />}>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/individual" element={<IndividualGames />} />
-          <Route path="/individual/:id" element={<IndividualGameScoring />} />
-          <Route path="/team-match" element={<TeamMatchGames />} />
-          <Route path="/team-match/:id" element={<TeamMatchScoring />} />
-          <Route path="/random-league" element={<RandomTeamLeagues />} />
-          <Route path="/random-league/:id" element={<RandomTeamLeagueDetail />} />
+          <Route path="/" element={<ModeSelector />} />
+          <Route path="/admin/*" element={<AdminRoutes />} />
+          <Route path="/referee/*" element={<RefereeRoutes />} />
+          <Route path="/spectator/*" element={<SpectatorRoutes />} />
         </Routes>
-      </main>
+      </Suspense>
     </div>
   );
 }

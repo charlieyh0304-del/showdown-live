@@ -1,411 +1,376 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ref, onValue, set, push, remove, update } from 'firebase/database';
 import { database } from '../config/firebase';
-import type { Player, Referee, Court, IndividualGame, TeamMatchGame, RandomTeamLeague, TeamMatch, IndividualMatch } from '../types';
-import { checkTeamMatchWinner } from '../types';
+import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
 
-// 선수 목록 훅
+// ===== 선수 =====
 export function usePlayers() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const playersRef = ref(database, 'players');
-    const unsubscribe = onValue(playersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const playerList = Object.entries(data).map(([id, player]) => ({
-          id,
-          ...(player as Omit<Player, 'id'>),
-        }));
-        setPlayers(playerList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-      } else {
-        setPlayers([]);
-      }
+    const unsub = onValue(ref(database, 'players'), (snap) => {
+      const data = snap.val();
+      setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  return { players, loading };
+  const addPlayer = useCallback(async (player: Omit<Player, 'id' | 'createdAt'>) => {
+    const newRef = push(ref(database, 'players'));
+    await set(newRef, { ...player, createdAt: Date.now() });
+    return newRef.key;
+  }, []);
+
+  const updatePlayer = useCallback(async (id: string, data: Partial<Player>) => {
+    await update(ref(database, `players/${id}`), data);
+  }, []);
+
+  const deletePlayer = useCallback(async (id: string) => {
+    await remove(ref(database, `players/${id}`));
+  }, []);
+
+  return { players, loading, addPlayer, updatePlayer, deletePlayer };
 }
 
-// 심판 목록 훅
+// ===== 심판 =====
 export function useReferees() {
   const [referees, setReferees] = useState<Referee[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const refereesRef = ref(database, 'referees');
-    const unsubscribe = onValue(refereesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const refereeList = Object.entries(data).map(([id, referee]) => ({
-          id,
-          ...(referee as Omit<Referee, 'id'>),
-        }));
-        setReferees(refereeList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-      } else {
-        setReferees([]);
-      }
+    const unsub = onValue(ref(database, 'referees'), (snap) => {
+      const data = snap.val();
+      setReferees(data ? Object.entries(data).map(([id, r]) => ({ id, ...(r as Omit<Referee, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  return { referees, loading };
+  const addReferee = useCallback(async (referee: Omit<Referee, 'id' | 'createdAt'>) => {
+    const newRef = push(ref(database, 'referees'));
+    await set(newRef, { ...referee, createdAt: Date.now() });
+    return newRef.key;
+  }, []);
+
+  const updateReferee = useCallback(async (id: string, data: Partial<Referee>) => {
+    await update(ref(database, `referees/${id}`), data);
+  }, []);
+
+  const deleteReferee = useCallback(async (id: string) => {
+    await remove(ref(database, `referees/${id}`));
+  }, []);
+
+  return { referees, loading, addReferee, updateReferee, deleteReferee };
 }
 
-// 경기장 목록 훅
+// ===== 경기장 =====
 export function useCourts() {
   const [courts, setCourts] = useState<Court[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const courtsRef = ref(database, 'courts');
-    const unsubscribe = onValue(courtsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const courtList = Object.entries(data).map(([id, court]) => ({
-          id,
-          ...(court as Omit<Court, 'id'>),
-        }));
-        setCourts(courtList.sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-      } else {
-        setCourts([]);
-      }
+    const unsub = onValue(ref(database, 'courts'), (snap) => {
+      const data = snap.val();
+      setCourts(data ? Object.entries(data).map(([id, c]) => ({ id, ...(c as Omit<Court, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  return { courts, loading };
-}
-
-// 개인전 목록 훅
-export function useIndividualGames() {
-  const [games, setGames] = useState<IndividualGame[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const gamesRef = ref(database, 'individualGames');
-    const unsubscribe = onValue(gamesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const gameList = Object.entries(data).map(([id, game]) => ({
-          id,
-          ...(game as Omit<IndividualGame, 'id'>),
-        }));
-        setGames(gameList.sort((a, b) => b.createdAt - a.createdAt));
-      } else {
-        setGames([]);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const addGame = useCallback(async (game: Omit<IndividualGame, 'id'>) => {
-    const gamesRef = ref(database, 'individualGames');
-    const newRef = push(gamesRef);
-    await set(newRef, game);
+  const addCourt = useCallback(async (court: Omit<Court, 'id' | 'createdAt'>) => {
+    const newRef = push(ref(database, 'courts'));
+    await set(newRef, { ...court, createdAt: Date.now() });
     return newRef.key;
   }, []);
 
-  const deleteGame = useCallback(async (id: string) => {
-    const gameRef = ref(database, `individualGames/${id}`);
-    await remove(gameRef);
+  const updateCourt = useCallback(async (id: string, data: Partial<Court>) => {
+    await update(ref(database, `courts/${id}`), data);
   }, []);
 
-  return { games, loading, addGame, deleteGame };
+  const deleteCourt = useCallback(async (id: string) => {
+    await remove(ref(database, `courts/${id}`));
+  }, []);
+
+  return { courts, loading, addCourt, updateCourt, deleteCourt };
 }
 
-// 단일 개인전 구독 훅
-export function useIndividualGame(gameId: string | null) {
-  const [game, setGame] = useState<IndividualGame | null>(null);
+// ===== 대회 =====
+export function useTournaments() {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!gameId) {
-      setGame(null);
-      setLoading(false);
-      return;
-    }
-    const gameRef = ref(database, `individualGames/${gameId}`);
-    const unsubscribe = onValue(gameRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setGame({ id: gameId, ...data });
-      } else {
-        setGame(null);
-      }
+    const unsub = onValue(ref(database, 'tournaments'), (snap) => {
+      const data = snap.val();
+      setTournaments(data ? Object.entries(data).map(([id, t]) => ({ id, ...(t as Omit<Tournament, 'id'>) })).sort((a, b) => b.createdAt - a.createdAt) : []);
       setLoading(false);
     });
-    return () => unsubscribe();
-  }, [gameId]);
-
-  const updateGame = useCallback(async (data: Partial<IndividualGame>) => {
-    if (!gameId) return;
-    const gameRef = ref(database, `individualGames/${gameId}`);
-    await update(gameRef, data);
-  }, [gameId]);
-
-  return { game, loading, updateGame };
-}
-
-// 팀전 목록 훅
-export function useTeamMatchGames() {
-  const [games, setGames] = useState<TeamMatchGame[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const gamesRef = ref(database, 'teamMatchGames');
-    const unsubscribe = onValue(gamesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const gameList = Object.entries(data).map(([id, game]) => ({
-          id,
-          ...(game as Omit<TeamMatchGame, 'id'>),
-        }));
-        setGames(gameList.sort((a, b) => b.createdAt - a.createdAt));
-      } else {
-        setGames([]);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  const addGame = useCallback(async (game: Omit<TeamMatchGame, 'id'>) => {
-    const gamesRef = ref(database, 'teamMatchGames');
-    const newRef = push(gamesRef);
-    await set(newRef, game);
+  const addTournament = useCallback(async (tournament: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newRef = push(ref(database, 'tournaments'));
+    const now = Date.now();
+    await set(newRef, { ...tournament, createdAt: now, updatedAt: now });
     return newRef.key;
   }, []);
 
-  const deleteGame = useCallback(async (id: string) => {
-    const gameRef = ref(database, `teamMatchGames/${id}`);
-    await remove(gameRef);
+  const updateTournament = useCallback(async (id: string, data: Partial<Tournament>) => {
+    await update(ref(database, `tournaments/${id}`), { ...data, updatedAt: Date.now() });
   }, []);
 
-  return { games, loading, addGame, deleteGame };
+  const deleteTournament = useCallback(async (id: string) => {
+    // 대회 + 관련 경기 + 팀 + 스케줄 + 알림 삭제
+    const updates: Record<string, null> = {};
+    updates[`tournaments/${id}`] = null;
+    updates[`matches/${id}`] = null;
+    updates[`teams/${id}`] = null;
+    updates[`schedule/${id}`] = null;
+    updates[`tournamentPlayers/${id}`] = null;
+    updates[`tournamentReferees/${id}`] = null;
+    updates[`notifications/${id}`] = null;
+    await update(ref(database), updates);
+  }, []);
+
+  return { tournaments, loading, addTournament, updateTournament, deleteTournament };
 }
 
-// 단일 팀전 구독 훅
-export function useTeamMatchGame(gameId: string | null) {
-  const [game, setGame] = useState<TeamMatchGame | null>(null);
+// ===== 단일 대회 구독 =====
+export function useTournament(tournamentId: string | null) {
+  const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!gameId) {
-      setGame(null);
-      setLoading(false);
-      return;
-    }
-    const gameRef = ref(database, `teamMatchGames/${gameId}`);
-    const unsubscribe = onValue(gameRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setGame({ id: gameId, ...data });
-      } else {
-        setGame(null);
-      }
+    if (!tournamentId) { setTournament(null); setLoading(false); return; }
+    const unsub = onValue(ref(database, `tournaments/${tournamentId}`), (snap) => {
+      const data = snap.val();
+      setTournament(data ? { id: tournamentId, ...data } : null);
       setLoading(false);
     });
-    return () => unsubscribe();
-  }, [gameId]);
+    return () => unsub();
+  }, [tournamentId]);
 
-  const updateGame = useCallback(async (data: Partial<TeamMatchGame>) => {
-    if (!gameId) return;
-    const gameRef = ref(database, `teamMatchGames/${gameId}`);
-    await update(gameRef, data);
-  }, [gameId]);
+  const updateTournament = useCallback(async (data: Partial<Tournament>) => {
+    if (!tournamentId) return;
+    await update(ref(database, `tournaments/${tournamentId}`), { ...data, updatedAt: Date.now() });
+  }, [tournamentId]);
 
-  const updateIndividualMatch = useCallback(async (
-    matchIndex: number,
-    individualData: Partial<IndividualMatch>,
-    currentGame: TeamMatchGame,
-  ) => {
-    if (!gameId) return;
-
-    const updatedMatches = [...currentGame.matches];
-    updatedMatches[matchIndex] = { ...updatedMatches[matchIndex], ...individualData };
-
-    const updateData: Partial<TeamMatchGame> = { matches: updatedMatches };
-
-    if (!currentGame.winnerId) {
-      const winner = checkTeamMatchWinner(
-        updatedMatches,
-        currentGame.team1.id,
-        currentGame.team2.id,
-      );
-      if (winner) {
-        updateData.winnerId = winner;
-        updateData.status = 'completed';
-      } else if (currentGame.status === 'pending') {
-        updateData.status = 'in_progress';
-      }
-    }
-
-    const gameRef = ref(database, `teamMatchGames/${gameId}`);
-    await update(gameRef, updateData);
-  }, [gameId]);
-
-  return { game, loading, updateGame, updateIndividualMatch };
+  return { tournament, loading, updateTournament };
 }
 
-// 랜덤 팀 리그전 목록 훅
-export function useRandomTeamLeagues() {
-  const [leagues, setLeagues] = useState<RandomTeamLeague[]>([]);
+// ===== 대회별 경기 =====
+export function useMatches(tournamentId: string | null) {
+  const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const leaguesRef = ref(database, 'randomTeamLeagues');
-    const unsubscribe = onValue(leaguesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const leagueList = Object.entries(data).map(([id, league]) => ({
-          id,
-          ...(league as Omit<RandomTeamLeague, 'id'>),
-        }));
-        setLeagues(leagueList.sort((a, b) => b.createdAt - a.createdAt));
-      } else {
-        setLeagues([]);
-      }
+    if (!tournamentId) { setMatches([]); setLoading(false); return; }
+    const unsub = onValue(ref(database, `matches/${tournamentId}`), (snap) => {
+      const data = snap.val();
+      setMatches(data ? Object.entries(data).map(([id, m]) => ({ id, ...(m as Omit<Match, 'id'>) })).sort((a, b) => a.round - b.round) : []);
       setLoading(false);
     });
-    return () => unsubscribe();
-  }, []);
+    return () => unsub();
+  }, [tournamentId]);
 
-  const addLeague = useCallback(async (league: Omit<RandomTeamLeague, 'id' | 'createdAt'>) => {
-    const leaguesRef = ref(database, 'randomTeamLeagues');
-    const newRef = push(leaguesRef);
-    await set(newRef, { ...league, createdAt: Date.now() });
+  const addMatch = useCallback(async (match: Omit<Match, 'id'>) => {
+    if (!tournamentId) return null;
+    const newRef = push(ref(database, `matches/${tournamentId}`));
+    await set(newRef, match);
     return newRef.key;
-  }, []);
+  }, [tournamentId]);
 
-  const updateLeague = useCallback(async (id: string, data: Partial<RandomTeamLeague>) => {
-    const leagueRef = ref(database, `randomTeamLeagues/${id}`);
-    await update(leagueRef, data);
-  }, []);
+  const updateMatch = useCallback(async (matchId: string, data: Partial<Match>) => {
+    if (!tournamentId) return;
+    await update(ref(database, `matches/${tournamentId}/${matchId}`), { ...data, updatedAt: Date.now() });
+  }, [tournamentId]);
 
-  const deleteLeague = useCallback(async (id: string) => {
-    const leagueRef = ref(database, `randomTeamLeagues/${id}`);
-    await remove(leagueRef);
-    const matchesRef = ref(database, `teamMatches/${id}`);
-    await remove(matchesRef);
-  }, []);
+  const deleteMatch = useCallback(async (matchId: string) => {
+    if (!tournamentId) return;
+    await remove(ref(database, `matches/${tournamentId}/${matchId}`));
+  }, [tournamentId]);
 
-  return { leagues, loading, addLeague, updateLeague, deleteLeague };
-}
-
-// 단일 랜덤 팀 리그전 구독
-export function useRandomTeamLeague(leagueId: string | null) {
-  const [league, setLeague] = useState<RandomTeamLeague | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!leagueId) {
-      setLeague(null);
-      setLoading(false);
-      return;
-    }
-    const leagueRef = ref(database, `randomTeamLeagues/${leagueId}`);
-    const unsubscribe = onValue(leagueRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setLeague({ id: leagueId, ...data });
-      } else {
-        setLeague(null);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [leagueId]);
-
-  const updateLeague = useCallback(async (data: Partial<RandomTeamLeague>) => {
-    if (!leagueId) return;
-    const leagueRef = ref(database, `randomTeamLeagues/${leagueId}`);
-    await update(leagueRef, data);
-  }, [leagueId]);
-
-  return { league, loading, updateLeague };
-}
-
-// 팀 경기 관리 훅 (리그전 내)
-export function useTeamMatches(leagueId: string | null) {
-  const [teamMatches, setTeamMatches] = useState<TeamMatch[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!leagueId) {
-      setTeamMatches([]);
-      setLoading(false);
-      return;
-    }
-    const matchesRef = ref(database, `teamMatches/${leagueId}`);
-    const unsubscribe = onValue(matchesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const matchList = Object.entries(data).map(([id, match]) => ({
-          id,
-          ...(match as Omit<TeamMatch, 'id'>),
-        }));
-        setTeamMatches(matchList.sort((a, b) => a.round - b.round));
-      } else {
-        setTeamMatches([]);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [leagueId]);
-
-  const updateTeamMatch = useCallback(async (matchId: string, data: Partial<TeamMatch>) => {
-    if (!leagueId) return;
-    const matchRef = ref(database, `teamMatches/${leagueId}/${matchId}`);
-    await update(matchRef, data);
-  }, [leagueId]);
-
-  const updateIndividualMatch = useCallback(async (
-    teamMatchId: string,
-    matchIndex: number,
-    individualData: Partial<IndividualMatch>,
-    teamMatch: TeamMatch,
-  ) => {
-    if (!leagueId) return;
-
-    const updatedMatches = [...teamMatch.matches];
-    updatedMatches[matchIndex] = { ...updatedMatches[matchIndex], ...individualData };
-
-    const updateData: Partial<TeamMatch> = { matches: updatedMatches };
-
-    if (!teamMatch.winnerId) {
-      const winner = checkTeamMatchWinner(
-        updatedMatches,
-        teamMatch.team1Id,
-        teamMatch.team2Id,
-      );
-      if (winner) {
-        updateData.winnerId = winner;
-        updateData.status = 'completed';
-      } else if (teamMatch.status === 'pending') {
-        updateData.status = 'in_progress';
-      }
-    }
-
-    const matchRef = ref(database, `teamMatches/${leagueId}/${teamMatchId}`);
-    await update(matchRef, updateData);
-  }, [leagueId]);
-
-  const setTeamMatchesBulk = useCallback(async (newMatches: Omit<TeamMatch, 'id'>[]) => {
-    if (!leagueId) return;
-    const matchesRef = ref(database, `teamMatches/${leagueId}`);
-    await remove(matchesRef);
+  const setMatchesBulk = useCallback(async (newMatches: Omit<Match, 'id'>[]) => {
+    if (!tournamentId) return;
+    await remove(ref(database, `matches/${tournamentId}`));
     for (const match of newMatches) {
-      const newRef = push(matchesRef);
+      const newRef = push(ref(database, `matches/${tournamentId}`));
       await set(newRef, match);
     }
-  }, [leagueId]);
+  }, [tournamentId]);
 
-  return { teamMatches, loading, updateTeamMatch, updateIndividualMatch, setTeamMatchesBulk };
+  return { matches, loading, addMatch, updateMatch, deleteMatch, setMatchesBulk };
+}
+
+// ===== 단일 경기 구독 =====
+export function useMatch(tournamentId: string | null, matchId: string | null) {
+  const [match, setMatch] = useState<Match | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tournamentId || !matchId) { setMatch(null); setLoading(false); return; }
+    const unsub = onValue(ref(database, `matches/${tournamentId}/${matchId}`), (snap) => {
+      const data = snap.val();
+      setMatch(data ? { id: matchId, ...data } : null);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [tournamentId, matchId]);
+
+  const updateMatch = useCallback(async (data: Partial<Match>) => {
+    if (!tournamentId || !matchId) return;
+    await update(ref(database, `matches/${tournamentId}/${matchId}`), { ...data, updatedAt: Date.now() });
+  }, [tournamentId, matchId]);
+
+  return { match, loading, updateMatch };
+}
+
+// ===== 대회별 팀 =====
+export function useTeams(tournamentId: string | null) {
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tournamentId) { setTeams([]); setLoading(false); return; }
+    const unsub = onValue(ref(database, `teams/${tournamentId}`), (snap) => {
+      const data = snap.val();
+      setTeams(data ? Object.entries(data).map(([id, t]) => ({ id, ...(t as Omit<Team, 'id'>) })) : []);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [tournamentId]);
+
+  const setTeamsBulk = useCallback(async (newTeams: Team[]) => {
+    if (!tournamentId) return;
+    await remove(ref(database, `teams/${tournamentId}`));
+    for (const team of newTeams) {
+      await set(ref(database, `teams/${tournamentId}/${team.id}`), team);
+    }
+  }, [tournamentId]);
+
+  return { teams, loading, setTeamsBulk };
+}
+
+// ===== 대회별 참가 선수 =====
+export function useTournamentPlayers(tournamentId: string | null) {
+  const [playerIds, setPlayerIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tournamentId) { setPlayerIds([]); setLoading(false); return; }
+    const unsub = onValue(ref(database, `tournamentPlayers/${tournamentId}`), (snap) => {
+      const data = snap.val();
+      setPlayerIds(data ? Object.keys(data) : []);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [tournamentId]);
+
+  const setTournamentPlayers = useCallback(async (ids: string[]) => {
+    if (!tournamentId) return;
+    const data: Record<string, boolean> = {};
+    ids.forEach(id => { data[id] = true; });
+    await set(ref(database, `tournamentPlayers/${tournamentId}`), data);
+  }, [tournamentId]);
+
+  return { playerIds, loading, setTournamentPlayers };
+}
+
+// ===== 대회별 심판 배정 =====
+export function useTournamentReferees(tournamentId: string | null) {
+  const [assignments, setAssignments] = useState<Record<string, { assignedMatchIds: string[] }>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tournamentId) { setAssignments({}); setLoading(false); return; }
+    const unsub = onValue(ref(database, `tournamentReferees/${tournamentId}`), (snap) => {
+      setAssignments(snap.val() || {});
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [tournamentId]);
+
+  const assignRefereeToMatch = useCallback(async (refereeId: string, matchIds: string[]) => {
+    if (!tournamentId) return;
+    await set(ref(database, `tournamentReferees/${tournamentId}/${refereeId}`), { assignedMatchIds: matchIds });
+  }, [tournamentId]);
+
+  return { assignments, loading, assignRefereeToMatch };
+}
+
+// ===== 스케줄 =====
+export function useSchedule(tournamentId: string | null) {
+  const [schedule, setSchedule] = useState<ScheduleSlot[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tournamentId) { setSchedule([]); setLoading(false); return; }
+    const unsub = onValue(ref(database, `schedule/${tournamentId}`), (snap) => {
+      const data = snap.val();
+      setSchedule(data ? Object.entries(data).map(([id, s]) => ({ id, ...(s as Omit<ScheduleSlot, 'id'>) })).sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)) : []);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [tournamentId]);
+
+  const setScheduleBulk = useCallback(async (slots: Omit<ScheduleSlot, 'id'>[]) => {
+    if (!tournamentId) return;
+    await remove(ref(database, `schedule/${tournamentId}`));
+    for (const slot of slots) {
+      const newRef = push(ref(database, `schedule/${tournamentId}`));
+      await set(newRef, slot);
+    }
+  }, [tournamentId]);
+
+  return { schedule, loading, setScheduleBulk };
+}
+
+// ===== 알림 =====
+export function useNotifications(tournamentId: string | null) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    if (!tournamentId) { setNotifications([]); return; }
+    const unsub = onValue(ref(database, `notifications/${tournamentId}`), (snap) => {
+      const data = snap.val();
+      setNotifications(data ? Object.entries(data).map(([id, n]) => ({ id, ...(n as Omit<Notification, 'id'>) })).sort((a, b) => b.timestamp - a.timestamp) : []);
+    });
+    return () => unsub();
+  }, [tournamentId]);
+
+  const addNotification = useCallback(async (notif: Omit<Notification, 'id'>) => {
+    if (!tournamentId) return;
+    const newRef = push(ref(database, `notifications/${tournamentId}`));
+    await set(newRef, notif);
+  }, [tournamentId]);
+
+  return { notifications, addNotification };
+}
+
+// ===== 즐겨찾기 (localStorage 기반) =====
+export function useFavorites() {
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('showdown_favorites');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleFavorite = useCallback((playerId: string) => {
+    setFavoriteIds(prev => {
+      const next = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+      localStorage.setItem('showdown_favorites', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const isFavorite = useCallback((playerId: string) => {
+    return favoriteIds.includes(playerId);
+  }, [favoriteIds]);
+
+  return { favoriteIds, toggleFavorite, isFavorite };
 }
