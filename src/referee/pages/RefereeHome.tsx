@@ -88,7 +88,12 @@ export default function RefereeHome() {
                       aria-label={`${getMatchLabel(match)} - ${STATUS_LABELS[match.status]}`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-lg font-bold">{getMatchLabel(match)}</span>
+                        <div className="flex items-center gap-2">
+                          {match.type === 'team' && (
+                            <span className="px-2 py-0.5 rounded bg-purple-700 text-purple-100 text-xs font-bold">팀전</span>
+                          )}
+                          <span className="text-lg font-bold">{getMatchLabel(match)}</span>
+                        </div>
                         <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
                           {STATUS_LABELS[match.status]}
                         </span>

@@ -150,6 +150,17 @@ function LiveTab({
           );
         }
         prevScoresRef.current.set(key, scoreStr);
+      } else if (match.type === 'team' && match.sets && match.sets.length > 0) {
+        const setData = match.sets[0];
+        const key = match.id;
+        const scoreStr = `${setData.player1Score}-${setData.player2Score}`;
+        const prev = prevScoresRef.current.get(key);
+        if (prev && prev !== scoreStr) {
+          setAnnouncement(
+            `${match.team1Name || '팀1'} ${setData.player1Score}점, ${match.team2Name || '팀2'} ${setData.player2Score}점`
+          );
+        }
+        prevScoresRef.current.set(key, scoreStr);
       }
     }
   }, [liveMatches]);
@@ -292,23 +303,22 @@ function IndividualMatchCard({
 }
 
 function TeamMatchCard({ match }: { match: Match }) {
-  const completedCount = match.individualMatches?.filter((m) => m.status === 'completed').length ?? 0;
-  const totalCount = match.individualMatches?.length ?? 0;
-  const team1Wins = match.individualMatches?.filter((m) => m.status === 'completed' && m.winnerId === m.player1Id).length ?? 0;
-  const team2Wins = match.individualMatches?.filter((m) => m.status === 'completed' && m.winnerId === m.player2Id).length ?? 0;
+  const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
+  const team1Score = setData?.player1Score ?? 0;
+  const team2Score = setData?.player2Score ?? 0;
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team1Name || '팀1'}</span>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
-            <span style={{ color: 'var(--color-primary)' }}>{team1Wins}</span>
+          <div className="score-display" style={{ fontSize: '3rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ color: 'var(--color-primary)' }}>{team1Score}</span>
             <span style={{ color: '#6b7280', margin: '0 0.25rem' }}>-</span>
-            <span style={{ color: 'var(--color-secondary)' }}>{team2Wins}</span>
+            <span style={{ color: 'var(--color-secondary)' }}>{team2Score}</span>
           </div>
           <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-            {completedCount}/{totalCount} 경기 완료
+            31점 경기
           </div>
         </div>
         <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team2Name || '팀2'}</span>
@@ -452,52 +462,49 @@ function IndividualBracket({ matches }: { matches: Match[] }) {
 function TeamBracket({ matches }: { matches: Match[] }) {
   return (
     <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {matches.map((match) => (
-        <li key={match.id} className="card" style={{ border: match.status === 'completed' ? '2px solid #16a34a' : '1px solid #1f2937' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
-              {match.team1Name || '팀1'} vs {match.team2Name || '팀2'}
-            </span>
-            <span style={{
-              padding: '0.25rem 0.5rem',
-              borderRadius: '0.25rem',
-              fontSize: '0.75rem',
-              fontWeight: 'bold',
-              backgroundColor: match.status === 'completed' ? '#16a34a' : match.status === 'in_progress' ? '#dc2626' : '#6b7280',
-              color: '#fff',
-            }}>
-              {match.status === 'completed' ? '완료' : match.status === 'in_progress' ? '진행중' : '대기'}
-            </span>
-          </div>
+      {matches.map((match) => {
+        const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
 
-          {/* Individual matches within team match */}
-          {match.individualMatches && match.individualMatches.length > 0 && (
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {match.individualMatches.map((im, idx) => (
-                <li
-                  key={im.id || idx}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.5rem',
-                    backgroundColor: im.status === 'completed' ? '#14532d' : '#1f2937',
-                    borderRadius: '0.25rem',
-                  }}
-                >
-                  <span>{im.player1Name || '선수1'}</span>
-                  <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
-                    {im.status === 'completed'
-                      ? `${im.player1Score} - ${im.player2Score}`
-                      : '대기중'}
+        return (
+          <li
+            key={match.id}
+            className="card"
+            style={{ border: match.status === 'completed' ? '2px solid #16a34a' : '1px solid #1f2937' }}
+            aria-label={`${match.team1Name || '팀1'} 대 ${match.team2Name || '팀2'}, ${match.status === 'completed' ? '완료' : match.status === 'in_progress' ? '진행중' : '대기'}`}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '1.25rem', fontWeight: 'bold', flex: 1 }}>
+                {match.team1Name || '팀1'}
+              </span>
+              <div style={{ textAlign: 'center', minWidth: '120px' }}>
+                {match.status !== 'pending' && setData ? (
+                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ color: 'var(--color-primary)' }}>{setData.player1Score}</span>
+                    <span style={{ color: '#6b7280', margin: '0 0.25rem' }}>-</span>
+                    <span style={{ color: 'var(--color-secondary)' }}>{setData.player2Score}</span>
                   </span>
-                  <span>{im.player2Name || '선수2'}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </li>
-      ))}
+                ) : (
+                  <span style={{ color: '#9ca3af' }}>vs</span>
+                )}
+              </div>
+              <span style={{ fontSize: '1.25rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                {match.team2Name || '팀2'}
+              </span>
+              <span style={{
+                padding: '0.25rem 0.5rem',
+                borderRadius: '0.25rem',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                backgroundColor: match.status === 'completed' ? '#16a34a' : match.status === 'in_progress' ? '#dc2626' : '#6b7280',
+                color: '#fff',
+                marginLeft: '0.75rem',
+              }}>
+                {match.status === 'completed' ? '완료' : match.status === 'in_progress' ? '진행중' : '대기'}
+              </span>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -599,8 +606,8 @@ function TeamRankingTable({ matches }: { matches: Match[] }) {
             <th scope="col" style={{ ...thStyle, textAlign: 'left' }}>팀명</th>
             <th scope="col" style={thStyle}>승</th>
             <th scope="col" style={thStyle}>패</th>
-            <th scope="col" style={thStyle}>개인승</th>
-            <th scope="col" style={thStyle}>개인패</th>
+            <th scope="col" style={thStyle}>득점</th>
+            <th scope="col" style={thStyle}>실점</th>
           </tr>
         </thead>
         <tbody>
@@ -610,8 +617,8 @@ function TeamRankingTable({ matches }: { matches: Match[] }) {
               <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 'bold' }}>{r.teamName}</td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}>{r.wins}</td>
               <td style={{ ...tdStyle, color: 'var(--color-danger)' }}>{r.losses}</td>
-              <td style={tdStyle}>{r.individualWins}</td>
-              <td style={tdStyle}>{r.individualLosses}</td>
+              <td style={tdStyle}>{r.pointsFor}</td>
+              <td style={tdStyle}>{r.pointsAgainst}</td>
             </tr>
           ))}
         </tbody>
@@ -685,10 +692,9 @@ function HistoryTab({
                       세트 {setWins.player1} - {setWins.player2}
                     </p>
                   )}
-                  {!isIndividual && match.individualMatches && (
+                  {!isIndividual && match.sets && match.sets.length > 0 && (
                     <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                      {match.individualMatches.filter((m) => m.winnerId === m.player1Id).length} -{' '}
-                      {match.individualMatches.filter((m) => m.winnerId === m.player2Id).length}
+                      {match.sets[0].player1Score} - {match.sets[0].player2Score}
                     </p>
                   )}
                 </div>

@@ -21,14 +21,14 @@ export interface Tournament {
 
 // ===== 게임 설정 =====
 export interface GameConfig {
-  winScore: 11 | 21 | 31;
+  winScore: number;
   setsToWin: number;
 }
 
 export interface TeamMatchSettings {
-  setsToWin: 1 | 2 | 3;
-  winScore: 11 | 21 | 31;
-  minLead: 2;
+  setsToWin: number;
+  winScore: number;
+  minLead: number;
 }
 
 // ===== 선수 =====
@@ -100,6 +100,7 @@ export interface Match {
   team2Name?: string;
   team1?: Team;
   team2?: Team;
+  // @deprecated - 이전 NxN 방식 호환용. 새 팀전은 sets[] 사용
   individualMatches?: IndividualMatch[];
   createdAt: number;
   updatedAt?: number;
@@ -113,7 +114,7 @@ export interface Team {
   memberNames?: string[];
 }
 
-// ===== 팀전 내 개별 경기 =====
+// ===== 팀전 내 개별 경기 (레거시 호환용) =====
 export interface IndividualMatch {
   id: string;
   player1Id: string;
@@ -182,8 +183,8 @@ export interface TeamRanking {
   played: number;
   wins: number;
   losses: number;
-  individualWins: number;
-  individualLosses: number;
+  pointsFor: number;
+  pointsAgainst: number;
   rank: number;
 }
 

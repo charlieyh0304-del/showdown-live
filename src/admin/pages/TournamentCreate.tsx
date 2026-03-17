@@ -3,14 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useTournaments } from '@shared/hooks/useFirebase';
 import type { TournamentType, GameConfig, TeamMatchSettings } from '@shared/types';
 
-const TYPE_OPTIONS: { value: TournamentType; label: string }[] = [
-  { value: 'individual', label: '개인전' },
-  { value: 'team', label: '팀전' },
-  { value: 'randomTeamLeague', label: '랜덤 팀리그전' },
+const TYPE_OPTIONS: { value: TournamentType; label: string; rules: string }[] = [
+  { value: 'individual', label: '개인전', rules: '11점 | 2세트 선승 (최대 3세트) | 2점차' },
+  { value: 'team', label: '팀전', rules: '31점 | 1세트 | 팀 3명 로테이션 | 2점차' },
+  { value: 'randomTeamLeague', label: '랜덤 팀리그전', rules: '31점 | 1세트 | 팀 3명 | 풀리그 | 2점차' },
 ];
-
-const WIN_SCORE_OPTIONS = [11, 21, 31] as const;
-const SETS_TO_WIN_OPTIONS = [1, 2, 3] as const;
 
 export default function TournamentCreate() {
   const navigate = useNavigate();
@@ -19,12 +16,10 @@ export default function TournamentCreate() {
   const [name, setName] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [type, setType] = useState<TournamentType>('individual');
-  const [winScore, setWinScore] = useState<11 | 21 | 31>(11);
-  const [setsToWin, setSetsToWin] = useState<number>(2);
-  const [teamWinScore, setTeamWinScore] = useState<11 | 21 | 31>(11);
-  const [teamSetsToWin, setTeamSetsToWin] = useState<1 | 2 | 3>(2);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const selectedTypeOption = TYPE_OPTIONS.find(t => t.value === type)!;
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,10 +32,14 @@ export default function TournamentCreate() {
 
     setSaving(true);
     try {
-      const gameConfig: GameConfig = { winScore, setsToWin };
       const isTeamType = type === 'team' || type === 'randomTeamLeague';
+
+      const gameConfig: GameConfig = isTeamType
+        ? { winScore: 31, setsToWin: 1 }
+        : { winScore: 11, setsToWin: 2 };
+
       const teamMatchSettings: TeamMatchSettings | undefined = isTeamType
-        ? { winScore: teamWinScore, setsToWin: teamSetsToWin, minLead: 2 }
+        ? { winScore: 31, setsToWin: 1, minLead: 2 }
         : undefined;
 
       const id = await addTournament({
@@ -61,9 +60,7 @@ export default function TournamentCreate() {
     } finally {
       setSaving(false);
     }
-  }, [name, date, type, winScore, setsToWin, teamWinScore, teamSetsToWin, addTournament, navigate]);
-
-  const isTeamType = type === 'team' || type === 'randomTeamLeague';
+  }, [name, date, type, addTournament, navigate]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -126,87 +123,10 @@ export default function TournamentCreate() {
           </button>
         </div>
 
-        <div className="card space-y-4">
-          <h2 className="text-xl font-bold">게임 설정 (개인전)</h2>
-
-          <div>
-            <p className="mb-2 font-semibold">승점</p>
-            <div className="flex gap-3">
-              {WIN_SCORE_OPTIONS.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`btn flex-1 ${winScore === s ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                  onClick={() => setWinScore(s)}
-                  aria-pressed={winScore === s}
-                  aria-label={`승점 ${s}점`}
-                >
-                  {s}점
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 font-semibold">세트 선승</p>
-            <div className="flex gap-3">
-              {SETS_TO_WIN_OPTIONS.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`btn flex-1 ${setsToWin === s ? 'btn-secondary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                  onClick={() => setSetsToWin(s)}
-                  aria-pressed={setsToWin === s}
-                  aria-label={`${s}세트 선승`}
-                >
-                  {s}세트
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="card space-y-2">
+          <h2 className="text-xl font-bold">경기 규칙</h2>
+          <p className="text-lg text-cyan-400 font-semibold">{selectedTypeOption.rules}</p>
         </div>
-
-        {isTeamType && (
-          <div className="card space-y-4">
-            <h2 className="text-xl font-bold">팀전 경기 설정</h2>
-
-            <div>
-              <p className="mb-2 font-semibold">승점</p>
-              <div className="flex gap-3">
-                {WIN_SCORE_OPTIONS.map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`btn flex-1 ${teamWinScore === s ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                    onClick={() => setTeamWinScore(s)}
-                    aria-pressed={teamWinScore === s}
-                    aria-label={`팀전 승점 ${s}점`}
-                  >
-                    {s}점
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 font-semibold">세트 선승</p>
-              <div className="flex gap-3">
-                {SETS_TO_WIN_OPTIONS.map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`btn flex-1 ${teamSetsToWin === s ? 'btn-secondary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                    onClick={() => setTeamSetsToWin(s)}
-                    aria-pressed={teamSetsToWin === s}
-                    aria-label={`팀전 ${s}세트 선승`}
-                  >
-                    {s}세트
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
 

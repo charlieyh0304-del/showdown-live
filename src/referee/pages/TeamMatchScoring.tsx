@@ -1,70 +1,136 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '@shared/hooks/useFirebase';
-import { checkTeamMatchWinner } from '@shared/utils/scoring';
-import type { IndividualMatch } from '@shared/types';
+import {
+  checkSetWinner,
+  createEmptySet,
+} from '@shared/utils/scoring';
 
-interface EditingState {
-  index: number;
-  player1Score: number;
-  player2Score: number;
-}
+// 팀전: 31점, 1세트, 2점 차
+const TEAM_GAME_CONFIG = {
+  SETS_TO_WIN: 1,
+  MAX_SETS: 1,
+  POINTS_TO_WIN: 31,
+  MIN_POINT_DIFF: 2,
+} as const;
 
 export default function TeamMatchScoring() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
   const navigate = useNavigate();
-  const { match, loading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
+  const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
 
-  const [editing, setEditing] = useState<EditingState | null>(null);
+  const [timeoutRemaining, setTimeoutRemaining] = useState<number | null>(null);
 
-  const handleStartEdit = useCallback((index: number, im: IndividualMatch) => {
-    setEditing({
-      index,
-      player1Score: im.player1Score,
-      player2Score: im.player2Score,
+  // Timeout countdown
+  useEffect(() => {
+    if (!match?.activeTimeout) {
+      setTimeoutRemaining(null);
+      return;
+    }
+    const updateTimer = () => {
+      const elapsed = Math.floor((Date.now() - match.activeTimeout!.startTime) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      setTimeoutRemaining(remaining);
+      if (remaining <= 0) {
+        updateMatch({ activeTimeout: null });
+      }
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [match?.activeTimeout, updateMatch]);
+
+  const handleStartMatch = useCallback(async () => {
+    if (!match) return;
+    await updateMatch({
+      status: 'in_progress',
+      sets: [createEmptySet()],
+      currentSet: 0,
+      player1Timeouts: 0,
+      player2Timeouts: 0,
+      activeTimeout: null,
     });
-  }, []);
+  }, [match, updateMatch]);
 
-  const handleCancelEdit = useCallback(() => {
-    setEditing(null);
-  }, []);
+  const handleScore = useCallback(async (team: 1 | 2, delta: number) => {
+    if (!match?.sets || match.currentSet === undefined) return;
+    const sets = [...match.sets.map(s => ({ ...s }))];
+    const currentSet = { ...sets[0] };
 
-  const handleSave = useCallback(async () => {
-    if (!editing || !match?.individualMatches || !match.team1Id || !match.team2Id) return;
-
-    const individualMatches = match.individualMatches.map((im, i) => {
-      if (i !== editing.index) return { ...im };
-      const winnerId =
-        editing.player1Score > editing.player2Score
-          ? im.player1Id
-          : editing.player2Score > editing.player1Score
-            ? im.player2Id
-            : undefined;
-      return {
-        ...im,
-        player1Score: editing.player1Score,
-        player2Score: editing.player2Score,
-        winnerId,
-        status: 'completed' as const,
-      };
-    });
-
-    const teamWinnerId = checkTeamMatchWinner(individualMatches, match.team1Id, match.team2Id);
-
-    if (teamWinnerId) {
-      await updateMatch({
-        individualMatches,
-        winnerId: teamWinnerId,
-        status: 'completed',
-      });
+    if (team === 1) {
+      currentSet.player1Score = Math.max(0, currentSet.player1Score + delta);
     } else {
-      await updateMatch({ individualMatches });
+      currentSet.player2Score = Math.max(0, currentSet.player2Score + delta);
     }
 
-    setEditing(null);
-  }, [editing, match, updateMatch]);
+    sets[0] = currentSet;
 
-  if (loading) {
+    // Check set winner (= match winner for team match, since 1 set)
+    const setWinner = checkSetWinner(currentSet.player1Score, currentSet.player2Score, TEAM_GAME_CONFIG);
+    if (setWinner && delta > 0) {
+      const winnerId = setWinner === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
+      currentSet.winnerId = winnerId;
+      sets[0] = currentSet;
+
+      await updateMatch({
+        sets,
+        status: 'completed',
+        winnerId,
+      });
+      return;
+    }
+
+    await updateMatch({ sets });
+  }, [match, updateMatch]);
+
+  const handleFault = useCallback(async (team: 1 | 2) => {
+    if (!match?.sets || match.currentSet === undefined) return;
+    const sets = [...match.sets.map(s => ({ ...s }))];
+    const currentSet = { ...sets[0] };
+    if (team === 1) {
+      currentSet.player1Faults += 1;
+    } else {
+      currentSet.player2Faults += 1;
+    }
+    sets[0] = currentSet;
+    await updateMatch({ sets });
+  }, [match, updateMatch]);
+
+  const handleViolation = useCallback(async (team: 1 | 2) => {
+    if (!match?.sets || match.currentSet === undefined) return;
+    const sets = [...match.sets.map(s => ({ ...s }))];
+    const currentSet = { ...sets[0] };
+    if (team === 1) {
+      currentSet.player1Violations += 1;
+    } else {
+      currentSet.player2Violations += 1;
+    }
+    sets[0] = currentSet;
+    await updateMatch({ sets });
+  }, [match, updateMatch]);
+
+  const handleTimeout = useCallback(async (team: 1 | 2) => {
+    if (!match) return;
+    const usedTimeouts = team === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
+    if (usedTimeouts >= 1) return;
+
+    const teamId = team === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
+    const timeoutUpdate: Record<string, unknown> = {
+      activeTimeout: { playerId: teamId, startTime: Date.now() },
+    };
+    if (team === 1) {
+      timeoutUpdate.player1Timeouts = (match.player1Timeouts ?? 0) + 1;
+    } else {
+      timeoutUpdate.player2Timeouts = (match.player2Timeouts ?? 0) + 1;
+    }
+    await updateMatch(timeoutUpdate);
+  }, [match, updateMatch]);
+
+  const handleEndTimeout = useCallback(async () => {
+    await updateMatch({ activeTimeout: null });
+  }, [updateMatch]);
+
+  if (matchLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-2xl text-gray-400 animate-pulse">경기 로딩 중...</p>
@@ -85,17 +151,95 @@ export default function TeamMatchScoring() {
 
   const team1Name = match.team1Name ?? '팀1';
   const team2Name = match.team2Name ?? '팀2';
-  const individualMatches = match.individualMatches ?? [];
 
-  const team1Wins = individualMatches.filter(
-    im => im.status === 'completed' && im.winnerId === im.player1Id
-  ).length;
-  const team2Wins = individualMatches.filter(
-    im => im.status === 'completed' && im.winnerId === im.player2Id
-  ).length;
+  // PENDING state
+  if (match.status === 'pending') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
+        <h1 className="text-3xl font-bold text-yellow-400">팀전 경기 준비</h1>
+        <div className="flex items-center gap-8 text-2xl">
+          <span className="text-yellow-400 font-bold">{team1Name}</span>
+          <span className="text-gray-500">vs</span>
+          <span className="text-cyan-400 font-bold">{team2Name}</span>
+        </div>
+        <p className="text-lg text-gray-400">31점 단판 승부</p>
+        {match.courtName && (
+          <p className="text-gray-400 text-lg">코트: {match.courtName}</p>
+        )}
+        <button
+          className="btn btn-success btn-large text-4xl px-16 py-8"
+          onClick={handleStartMatch}
+          aria-label="경기 시작"
+        >
+          경기 시작
+        </button>
+        <button
+          className="btn btn-accent"
+          onClick={() => navigate('/referee/games')}
+          aria-label="목록으로 돌아가기"
+        >
+          목록으로
+        </button>
+      </div>
+    );
+  }
+
+  // COMPLETED state
+  if (match.status === 'completed') {
+    const winnerName = match.winnerId === match.team1Id ? team1Name : team2Name;
+    const finalSet = match.sets?.[0];
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
+        <h1 className="text-3xl font-bold text-yellow-400">팀전 경기 종료</h1>
+        <div className="text-4xl font-bold text-green-400">
+          {winnerName} 승리!
+        </div>
+        {finalSet && (
+          <div className="text-2xl text-gray-300">
+            최종 스코어: {finalSet.player1Score} - {finalSet.player2Score}
+          </div>
+        )}
+        <button
+          className="btn btn-primary btn-large"
+          onClick={() => navigate('/referee/games')}
+          aria-label="목록으로 돌아가기"
+        >
+          목록으로
+        </button>
+      </div>
+    );
+  }
+
+  // IN_PROGRESS state
+  const sets = match.sets ?? [createEmptySet()];
+  const currentSet = sets[0] ?? createEmptySet();
+  const t1TimeoutsUsed = match.player1Timeouts ?? 0;
+  const t2TimeoutsUsed = match.player2Timeouts ?? 0;
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Timeout overlay */}
+      {match.activeTimeout && timeoutRemaining !== null && (
+        <div className="modal-backdrop" style={{ zIndex: 100 }}>
+          <div className="flex flex-col items-center gap-8">
+            <h2 className="text-3xl font-bold text-yellow-400">타임아웃</h2>
+            <div className="score-large text-white" aria-live="polite">
+              {timeoutRemaining}
+            </div>
+            <p className="text-xl text-gray-300">
+              {match.activeTimeout.playerId === match.team1Id ? team1Name : team2Name}
+            </p>
+            <button
+              className="btn btn-danger btn-large"
+              onClick={handleEndTimeout}
+              aria-label="타임아웃 종료"
+            >
+              타임아웃 종료
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between">
@@ -106,161 +250,116 @@ export default function TeamMatchScoring() {
           >
             ← 목록
           </button>
-          <h1 className="text-xl font-bold text-yellow-400">팀전 점수 기록</h1>
-          <div />
+          <div className="text-center">
+            <div className="text-lg font-bold text-yellow-400">
+              팀전 (31점 단판)
+            </div>
+          </div>
+          <div className="text-sm text-gray-400 text-right">
+            {match.courtName && <div>{match.courtName}</div>}
+            {match.refereeName && <div>{match.refereeName}</div>}
+          </div>
         </div>
       </div>
 
-      {/* Team score */}
-      <div className="bg-gray-900 border-b border-gray-700 px-4 py-6">
-        <div className="flex items-center justify-center gap-8">
-          <div className="text-center">
-            <div className="text-xl font-bold text-yellow-400">{team1Name}</div>
-            <div className="score-display text-yellow-400" aria-label={`${team1Name} 승수 ${team1Wins}`}>
-              {team1Wins}
-            </div>
+      {/* Scoring area */}
+      <div className="flex-1 flex" aria-live="polite">
+        {/* Team 1 */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4 border-r border-gray-700">
+          <h2 className="text-2xl font-bold text-yellow-400">{team1Name}</h2>
+          <div className="score-display text-yellow-400" aria-label={`${team1Name} 점수 ${currentSet.player1Score}`}>
+            {currentSet.player1Score}
           </div>
-          <div className="text-3xl text-gray-500 font-bold">vs</div>
-          <div className="text-center">
-            <div className="text-xl font-bold text-cyan-400">{team2Name}</div>
-            <div className="score-display text-cyan-400" aria-label={`${team2Name} 승수 ${team2Wins}`}>
-              {team2Wins}
-            </div>
-          </div>
-        </div>
-
-        {match.status === 'completed' && match.winnerId && (
-          <div className="mt-4 text-center" aria-live="polite">
-            <div className="text-3xl font-bold text-green-400">
-              {match.winnerId === match.team1Id ? team1Name : team2Name} 승리!
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Individual matches */}
-      <div className="flex-1 p-4">
-        <h2 className="text-lg font-bold text-gray-300 mb-4">
-          개별 경기 ({individualMatches.filter(im => im.status === 'completed').length}/{individualMatches.length})
-        </h2>
-
-        {individualMatches.length === 0 ? (
-          <div className="card text-center py-8">
-            <p className="text-gray-400">개별 경기가 없습니다.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {individualMatches.map((im, index) => {
-              const isEditing = editing?.index === index;
-              const p1Name = im.player1Name ?? '선수1';
-              const p2Name = im.player2Name ?? '선수2';
-
-              return (
-                <div key={im.id} className="card">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-yellow-400 font-bold">{p1Name}</span>
-                    <span className="text-gray-500">vs</span>
-                    <span className="text-cyan-400 font-bold">{p2Name}</span>
-                  </div>
-
-                  {isEditing ? (
-                    <div>
-                      <div className="flex items-center justify-center gap-4 mb-4">
-                        <div className="flex flex-col items-center">
-                          <label className="text-sm text-gray-400 mb-1">{p1Name}</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={editing.player1Score}
-                            onChange={e =>
-                              setEditing(prev =>
-                                prev ? { ...prev, player1Score: Math.max(0, parseInt(e.target.value) || 0) } : null
-                              )
-                            }
-                            className="input text-center text-2xl w-24"
-                            aria-label={`${p1Name} 점수`}
-                          />
-                        </div>
-                        <span className="text-2xl text-gray-500 mt-6">-</span>
-                        <div className="flex flex-col items-center">
-                          <label className="text-sm text-gray-400 mb-1">{p2Name}</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={editing.player2Score}
-                            onChange={e =>
-                              setEditing(prev =>
-                                prev ? { ...prev, player2Score: Math.max(0, parseInt(e.target.value) || 0) } : null
-                              )
-                            }
-                            className="input text-center text-2xl w-24"
-                            aria-label={`${p2Name} 점수`}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          className="btn btn-success flex-1"
-                          onClick={handleSave}
-                          disabled={editing.player1Score === editing.player2Score}
-                          aria-label="저장"
-                        >
-                          저장
-                        </button>
-                        <button
-                          className="btn btn-danger flex-1"
-                          onClick={handleCancelEdit}
-                          aria-label="취소"
-                        >
-                          취소
-                        </button>
-                      </div>
-                      {editing.player1Score === editing.player2Score && (
-                        <p className="text-sm text-red-400 mt-2 text-center">동점은 허용되지 않습니다.</p>
-                      )}
-                    </div>
-                  ) : im.status === 'completed' ? (
-                    <div className="text-center">
-                      <div className="text-2xl font-bold">
-                        <span className="text-yellow-400">{im.player1Score}</span>
-                        <span className="text-gray-500"> - </span>
-                        <span className="text-cyan-400">{im.player2Score}</span>
-                      </div>
-                      <div className="text-sm text-green-400 mt-1">
-                        {im.winnerId === im.player1Id ? p1Name : p2Name} 승
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <button
-                        className="btn btn-primary btn-large w-full"
-                        onClick={() => handleStartEdit(index, im)}
-                        disabled={match.status === 'completed'}
-                        aria-label={`${p1Name} vs ${p2Name} 점수 입력`}
-                      >
-                        점수입력
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      {match.status === 'completed' && (
-        <div className="bg-gray-900 border-t border-gray-700 p-4">
           <button
-            className="btn btn-primary btn-large w-full"
-            onClick={() => navigate('/referee/games')}
-            aria-label="목록으로 돌아가기"
+            className="btn btn-success btn-large w-full text-4xl"
+            style={{ minHeight: '100px' }}
+            onClick={() => handleScore(1, 1)}
+            aria-label={`${team1Name} 득점`}
           >
-            목록으로
+            +1
+          </button>
+          <button
+            className="btn btn-danger w-full text-2xl"
+            onClick={() => handleScore(1, -1)}
+            disabled={currentSet.player1Score <= 0}
+            aria-label={`${team1Name} 점수 감소`}
+          >
+            -1
+          </button>
+          <div className="flex gap-2 w-full">
+            <button
+              className="btn btn-accent flex-1 text-sm"
+              onClick={() => handleFault(1)}
+              aria-label={`${team1Name} 폴트`}
+            >
+              폴트 ({currentSet.player1Faults})
+            </button>
+            <button
+              className="btn btn-accent flex-1 text-sm"
+              onClick={() => handleViolation(1)}
+              aria-label={`${team1Name} 반칙`}
+            >
+              반칙 ({currentSet.player1Violations})
+            </button>
+          </div>
+          <button
+            className="btn btn-secondary w-full"
+            onClick={() => handleTimeout(1)}
+            disabled={t1TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={`${team1Name} 타임아웃`}
+          >
+            타임아웃 ({t1TimeoutsUsed}/1)
           </button>
         </div>
-      )}
+
+        {/* Team 2 */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4">
+          <h2 className="text-2xl font-bold text-cyan-400">{team2Name}</h2>
+          <div className="score-display text-cyan-400" aria-label={`${team2Name} 점수 ${currentSet.player2Score}`}>
+            {currentSet.player2Score}
+          </div>
+          <button
+            className="btn btn-success btn-large w-full text-4xl"
+            style={{ minHeight: '100px' }}
+            onClick={() => handleScore(2, 1)}
+            aria-label={`${team2Name} 득점`}
+          >
+            +1
+          </button>
+          <button
+            className="btn btn-danger w-full text-2xl"
+            onClick={() => handleScore(2, -1)}
+            disabled={currentSet.player2Score <= 0}
+            aria-label={`${team2Name} 점수 감소`}
+          >
+            -1
+          </button>
+          <div className="flex gap-2 w-full">
+            <button
+              className="btn btn-accent flex-1 text-sm"
+              onClick={() => handleFault(2)}
+              aria-label={`${team2Name} 폴트`}
+            >
+              폴트 ({currentSet.player2Faults})
+            </button>
+            <button
+              className="btn btn-accent flex-1 text-sm"
+              onClick={() => handleViolation(2)}
+              aria-label={`${team2Name} 반칙`}
+            >
+              반칙 ({currentSet.player2Violations})
+            </button>
+          </div>
+          <button
+            className="btn btn-secondary w-full"
+            onClick={() => handleTimeout(2)}
+            disabled={t2TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={`${team2Name} 타임아웃`}
+          >
+            타임아웃 ({t2TimeoutsUsed}/1)
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

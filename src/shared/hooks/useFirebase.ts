@@ -253,29 +253,47 @@ export function useTeams(tournamentId: string | null) {
   return { teams, loading, setTeamsBulk };
 }
 
-// ===== 대회별 참가 선수 =====
-export function useTournamentPlayers(tournamentId: string | null) {
-  const [playerIds, setPlayerIds] = useState<string[]>([]);
+// ===== 대회별 참가 선수 (로컬 Player 객체 저장) =====
+export function useTournamentLocalPlayers(tournamentId: string | null) {
+  const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!tournamentId) { setPlayerIds([]); setLoading(false); return; }
+    if (!tournamentId) { setPlayers([]); setLoading(false); return; }
     const unsub = onValue(ref(database, `tournamentPlayers/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setPlayerIds(data ? Object.keys(data) : []);
+      setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
   }, [tournamentId]);
 
-  const setTournamentPlayers = useCallback(async (ids: string[]) => {
-    if (!tournamentId) return;
-    const data: Record<string, boolean> = {};
-    ids.forEach(id => { data[id] = true; });
-    await set(ref(database, `tournamentPlayers/${tournamentId}`), data);
+  const addPlayer = useCallback(async (player: Omit<Player, 'id' | 'createdAt'>) => {
+    if (!tournamentId) return null;
+    const newRef = push(ref(database, `tournamentPlayers/${tournamentId}`));
+    await set(newRef, { ...player, createdAt: Date.now() });
+    return newRef.key;
   }, [tournamentId]);
 
-  return { playerIds, loading, setTournamentPlayers };
+  const updatePlayer = useCallback(async (id: string, data: Partial<Player>) => {
+    if (!tournamentId) return;
+    await update(ref(database, `tournamentPlayers/${tournamentId}/${id}`), data);
+  }, [tournamentId]);
+
+  const deletePlayer = useCallback(async (id: string) => {
+    if (!tournamentId) return;
+    await remove(ref(database, `tournamentPlayers/${tournamentId}/${id}`));
+  }, [tournamentId]);
+
+  const addPlayersFromGlobal = useCallback(async (globalPlayers: Player[]) => {
+    if (!tournamentId) return;
+    for (const p of globalPlayers) {
+      const newRef = push(ref(database, `tournamentPlayers/${tournamentId}`));
+      await set(newRef, { name: p.name, club: p.club || '', class: p.class || '', createdAt: Date.now() });
+    }
+  }, [tournamentId]);
+
+  return { players, loading, addPlayer, updatePlayer, deletePlayer, addPlayersFromGlobal };
 }
 
 // ===== 대회별 심판 배정 =====

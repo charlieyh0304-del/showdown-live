@@ -17,7 +17,9 @@
       "Bash(firebase deploy:*)",
       "Bash(firebase database:rules:get:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(./node_modules/.bin/tsc --noEmit 2>&1 | head -60)",
+      "WebFetch(domain:ibsasport.org)"
     ]
   }
 }

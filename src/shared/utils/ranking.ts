@@ -52,14 +52,14 @@ export function calculateIndividualRanking(matches: Match[]): PlayerRanking[] {
   return rankings;
 }
 
-// 팀전 순위 산출
+// 팀전 순위 산출 (31점 단일 세트 기준)
 export function calculateTeamRanking(matches: Match[]): TeamRanking[] {
   const map = new Map<string, TeamRanking>();
 
   const getOrCreate = (id: string, name: string): TeamRanking => {
     let r = map.get(id);
     if (!r) {
-      r = { teamId: id, teamName: name, played: 0, wins: 0, losses: 0, individualWins: 0, individualLosses: 0, rank: 0 };
+      r = { teamId: id, teamName: name, played: 0, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, rank: 0 };
       map.set(id, r);
     }
     return r;
@@ -76,20 +76,21 @@ export function calculateTeamRanking(matches: Match[]): TeamRanking[] {
     if (match.winnerId === match.team1Id) { r1.wins++; r2.losses++; }
     else if (match.winnerId === match.team2Id) { r2.wins++; r1.losses++; }
 
-    if (match.individualMatches) {
-      for (const im of match.individualMatches) {
-        if (im.status !== 'completed') continue;
-        if (im.winnerId === im.player1Id) { r1.individualWins++; r2.individualLosses++; }
-        else if (im.winnerId === im.player2Id) { r2.individualWins++; r1.individualLosses++; }
-      }
+    // 31점 단일 세트: sets[0]에서 점수 집계
+    if (match.sets && match.sets.length > 0) {
+      const set = match.sets[0];
+      r1.pointsFor += set.player1Score;
+      r1.pointsAgainst += set.player2Score;
+      r2.pointsFor += set.player2Score;
+      r2.pointsAgainst += set.player1Score;
     }
   }
 
   const rankings = Array.from(map.values()).sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
-    const aIndDiff = a.individualWins - a.individualLosses;
-    const bIndDiff = b.individualWins - b.individualLosses;
-    return bIndDiff - aIndDiff;
+    const aPtDiff = a.pointsFor - a.pointsAgainst;
+    const bPtDiff = b.pointsFor - b.pointsAgainst;
+    return bPtDiff - aPtDiff;
   });
 
   rankings.forEach((r, i) => { r.rank = i + 1; });

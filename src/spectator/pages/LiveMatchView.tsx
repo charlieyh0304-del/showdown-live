@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import { countSetWins, getEffectiveGameConfig } from '@shared/utils/scoring';
+import type { GameConfig } from '@shared/types';
 
 export default function LiveMatchView() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
@@ -15,16 +16,28 @@ export default function LiveMatchView() {
 
   // Score change announcements
   useEffect(() => {
-    if (!match || match.type !== 'individual' || !match.sets || !match.currentSet) return;
-    const currentSetData = match.sets[match.currentSet - 1];
-    if (!currentSetData) return;
-    const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
-    if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
-      setAnnouncement(
-        `${match.player1Name || '선수1'} ${currentSetData.player1Score}점, ${match.player2Name || '선수2'} ${currentSetData.player2Score}점, 제${match.currentSet}세트`
-      );
+    if (!match || !match.sets) return;
+    if (match.type === 'individual') {
+      if (!match.currentSet) return;
+      const currentSetData = match.sets[match.currentSet - 1];
+      if (!currentSetData) return;
+      const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
+      if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
+        setAnnouncement(
+          `${match.player1Name || '선수1'} ${currentSetData.player1Score}점, ${match.player2Name || '선수2'} ${currentSetData.player2Score}점, 제${match.currentSet}세트`
+        );
+      }
+      prevScoreRef.current = scoreStr;
+    } else if (match.type === 'team' && match.sets.length > 0) {
+      const setData = match.sets[0];
+      const scoreStr = `${setData.player1Score}-${setData.player2Score}`;
+      if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
+        setAnnouncement(
+          `${match.team1Name || '팀1'} ${setData.player1Score}점, ${match.team2Name || '팀2'} ${setData.player2Score}점`
+        );
+      }
+      prevScoreRef.current = scoreStr;
     }
-    prevScoreRef.current = scoreStr;
   }, [match]);
 
   if (loading) {
@@ -122,7 +135,7 @@ function IndividualMatchDetail({
   gameConfig,
 }: {
   match: NonNullable<ReturnType<typeof useMatch>['match']>;
-  gameConfig?: { winScore: 11 | 21 | 31; setsToWin: number };
+  gameConfig?: GameConfig;
 }) {
   const sets = match.sets || [];
   const currentSet = match.currentSet || 1;
@@ -272,13 +285,36 @@ function TeamMatchDetail({
 }: {
   match: NonNullable<ReturnType<typeof useMatch>['match']>;
 }) {
-  const individualMatches = match.individualMatches || [];
-  const team1Wins = individualMatches.filter((m) => m.status === 'completed' && m.winnerId === m.player1Id).length;
-  const team2Wins = individualMatches.filter((m) => m.status === 'completed' && m.winnerId === m.player2Id).length;
+  const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
+  const team1Score = setData?.player1Score ?? 0;
+  const team2Score = setData?.player2Score ?? 0;
+  const faults1 = setData?.player1Faults ?? 0;
+  const faults2 = setData?.player2Faults ?? 0;
+  const violations1 = setData?.player1Violations ?? 0;
+  const violations2 = setData?.player2Violations ?? 0;
+  const hasTimeout = match.activeTimeout != null;
 
   return (
     <div>
-      {/* Team names and score */}
+      {/* Timeout indicator */}
+      {hasTimeout && (
+        <div
+          style={{
+            backgroundColor: '#92400e',
+            color: '#fbbf24',
+            padding: '0.75rem',
+            borderRadius: '0.5rem',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            fontSize: '1.25rem',
+            marginBottom: '1rem',
+          }}
+        >
+          타임아웃 진행중
+        </div>
+      )}
+
+      {/* Team names */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1 }}>
           {match.team1Name || '팀1'}
@@ -288,7 +324,7 @@ function TeamMatchDetail({
         </span>
       </div>
 
-      {/* Team score */}
+      {/* Team score - VERY LARGE (31-point single match) */}
       <div
         className="card"
         style={{
@@ -298,48 +334,44 @@ function TeamMatchDetail({
           border: '2px solid #374151',
         }}
       >
-        <p style={{ color: '#9ca3af', marginBottom: '0.5rem' }}>팀 스코어</p>
+        <p style={{ color: '#9ca3af', marginBottom: '0.5rem' }}>31점 경기</p>
         <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ color: 'var(--color-primary)' }}>{team1Wins}</span>
+          <span style={{ color: 'var(--color-primary)' }}>{team1Score}</span>
           <span style={{ color: '#6b7280', fontSize: '3rem' }}>-</span>
-          <span style={{ color: 'var(--color-secondary)' }}>{team2Wins}</span>
+          <span style={{ color: 'var(--color-secondary)' }}>{team2Score}</span>
         </div>
-        <p style={{ color: '#d1d5db', marginTop: '0.5rem' }}>
-          {individualMatches.filter((m) => m.status === 'completed').length}/{individualMatches.length} 경기 완료
-        </p>
       </div>
 
-      {/* Individual match results */}
-      <div className="card">
-        <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>
-          개별 경기 결과
-        </h3>
-        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {individualMatches.map((im, idx) => (
-            <li
-              key={im.id || idx}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0.75rem',
-                backgroundColor: im.status === 'completed' ? '#14532d' : im.status === 'in_progress' ? '#1e3a5f' : '#1f2937',
-                borderRadius: '0.5rem',
-              }}
-            >
-              <span style={{ flex: 1, fontWeight: 'bold' }}>{im.player1Name || '선수1'}</span>
-              <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: '80px', textAlign: 'center' }}>
-                {im.status === 'completed'
-                  ? `${im.player1Score} - ${im.player2Score}`
-                  : im.status === 'in_progress'
-                    ? '진행중'
-                    : '대기중'}
-              </span>
-              <span style={{ flex: 1, fontWeight: 'bold', textAlign: 'right' }}>{im.player2Name || '선수2'}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/* Faults & Violations */}
+      {(faults1 > 0 || faults2 > 0 || violations1 > 0 || violations2 > 0) && (
+        <div className="card">
+          <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>
+            반칙/바이올레이션
+          </h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <caption className="sr-only">반칙 및 바이올레이션 기록</caption>
+            <thead>
+              <tr>
+                <th scope="col" style={detailThStyle}>구분</th>
+                <th scope="col" style={detailThStyle}>{match.team1Name || '팀1'}</th>
+                <th scope="col" style={detailThStyle}>{match.team2Name || '팀2'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #1f2937' }}>
+                <td style={detailTdStyle}>반칙</td>
+                <td style={detailTdStyle}>{faults1}</td>
+                <td style={detailTdStyle}>{faults2}</td>
+              </tr>
+              <tr>
+                <td style={detailTdStyle}>바이올레이션</td>
+                <td style={detailTdStyle}>{violations1}</td>
+                <td style={detailTdStyle}>{violations2}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

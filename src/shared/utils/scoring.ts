@@ -1,4 +1,4 @@
-import type { SetScore, GameConfig, IndividualMatch } from '../types';
+import type { SetScore, GameConfig, MatchType } from '../types';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -7,7 +7,15 @@ export const DEFAULT_GAME_CONFIG = {
   MIN_POINT_DIFF: 2,
 } as const;
 
-export function getEffectiveGameConfig(gameConfig?: GameConfig) {
+export const TEAM_GAME_CONFIG = {
+  SETS_TO_WIN: 1,
+  MAX_SETS: 1,
+  POINTS_TO_WIN: 31,
+  MIN_POINT_DIFF: 2,
+} as const;
+
+export function getEffectiveGameConfig(gameConfig?: GameConfig, matchType?: MatchType) {
+  if (matchType === 'team') return TEAM_GAME_CONFIG;
   if (!gameConfig) return DEFAULT_GAME_CONFIG;
   return {
     SETS_TO_WIN: gameConfig.setsToWin,
@@ -51,23 +59,6 @@ export function createEmptySet(): SetScore {
     player1Violations: 0, player2Violations: 0,
     winnerId: null,
   };
-}
-
-export function checkTeamMatchWinner(
-  matches: IndividualMatch[],
-  team1Id: string,
-  team2Id: string,
-): string | null {
-  const winsNeeded = Math.floor(matches.length / 2) + 1;
-  let t1 = 0, t2 = 0;
-  for (const m of matches) {
-    if (m.status !== 'completed' || !m.winnerId) continue;
-    if (m.winnerId === m.player1Id) t1++;
-    else if (m.winnerId === m.player2Id) t2++;
-  }
-  if (t1 >= winsNeeded) return team1Id;
-  if (t2 >= winsNeeded) return team2Id;
-  return null;
 }
 
 export function countSetWins(sets: SetScore[], config?: ReturnType<typeof getEffectiveGameConfig>) {

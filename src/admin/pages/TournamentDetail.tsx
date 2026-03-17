@@ -4,7 +4,7 @@ import {
   useTournament,
   useMatches,
   usePlayers,
-  useTournamentPlayers,
+  useTournamentLocalPlayers,
   useTeams,
   useReferees,
   useCourts,
@@ -12,7 +12,7 @@ import {
 } from '@shared/hooks/useFirebase';
 import { createEmptySet } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
-import type { Match, Team, MatchStatus, ScheduleSlot } from '@shared/types';
+import type { Match, Team, Player, MatchStatus, ScheduleSlot } from '@shared/types';
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
 
@@ -43,14 +43,14 @@ export default function TournamentDetail() {
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
   const { matches, loading: mLoading, setMatchesBulk, updateMatch } = useMatches(id ?? null);
-  const { players: allPlayers, loading: pLoading } = usePlayers();
-  const { playerIds, setTournamentPlayers } = useTournamentPlayers(id ?? null);
+  const { players: globalPlayers, loading: gpLoading } = usePlayers();
+  const { players: tournamentPlayers, loading: tpLoading, addPlayer: addTournamentPlayer, deletePlayer: deleteTournamentPlayer, addPlayersFromGlobal } = useTournamentLocalPlayers(id ?? null);
   const { teams, setTeamsBulk } = useTeams(id ?? null);
   const { referees } = useReferees();
   const { courts } = useCourts();
   const { schedule, setScheduleBulk } = useSchedule(id ?? null);
 
-  if (tLoading || mLoading || pLoading) {
+  if (tLoading || mLoading || gpLoading || tpLoading) {
     return (
       <div className="flex items-center justify-center py-20" aria-live="polite">
         <p className="text-2xl text-yellow-400 animate-pulse">로딩 중...</p>
@@ -101,21 +101,21 @@ export default function TournamentDetail() {
       <div role="tabpanel" aria-label={TABS.find(t => t.key === activeTab)?.label}>
         {activeTab === 'players' && (
           <PlayersTab
-            allPlayers={allPlayers}
-            playerIds={playerIds}
-            setTournamentPlayers={setTournamentPlayers}
+            tournamentPlayers={tournamentPlayers}
+            globalPlayers={globalPlayers}
+            addTournamentPlayer={addTournamentPlayer}
+            deleteTournamentPlayer={deleteTournamentPlayer}
+            addPlayersFromGlobal={addPlayersFromGlobal}
             isTeamType={isTeamType}
             teams={teams}
             setTeamsBulk={setTeamsBulk}
-            tournamentId={id!}
           />
         )}
         {activeTab === 'bracket' && (
           <BracketTab
             tournament={tournament}
             matches={matches}
-            playerIds={playerIds}
-            allPlayers={allPlayers}
+            tournamentPlayers={tournamentPlayers}
             teams={teams}
             setMatchesBulk={setMatchesBulk}
             updateMatch={updateMatch}
@@ -156,35 +156,53 @@ export default function TournamentDetail() {
 // Players Tab
 // ========================
 interface PlayersTabProps {
-  allPlayers: { id: string; name: string; club?: string; class?: string }[];
-  playerIds: string[];
-  setTournamentPlayers: (ids: string[]) => Promise<void>;
+  tournamentPlayers: Player[];
+  globalPlayers: Player[];
+  addTournamentPlayer: (player: Omit<Player, 'id' | 'createdAt'>) => Promise<string | null>;
+  deleteTournamentPlayer: (id: string) => Promise<void>;
+  addPlayersFromGlobal: (players: Player[]) => Promise<void>;
   isTeamType: boolean;
   teams: Team[];
   setTeamsBulk: (teams: Team[]) => Promise<void>;
-  tournamentId: string;
 }
 
-function PlayersTab({ allPlayers, playerIds, setTournamentPlayers, isTeamType, teams, setTeamsBulk }: PlayersTabProps) {
+function PlayersTab({ tournamentPlayers, globalPlayers, addTournamentPlayer, deleteTournamentPlayer, addPlayersFromGlobal, isTeamType, teams, setTeamsBulk }: PlayersTabProps) {
   const [generating, setGenerating] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showGlobalModal, setShowGlobalModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newClub, setNewClub] = useState('');
+  const [newClass, setNewClass] = useState('');
+  const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
 
-  const togglePlayer = useCallback(async (playerId: string) => {
-    const next = playerIds.includes(playerId)
-      ? playerIds.filter(id => id !== playerId)
-      : [...playerIds, playerId];
-    await setTournamentPlayers(next);
-  }, [playerIds, setTournamentPlayers]);
+  const handleAddPlayer = useCallback(async () => {
+    if (!newName.trim()) return;
+    await addTournamentPlayer({ name: newName.trim(), club: newClub.trim() || undefined, class: newClass.trim() || undefined });
+    setNewName('');
+    setNewClub('');
+    setNewClass('');
+    setShowAddForm(false);
+  }, [newName, newClub, newClass, addTournamentPlayer]);
 
-  const selectedPlayers = useMemo(
-    () => allPlayers.filter(p => playerIds.includes(p.id)),
-    [allPlayers, playerIds]
-  );
+  const handleImportGlobal = useCallback(async () => {
+    const toImport = globalPlayers.filter(p => selectedGlobalIds.includes(p.id));
+    if (toImport.length === 0) return;
+    await addPlayersFromGlobal(toImport);
+    setSelectedGlobalIds([]);
+    setShowGlobalModal(false);
+  }, [globalPlayers, selectedGlobalIds, addPlayersFromGlobal]);
+
+  const toggleGlobalSelect = useCallback((playerId: string) => {
+    setSelectedGlobalIds(prev =>
+      prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+    );
+  }, []);
 
   const generateRandomTeams = useCallback(async () => {
-    if (selectedPlayers.length < 3) return;
+    if (tournamentPlayers.length < 3) return;
     setGenerating(true);
     try {
-      const shuffled = [...selectedPlayers];
+      const shuffled = [...tournamentPlayers];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -206,32 +224,106 @@ function PlayersTab({ allPlayers, playerIds, setTournamentPlayers, isTeamType, t
     } finally {
       setGenerating(false);
     }
-  }, [selectedPlayers, setTeamsBulk]);
+  }, [tournamentPlayers, setTeamsBulk]);
 
   return (
     <div className="space-y-6">
-      <div className="card">
-        <h2 className="text-xl font-bold mb-4">전체 선수 목록 (선택: {playerIds.length}명)</h2>
-        {allPlayers.length === 0 ? (
-          <p className="text-gray-400">등록된 선수가 없습니다. 선수 관리에서 추가해주세요.</p>
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <h2 className="text-xl font-bold">대회 참가 선수 ({tournamentPlayers.length}명)</h2>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowAddForm(!showAddForm)}
+              aria-label="새 선수 등록"
+            >
+              새 선수 등록
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowGlobalModal(true)}
+              aria-label="전역 선수에서 가져오기"
+            >
+              전역 선수에서 가져오기
+            </button>
+          </div>
+        </div>
+
+        {showAddForm && (
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-600 space-y-3">
+            <h3 className="font-bold text-lg">새 선수 등록</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">이름 *</label>
+                <input
+                  className="input"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="선수 이름"
+                  aria-label="선수 이름"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">소속</label>
+                <input
+                  className="input"
+                  value={newClub}
+                  onChange={e => setNewClub(e.target.value)}
+                  placeholder="소속 클럽"
+                  aria-label="소속 클럽"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">등급</label>
+                <input
+                  className="input"
+                  value={newClass}
+                  onChange={e => setNewClass(e.target.value)}
+                  placeholder="B1, B2, B3"
+                  aria-label="등급"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="btn btn-accent"
+                onClick={handleAddPlayer}
+                disabled={!newName.trim()}
+                aria-label="선수 추가"
+              >
+                추가
+              </button>
+              <button
+                className="btn bg-gray-700 text-white hover:bg-gray-600"
+                onClick={() => setShowAddForm(false)}
+                aria-label="취소"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tournamentPlayers.length === 0 ? (
+          <p className="text-gray-400">참가 선수가 없습니다. 선수를 등록해주세요.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {allPlayers.map(p => {
-              const selected = playerIds.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  className={`btn text-left ${selected ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                  onClick={() => togglePlayer(p.id)}
-                  aria-pressed={selected}
-                  aria-label={`${p.name} ${selected ? '선택됨' : '선택안됨'}`}
-                >
+            {tournamentPlayers.map(p => (
+              <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-600">
+                <div>
                   <span className="font-bold">{p.name}</span>
                   {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
                   {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
+                </div>
+                <button
+                  className="text-red-400 hover:text-red-300 font-bold text-lg"
+                  onClick={() => deleteTournamentPlayer(p.id)}
+                  aria-label={`${p.name} 삭제`}
+                >
+                  x
                 </button>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -243,7 +335,7 @@ function PlayersTab({ allPlayers, playerIds, setTournamentPlayers, isTeamType, t
             <button
               className="btn btn-accent"
               onClick={generateRandomTeams}
-              disabled={generating || selectedPlayers.length < 3}
+              disabled={generating || tournamentPlayers.length < 3}
               aria-label="랜덤 팀 생성"
             >
               {generating ? '생성 중...' : '랜덤 팀 생성'}
@@ -268,20 +360,62 @@ function PlayersTab({ allPlayers, playerIds, setTournamentPlayers, isTeamType, t
         </div>
       )}
 
-      <div className="card">
-        <h2 className="text-xl font-bold mb-2">참가 선수</h2>
-        {selectedPlayers.length === 0 ? (
-          <p className="text-gray-400">선택된 선수가 없습니다.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {selectedPlayers.map(p => (
-              <span key={p.id} className="px-3 py-1 bg-yellow-900 text-yellow-300 rounded-full font-semibold">
-                {p.name}
-              </span>
-            ))}
+      {/* 전역 선수 가져오기 모달 */}
+      {showGlobalModal && (
+        <div className="modal-backdrop" onClick={() => setShowGlobalModal(false)}>
+          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">전역 선수에서 가져오기</h2>
+              <button
+                className="text-gray-400 hover:text-white font-bold text-xl"
+                onClick={() => setShowGlobalModal(false)}
+                aria-label="닫기"
+              >
+                x
+              </button>
+            </div>
+            {globalPlayers.length === 0 ? (
+              <p className="text-gray-400">등록된 전역 선수가 없습니다.</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {globalPlayers.map(p => {
+                  const selected = selectedGlobalIds.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      className={`btn text-left w-full ${selected ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                      onClick={() => toggleGlobalSelect(p.id)}
+                      aria-pressed={selected}
+                      aria-label={`${p.name} ${selected ? '선택됨' : '선택안됨'}`}
+                    >
+                      <span className="font-bold">{p.name}</span>
+                      {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
+                      {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                className="btn btn-accent flex-1"
+                onClick={handleImportGlobal}
+                disabled={selectedGlobalIds.length === 0}
+                aria-label="선택한 선수 가져오기"
+              >
+                {selectedGlobalIds.length}명 가져오기
+              </button>
+              <button
+                className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
+                onClick={() => setShowGlobalModal(false)}
+                aria-label="취소"
+              >
+                취소
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -292,8 +426,7 @@ function PlayersTab({ allPlayers, playerIds, setTournamentPlayers, isTeamType, t
 interface BracketTabProps {
   tournament: NonNullable<ReturnType<typeof useTournament>['tournament']>;
   matches: Match[];
-  playerIds: string[];
-  allPlayers: { id: string; name: string }[];
+  tournamentPlayers: Player[];
   teams: Team[];
   setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
@@ -302,14 +435,8 @@ interface BracketTabProps {
   isTeamType: boolean;
 }
 
-function BracketTab({ tournament, matches, playerIds, allPlayers, teams, setMatchesBulk, updateMatch, referees, courts, isTeamType }: BracketTabProps) {
+function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, referees, courts, isTeamType }: BracketTabProps) {
   const [generating, setGenerating] = useState(false);
-
-  const playerMap = useMemo(() => {
-    const m = new Map<string, string>();
-    allPlayers.forEach(p => m.set(p.id, p.name));
-    return m;
-  }, [allPlayers]);
 
   const generateBracket = useCallback(async () => {
     setGenerating(true);
@@ -319,19 +446,19 @@ function BracketTab({ tournament, matches, playerIds, allPlayers, teams, setMatc
 
       if (!isTeamType) {
         // Individual round-robin
-        const ids = [...playerIds];
+        const players = [...tournamentPlayers];
         let round = 1;
-        for (let i = 0; i < ids.length; i++) {
-          for (let j = i + 1; j < ids.length; j++) {
+        for (let i = 0; i < players.length; i++) {
+          for (let j = i + 1; j < players.length; j++) {
             newMatches.push({
               tournamentId: tournament.id,
               type: 'individual',
               status: 'pending',
               round,
-              player1Id: ids[i],
-              player2Id: ids[j],
-              player1Name: playerMap.get(ids[i]) ?? '',
-              player2Name: playerMap.get(ids[j]) ?? '',
+              player1Id: players[i].id,
+              player2Id: players[j].id,
+              player1Name: players[i].name,
+              player2Name: players[j].name,
               sets: [createEmptySet()],
               currentSet: 0,
               player1Timeouts: 0,
@@ -343,31 +470,12 @@ function BracketTab({ tournament, matches, playerIds, allPlayers, teams, setMatc
           }
         }
       } else {
-        // Team round-robin
+        // Team round-robin: single 31-point match per team vs team
         let round = 1;
         for (let i = 0; i < teams.length; i++) {
           for (let j = i + 1; j < teams.length; j++) {
             const t1 = teams[i];
             const t2 = teams[j];
-
-            // Generate NxN individual matches
-            const individualMatches: Match['individualMatches'] = [];
-            let imIdx = 0;
-            for (const m1Id of t1.memberIds) {
-              for (const m2Id of t2.memberIds) {
-                individualMatches.push({
-                  id: `im_${round}_${imIdx}`,
-                  player1Id: m1Id,
-                  player2Id: m2Id,
-                  player1Name: playerMap.get(m1Id) ?? '',
-                  player2Name: playerMap.get(m2Id) ?? '',
-                  player1Score: 0,
-                  player2Score: 0,
-                  status: 'pending',
-                });
-                imIdx++;
-              }
-            }
 
             newMatches.push({
               tournamentId: tournament.id,
@@ -380,7 +488,10 @@ function BracketTab({ tournament, matches, playerIds, allPlayers, teams, setMatc
               team2Name: t2.name,
               team1: t1,
               team2: t2,
-              individualMatches,
+              sets: [createEmptySet()],
+              currentSet: 0,
+              player1Timeouts: 0,
+              player2Timeouts: 0,
               winnerId: null,
               createdAt: now,
             });
@@ -393,22 +504,22 @@ function BracketTab({ tournament, matches, playerIds, allPlayers, teams, setMatc
     } finally {
       setGenerating(false);
     }
-  }, [isTeamType, playerIds, teams, tournament.id, playerMap, setMatchesBulk]);
+  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk]);
 
   const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId', value: string) => {
     const data: Partial<Match> = { [field]: value || undefined };
     if (field === 'refereeId') {
-      const r = referees.find(r => r.id === value);
-      data.refereeName = r?.name ?? undefined;
+      const found = referees.find(r => r.id === value);
+      data.refereeName = found?.name ?? undefined;
     }
     if (field === 'courtId') {
-      const c = courts.find(c => c.id === value);
-      data.courtName = c?.name ?? undefined;
+      const found = courts.find(c => c.id === value);
+      data.courtName = found?.name ?? undefined;
     }
     await updateMatch(matchId, data);
   }, [updateMatch, referees, courts]);
 
-  const canGenerate = isTeamType ? teams.length >= 2 : playerIds.length >= 2;
+  const canGenerate = isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2;
 
   return (
     <div className="space-y-6">
@@ -523,7 +634,6 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
       };
 
       for (const match of pendingMatches) {
-        // Find the court with earliest available time
         courtSlots.sort((a, b) => a.nextTime.localeCompare(b.nextTime));
         const court = courtSlots[0];
 
@@ -540,7 +650,6 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
           status: match.status,
         });
 
-        // Update match with scheduled time and court
         await updateMatch(match.id, {
           scheduledTime: court.nextTime,
           courtId: court.courtId,
@@ -556,7 +665,6 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
     }
   }, [matches, courts, startTime, interval, setScheduleBulk, updateMatch]);
 
-  // Group schedule by time for grid display
   const timeSlots = useMemo(() => {
     const times = [...new Set(schedule.map(s => s.scheduledTime))].sort();
     return times.map(time => ({
@@ -656,7 +764,7 @@ interface StatusTabProps {
   isTeamType: boolean;
 }
 
-function StatusTab({ tournament, matches, updateTournament, isTeamType }: StatusTabProps) {
+function StatusTab({ tournament, matches, updateTournament }: StatusTabProps) {
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
 
   const filtered = useMemo(() => {
@@ -793,28 +901,12 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType }: Status
                 </div>
               </div>
 
-              {!isTeamType && match.status === 'completed' && match.sets && (
+              {match.status === 'completed' && match.sets && (
                 <div className="flex gap-2 flex-wrap mt-2">
                   {match.sets.map((s, i) => (
                     <span key={i} className="px-3 py-1 bg-gray-800 rounded text-sm font-mono">
-                      S{i + 1}: {s.player1Score}-{s.player2Score}
+                      {match.sets && match.sets.length > 1 ? `S${i + 1}: ` : ''}{s.player1Score}-{s.player2Score}
                     </span>
-                  ))}
-                </div>
-              )}
-
-              {isTeamType && match.status === 'completed' && match.individualMatches && (
-                <div className="mt-2 space-y-1">
-                  {match.individualMatches.map(im => (
-                    <div key={im.id} className="flex items-center gap-2 text-sm text-gray-300">
-                      <span>{im.player1Name} vs {im.player2Name}</span>
-                      <span className="font-mono">{im.player1Score}-{im.player2Score}</span>
-                      {im.winnerId && (
-                        <span className="text-green-400 font-semibold">
-                          {im.winnerId === im.player1Id ? im.player1Name : im.player2Name} 승
-                        </span>
-                      )}
-                    </div>
                   ))}
                 </div>
               )}
@@ -848,10 +940,10 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
               <tr>
                 <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
                 <th className="border border-gray-600 p-3 text-left bg-gray-800">팀명</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">경기</th>
                 <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
                 <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">개인승</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">개인패</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">득실점</th>
               </tr>
             </thead>
             <tbody>
@@ -859,10 +951,10 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
                 <tr key={r.teamId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
                   <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
                   <td className="border border-gray-600 p-3 font-semibold">{r.teamName}</td>
+                  <td className="border border-gray-600 p-3 text-center">{r.played}</td>
                   <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
                   <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>
-                  <td className="border border-gray-600 p-3 text-center">{r.individualWins}</td>
-                  <td className="border border-gray-600 p-3 text-center">{r.individualLosses}</td>
+                  <td className="border border-gray-600 p-3 text-center">{r.pointsFor}-{r.pointsAgainst}</td>
                 </tr>
               ))}
             </tbody>
