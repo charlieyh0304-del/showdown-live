@@ -72,7 +72,7 @@ export default function RefereeLogin() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center p-4" style={{ paddingTop: '2rem' }}>
       <div className="w-full max-w-lg">
         <h1 className="text-3xl font-bold text-yellow-400 text-center mb-8">
           심판 모드
@@ -179,27 +179,24 @@ export default function RefereeLogin() {
           </div>
         )}
 
+        {step === 'tournament' && (
+          <button
+            className="btn btn-large w-full mt-6"
+            style={{ backgroundColor: '#7c3aed', color: '#ffffff', fontSize: '1.5rem', border: '3px solid #a78bfa' }}
+            onClick={() => navigate('/referee/practice')}
+            aria-label="심판 연습 모드 시작"
+          >
+            연습 모드 (인증 불필요)
+          </button>
+        )}
+
         <button
-          className="btn btn-accent btn-large w-full mt-6"
+          className="btn btn-accent btn-large w-full mt-4"
           onClick={handleBack}
           aria-label="뒤로가기"
         >
           {step === 'tournament' ? '모드 선택으로' : '뒤로'}
         </button>
-
-        {step === 'tournament' && (
-          <div className="mt-6 pt-6 border-t border-gray-700">
-            <p className="text-center text-gray-400 mb-3">처음이신가요? 연습으로 시작하세요</p>
-            <button
-              className="btn btn-large w-full"
-              style={{ backgroundColor: '#7c3aed', color: '#ffffff', fontSize: '1.5rem' }}
-              onClick={() => navigate('/referee/practice')}
-              aria-label="심판 연습 모드 시작"
-            >
-              연습 모드
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
