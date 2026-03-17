@@ -138,6 +138,53 @@ export interface SetScore {
   winnerId?: string | null;
 }
 
+// ===== IBSA 득점 액션 타입 =====
+export type ScoreActionType =
+  | 'goal'              // 골 (+2점, 득점한 선수에게)
+  | 'irregular_serve'   // 부정 서브 (+1점, 상대에게)
+  | 'centerboard'       // 센터보드 (+1점, 상대에게)
+  | 'body_touch'        // 바디터치 (+1점, 상대에게)
+  | 'illegal_defense'   // 일리걸 디펜스 (+1점, 상대에게)
+  | 'out'               // 아웃 (+1점, 상대에게)
+  | 'ball_holding'      // 볼홀딩/2초룰 (+1점, 상대에게)
+  | 'mask_touch'        // 마스크/고글 터치 (+2점, 상대에게)
+  | 'penalty'           // 기타 벌점 (+2점, 상대에게)
+  | 'manual';           // 수동 득점/감점
+
+export interface ScoreAction {
+  type: ScoreActionType;
+  points: number;         // 부여되는 점수
+  toOpponent: boolean;    // true면 상대에게 점수 부여 (파울/아웃)
+  label: string;          // UI 표시 라벨
+}
+
+export const IBSA_SCORE_ACTIONS: ScoreAction[] = [
+  { type: 'goal', points: 2, toOpponent: false, label: '골 +2' },
+  { type: 'irregular_serve', points: 1, toOpponent: true, label: '부정서브' },
+  { type: 'centerboard', points: 1, toOpponent: true, label: '센터보드' },
+  { type: 'body_touch', points: 1, toOpponent: true, label: '바디터치' },
+  { type: 'illegal_defense', points: 1, toOpponent: true, label: '일리걸디펜스' },
+  { type: 'out', points: 1, toOpponent: true, label: '아웃' },
+  { type: 'ball_holding', points: 1, toOpponent: true, label: '볼홀딩(2초)' },
+  { type: 'mask_touch', points: 2, toOpponent: true, label: '마스크터치 +2' },
+  { type: 'penalty', points: 2, toOpponent: true, label: '벌점(기타) +2' },
+];
+
+// ===== 득점 히스토리 항목 =====
+export interface ScoreHistoryEntry {
+  time: string;
+  scoringPlayer: string;     // 점수를 받는 선수/팀 이름
+  actionPlayer: string;      // 액션한 선수 이름 (파울한 선수 등)
+  actionType: ScoreActionType;
+  actionLabel: string;
+  points: number;
+  set: number;
+  server: string;            // 서브권 가진 선수 이름
+  serveNumber: number;       // 몇 번째 서브
+  scoreBefore: { player1: number; player2: number };
+  scoreAfter: { player1: number; player2: number };
+}
+
 // ===== 경기 (개인전/팀전 통합) =====
 export interface Match {
   id: string;
@@ -162,6 +209,18 @@ export interface Match {
   player1Timeouts?: number;
   player2Timeouts?: number;
   activeTimeout?: { playerId: string; startTime: number } | null;
+  // 서브 추적 (IBSA 규칙)
+  currentServe?: 'player1' | 'player2';  // 현재 서브권
+  serveCount?: number;                     // 현재 서브 카운트 (0부터)
+  serveSelected?: boolean;                 // 서브 선택 완료 여부
+  // 사이드 체인지
+  sideChangeUsed?: boolean;                // 현재 세트 사이드체인지 사용 여부
+  // 득점 히스토리
+  scoreHistory?: ScoreHistoryEntry[];
+  // 일시정지
+  isPaused?: boolean;
+  pauseReason?: string;
+  pauseStartTime?: number;
   // 팀전 필드
   team1Id?: string;
   team2Id?: string;
@@ -301,6 +360,16 @@ export interface PracticeMatch {
     POINTS_TO_WIN: number;
     MIN_POINT_DIFF: number;
   };
+  // 서브 추적
+  currentServe: 'player1' | 'player2';
+  serveCount: number;
+  serveSelected: boolean;
+  // 사이드 체인지
+  sideChangeUsed: boolean;
+  // 득점 히스토리
+  scoreHistory: ScoreHistoryEntry[];
+  // 일시정지
+  isPaused: boolean;
   scenarioId?: string;
   actionLog: PracticeAction[];
   startedAt: number;

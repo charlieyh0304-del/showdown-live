@@ -90,7 +90,6 @@ export function generateSingleElimination(
 
   // 다음 2의 거듭제곱
   const bracketSize = Math.pow(2, Math.ceil(Math.log2(n)));
-  const byeCount = bracketSize - n;
   const totalRounds = Math.log2(bracketSize);
 
   // 시딩 순서로 배치

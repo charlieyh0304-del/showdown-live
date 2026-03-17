@@ -1,8 +1,8 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
-import { countSetWins, getEffectiveGameConfig } from '@shared/utils/scoring';
-import type { GameConfig } from '@shared/types';
+import { countSetWins, getEffectiveGameConfig, getMaxServes } from '@shared/utils/scoring';
+import type { ScoreHistoryEntry } from '@shared/types';
 
 export default function LiveMatchView() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
@@ -10,51 +10,37 @@ export default function LiveMatchView() {
   const { match, loading: mLoading } = useMatch(tournamentId || null, matchId || null);
   const { tournament, loading: tLoading } = useTournament(tournamentId || null);
   const [announcement, setAnnouncement] = useState('');
+  const [historyOrder, setHistoryOrder] = useState<'newest' | 'oldest'>('newest');
   const prevScoreRef = useRef('');
 
   const loading = mLoading || tLoading;
 
-  // Score change announcements
+  // 점수 변경 감지 → 음성 안내
   useEffect(() => {
     if (!match || !match.sets) return;
-    if (match.type === 'individual') {
-      if (!match.currentSet) return;
-      const currentSetData = match.sets[match.currentSet - 1];
-      if (!currentSetData) return;
-      const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
-      if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
-        setAnnouncement(
-          `${match.player1Name || '선수1'} ${currentSetData.player1Score}점, ${match.player2Name || '선수2'} ${currentSetData.player2Score}점, 제${match.currentSet}세트`
-        );
-      }
-      prevScoreRef.current = scoreStr;
-    } else if (match.type === 'team' && match.sets.length > 0) {
-      const setData = match.sets[0];
-      const scoreStr = `${setData.player1Score}-${setData.player2Score}`;
-      if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
-        setAnnouncement(
-          `${match.team1Name || '팀1'} ${setData.player1Score}점, ${match.team2Name || '팀2'} ${setData.player2Score}점`
-        );
-      }
-      prevScoreRef.current = scoreStr;
+    const currentSetData = match.type === 'team'
+      ? match.sets[0]
+      : match.sets[(match.currentSet ?? 1) - 1];
+    if (!currentSetData) return;
+
+    const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
+    if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
+      const p1 = match.type === 'team' ? (match.team1Name || '팀1') : (match.player1Name || '선수1');
+      const p2 = match.type === 'team' ? (match.team2Name || '팀2') : (match.player2Name || '선수2');
+      setAnnouncement(`${p1} ${currentSetData.player1Score}점, ${p2} ${currentSetData.player2Score}점`);
     }
+    prevScoreRef.current = scoreStr;
   }, [match]);
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
-      </div>
-    );
+    return <div style={{ textAlign: 'center', padding: '3rem 1rem' }}><p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p></div>;
   }
 
   if (!match) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
         <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>경기를 찾을 수 없습니다</p>
-        <button className="btn btn-primary" onClick={() => navigate(-1)} style={{ marginTop: '1rem' }}>
-          뒤로 가기
-        </button>
+        <button className="btn btn-primary" onClick={() => navigate(-1)} style={{ marginTop: '1rem' }}>뒤로 가기</button>
       </div>
     );
   }
@@ -64,56 +50,27 @@ export default function LiveMatchView() {
 
   return (
     <div>
-      {/* Score change announcements for screen readers */}
-      <div aria-live="assertive" aria-atomic="true" className="sr-only">
-        {announcement}
-      </div>
+      <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
 
-      {/* Back button */}
-      <button
-        className="btn"
-        onClick={() => navigate(`/spectator/tournament/${tournamentId}`)}
-        style={{
-          background: 'none',
-          color: 'var(--color-secondary)',
-          padding: '0.5rem 0',
-          marginBottom: '1rem',
-          fontSize: '1rem',
-        }}
-      >
+      <button className="btn" onClick={() => navigate(`/spectator/tournament/${tournamentId}`)}
+        style={{ background: 'none', color: 'var(--color-secondary)', padding: '0.5rem 0', marginBottom: '1rem', fontSize: '1rem' }}>
         ← 대회로 돌아가기
       </button>
 
-      {/* Status indicator */}
+      {/* 상태 표시 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
         {isLive && (
           <>
-            <span
-              className="animate-pulse"
-              style={{
-                display: 'inline-block',
-                width: '14px',
-                height: '14px',
-                borderRadius: '50%',
-                backgroundColor: '#ef4444',
-              }}
-              aria-hidden="true"
-            />
+            <span className="animate-pulse" style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#ef4444' }} aria-hidden="true" />
             <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '1.25rem' }}>실시간 진행중</span>
           </>
         )}
-        {isCompleted && (
-          <span style={{ color: '#16a34a', fontWeight: 'bold', fontSize: '1.25rem' }}>● 경기 완료</span>
-        )}
-        {match.status === 'pending' && (
-          <span style={{ color: '#9ca3af', fontWeight: 'bold', fontSize: '1.25rem' }}>대기중</span>
-        )}
+        {isCompleted && <span style={{ color: '#16a34a', fontWeight: 'bold', fontSize: '1.25rem' }}>● 경기 완료</span>}
+        {match.status === 'pending' && <span style={{ color: '#9ca3af', fontWeight: 'bold', fontSize: '1.25rem' }}>대기중</span>}
+        {match.isPaused && <span style={{ color: '#f59e0b', fontWeight: 'bold', marginLeft: '0.5rem' }}>⏸ 일시정지 중</span>}
       </div>
 
-      {/* Tournament info */}
-      {tournament && (
-        <p style={{ color: '#6b7280', marginBottom: '1rem' }}>{tournament.name}</p>
-      )}
+      {tournament && <p style={{ color: '#6b7280', marginBottom: '1rem' }}>{tournament.name}</p>}
 
       {match.type === 'individual' ? (
         <IndividualMatchDetail match={match} gameConfig={tournament?.gameConfig} />
@@ -121,219 +78,228 @@ export default function LiveMatchView() {
         <TeamMatchDetail match={match} />
       )}
 
-      {/* Court and referee info */}
+      {/* 서브 정보 */}
+      {isLive && match.currentServe && match.serveSelected && (
+        <ServeIndicator match={match} />
+      )}
+
+      {/* 경기장/심판 */}
       <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#9ca3af' }}>
         {match.courtName && <span>경기장: {match.courtName}</span>}
         {match.refereeName && <span>심판: {match.refereeName}</span>}
+      </div>
+
+      {/* 경기 기록 (최신순/시간순 토글) */}
+      <ScoreHistorySection
+        history={match.scoreHistory ?? []}
+        order={historyOrder}
+        onToggle={() => setHistoryOrder(o => o === 'newest' ? 'oldest' : 'newest')}
+      />
+    </div>
+  );
+}
+
+// ===== 서브 표시 =====
+function ServeIndicator({ match }: { match: NonNullable<ReturnType<typeof useMatch>['match']> }) {
+  const isTeam = match.type === 'team';
+  const p1 = isTeam ? (match.team1Name ?? '팀1') : (match.player1Name ?? '선수1');
+  const p2 = isTeam ? (match.team2Name ?? '팀2') : (match.player2Name ?? '선수2');
+  const serverName = match.currentServe === 'player1' ? p1 : p2;
+  const maxServes = getMaxServes(match.type ?? 'individual');
+  const serveCount = match.serveCount ?? 0;
+
+  return (
+    <div style={{
+      backgroundColor: '#1e3a5f', padding: '0.75rem', borderRadius: '0.5rem',
+      textAlign: 'center', marginTop: '1rem', fontSize: '1.1rem', color: '#93c5fd',
+    }}>
+      🎾 {serverName} 서브 {serveCount + 1}/{maxServes}회차
+    </div>
+  );
+}
+
+// ===== 경기 기록 (최신순/시간순) =====
+function ScoreHistorySection({
+  history, order, onToggle,
+}: {
+  history: ScoreHistoryEntry[];
+  order: 'newest' | 'oldest';
+  onToggle: () => void;
+}) {
+  const sortedHistory = useMemo(() => {
+    if (order === 'newest') return history;
+    return [...history].reverse();
+  }, [history, order]);
+
+  if (history.length === 0) return null;
+
+  return (
+    <div className="card" style={{ marginTop: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', margin: 0 }}>
+          경기 기록 ({history.length})
+        </h3>
+        <button
+          className="btn"
+          onClick={onToggle}
+          style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#374151' }}
+        >
+          {order === 'newest' ? '🔽 최신순' : '🔼 시간순'}
+        </button>
+      </div>
+
+      {/* 시간순일 때 경기 시작 마커 */}
+      {order === 'oldest' && (
+        <div style={{
+          textAlign: 'center', padding: '0.5rem', marginBottom: '0.5rem',
+          background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)',
+          borderRadius: '0.5rem', color: '#93c5fd', fontSize: '0.9rem',
+        }}>
+          🎾 경기 시작
+        </div>
+      )}
+
+      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        {sortedHistory.map((h, i) => {
+          const icon = h.actionType === 'goal' ? '⚽' : h.points >= 2 ? '🔴' : '🟡';
+          const isGoal = h.actionType === 'goal';
+
+          return (
+            <div
+              key={i}
+              style={{
+                padding: '0.5rem 0.75rem',
+                borderBottom: '1px solid #1f2937',
+                fontSize: '0.875rem',
+                backgroundColor: i % 2 === 0 ? 'transparent' : '#111827',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ color: '#6b7280', marginRight: '0.5rem' }}>{h.time}</span>
+                  <span style={{ marginRight: '0.5rem' }}>{icon}</span>
+                  {isGoal ? (
+                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
+                      {h.actionPlayer} 골 → {h.scoringPlayer} +{h.points}
+                    </span>
+                  ) : (
+                    <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>
+                      {h.actionPlayer} {h.actionLabel.split(' ').pop()} → {h.scoringPlayer} +{h.points}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
+                  {h.scoreAfter.player1} - {h.scoreAfter.player2}
+                </div>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>
+                서브: {h.server} {h.serveNumber}회차
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// ===== 개인전 상세 =====
 function IndividualMatchDetail({
-  match,
-  gameConfig,
+  match, gameConfig,
 }: {
   match: NonNullable<ReturnType<typeof useMatch>['match']>;
-  gameConfig?: GameConfig;
+  gameConfig?: { winScore: number; setsToWin: number };
 }) {
   const sets = match.sets || [];
-  const currentSet = match.currentSet || 1;
-  const currentSetData = sets[currentSet - 1];
-  const setWins = countSetWins(sets, gameConfig ? getEffectiveGameConfig(gameConfig) : undefined);
-
-  const totalFaults1 = sets.reduce((sum, s) => sum + (s.player1Faults || 0), 0);
-  const totalFaults2 = sets.reduce((sum, s) => sum + (s.player2Faults || 0), 0);
-  const totalViolations1 = sets.reduce((sum, s) => sum + (s.player1Violations || 0), 0);
-  const totalViolations2 = sets.reduce((sum, s) => sum + (s.player2Violations || 0), 0);
-
+  const currentSet = match.currentSet || 0;
+  const currentSetData = sets[currentSet];
+  const effectiveConfig = gameConfig ? getEffectiveGameConfig(gameConfig) : undefined;
+  const setWins = countSetWins(sets, effectiveConfig);
   const hasTimeout = match.activeTimeout != null;
 
   return (
     <div>
-      {/* Timeout indicator */}
       {hasTimeout && (
-        <div
-          style={{
-            backgroundColor: '#92400e',
-            color: '#fbbf24',
-            padding: '0.75rem',
-            borderRadius: '0.5rem',
-            textAlign: 'center',
-            fontWeight: 'bold',
-            fontSize: '1.25rem',
-            marginBottom: '1rem',
-          }}
-        >
+        <div style={{ backgroundColor: '#92400e', color: '#fbbf24', padding: '0.75rem', borderRadius: '0.5rem', textAlign: 'center', fontWeight: 'bold', fontSize: '1.25rem', marginBottom: '1rem' }}>
           타임아웃 진행중
         </div>
       )}
 
-      {/* Player names */}
+      {/* 선수 이름 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1 }}>
-          {match.player1Name || '선수1'}
+          {match.currentServe === 'player1' && match.serveSelected ? '🎾 ' : ''}{match.player1Name || '선수1'}
         </span>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-          {match.player2Name || '선수2'}
+          {match.currentServe === 'player2' && match.serveSelected ? '🎾 ' : ''}{match.player2Name || '선수2'}
         </span>
       </div>
 
-      {/* Current set score - VERY LARGE */}
-      <div
-        className="card"
-        style={{
-          textAlign: 'center',
-          padding: '2rem 1rem',
-          marginBottom: '1rem',
-          border: '2px solid #374151',
-        }}
-      >
-        <p style={{ color: '#9ca3af', marginBottom: '0.5rem', fontSize: '1rem' }}>
-          제{currentSet}세트
-        </p>
+      {/* 현재 세트 점수 */}
+      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }}>
+        <p style={{ color: '#9ca3af', marginBottom: '0.5rem', fontSize: '1rem' }}>제{currentSet + 1}세트</p>
         <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ color: 'var(--color-primary)' }}>
-            {currentSetData?.player1Score ?? 0}
-          </span>
+          <span style={{ color: 'var(--color-primary)' }}>{currentSetData?.player1Score ?? 0}</span>
           <span style={{ color: '#6b7280', fontSize: '3rem' }}>-</span>
-          <span style={{ color: 'var(--color-secondary)' }}>
-            {currentSetData?.player2Score ?? 0}
-          </span>
+          <span style={{ color: 'var(--color-secondary)' }}>{currentSetData?.player2Score ?? 0}</span>
         </div>
-        <p style={{ color: '#d1d5db', marginTop: '0.5rem', fontSize: '1.25rem' }}>
-          세트 {setWins.player1} - {setWins.player2}
-        </p>
+        <p style={{ color: '#d1d5db', marginTop: '0.5rem', fontSize: '1.25rem' }}>세트 {setWins.player1} - {setWins.player2}</p>
       </div>
 
-      {/* Set history */}
+      {/* 세트 기록 */}
       {sets.length > 0 && (
         <div className="card" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>
-            세트 기록
-          </h3>
+          <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>세트 기록</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <caption className="sr-only">세트별 점수 기록</caption>
             <thead>
               <tr>
-                <th scope="col" style={detailThStyle}>세트</th>
-                <th scope="col" style={detailThStyle}>{match.player1Name || '선수1'}</th>
-                <th scope="col" style={detailThStyle}>{match.player2Name || '선수2'}</th>
+                <th style={thStyle}>세트</th>
+                <th style={thStyle}>{match.player1Name || '선수1'}</th>
+                <th style={thStyle}>{match.player2Name || '선수2'}</th>
               </tr>
             </thead>
             <tbody>
               {sets.map((s, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #1f2937' }}>
-                  <td style={detailTdStyle}>제{i + 1}세트</td>
-                  <td style={{
-                    ...detailTdStyle,
-                    fontWeight: 'bold',
-                    color: s.winnerId && s.player1Score > s.player2Score ? 'var(--color-success)' : undefined,
-                  }}>
-                    {s.player1Score}
-                  </td>
-                  <td style={{
-                    ...detailTdStyle,
-                    fontWeight: 'bold',
-                    color: s.winnerId && s.player2Score > s.player1Score ? 'var(--color-success)' : undefined,
-                  }}>
-                    {s.player2Score}
-                  </td>
+                  <td style={tdStyle}>제{i + 1}세트</td>
+                  <td style={{ ...tdStyle, fontWeight: 'bold', color: s.winnerId && s.player1Score > s.player2Score ? 'var(--color-success)' : undefined }}>{s.player1Score}</td>
+                  <td style={{ ...tdStyle, fontWeight: 'bold', color: s.winnerId && s.player2Score > s.player1Score ? 'var(--color-success)' : undefined }}>{s.player2Score}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-
-      {/* Faults & Violations */}
-      {(totalFaults1 > 0 || totalFaults2 > 0 || totalViolations1 > 0 || totalViolations2 > 0) && (
-        <div className="card">
-          <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>
-            반칙/바이올레이션
-          </h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <caption className="sr-only">반칙 및 바이올레이션 기록</caption>
-            <thead>
-              <tr>
-                <th scope="col" style={detailThStyle}>구분</th>
-                <th scope="col" style={detailThStyle}>{match.player1Name || '선수1'}</th>
-                <th scope="col" style={detailThStyle}>{match.player2Name || '선수2'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #1f2937' }}>
-                <td style={detailTdStyle}>반칙</td>
-                <td style={detailTdStyle}>{totalFaults1}</td>
-                <td style={detailTdStyle}>{totalFaults2}</td>
-              </tr>
-              <tr>
-                <td style={detailTdStyle}>바이올레이션</td>
-                <td style={detailTdStyle}>{totalViolations1}</td>
-                <td style={detailTdStyle}>{totalViolations2}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
 
-function TeamMatchDetail({
-  match,
-}: {
-  match: NonNullable<ReturnType<typeof useMatch>['match']>;
-}) {
+// ===== 팀전 상세 =====
+function TeamMatchDetail({ match }: { match: NonNullable<ReturnType<typeof useMatch>['match']> }) {
   const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
   const team1Score = setData?.player1Score ?? 0;
   const team2Score = setData?.player2Score ?? 0;
-  const faults1 = setData?.player1Faults ?? 0;
-  const faults2 = setData?.player2Faults ?? 0;
-  const violations1 = setData?.player1Violations ?? 0;
-  const violations2 = setData?.player2Violations ?? 0;
   const hasTimeout = match.activeTimeout != null;
 
   return (
     <div>
-      {/* Timeout indicator */}
       {hasTimeout && (
-        <div
-          style={{
-            backgroundColor: '#92400e',
-            color: '#fbbf24',
-            padding: '0.75rem',
-            borderRadius: '0.5rem',
-            textAlign: 'center',
-            fontWeight: 'bold',
-            fontSize: '1.25rem',
-            marginBottom: '1rem',
-          }}
-        >
+        <div style={{ backgroundColor: '#92400e', color: '#fbbf24', padding: '0.75rem', borderRadius: '0.5rem', textAlign: 'center', fontWeight: 'bold', fontSize: '1.25rem', marginBottom: '1rem' }}>
           타임아웃 진행중
         </div>
       )}
 
-      {/* Team names */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1 }}>
-          {match.team1Name || '팀1'}
+          {match.currentServe === 'player1' && match.serveSelected ? '🎾 ' : ''}{match.team1Name || '팀1'}
         </span>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-          {match.team2Name || '팀2'}
+          {match.currentServe === 'player2' && match.serveSelected ? '🎾 ' : ''}{match.team2Name || '팀2'}
         </span>
       </div>
 
-      {/* Team score - VERY LARGE (31-point single match) */}
-      <div
-        className="card"
-        style={{
-          textAlign: 'center',
-          padding: '2rem 1rem',
-          marginBottom: '1rem',
-          border: '2px solid #374151',
-        }}
-      >
+      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }}>
         <p style={{ color: '#9ca3af', marginBottom: '0.5rem' }}>31점 경기</p>
         <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ color: 'var(--color-primary)' }}>{team1Score}</span>
@@ -341,51 +307,15 @@ function TeamMatchDetail({
           <span style={{ color: 'var(--color-secondary)' }}>{team2Score}</span>
         </div>
       </div>
-
-      {/* Faults & Violations */}
-      {(faults1 > 0 || faults2 > 0 || violations1 > 0 || violations2 > 0) && (
-        <div className="card">
-          <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>
-            반칙/바이올레이션
-          </h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <caption className="sr-only">반칙 및 바이올레이션 기록</caption>
-            <thead>
-              <tr>
-                <th scope="col" style={detailThStyle}>구분</th>
-                <th scope="col" style={detailThStyle}>{match.team1Name || '팀1'}</th>
-                <th scope="col" style={detailThStyle}>{match.team2Name || '팀2'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #1f2937' }}>
-                <td style={detailTdStyle}>반칙</td>
-                <td style={detailTdStyle}>{faults1}</td>
-                <td style={detailTdStyle}>{faults2}</td>
-              </tr>
-              <tr>
-                <td style={detailTdStyle}>바이올레이션</td>
-                <td style={detailTdStyle}>{violations1}</td>
-                <td style={detailTdStyle}>{violations2}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
 
-const detailThStyle: React.CSSProperties = {
-  padding: '0.5rem',
-  textAlign: 'center',
-  fontWeight: 'bold',
-  color: 'var(--color-secondary)',
-  borderBottom: '2px solid #374151',
-  fontSize: '0.875rem',
+const thStyle: React.CSSProperties = {
+  padding: '0.5rem', textAlign: 'center', fontWeight: 'bold',
+  color: 'var(--color-secondary)', borderBottom: '2px solid #374151', fontSize: '0.875rem',
 };
 
-const detailTdStyle: React.CSSProperties = {
-  padding: '0.5rem',
-  textAlign: 'center',
+const tdStyle: React.CSSProperties = {
+  padding: '0.5rem', textAlign: 'center',
 };

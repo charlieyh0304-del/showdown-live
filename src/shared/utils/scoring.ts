@@ -1,4 +1,4 @@
-import type { SetScore, GameConfig, MatchType, ScoringRules } from '../types';
+import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry } from '../types';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -95,4 +95,84 @@ export function countSetWins(sets: SetScore[], config?: ReturnType<typeof getEff
     if (w === 2) p2++;
   }
   return { player1: p1, player2: p2 };
+}
+
+// ===== IBSA 서브 로테이션 =====
+// 개인전: 2회 서브 후 교대, 팀전: 3회 서브 후 교대
+export function getMaxServes(matchType: MatchType): number {
+  return matchType === 'team' ? 3 : 2;
+}
+
+export function advanceServe(
+  currentServe: 'player1' | 'player2',
+  serveCount: number,
+  matchType: MatchType,
+): { currentServe: 'player1' | 'player2'; serveCount: number } {
+  const maxServes = getMaxServes(matchType);
+  const nextCount = serveCount + 1;
+  if (nextCount >= maxServes) {
+    return {
+      currentServe: currentServe === 'player1' ? 'player2' : 'player1',
+      serveCount: 0,
+    };
+  }
+  return { currentServe, serveCount: nextCount };
+}
+
+// Undo 시 서브 되돌리기
+export function revertServe(
+  currentServe: 'player1' | 'player2',
+  serveCount: number,
+  matchType: MatchType,
+): { currentServe: 'player1' | 'player2'; serveCount: number } {
+  const maxServes = getMaxServes(matchType);
+  const prevCount = serveCount - 1;
+  if (prevCount < 0) {
+    return {
+      currentServe: currentServe === 'player1' ? 'player2' : 'player1',
+      serveCount: maxServes - 1,
+    };
+  }
+  return { currentServe, serveCount: prevCount };
+}
+
+// 사이드 체인지 체크
+export function shouldSideChange(
+  matchType: MatchType,
+  set: SetScore,
+  sideChangeUsed: boolean,
+  sets: SetScore[],
+  config: ReturnType<typeof getEffectiveGameConfig>,
+): boolean {
+  if (sideChangeUsed) return false;
+  const sideChangePoint = matchType === 'team' ? 16 : 6;
+  const maxScore = Math.max(set.player1Score, set.player2Score);
+
+  if (matchType === 'individual') {
+    // 개인전: 마지막 세트에서만
+    const setWins = countSetWins(sets.slice(0, -1), config);
+    const isLastSet = setWins.player1 === config.SETS_TO_WIN - 1 && setWins.player2 === config.SETS_TO_WIN - 1;
+    return isLastSet && maxScore >= sideChangePoint;
+  }
+  // 팀전: 항상
+  return maxScore >= sideChangePoint;
+}
+
+// 득점 히스토리 항목 생성
+export function createScoreHistoryEntry(opts: {
+  scoringPlayer: string;
+  actionPlayer: string;
+  actionType: ScoreActionType;
+  actionLabel: string;
+  points: number;
+  set: number;
+  server: string;
+  serveNumber: number;
+  scoreBefore: { player1: number; player2: number };
+  scoreAfter: { player1: number; player2: number };
+}): ScoreHistoryEntry {
+  return {
+    time: new Date().toLocaleTimeString('ko-KR'),
+    ...opts,
+  };
 }

@@ -32,6 +32,12 @@ export function usePracticeMatch(options: UsePracticeMatchOptions) {
     player2Timeouts: 0,
     activeTimeout: null,
     gameConfig: options.config,
+    currentServe: 'player1',
+    serveCount: 0,
+    serveSelected: false,
+    sideChangeUsed: false,
+    scoreHistory: [],
+    isPaused: false,
     actionLog: [],
     startedAt: Date.now(),
   }));
@@ -47,7 +53,7 @@ export function usePracticeMatch(options: UsePracticeMatchOptions) {
     setMatch(prev => ({ ...prev, ...data }));
   }, []);
 
-  const startMatch = useCallback(() => {
+  const startMatch = useCallback((firstServe: 'player1' | 'player2') => {
     setMatch(prev => ({
       ...prev,
       status: 'in_progress',
@@ -56,8 +62,14 @@ export function usePracticeMatch(options: UsePracticeMatchOptions) {
       player1Timeouts: 0,
       player2Timeouts: 0,
       activeTimeout: null,
+      currentServe: firstServe,
+      serveCount: 0,
+      serveSelected: true,
+      sideChangeUsed: false,
+      scoreHistory: [],
+      isPaused: false,
     }));
-    addAction({ type: 'start', player: 1 });
+    addAction({ type: 'start', player: firstServe === 'player1' ? 1 : 2 });
   }, [addAction]);
 
   const resetMatch = useCallback(() => {
@@ -70,6 +82,12 @@ export function usePracticeMatch(options: UsePracticeMatchOptions) {
       player1Timeouts: 0,
       player2Timeouts: 0,
       activeTimeout: null,
+      currentServe: 'player1',
+      serveCount: 0,
+      serveSelected: false,
+      sideChangeUsed: false,
+      scoreHistory: [],
+      isPaused: false,
       actionLog: [],
       startedAt: Date.now(),
       completedAt: undefined,
