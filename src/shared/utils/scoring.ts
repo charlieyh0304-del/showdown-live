@@ -1,4 +1,4 @@
-import type { SetScore, GameConfig, MatchType } from '../types';
+import type { SetScore, GameConfig, MatchType, ScoringRules } from '../types';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -14,13 +14,30 @@ export const TEAM_GAME_CONFIG = {
   MIN_POINT_DIFF: 2,
 } as const;
 
-export function getEffectiveGameConfig(gameConfig?: GameConfig, matchType?: MatchType) {
+export function getEffectiveGameConfig(
+  gameConfigOrRules?: GameConfig | ScoringRules,
+  matchType?: MatchType,
+) {
+  // ScoringRules (확장 타입) 지원
+  if (gameConfigOrRules && 'minLead' in gameConfigOrRules) {
+    const rules = gameConfigOrRules as ScoringRules;
+    return {
+      SETS_TO_WIN: rules.setsToWin,
+      MAX_SETS: rules.maxSets,
+      POINTS_TO_WIN: rules.winScore,
+      MIN_POINT_DIFF: rules.minLead,
+    };
+  }
+
+  // 기존 로직 (하위 호환)
   if (matchType === 'team') return TEAM_GAME_CONFIG;
-  if (!gameConfig) return DEFAULT_GAME_CONFIG;
+  if (!gameConfigOrRules) return DEFAULT_GAME_CONFIG;
+
+  const gc = gameConfigOrRules as GameConfig;
   return {
-    SETS_TO_WIN: gameConfig.setsToWin,
-    MAX_SETS: gameConfig.setsToWin * 2 - 1,
-    POINTS_TO_WIN: gameConfig.winScore,
+    SETS_TO_WIN: gc.setsToWin,
+    MAX_SETS: gc.setsToWin * 2 - 1,
+    POINTS_TO_WIN: gc.winScore,
     MIN_POINT_DIFF: 2,
   };
 }
@@ -28,9 +45,18 @@ export function getEffectiveGameConfig(gameConfig?: GameConfig, matchType?: Matc
 export function checkSetWinner(
   player1Score: number,
   player2Score: number,
-  config?: ReturnType<typeof getEffectiveGameConfig>
+  config?: ReturnType<typeof getEffectiveGameConfig>,
+  deuceCap?: number,
 ): 1 | 2 | null {
   const { POINTS_TO_WIN, MIN_POINT_DIFF } = config || DEFAULT_GAME_CONFIG;
+
+  // 듀스 캡: 캡 점수 도달 시 1점 차로도 승리
+  if (deuceCap && (player1Score >= deuceCap || player2Score >= deuceCap)) {
+    if (player1Score > player2Score) return 1;
+    if (player2Score > player1Score) return 2;
+    return null;
+  }
+
   if (player1Score >= POINTS_TO_WIN && player1Score - player2Score >= MIN_POINT_DIFF) return 1;
   if (player2Score >= POINTS_TO_WIN && player2Score - player1Score >= MIN_POINT_DIFF) return 2;
   return null;

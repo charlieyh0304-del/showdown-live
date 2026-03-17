@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
@@ -8,6 +8,10 @@ import {
   getEffectiveGameConfig,
   countSetWins,
 } from '@shared/utils/scoring';
+import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
+import { useKeyboardShortcuts } from '@shared/hooks/useKeyboardShortcuts';
+import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
+import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import type { SetScore } from '@shared/types';
 
 export default function IndividualScoring() {
@@ -15,10 +19,16 @@ export default function IndividualScoring() {
   const navigate = useNavigate();
   const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
   const { tournament } = useTournament(tournamentId ?? null);
+  const audio = useAudioFeedback();
 
   const [timeoutRemaining, setTimeoutRemaining] = useState<number | null>(null);
+  const [announcement, setAnnouncement] = useState('');
 
-  const gameConfig = getEffectiveGameConfig(tournament?.gameConfig);
+  // 커스텀 ScoringRules가 있으면 우선 사용
+  const gameConfig = getEffectiveGameConfig(tournament?.scoringRules || tournament?.gameConfig);
+
+  // 경기 진행 중 이탈 방지
+  useNavigationGuard(match?.status === 'in_progress');
 
   // Timeout countdown
   useEffect(() => {
@@ -53,6 +63,7 @@ export default function IndividualScoring() {
 
   const handleScore = useCallback(async (player: 1 | 2, delta: number) => {
     if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress') return;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const currentSetIndex = match.currentSet;
     const currentSet = { ...sets[currentSetIndex] };
@@ -65,6 +76,13 @@ export default function IndividualScoring() {
 
     sets[currentSetIndex] = currentSet;
 
+    // Audio/haptic feedback
+    if (delta > 0) { audio.scoreUp(); vibrate(hapticPatterns.scoreUp); }
+    else { audio.scoreDown(); vibrate(hapticPatterns.scoreDown); }
+
+    const pName = player === 1 ? (match.player1Name ?? '선수1') : (match.player2Name ?? '선수2');
+    setAnnouncement(`${pName} ${delta > 0 ? '득점' : '감점'}. ${match.player1Name ?? '선수1'} ${currentSet.player1Score}점, ${match.player2Name ?? '선수2'} ${currentSet.player2Score}점`);
+
     // Check set winner
     const setWinner = checkSetWinner(currentSet.player1Score, currentSet.player2Score, gameConfig);
     if (setWinner && delta > 0) {
@@ -75,6 +93,8 @@ export default function IndividualScoring() {
       const matchWinner = checkMatchWinner(sets, gameConfig);
       if (matchWinner) {
         const winnerId = matchWinner === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
+        audio.matchComplete();
+        vibrate(hapticPatterns.matchComplete);
         await updateMatch({
           sets,
           status: 'completed',
@@ -84,6 +104,8 @@ export default function IndividualScoring() {
       }
 
       // New set
+      audio.setComplete();
+      vibrate(hapticPatterns.setComplete);
       sets.push(createEmptySet());
       await updateMatch({
         sets,
@@ -96,10 +118,11 @@ export default function IndividualScoring() {
     }
 
     await updateMatch({ sets });
-  }, [match, gameConfig, updateMatch]);
+  }, [match, gameConfig, updateMatch, audio]);
 
   const handleFault = useCallback(async (player: 1 | 2) => {
     if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress') return;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const currentSet = { ...sets[match.currentSet] };
     if (player === 1) {
@@ -113,6 +136,7 @@ export default function IndividualScoring() {
 
   const handleViolation = useCallback(async (player: 1 | 2) => {
     if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress') return;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const currentSet = { ...sets[match.currentSet] };
     if (player === 1) {
@@ -125,7 +149,7 @@ export default function IndividualScoring() {
   }, [match, updateMatch]);
 
   const handleTimeout = useCallback(async (player: 1 | 2) => {
-    if (!match) return;
+    if (!match || match.status !== 'in_progress') return;
     const usedTimeouts = player === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
     if (usedTimeouts >= 1) return;
 
@@ -231,6 +255,18 @@ export default function IndividualScoring() {
     );
   }
 
+  // 키보드 단축키
+  const shortcuts = useMemo(() => ({
+    'ArrowLeft': () => handleScore(1, 1),
+    'ArrowRight': () => handleScore(2, 1),
+    'KeyQ': () => handleScore(1, -1),
+    'KeyP': () => handleScore(2, -1),
+    'KeyF': () => handleFault(1),
+    'KeyJ': () => handleFault(2),
+  }), [handleScore, handleFault]);
+
+  useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
+
   // IN_PROGRESS state
   const sets = match.sets ?? [createEmptySet()];
   const currentSetIndex = match.currentSet ?? 0;
@@ -241,6 +277,9 @@ export default function IndividualScoring() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Screen reader announcements */}
+      <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
+
       {/* Timeout overlay */}
       {match.activeTimeout && timeoutRemaining !== null && (
         <div className="modal-backdrop" style={{ zIndex: 100 }}>

@@ -5,6 +5,67 @@ export type TournamentStatus = 'draft' | 'registration' | 'in_progress' | 'pause
 export type MatchStatus = 'pending' | 'in_progress' | 'completed';
 export type MatchType = 'individual' | 'team';
 
+// ===== 확장 대회 포맷 =====
+export type BracketFormatType =
+  | 'round_robin'
+  | 'single_elimination'
+  | 'double_elimination'
+  | 'swiss'
+  | 'group_knockout';
+
+// ===== 커스텀 스코어링 규칙 =====
+export interface ScoringRules {
+  winScore: number;
+  setsToWin: number;
+  maxSets: number;
+  minLead: number;
+  deuceEnabled: boolean;
+  deuceCap?: number;
+  maxScore?: number;
+}
+
+// ===== 경기 규칙 =====
+export interface MatchRules {
+  timeoutsPerPlayer: number;
+  timeoutDurationSeconds: number;
+  maxFaultsPerSet?: number;
+  faultPenaltyType?: 'warning' | 'point';
+}
+
+// ===== 팀 규칙 =====
+export interface TeamRules {
+  teamSize: number;
+  rotationEnabled: boolean;
+  rotationInterval?: number;
+}
+
+// ===== 대회 스테이지 =====
+export interface TournamentStage {
+  id: string;
+  name: string;
+  order: number;
+  format: BracketFormatType;
+  scoringRules?: ScoringRules;
+  groupCount?: number;
+  advanceCount?: number;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+// ===== 대회 템플릿 =====
+export interface TournamentTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  type: TournamentType;
+  scoringRules: ScoringRules;
+  matchRules: MatchRules;
+  teamRules?: TeamRules;
+  formatType: BracketFormatType;
+  stages?: Omit<TournamentStage, 'id' | 'status'>[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ===== 대회 =====
 export interface Tournament {
   id: string;
@@ -15,6 +76,14 @@ export interface Tournament {
   status: TournamentStatus;
   gameConfig: GameConfig;
   teamMatchSettings?: TeamMatchSettings;
+  // 확장 필드 (커스텀 대회 설정)
+  formatType?: BracketFormatType;
+  scoringRules?: ScoringRules;
+  matchRules?: MatchRules;
+  teamRules?: TeamRules;
+  stages?: TournamentStage[];
+  currentStageId?: string;
+  templateId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -102,6 +171,14 @@ export interface Match {
   team2?: Team;
   // @deprecated - 이전 NxN 방식 호환용. 새 팀전은 sets[] 사용
   individualMatches?: IndividualMatch[];
+  // 확장 필드 (커스텀 대회)
+  stageId?: string;
+  groupId?: string;
+  bracketPosition?: number;
+  bye?: boolean;
+  sourceMatch1Id?: string;
+  sourceMatch2Id?: string;
+  appliedScoringRules?: ScoringRules;
   createdAt: number;
   updatedAt?: number;
 }
@@ -201,3 +278,87 @@ export interface AuthSession {
   tournamentId?: string;
   authenticatedAt: number;
 }
+
+// ===== 심판 연습 모드 =====
+export type PracticeSessionType = 'free' | 'scenario' | 'tutorial';
+export type ScenarioCategory = 'close_game' | 'fault_heavy' | 'violation' | 'deuce' | 'timeout' | 'full_match';
+
+export interface PracticeMatch {
+  id: string;
+  type: MatchType;
+  player1Name: string;
+  player2Name: string;
+  sets: SetScore[];
+  currentSet: number;
+  status: MatchStatus;
+  winnerId: string | null;
+  player1Timeouts: number;
+  player2Timeouts: number;
+  activeTimeout: { playerId: string; startTime: number } | null;
+  gameConfig: {
+    SETS_TO_WIN: number;
+    MAX_SETS: number;
+    POINTS_TO_WIN: number;
+    MIN_POINT_DIFF: number;
+  };
+  scenarioId?: string;
+  actionLog: PracticeAction[];
+  startedAt: number;
+  completedAt?: number;
+}
+
+export interface PracticeAction {
+  timestamp: number;
+  type: 'score' | 'fault' | 'violation' | 'timeout' | 'timeout_end' | 'start';
+  player: 1 | 2;
+  detail?: string;
+}
+
+export interface PracticeScenario {
+  id: string;
+  name: string;
+  description: string;
+  category: ScenarioCategory;
+  matchType: MatchType;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  initialState?: {
+    sets: SetScore[];
+    currentSet: number;
+  };
+  events: ScenarioEvent[];
+  expectedActions: ExpectedAction[];
+}
+
+export interface ScenarioEvent {
+  type: 'score' | 'fault' | 'violation' | 'timeout_request';
+  player: 1 | 2;
+  description: string;
+  expectedRefereeAction: string;
+}
+
+export interface ExpectedAction {
+  type: PracticeAction['type'];
+  player: 1 | 2;
+  detail?: string;
+}
+
+export interface PracticeSession {
+  id: string;
+  date: number;
+  matchType: MatchType;
+  sessionType: PracticeSessionType;
+  scenarioId?: string;
+  scenarioName?: string;
+  duration: number;
+  accuracy?: number;
+  totalActions: number;
+  correctActions?: number;
+  finalScore: string;
+}
+
+// ===== 타이브레이커 =====
+export type TiebreakerRule =
+  | 'head_to_head'
+  | 'set_difference'
+  | 'point_difference'
+  | 'points_for';

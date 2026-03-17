@@ -235,3 +235,37 @@ button, a, input, select {
 .animate-bounce {
   animation: bounce 1s ease-in-out infinite;
 }
+
+/* ===== 모드별 카드 스타일 ===== */
+.mode-card {
+  position: relative;
+  border-left: 8px solid transparent;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.mode-card--admin { border-left-color: var(--color-primary); }
+.mode-card--referee { border-left-color: var(--color-secondary); }
+.mode-card--spectator { border-left-color: #00ff00; }
+
+/* ===== 연습 모드 배너 ===== */
+.practice-banner {
+  background-color: #7c3aed;
+  color: #ffffff;
+  text-align: center;
+  padding: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+/* ===== 스크린 리더 전용 ===== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

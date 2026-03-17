@@ -54,6 +54,7 @@ export default function TeamMatchScoring() {
 
   const handleScore = useCallback(async (team: 1 | 2, delta: number) => {
     if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress') return;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const currentSet = { ...sets[0] };
 
@@ -85,6 +86,7 @@ export default function TeamMatchScoring() {
 
   const handleFault = useCallback(async (team: 1 | 2) => {
     if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress') return;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const currentSet = { ...sets[0] };
     if (team === 1) {
@@ -98,6 +100,7 @@ export default function TeamMatchScoring() {
 
   const handleViolation = useCallback(async (team: 1 | 2) => {
     if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress') return;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const currentSet = { ...sets[0] };
     if (team === 1) {
@@ -110,7 +113,7 @@ export default function TeamMatchScoring() {
   }, [match, updateMatch]);
 
   const handleTimeout = useCallback(async (team: 1 | 2) => {
-    if (!match) return;
+    if (!match || match.status !== 'in_progress') return;
     const usedTimeouts = team === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
     if (usedTimeouts >= 1) return;
 

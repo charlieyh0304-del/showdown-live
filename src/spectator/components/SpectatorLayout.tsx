@@ -33,7 +33,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
         }}
       >
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/spectator')}
           className="btn"
           style={{
             background: 'none',
@@ -41,9 +41,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             padding: '0.5rem 0.75rem',
             fontSize: '1.1rem',
           }}
-          aria-label="홈으로 이동"
+          aria-label="관람 홈으로 이동"
         >
-          ← 홈
+          ← 관람 홈
         </button>
         <h1
           style={{
@@ -124,6 +124,26 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           aria-label="즐겨찾기"
         >
           즐겨찾기
+        </NavLink>
+        <NavLink
+          to="/spectator/practice"
+          className={({ isActive }) =>
+            isActive ? 'nav-link active' : 'nav-link'
+          }
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            textDecoration: 'none',
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+          }}
+          aria-label="연습 경기"
+        >
+          연습
         </NavLink>
       </nav>
     </div>

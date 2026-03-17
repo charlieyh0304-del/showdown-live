@@ -186,6 +186,20 @@ export default function RefereeLogin() {
         >
           {step === 'tournament' ? '모드 선택으로' : '뒤로'}
         </button>
+
+        {step === 'tournament' && (
+          <div className="mt-6 pt-6 border-t border-gray-700">
+            <p className="text-center text-gray-400 mb-3">처음이신가요? 연습으로 시작하세요</p>
+            <button
+              className="btn btn-large w-full"
+              style={{ backgroundColor: '#7c3aed', color: '#ffffff', fontSize: '1.5rem' }}
+              onClick={() => navigate('/referee/practice')}
+              aria-label="심판 연습 모드 시작"
+            >
+              연습 모드
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
