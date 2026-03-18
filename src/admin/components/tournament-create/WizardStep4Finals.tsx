@@ -323,8 +323,8 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                     }`}
                     onClick={() => updateRankingMatch({ fifthToEighthFormat: 'simple' })}
                   >
-                    간소화 (2경기)<br/>
-                    <span className="text-xs opacity-75">5vs8, 6vs7</span>
+                    <span className="block">간소화 (2경기)</span>
+                    <span className="block text-xs opacity-75">5vs8, 6vs7</span>
                   </button>
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
@@ -334,8 +334,8 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                     }`}
                     onClick={() => updateRankingMatch({ fifthToEighthFormat: 'full' })}
                   >
-                    교차전 (4경기)<br/>
-                    <span className="text-xs opacity-75">교차 → 순위전</span>
+                    <span className="block">교차전 (4경기)</span>
+                    <span className="block text-xs opacity-75">교차 → 순위전</span>
                   </button>
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
@@ -345,8 +345,8 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                     }`}
                     onClick={() => updateRankingMatch({ fifthToEighthFormat: 'round_robin' })}
                   >
-                    풀리그 (6경기)<br/>
-                    <span className="text-xs opacity-75">4명 라운드로빈</span>
+                    <span className="block">풀리그 (6경기)</span>
+                    <span className="block text-xs opacity-75">4명 라운드로빈</span>
                   </button>
                 </div>
               </div>

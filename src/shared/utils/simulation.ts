@@ -219,18 +219,26 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     { id: 'sim_court_2', name: '2코트' },
   ];
 
-  // 5. 조별 편성 (참가자 4명 이상일 때 2조로 나눔)
+  // 5. 조별 편성 (대회 설정의 groupCount 사용, 없으면 2조)
   const participants = isTeam ? teams! : players;
-  const useGroups = participants.length >= 4;
-  const groupCount = useGroups ? 2 : 1;
+  const configGroupCount = tournament.qualifyingConfig?.groupCount ?? tournament.stages?.find(s => s.type === 'qualifying')?.groupCount;
+  const useGroups = participants.length >= 4 && (configGroupCount ? configGroupCount > 1 : true);
+  const groupCount = useGroups ? (configGroupCount || 2) : 1;
   const groups: { id: string; members: typeof participants }[] = [];
 
   if (useGroups) {
-    const perGroup = Math.ceil(participants.length / groupCount);
+    // Snake draft로 균등 배분 (buildGroupAssignment와 동일 로직)
+    const groupMembers: (typeof participants)[] = Array.from({ length: groupCount }, () => []);
+    for (let i = 0; i < participants.length; i++) {
+      const round = Math.floor(i / groupCount);
+      const pos = i % groupCount;
+      const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
+      groupMembers[groupIndex].push(participants[i]);
+    }
     for (let g = 0; g < groupCount; g++) {
       groups.push({
         id: String.fromCharCode(65 + g), // 'A', 'B', ...
-        members: participants.slice(g * perGroup, (g + 1) * perGroup),
+        members: groupMembers[g],
       });
     }
   } else {

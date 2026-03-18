@@ -14,6 +14,7 @@ import { createEmptySet } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { simulateTournament } from '@shared/utils/simulation';
 import type { Match, Team, Player, MatchStatus, ScheduleSlot } from '@shared/types';
+import NumberStepper from '../components/tournament-create/NumberStepper';
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
 
@@ -43,6 +44,7 @@ export default function TournamentDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>('players');
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState('');
+  const [simCount, setSimCount] = useState(16);
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
   const { matches, loading: mLoading, setMatchesBulk, updateMatch } = useMatches(id ?? null);
@@ -76,11 +78,11 @@ export default function TournamentDetail() {
 
   const handleSimulate = async () => {
     if (!tournament) return;
-    if (!confirm('시뮬레이션을 실행하면 가상 참가자와 경기 결과가 생성됩니다.\n기존 데이터가 초기화됩니다.\n\n계속하시겠습니까?')) return;
+    if (!confirm(`시뮬레이션을 실행합니다.\n\n• 가상 참가자 ${simCount}명 생성\n• 기존 참가자/경기 데이터가 초기화됩니다\n• 대회 규칙 설정은 유지됩니다\n\n계속하시겠습니까?`)) return;
 
     setSimulating(true);
     try {
-      const count = 8;
+      const count = simCount;
       setSimProgress('시뮬레이션 데이터 생성 중...');
       const result = simulateTournament(tournament, count);
 
@@ -137,6 +139,16 @@ export default function TournamentDetail() {
         <div className="card bg-purple-900/30 border-purple-500 p-4">
           <h3 className="text-lg font-bold text-purple-400 mb-2">테스트 시뮬레이션</h3>
           <p className="text-gray-400 text-sm mb-3">가상 참가자, 경기 결과, 순위를 자동으로 생성합니다.</p>
+          <div className="mb-3">
+            <NumberStepper
+              label="시뮬레이션 참가자 수"
+              value={simCount}
+              min={4}
+              max={64}
+              onChange={setSimCount}
+              ariaLabel="시뮬레이션 참가자 수"
+            />
+          </div>
           {simProgress && <p className="text-cyan-400 text-sm mb-2">{simProgress}</p>}
           <button
             className="btn bg-purple-700 hover:bg-purple-600 text-white w-full"

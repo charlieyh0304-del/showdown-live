@@ -163,6 +163,20 @@ function reducer(state: WizardState, action: Action): WizardState {
         };
         next.hasThirdPlaceMatch = next.thirdPlaceMatch;
       }
+      if (action.field === 'rankingMatch') {
+        const rmVal = action.value as RankingMatchConfig;
+        next.rankingMatch = {
+          enabled: rmVal.enabled ?? next.hasRankingMatch,
+          thirdPlace: rmVal.thirdPlace ?? next.thirdPlaceMatch,
+          fifthToEighth: rmVal.fifthToEighth ?? false,
+          fifthToEighthFormat: rmVal.fifthToEighthFormat ?? 'simple',
+          classificationGroups: rmVal.classificationGroups ?? false,
+          classificationGroupSize: rmVal.classificationGroupSize ?? 4,
+        };
+        next.hasRankingMatch = next.rankingMatch.enabled;
+        next.thirdPlaceMatch = next.rankingMatch.thirdPlace;
+        next.hasThirdPlaceMatch = next.rankingMatch.thirdPlace;
+      }
       if (action.field === 'type') {
         const t = action.value as TournamentType;
         if (t === 'team' || t === 'randomTeamLeague') {
@@ -494,14 +508,20 @@ export default function TournamentCreate() {
                   const remainder = state.participantCount % state.groupCount;
                   return (
                     <div className="space-y-2">
-                      <p className="text-cyan-400 font-semibold text-lg">
-                        조당 {perGroup}명
-                        {remainder > 0 && ` (${remainder}개 조는 ${perGroup + 1}명)`}
-                      </p>
-                      {remainder > 0 && (
-                        <p className="text-yellow-500 text-sm">
-                          참가자가 균등하게 배분되지 않습니다. {state.groupCount}개 조 중 {remainder}개 조에 1명이 더 배정됩니다.
+                      {remainder === 0 ? (
+                        <p className="text-cyan-400 font-semibold text-lg">
+                          조당 {perGroup}명 (균등 배분)
                         </p>
+                      ) : (
+                        <div className="bg-gray-800 rounded p-3 text-sm space-y-1">
+                          <p className="text-yellow-400 font-semibold">불균등 배분 안내</p>
+                          <p className="text-gray-300">
+                            {remainder}개 조는 {perGroup + 1}명, 나머지 {state.groupCount - remainder}개 조는 {perGroup}명
+                          </p>
+                          <p className="text-gray-400 text-xs">
+                            Snake draft 방식으로 공정하게 배분됩니다
+                          </p>
+                        </div>
                       )}
                       {perGroup < 2 && (
                         <p className="text-red-500 text-sm font-bold">
