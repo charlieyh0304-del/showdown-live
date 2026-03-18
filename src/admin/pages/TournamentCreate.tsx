@@ -151,9 +151,21 @@ function reducer(state: WizardState, action: Action): WizardState {
       if (action.field === 'groupCount') {
         next.qualifyingFormat = (action.value as number) > 1 ? 'group_round_robin' : 'round_robin';
         next.advanceCount = next.advancePerGroup * (action.value as number);
+        // Auto-adjust finalsStartRound to nearest power of 2 >= advanceCount
+        const newAdvance = next.advanceCount;
+        let round = 4;
+        while (round < newAdvance) round *= 2;
+        next.finalsStartRound = round;
+        next.startingRound = round;
       }
       if (action.field === 'advancePerGroup') {
         next.advanceCount = (action.value as number) * next.groupCount;
+        // Auto-adjust finalsStartRound to nearest power of 2 >= advanceCount
+        const newAdvance = next.advanceCount;
+        let round = 4;
+        while (round < newAdvance) round *= 2;
+        next.finalsStartRound = round;
+        next.startingRound = round;
       }
       if (action.field === 'thirdPlaceMatch' || action.field === 'hasRankingMatch') {
         next.rankingMatch = {
@@ -224,8 +236,15 @@ function reducer(state: WizardState, action: Action): WizardState {
         formatType: preset.formatType,
       };
     }
-    case 'NEXT_STEP':
-      return { ...state, step: getNextStep(state.step, state.hasGroupStage) };
+    case 'NEXT_STEP': {
+      const nextStep = getNextStep(state.step, state.hasGroupStage);
+      const next = { ...state, step: nextStep };
+      // When skipping to Step 4 without group stage, enable finals stage
+      if (state.step === 2 && nextStep === 4 && !state.hasGroupStage) {
+        next.hasFinalsStage = true;
+      }
+      return next;
+    }
     case 'PREV_STEP':
       return { ...state, step: getPrevStep(state.step, state.hasGroupStage) };
     case 'GO_TO_STEP':

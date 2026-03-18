@@ -231,6 +231,13 @@ export function calculateMatchCount(
   let finals = 0;
   let ranking = 0;
 
+  // Single stage (no group stage, no finals) — calculate based on participantCount
+  if (!hasGroupStage && !hasFinalsStage) {
+    // Default to round robin for single stage
+    qualifying = (participantCount * (participantCount - 1)) / 2;
+    return { qualifying, finals: 0, ranking: 0, total: qualifying };
+  }
+
   if (hasGroupStage) {
     if (groupCount <= 1) {
       // 풀리그
