@@ -49,7 +49,7 @@ export default function TournamentDetail() {
   const { players: globalPlayers, loading: gpLoading } = usePlayers();
   const { players: tournamentPlayers, loading: tpLoading, addPlayer: addTournamentPlayer, deletePlayer: deleteTournamentPlayer, addPlayersFromGlobal } = useTournamentLocalPlayers(id ?? null);
   const { teams, setTeamsBulk } = useTeams(id ?? null);
-  const { referees } = useReferees();
+  const { referees, updateReferee } = useReferees();
   const { courts } = useCourts();
   const { schedule, setScheduleBulk } = useSchedule(id ?? null);
 
@@ -96,6 +96,18 @@ export default function TournamentDetail() {
 
       setSimProgress(`경기 ${result.matches.length}건 생성 중...`);
       await setMatchesBulk(result.matches);
+
+      if (result.schedule && result.schedule.length > 0) {
+        setSimProgress(`스케줄 ${result.schedule.length}건 저장 중...`);
+        await setScheduleBulk(result.schedule);
+      }
+
+      if (result.referees && result.referees.length > 0) {
+        setSimProgress(`심판 ${result.referees.length}명 배정 정보 저장 중...`);
+        for (const ref of result.referees) {
+          await updateReferee(ref.id, { assignedMatchIds: ref.assignedMatchIds });
+        }
+      }
 
       setSimProgress('대회 상태 업데이트 중...');
       await updateTournament({ status: 'completed' });

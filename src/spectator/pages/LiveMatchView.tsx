@@ -92,6 +92,7 @@ export default function LiveMatchView() {
       {/* 경기 기록 (최신순/시간순 토글) */}
       <ScoreHistorySection
         history={match.scoreHistory ?? []}
+        sets={match.sets}
         order={historyOrder}
         onToggle={() => setHistoryOrder(o => o === 'newest' ? 'oldest' : 'newest')}
       />
@@ -120,9 +121,10 @@ function ServeIndicator({ match }: { match: NonNullable<ReturnType<typeof useMat
 
 // ===== 경기 기록 (최신순/시간순) =====
 function ScoreHistorySection({
-  history, order, onToggle,
+  history, sets, order, onToggle,
 }: {
   history: ScoreHistoryEntry[];
+  sets?: { player1Score: number; player2Score: number; winnerId?: string | null }[];
   order: 'newest' | 'oldest';
   onToggle: () => void;
 }) {
@@ -131,7 +133,24 @@ function ScoreHistorySection({
     return [...history].reverse();
   }, [history, order]);
 
-  if (history.length === 0) return null;
+  if (history.length === 0) {
+    return (
+      <div className="card" style={{ marginTop: '1.5rem', padding: '1rem' }}>
+        <p style={{ color: '#9ca3af', textAlign: 'center' }}>상세 경기 기록이 없습니다.</p>
+        {sets && sets.length > 0 && (
+          <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af' }}>세트 결과</h4>
+            {sets.map((s, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem' }}>
+                <span>세트 {i + 1}</span>
+                <span style={{ fontWeight: 'bold' }}>{s.player1Score} - {s.player2Score}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="card" style={{ marginTop: '1.5rem' }}>
