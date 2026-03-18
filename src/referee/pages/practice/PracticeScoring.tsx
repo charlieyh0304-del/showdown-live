@@ -396,97 +396,67 @@ export default function PracticeScoring() {
         })}
       </div>
 
-      {/* 득점 영역 (스크롤) */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {/* 골 +2 */}
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">⚽ 골 득점 (+2점)</h3>
-          <div className="grid grid-cols-2 gap-3">
+      {/* 득점 영역 - 선수별 2열 구성 */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
+        {/* 선수별 컬럼 헤더 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="text-center text-yellow-400 font-bold text-lg">{p1Name}</div>
+          <div className="text-center text-cyan-400 font-bold text-lg">{p2Name}</div>
+        </div>
+
+        {/* 골 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
+            onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} 골`)}
+          >
+            ⚽ 골 +2
+          </button>
+          <button
+            className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
+            onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} 골`)}
+          >
+            ⚽ 골 +2
+          </button>
+        </div>
+
+        {/* 파울 (상대에게 +1) */}
+        <div className="text-center text-xs text-gray-500 font-semibold">파울 (상대에게 +1점)</div>
+        {foulActions.map(action => (
+          <div key={action.type} className="grid grid-cols-2 gap-2">
             <button
-              className="btn btn-success text-lg py-4 font-bold"
-              onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} 골`)}
+              className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
+              onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
             >
-              {p1Name}<br/>골 +2점
+              🟡 {action.label}
             </button>
             <button
-              className="btn btn-success text-lg py-4 font-bold"
-              onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} 골`)}
+              className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
+              onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
             >
-              {p2Name}<br/>골 +2점
+              🟡 {action.label}
             </button>
           </div>
-        </div>
+        ))}
 
-        {/* 파울 +1 (상대 득점) */}
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">🟡 파울 +1점 (상대 득점)</h3>
-          <div className="space-y-2">
-            {foulActions.map(action => (
-              <div key={action.type} className="grid grid-cols-2 gap-2">
-                <button
-                  className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
-                >
-                  {p1Name}<br/>{action.label}
-                </button>
-                <button
-                  className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
-                >
-                  {p2Name}<br/>{action.label}
-                </button>
-              </div>
-            ))}
+        {/* 벌점 (상대에게 +2) */}
+        <div className="text-center text-xs text-gray-500 font-semibold">벌점 (상대에게 +2점)</div>
+        {penaltyActions.map(action => (
+          <div key={action.type} className="grid grid-cols-2 gap-2">
+            <button
+              className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+              onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
+            >
+              🔴 {action.label}
+            </button>
+            <button
+              className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+              onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
+            >
+              🔴 {action.label}
+            </button>
           </div>
-        </div>
-
-        {/* 벌점 +2 */}
-        <div>
-          <h3 className="text-sm font-bold text-red-400 mb-2">🔴 벌점 +2점 (상대 득점)</h3>
-          <div className="space-y-2">
-            {penaltyActions.map(action => (
-              <div key={action.type} className="grid grid-cols-2 gap-2">
-                <button
-                  className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
-                >
-                  {p1Name}<br/>{action.label}
-                </button>
-                <button
-                  className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
-                >
-                  {p2Name}<br/>{action.label}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 액션 버튼 */}
-        <div className="flex gap-3">
-          <button
-            className="btn btn-danger flex-1"
-            onClick={handleUndo}
-            disabled={match.scoreHistory.length === 0}
-          >
-            ↩️ 취소
-          </button>
-          <button
-            className="btn btn-secondary flex-1"
-            onClick={() => handleTimeout(1)}
-            disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
-          >
-            {p1Name} 타임아웃
-          </button>
-          <button
-            className="btn btn-secondary flex-1"
-            onClick={() => handleTimeout(2)}
-            disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
-          >
-            {p2Name} 타임아웃
-          </button>
-        </div>
+        ))}
 
         {/* 경기 기록 (토글) */}
         <div>
@@ -503,11 +473,38 @@ export default function PracticeScoring() {
                   <span className="text-gray-500">{h.time}</span>{' '}
                   {h.actionType === 'goal' ? '⚽' : h.points >= 2 ? '🔴' : '🟡'}{' '}
                   {h.actionLabel} → {h.scoringPlayer} +{h.points}{' '}
-                  <span className="text-gray-500">| {h.scoreAfter.player1}-{h.scoreAfter.player2} | 서브: {h.server} {h.serveNumber}회차</span>
+                  <span className="text-gray-500">| {h.scoreAfter.player1}-{h.scoreAfter.player2}</span>
                 </div>
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 하단 고정 액션 바 */}
+      <div className="bg-gray-900 border-t border-gray-700 px-3 py-2">
+        <div className="flex gap-2">
+          <button
+            className="btn btn-danger flex-1 py-3"
+            onClick={handleUndo}
+            disabled={match.scoreHistory.length === 0}
+          >
+            ↩️ 취소
+          </button>
+          <button
+            className="btn btn-secondary flex-1 py-3 text-sm"
+            onClick={() => handleTimeout(1)}
+            disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
+          >
+            {p1Name} T/O
+          </button>
+          <button
+            className="btn btn-secondary flex-1 py-3 text-sm"
+            onClick={() => handleTimeout(2)}
+            disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
+          >
+            {p2Name} T/O
+          </button>
         </div>
       </div>
 
