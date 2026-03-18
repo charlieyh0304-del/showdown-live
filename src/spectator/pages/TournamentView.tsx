@@ -35,10 +35,18 @@ export default function TournamentView() {
   const [stageFilter, setStageFilter] = useState<'all' | 'qualifying' | 'finals' | 'ranking'>('all');
 
   const stageMap = useMemo(() => {
-    const qualifying = matches.filter(m => m.groupId);
-    const finals = matches.filter(m => !m.groupId && m.stageId?.includes('finals'));
-    const ranking = matches.filter(m => m.stageId?.includes('ranking'));
-    const other = matches.filter(m => !m.groupId && !m.stageId);
+    const qualifying = matches.filter(m => m.groupId || m.stageId?.includes('qualifying'));
+    const finals = matches.filter(m =>
+      !m.groupId && (m.stageId?.includes('finals') || m.roundLabel) &&
+      !m.stageId?.includes('ranking') && !m.roundLabel?.includes('결정전')
+    );
+    const ranking = matches.filter(m =>
+      m.stageId?.includes('ranking') ||
+      m.roundLabel?.includes('결정전')
+    );
+    const other = matches.filter(m =>
+      !m.groupId && !m.stageId && !m.roundLabel
+    );
     return { qualifying, finals, ranking, other };
   }, [matches]);
 
@@ -525,6 +533,13 @@ function TeamMatchCard({ match }: { match: Match }) {
 function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Match[]; tournamentType: string; onSelectPlayer: (name: string) => void }) {
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
   const hasGroups = matches.some(m => m.groupId);
+  const hasFinalsMatches = matches.some(m =>
+    !m.groupId && (m.stageId?.includes('finals') || m.roundLabel) &&
+    !m.stageId?.includes('ranking') && !m.roundLabel?.includes('결정전')
+  );
+  const hasRankingMatches = matches.some(m =>
+    m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')
+  );
 
   if (matches.length === 0) {
     return (
@@ -534,8 +549,53 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
     );
   }
 
+  // If filtered to only finals matches (no groups), show FinalsView
+  if (hasFinalsMatches && !hasGroups) {
+    return <FinalsView matches={matches.filter(m =>
+      !m.groupId && (m.stageId?.includes('finals') || m.roundLabel) &&
+      !m.stageId?.includes('ranking') && !m.roundLabel?.includes('결정전')
+    )} onSelectPlayer={onSelectPlayer} />;
+  }
+
+  // If filtered to ranking matches, show them
+  if (hasRankingMatches && !hasGroups && !hasFinalsMatches) {
+    return <RankingMatchesView matches={matches.filter(m =>
+      m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')
+    )} onSelectPlayer={onSelectPlayer} />;
+  }
+
+  // Mixed view: show groups first, then finals, then ranking
   if (hasGroups) {
-    return <GroupStageView matches={matches} onSelectPlayer={onSelectPlayer} />;
+    const groupMatches = matches.filter(m => m.groupId);
+    const finalsMatches = matches.filter(m =>
+      !m.groupId && (m.stageId?.includes('finals') || m.roundLabel) &&
+      !m.stageId?.includes('ranking') && !m.roundLabel?.includes('결정전')
+    );
+    const rankingMatches = matches.filter(m =>
+      m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')
+    );
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <GroupStageView matches={groupMatches} onSelectPlayer={onSelectPlayer} />
+        {finalsMatches.length > 0 && (
+          <div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '1rem', borderBottom: '2px solid rgba(74, 222, 128, 0.3)', paddingBottom: '0.5rem' }}>
+              본선
+            </h2>
+            <FinalsView matches={finalsMatches} onSelectPlayer={onSelectPlayer} />
+          </div>
+        )}
+        {rankingMatches.length > 0 && (
+          <div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '1rem', borderBottom: '2px solid rgba(192, 132, 252, 0.3)', paddingBottom: '0.5rem' }}>
+              순위결정전
+            </h2>
+            <RankingMatchesView matches={rankingMatches} onSelectPlayer={onSelectPlayer} />
+          </div>
+        )}
+      </div>
+    );
   }
 
   if (isTeam) {
@@ -543,6 +603,166 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
   }
 
   return <IndividualBracket matches={matches} onSelectPlayer={onSelectPlayer} />;
+}
+
+// ===== Finals View =====
+function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const rounds = useMemo(() => {
+    const roundOrder = ['32강', '16강', '8강', '4강', '결승'];
+    const map = new Map<string, Match[]>();
+    matches.forEach(m => {
+      const label = m.roundLabel || `라운드 ${m.round || '?'}`;
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(m);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) =>
+      roundOrder.indexOf(a) - roundOrder.indexOf(b)
+    );
+  }, [matches]);
+
+  if (matches.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>본선 경기가 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {rounds.map(([roundLabel, roundMatches]) => (
+        <div key={roundLabel}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            color: '#facc15',
+            marginBottom: '0.75rem',
+            borderBottom: '1px solid rgba(250, 204, 21, 0.3)',
+            paddingBottom: '0.5rem',
+          }}>
+            {roundLabel}
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {roundMatches.map(m => (
+              <MatchResultCard key={m.id} match={m} onSelectPlayer={onSelectPlayer} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlayer?: (name: string) => void }) {
+  const p1 = match.player1Name || match.team1Name || '?';
+  const p2 = match.player2Name || match.team2Name || '?';
+  const isP1Winner = match.winnerId === (match.player1Id || match.team1Id);
+  const isCompleted = match.status === 'completed';
+  const sets = match.sets || [];
+
+  const nameButton = (name: string, isWinner: boolean, align: 'left' | 'right') => {
+    const style: React.CSSProperties = {
+      fontSize: '1.125rem',
+      fontWeight: 'bold',
+      color: isCompleted ? (isWinner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+    };
+    if (onSelectPlayer) {
+      return (
+        <button
+          onClick={() => onSelectPlayer(name)}
+          style={{ ...style, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: align }}
+          className="hover:underline hover:text-yellow-400"
+        >
+          {isCompleted && isWinner && align === 'left' ? '🏆 ' : ''}{name}{isCompleted && isWinner && align === 'right' ? ' 🏆' : ''}
+        </button>
+      );
+    }
+    return <span style={style}>{isCompleted && isWinner && align === 'left' ? '🏆 ' : ''}{name}{isCompleted && isWinner && align === 'right' ? ' 🏆' : ''}</span>;
+  };
+
+  return (
+    <div style={{
+      backgroundColor: '#1f2937',
+      borderRadius: '0.5rem',
+      padding: '1rem',
+      border: isCompleted ? '1px solid #374151' : '1px solid #374151',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1 }}>
+          {nameButton(p1, isP1Winner, 'left')}
+        </div>
+        <div style={{ textAlign: 'center', padding: '0 1rem' }}>
+          {isCompleted && sets.length > 0 ? (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {sets.map((s, i) => (
+                <span key={i} style={{
+                  fontSize: '0.875rem',
+                  color: '#9ca3af',
+                  backgroundColor: '#374151',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.25rem',
+                }}>
+                  {s.player1Score}-{s.player2Score}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span style={{ color: match.status === 'in_progress' ? '#ef4444' : '#6b7280', fontWeight: 'bold' }}>
+              {match.status === 'in_progress' ? '진행중' : 'vs'}
+            </span>
+          )}
+        </div>
+        <div style={{ flex: 1, textAlign: 'right' }}>
+          {nameButton(p2, !isP1Winner && isCompleted, 'right')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Ranking Matches View =====
+function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const rounds = useMemo(() => {
+    const map = new Map<string, Match[]>();
+    matches.forEach(m => {
+      const label = m.roundLabel || '순위결정전';
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(m);
+    });
+    return Array.from(map.entries());
+  }, [matches]);
+
+  if (matches.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>순위결정전 경기가 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {rounds.map(([roundLabel, roundMatches]) => (
+        <div key={roundLabel}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            color: '#c084fc',
+            marginBottom: '0.75rem',
+            borderBottom: '1px solid rgba(192, 132, 252, 0.3)',
+            paddingBottom: '0.5rem',
+          }}>
+            {roundLabel}
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {roundMatches.map(m => (
+              <MatchResultCard key={m.id} match={m} onSelectPlayer={onSelectPlayer} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ===== Group Stage View =====
@@ -1132,11 +1352,29 @@ function HistoryTab({
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     completedMatches.forEach(m => {
-      const key = m.groupId || '기타';
+      let key: string;
+      if (m.groupId) {
+        key = m.groupId;
+      } else if (m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')) {
+        key = '순위결정전';
+      } else if (m.stageId?.includes('finals') || m.roundLabel) {
+        key = '본선';
+      } else {
+        key = '기타';
+      }
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(m);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    // Sort: groups first (alphabetical), then 본선, 순위결정전, 기타
+    const order = ['본선', '순위결정전', '기타'];
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      const aIdx = order.indexOf(a);
+      const bIdx = order.indexOf(b);
+      if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
+      if (aIdx === -1) return -1;
+      if (bIdx === -1) return 1;
+      return aIdx - bIdx;
+    });
   }, [completedMatches]);
 
   if (completedMatches.length === 0) {
@@ -1151,14 +1389,19 @@ function HistoryTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {groups.map(([groupId, groupMatches]) => (
         <div key={groupId}>
-          {groupId !== '기타' && (
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
-              {groupId}조 경기 기록
+          {groupId === '본선' && (
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.5rem' }}>
+              본선 경기 기록
             </h3>
           )}
-          {groupId === '기타' && groups.length > 1 && (
+          {groupId === '순위결정전' && (
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.5rem' }}>
+              순위결정전 경기 기록
+            </h3>
+          )}
+          {groupId !== '기타' && groupId !== '본선' && groupId !== '순위결정전' && (
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
-              본선 경기 기록
+              {groupId}조 경기 기록
             </h3>
           )}
           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

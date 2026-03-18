@@ -142,7 +142,9 @@ export default function TournamentDetail() {
       }
 
       setSimProgress('대회 상태 업데이트 중...');
-      await updateTournament({ status: 'completed' });
+      // 모든 경기가 completed이면 대회 완료, 아니면 in_progress
+      const allCompleted = result.matches.every(m => m.status === 'completed');
+      await updateTournament({ status: allCompleted ? 'completed' : 'in_progress' });
 
       setSimProgress('시뮬레이션 완료! ✅');
       // 3초 후 메시지 클리어
@@ -928,6 +930,49 @@ function StatusTab({ tournament, matches, updateTournament }: StatusTabProps) {
           )}
         </div>
       </div>
+
+      {/* 대회 단계 관리 */}
+      {tournament.stages && tournament.stages.length > 0 && (
+        <div className="card space-y-4">
+          <h3 className="text-xl font-bold text-yellow-400">대회 단계 관리</h3>
+          {tournament.stages.map((stage) => {
+            const stageMatches = matches.filter(m =>
+              m.stageId === stage.id ||
+              (stage.type === 'qualifying' && m.groupId) ||
+              (stage.type === 'finals' && m.roundLabel)
+            );
+            const completed = stageMatches.filter(m => m.status === 'completed').length;
+            const total = stageMatches.length;
+            const allDone = total > 0 && completed === total;
+            const isCurrent = tournament.currentStageId === stage.id;
+
+            return (
+              <div key={stage.id} className={`p-4 rounded-lg border-2 ${isCurrent ? 'border-yellow-400 bg-gray-800' : 'border-gray-700'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="text-lg font-bold">{stage.name}</h4>
+                    <p className="text-sm text-gray-400">{stage.format} · {stage.status}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold">{completed}/{total}</p>
+                    <p className="text-xs text-gray-400">경기 완료</p>
+                  </div>
+                </div>
+                {/* 진행률 바 */}
+                <div className="w-full bg-gray-700 rounded h-2 mb-3">
+                  <div className="bg-yellow-400 h-2 rounded" style={{ width: `${total > 0 ? (completed/total)*100 : 0}%` }} />
+                </div>
+                {allDone && stage.type === 'qualifying' && (
+                  <p className="text-green-400 text-sm font-semibold">예선 완료 - 본선 진출자가 결정되었습니다</p>
+                )}
+                {allDone && stage.type === 'finals' && (
+                  <p className="text-green-400 text-sm font-semibold">본선 완료</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex gap-2 flex-wrap">
         <button
