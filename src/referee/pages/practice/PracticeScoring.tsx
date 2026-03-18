@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePracticeMatch } from '../../hooks/usePracticeMatch';
+import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import {
   checkSetWinner,
   checkMatchWinner,
@@ -26,6 +27,7 @@ import ActionToast from '../../components/ActionToast';
 export default function PracticeScoring() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { addSession } = usePracticeHistory();
   const { canAct } = useDoubleClickGuard();
   const audio = useAudioFeedback();
 
@@ -273,6 +275,15 @@ export default function PracticeScoring() {
       });
       audio.matchComplete();
       vibrate(hapticPatterns.matchComplete);
+      addSession({
+        id: crypto.randomUUID(),
+        date: Date.now(),
+        matchType,
+        sessionType: 'free',
+        duration: Math.floor((Date.now() - match.startedAt) / 1000),
+        totalActions: match.actionLog.length + 1,
+        finalScore: sets.map(s => `${s.player1Score}-${s.player2Score}`).join(', '),
+      });
     } else {
       audio.setComplete();
       vibrate(hapticPatterns.setComplete);

@@ -386,6 +386,23 @@ export interface PracticeAction {
   detail?: string;
 }
 
+// ===== 연습 세션 =====
+export type PracticeSessionType = 'free' | 'scenario' | 'tutorial';
+
+export interface PracticeSession {
+  id: string;
+  date: number;
+  matchType: MatchType;
+  sessionType: PracticeSessionType;
+  scenarioId?: string;
+  scenarioName?: string;
+  duration: number;
+  accuracy?: number;
+  totalActions: number;
+  correctActions?: number;
+  finalScore: string;
+}
+
 // ===== 타이브레이커 =====
 export type TiebreakerRule =
   | 'head_to_head'
