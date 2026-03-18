@@ -184,17 +184,28 @@ export function simulateTournament(tournament: Tournament, participantCount: num
   const isTeam = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
 
   // 대회 설정에서 스코어링 규칙 읽기 (scoringRules > gameConfig > teamMatchSettings > 기본값)
-  const scoringRules = tournament.scoringRules || {
-    winScore: isTeam ? 31 : 11,
-    setsToWin: isTeam ? 1 : 2,
-    maxSets: isTeam ? 1 : 3,
-    minLead: 2,
-    deuceEnabled: true,
-  };
-  const winScore = scoringRules.winScore || tournament.gameConfig?.winScore || (isTeam ? (tournament.teamMatchSettings?.winScore || 31) : 11);
-  const setsToWin = scoringRules.setsToWin || tournament.gameConfig?.setsToWin || (isTeam ? (tournament.teamMatchSettings?.setsToWin || 1) : 2);
+  const scoringRules = tournament.scoringRules || (tournament.gameConfig
+    ? {
+        winScore: tournament.gameConfig.winScore,
+        setsToWin: tournament.gameConfig.setsToWin,
+        maxSets: (tournament.gameConfig.setsToWin * 2 - 1),
+        minLead: 2,
+        deuceEnabled: true,
+      }
+    : {
+        winScore: isTeam ? 31 : 11,
+        setsToWin: isTeam ? 1 : 2,
+        maxSets: isTeam ? 1 : 3,
+        minLead: 2,
+        deuceEnabled: true,
+      });
+  const winScore = scoringRules.winScore || (isTeam ? (tournament.teamMatchSettings?.winScore || 31) : 11);
+  const setsToWin = scoringRules.setsToWin || (isTeam ? (tournament.teamMatchSettings?.setsToWin || 1) : 2);
   const minLead = scoringRules.minLead || tournament.teamMatchSettings?.minLead || 2;
   const matchType: 'individual' | 'team' = isTeam ? 'team' : 'individual';
+
+  // stageId 결정
+  const qualifyingStageId = tournament.stages?.find(s => s.type === 'qualifying')?.id || 'qualifying';
 
   // 1. 참가자 생성
   const players = Array.from({ length: participantCount }, (_, i) => ({
@@ -317,6 +328,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
           refereeName: referees[refIndex].name,
           courtId: courts[courtIndex].id,
           courtName: courts[courtIndex].name,
+          stageId: qualifyingStageId,
           groupId: hasGroupStage ? group.id : undefined,
           createdAt: Date.now(),
           updatedAt: Date.now(),

@@ -312,41 +312,37 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
             {state.fifthToEighth && (
               <div className="ml-4 space-y-2">
                 <h4 className="text-sm font-semibold text-gray-400">결정 방식</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      state.fifthToEighthFormat === 'simple'
-                        ? 'border-yellow-400 bg-gray-700'
-                        : 'border-transparent bg-gray-700 hover:border-gray-600'
-                    }`}
-                    onClick={() => setField('fifthToEighthFormat', 'simple')}
-                  >
-                    <span className="block">간소화 (2경기)</span>
-                    <span className="block text-xs opacity-75">5vs8, 6vs7</span>
-                  </button>
-                  <button
-                    className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      state.fifthToEighthFormat === 'full'
-                        ? 'border-yellow-400 bg-gray-700'
-                        : 'border-transparent bg-gray-700 hover:border-gray-600'
-                    }`}
-                    onClick={() => setField('fifthToEighthFormat', 'full')}
-                  >
-                    <span className="block">교차전 (4경기)</span>
-                    <span className="block text-xs opacity-75">교차 → 순위전</span>
-                  </button>
-                  <button
-                    className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      state.fifthToEighthFormat === 'round_robin'
-                        ? 'border-yellow-400 bg-gray-700'
-                        : 'border-transparent bg-gray-700 hover:border-gray-600'
-                    }`}
-                    onClick={() => setField('fifthToEighthFormat', 'round_robin')}
-                  >
-                    <span className="block">풀리그 (6경기)</span>
-                    <span className="block text-xs opacity-75">4명 라운드로빈</span>
-                  </button>
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="5~8위 결정 방식">
+                  {([
+                    { value: 'simple' as const, label: '간소화 (2경기)', desc: '5vs8, 6vs7' },
+                    { value: 'full' as const, label: '교차전 (4경기)', desc: '교차 → 순위전' },
+                    { value: 'round_robin' as const, label: '풀리그 (6경기)', desc: '4명 라운드로빈' },
+                  ]).map(opt => {
+                    const selected = state.fifthToEighthFormat === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={`${opt.label} ${opt.desc}`}
+                        className={`p-3 rounded-lg text-center text-sm font-semibold transition-all ${
+                          selected
+                            ? 'bg-yellow-500 text-black border-2 border-yellow-300 shadow-lg'
+                            : 'bg-gray-700 text-gray-300 border-2 border-gray-600 hover:bg-gray-600'
+                        }`}
+                        onClick={() => setField('fifthToEighthFormat', opt.value)}
+                      >
+                        <span className="block">{selected ? '✓ ' : ''}{opt.label}</span>
+                        <span className="block text-xs mt-1" style={{ opacity: selected ? 1 : 0.6 }}>{opt.desc}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  현재 선택: <span className="text-yellow-400 font-bold">
+                    {state.fifthToEighthFormat === 'simple' ? '간소화 (2경기)' : state.fifthToEighthFormat === 'full' ? '교차전 (4경기)' : '풀리그 (6경기)'}
+                  </span>
+                </p>
               </div>
             )}
 

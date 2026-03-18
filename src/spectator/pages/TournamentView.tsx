@@ -190,26 +190,45 @@ export default function TournamentView() {
               <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.pointsFor}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 포인트</p></div>
             </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '15rem', overflowY: 'auto' }}>
-            {playerMatches.map(m => (
-              <button
-                key={m.id}
-                onClick={() => navigate(`/spectator/match/${id}/${m.id}`)}
-                style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer', border: 'none', color: 'inherit' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{m.player1Name || m.team1Name} vs {m.player2Name || m.team2Name}</span>
-                  <span style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15' }}>
-                    {m.status === 'completed' ? '완료 →' : '진행중 →'}
-                  </span>
-                </div>
-                {m.sets && m.sets.length > 0 && (
-                  <div style={{ color: '#9ca3af', marginTop: '0.25rem' }}>
-                    {m.sets.map((s, i) => `세트${i + 1}: ${s.player1Score}-${s.player2Score}`).join(' | ')}
-                  </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '20rem', overflowY: 'auto' }}>
+            {/* 예선 경기 */}
+            {playerMatches.filter(m => m.groupId).length > 0 && (
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.25rem' }}>예선</h4>
+                {playerMatches.filter(m => m.groupId).map(m => (
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} />
+                ))}
+              </div>
+            )}
+            {/* 본선 경기 */}
+            {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).length > 0 && (
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem', marginTop: '0.25rem' }}>본선</h4>
+                {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).map(m => (
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} />
+                ))}
+              </div>
+            )}
+            {/* 순위결정전 */}
+            {playerMatches.filter(m => m.stageId?.includes('ranking')).length > 0 && (
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.25rem', marginTop: '0.25rem' }}>순위결정전</h4>
+                {playerMatches.filter(m => m.stageId?.includes('ranking')).map(m => (
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} />
+                ))}
+              </div>
+            )}
+            {/* 기타 (분류되지 않은 경기) */}
+            {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).length > 0 && (
+              <div>
+                {(playerMatches.some(m => m.groupId) || playerMatches.some(m => m.stageId?.includes('finals'))) && (
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af', marginBottom: '0.25rem', marginTop: '0.25rem' }}>기타</h4>
                 )}
-              </button>
-            ))}
+                {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).map(m => (
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -279,7 +298,7 @@ export default function TournamentView() {
           <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={toggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
         {activeTab === 'bracket' && (
-          <BracketTab matches={filteredMatches} tournamentType={tournament.type} />
+          <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'ranking' && (
           <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} />
@@ -503,7 +522,7 @@ function TeamMatchCard({ match }: { match: Match }) {
 }
 
 // ===== Bracket Tab =====
-function BracketTab({ matches, tournamentType }: { matches: Match[]; tournamentType: string }) {
+function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Match[]; tournamentType: string; onSelectPlayer: (name: string) => void }) {
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
   const hasGroups = matches.some(m => m.groupId);
 
@@ -516,18 +535,18 @@ function BracketTab({ matches, tournamentType }: { matches: Match[]; tournamentT
   }
 
   if (hasGroups) {
-    return <GroupStageView matches={matches} />;
+    return <GroupStageView matches={matches} onSelectPlayer={onSelectPlayer} />;
   }
 
   if (isTeam) {
-    return <TeamBracket matches={matches} />;
+    return <TeamBracket matches={matches} onSelectPlayer={onSelectPlayer} />;
   }
 
-  return <IndividualBracket matches={matches} />;
+  return <IndividualBracket matches={matches} onSelectPlayer={onSelectPlayer} />;
 }
 
 // ===== Group Stage View =====
-function GroupStageView({ matches }: { matches: Match[] }) {
+function GroupStageView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
@@ -547,14 +566,14 @@ function GroupStageView({ matches }: { matches: Match[] }) {
           </h3>
 
           {/* 조별 순위표 */}
-          <GroupRankingTable matches={groupMatches} />
+          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} />
 
           {/* 조별 경기 결과 */}
           <div style={{ marginTop: '1rem' }}>
             <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af', marginBottom: '0.5rem' }}>경기 결과</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {groupMatches.map(m => (
-                <MatchResultRow key={m.id} match={m} />
+                <MatchResultRow key={m.id} match={m} onSelectPlayer={onSelectPlayer} />
               ))}
             </div>
           </div>
@@ -564,7 +583,7 @@ function GroupStageView({ matches }: { matches: Match[] }) {
   );
 }
 
-function GroupRankingTable({ matches }: { matches: Match[] }) {
+function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   const rankings = useMemo(() => {
     const stats = new Map<string, {
       name: string; played: number; wins: number; losses: number;
@@ -641,7 +660,13 @@ function GroupRankingTable({ matches }: { matches: Match[] }) {
             >
               <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{i + 1}</td>
               <td style={{ padding: '0.5rem', fontWeight: 600, color: '#fff' }}>
-                {r.name}
+                <button
+                  className="text-left hover:underline hover:text-yellow-400"
+                  onClick={() => onSelectPlayer(r.name)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 600, padding: 0 }}
+                >
+                  {r.name}
+                </button>
                 {i < 2 && (
                   <span style={{
                     marginLeft: '0.5rem',
@@ -668,7 +693,7 @@ function GroupRankingTable({ matches }: { matches: Match[] }) {
   );
 }
 
-function MatchResultRow({ match }: { match: Match }) {
+function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlayer?: (name: string) => void }) {
   const p1 = match.player1Name || match.team1Name || '?';
   const p2 = match.player2Name || match.team2Name || '?';
   const isP1Winner = match.winnerId === (match.player1Id || match.team1Id);
@@ -689,7 +714,15 @@ function MatchResultRow({ match }: { match: Match }) {
         fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
         flex: 1,
       }}>
-        {p1}
+        {onSelectPlayer ? (
+          <button
+            className="text-left hover:underline hover:text-yellow-400"
+            onClick={(e) => { e.stopPropagation(); onSelectPlayer(p1); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'inherit', padding: 0 }}
+          >
+            {p1}
+          </button>
+        ) : p1}
       </span>
       <div style={{ textAlign: 'center', minWidth: '80px' }}>
         {isCompleted && match.sets ? (
@@ -708,13 +741,21 @@ function MatchResultRow({ match }: { match: Match }) {
         flex: 1,
         textAlign: 'right',
       }}>
-        {p2}
+        {onSelectPlayer ? (
+          <button
+            className="hover:underline hover:text-yellow-400"
+            onClick={(e) => { e.stopPropagation(); onSelectPlayer(p2); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'inherit', padding: 0 }}
+          >
+            {p2}
+          </button>
+        ) : p2}
       </span>
     </div>
   );
 }
 
-function IndividualBracket({ matches }: { matches: Match[] }) {
+function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   // Collect unique players
   const players = useMemo(() => {
     const playerMap = new Map<string, string>();
@@ -782,7 +823,13 @@ function IndividualBracket({ matches }: { matches: Match[] }) {
                   minWidth: '70px',
                 }}
               >
-                {p.name}
+                <button
+                  className="hover:underline hover:text-yellow-400"
+                  onClick={() => onSelectPlayer(p.name)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'inherit', padding: 0 }}
+                >
+                  {p.name}
+                </button>
               </th>
             ))}
           </tr>
@@ -800,7 +847,13 @@ function IndividualBracket({ matches }: { matches: Match[] }) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {rowPlayer.name}
+                <button
+                  className="text-left hover:underline hover:text-yellow-400"
+                  onClick={() => onSelectPlayer(rowPlayer.name)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0 }}
+                >
+                  {rowPlayer.name}
+                </button>
               </th>
               {players.map((colPlayer) => {
                 const cell = getCellContent(rowPlayer.id, colPlayer.id);
@@ -827,7 +880,7 @@ function IndividualBracket({ matches }: { matches: Match[] }) {
   );
 }
 
-function TeamBracket({ matches }: { matches: Match[] }) {
+function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   return (
     <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {matches.map((match) => {
@@ -842,7 +895,13 @@ function TeamBracket({ matches }: { matches: Match[] }) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '1.25rem', fontWeight: 'bold', flex: 1 }}>
-                {match.team1Name || '팀1'}
+                <button
+                  className="text-left hover:underline hover:text-yellow-400"
+                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(match.team1Name || '팀1'); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0 }}
+                >
+                  {match.team1Name || '팀1'}
+                </button>
               </span>
               <div style={{ textAlign: 'center', minWidth: '120px' }}>
                 {match.status !== 'pending' && setData ? (
@@ -856,7 +915,13 @@ function TeamBracket({ matches }: { matches: Match[] }) {
                 )}
               </div>
               <span style={{ fontSize: '1.25rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-                {match.team2Name || '팀2'}
+                <button
+                  className="hover:underline hover:text-yellow-400"
+                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(match.team2Name || '팀2'); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0 }}
+                >
+                  {match.team2Name || '팀2'}
+                </button>
               </span>
               <span style={{
                 padding: '0.25rem 0.5rem',
@@ -1025,6 +1090,27 @@ const tdStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
+function PlayerMatchRow({ match: m, navigate, tournamentId }: { match: Match; navigate: ReturnType<typeof useNavigate>; tournamentId: string }) {
+  return (
+    <button
+      onClick={() => navigate(`/spectator/match/${tournamentId}/${m.id}`)}
+      style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer', border: 'none', color: 'inherit', marginBottom: '0.25rem', display: 'block' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span>{m.player1Name || m.team1Name} vs {m.player2Name || m.team2Name}</span>
+        <span style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15' }}>
+          {m.status === 'completed' ? '완료 →' : '진행중 →'}
+        </span>
+      </div>
+      {m.sets && m.sets.length > 0 && (
+        <div style={{ color: '#9ca3af', marginTop: '0.25rem' }}>
+          {m.sets.map((s, i) => `세트${i + 1}: ${s.player1Score}-${s.player2Score}`).join(' | ')}
+        </div>
+      )}
+    </button>
+  );
+}
+
 // ===== History Tab =====
 function HistoryTab({
   matches,
@@ -1043,6 +1129,16 @@ function HistoryTab({
     [matches]
   );
 
+  const groups = useMemo(() => {
+    const map = new Map<string, Match[]>();
+    completedMatches.forEach(m => {
+      const key = m.groupId || '기타';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [completedMatches]);
+
   if (completedMatches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
@@ -1052,42 +1148,58 @@ function HistoryTab({
   }
 
   return (
-    <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      {completedMatches.map((match) => {
-        const isIndividual = match.type === 'individual';
-        const setWins = isIndividual && match.sets ? countSetWins(match.sets) : null;
-        const label = isIndividual
-          ? `${match.player1Name} vs ${match.player2Name}`
-          : `${match.team1Name} vs ${match.team2Name}`;
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {groups.map(([groupId, groupMatches]) => (
+        <div key={groupId}>
+          {groupId !== '기타' && (
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
+              {groupId}조 경기 기록
+            </h3>
+          )}
+          {groupId === '기타' && groups.length > 1 && (
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
+              본선 경기 기록
+            </h3>
+          )}
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {groupMatches.map((match) => {
+              const isIndividual = match.type === 'individual';
+              const setWins = isIndividual && match.sets ? countSetWins(match.sets) : null;
+              const label = isIndividual
+                ? `${match.player1Name} vs ${match.player2Name}`
+                : `${match.team1Name} vs ${match.team2Name}`;
 
-        return (
-          <li key={match.id}>
-            <button
-              className="card"
-              onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
-              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: '2px solid #14532d' }}
-              aria-label={`${label}, 완료`}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>{label}</p>
-                  {isIndividual && setWins && (
-                    <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                      세트 {setWins.player1} - {setWins.player2}
-                    </p>
-                  )}
-                  {!isIndividual && match.sets && match.sets.length > 0 && (
-                    <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                      {match.sets[0].player1Score} - {match.sets[0].player2Score}
-                    </p>
-                  )}
-                </div>
-                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>완료 →</span>
-              </div>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+              return (
+                <li key={match.id}>
+                  <button
+                    className="card"
+                    onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
+                    style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: '2px solid #14532d' }}
+                    aria-label={`${label}, 완료`}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <p style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>{label}</p>
+                        {isIndividual && setWins && (
+                          <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                            세트 {setWins.player1} - {setWins.player2}
+                          </p>
+                        )}
+                        {!isIndividual && match.sets && match.sets.length > 0 && (
+                          <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                            {match.sets[0].player1Score} - {match.sets[0].player2Score}
+                          </p>
+                        )}
+                      </div>
+                      <span style={{ color: '#16a34a', fontWeight: 'bold' }}>완료 →</span>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }

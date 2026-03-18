@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useTournament,
@@ -44,7 +44,8 @@ export default function TournamentDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>('players');
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState('');
-  const [simCount, setSimCount] = useState(16);
+  const [simCount, setSimCount] = useState(8);
+  const [simCountInitialized, setSimCountInitialized] = useState(false);
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
   const { matches, loading: mLoading, setMatchesBulk, updateMatch } = useMatches(id ?? null);
@@ -54,6 +55,22 @@ export default function TournamentDetail() {
   const { referees, updateReferee } = useReferees();
   const { courts } = useCourts();
   const { schedule, setScheduleBulk } = useSchedule(id ?? null);
+
+  // 대회 설정에서 기본 참가자 수 추론 (tournament 로드 후 1회)
+  useEffect(() => {
+    if (!tournament || simCountInitialized) return;
+    const stages = tournament.stages || [];
+    const qualifying = stages.find(s => s.type === 'qualifying');
+    if (qualifying?.groupCount && qualifying.groupCount > 1) {
+      setSimCount(qualifying.groupCount * 4);
+    } else {
+      const gc = tournament.qualifyingConfig?.groupCount;
+      if (gc && gc > 1) {
+        setSimCount(gc * 4);
+      }
+    }
+    setSimCountInitialized(true);
+  }, [tournament, simCountInitialized]);
 
   if (tLoading || mLoading || gpLoading || tpLoading) {
     return (
