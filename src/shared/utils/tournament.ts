@@ -199,6 +199,23 @@ export function generateSingleEliminationBracket(participantCount: number): Brac
   return slots;
 }
 
+// ===== 와일드카드 진출 인원 계산 =====
+
+/**
+ * 와일드카드 진출 인원 계산
+ * 본선 인원 - (조당 진출 × 조 수) = 와일드카드 인원
+ */
+export function calculateWildcard(
+  finalsSlots: number,
+  advancePerGroup: number,
+  groupCount: number,
+): { directAdvance: number; wildcardCount: number; wildcardFromRank: number } {
+  const directAdvance = advancePerGroup * groupCount;
+  const wildcardCount = Math.max(0, finalsSlots - directAdvance);
+  const wildcardFromRank = advancePerGroup + 1; // 각 조 N+1위에서 선발
+  return { directAdvance, wildcardCount, wildcardFromRank };
+}
+
 // ===== 경기 수 계산 =====
 
 export function calculateMatchCount(
@@ -238,8 +255,10 @@ export function calculateMatchCount(
   }
 
   if (hasFinalsStage && rankingMatchEnabled) {
+    // 3/4위 결정전: 2명 → 1경기
     if (thirdPlace) ranking += 1;
-    if (fifthPlace) ranking += 1;
+    // 5~8위 결정전: 4명 싱글 엘리미네이션 → 3경기 (준결승 2 + 결승/3위전 1)
+    if (fifthPlace) ranking += 3;
   }
 
   return {

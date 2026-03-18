@@ -396,28 +396,33 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">
-              {state.type === 'individual' ? '개인전 설정' : state.type === 'team' ? '팀전 설정' : '랜덤 팀리그 설정'}
-            </h2>
+            <h2 className="text-xl font-bold">설정 방식</h2>
             <p className="text-gray-400 text-sm">
-              {state.type === 'individual' ? '기본: 11점 | 2세트 선승' : '기본: 31점 | 1세트 단판'}
+              프리셋을 선택하면 바로 확인 화면으로 이동합니다. 직접 설정하면 세부 옵션을 조정할 수 있습니다.
             </p>
-            <div className="space-y-3" role="radiogroup" aria-label="대회 프리셋">
+            <div className="space-y-3" role="radiogroup" aria-label="설정 방식 선택">
               {filteredPresets.map(preset => (
                 <button
                   key={preset.id}
                   role="radio"
                   aria-checked={state.presetId === preset.id}
                   className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
-                  onClick={() => dispatch({ type: 'APPLY_PRESET', presetId: preset.id })}
+                  onClick={() => {
+                    dispatch({ type: 'APPLY_PRESET', presetId: preset.id });
+                    dispatch({ type: 'GO_TO_STEP', step: 5 });
+                  }}
                 >
                   <h3 className="text-lg font-bold">{preset.name}</h3>
                   <p className="text-gray-400 text-sm">{preset.description}</p>
                 </button>
               ))}
-              {filteredPresets.length === 0 && (
-                <p className="text-gray-500 text-sm">선택한 유형에 대한 프리셋이 없습니다.</p>
-              )}
+              <button
+                className="card w-full text-left p-6 border-2 border-dashed border-yellow-400 hover:bg-gray-800"
+                onClick={() => dispatch({ type: 'NEXT_STEP' })}
+              >
+                <h3 className="text-lg font-bold text-yellow-400">⚙ 직접 설정 (커스텀)</h3>
+                <p className="text-gray-400 text-sm mt-1">참가자 수, 조 편성, 예선/본선 규칙 등을 자유롭게 설정합니다</p>
+              </button>
             </div>
           </div>
         </div>
@@ -534,14 +539,30 @@ export default function TournamentCreate() {
                         ariaLabel="각 조에서 본선에 진출하는 인원 수"
                       />
 
-                      <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
-                        <p className="text-blue-300 font-semibold text-lg">
-                          본선 진출: {state.groupCount}조 × {state.advancePerGroup}명 = 총 {state.advanceCount}명
-                        </p>
-                        <p className="text-gray-400 text-sm">
-                          본선 {nearestBracketRound(state.advanceCount)} 시작
-                        </p>
-                      </div>
+                      {(() => {
+                        const directAdvance = state.advancePerGroup * state.groupCount;
+                        const finalsSlots = state.finalsStartRound || directAdvance;
+                        const wildcardCount = Math.max(0, finalsSlots - directAdvance);
+
+                        return (
+                          <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
+                            <p className="text-blue-300 font-semibold text-lg">
+                              조별 진출: {state.groupCount}조 × {state.advancePerGroup}명 = {directAdvance}명
+                            </p>
+                            {wildcardCount > 0 && (
+                              <p className="text-yellow-300 font-semibold">
+                                + 와일드카드 {wildcardCount}명 (각 조 {state.advancePerGroup + 1}위 중 상위 성적)
+                              </p>
+                            )}
+                            <p className="text-white font-bold text-lg">
+                              본선 총 진출: {directAdvance + wildcardCount}명
+                            </p>
+                            <p className="text-gray-400 text-sm">
+                              본선 {nearestBracketRound(directAdvance + wildcardCount)} 시작
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </>
                   );
                 })()}

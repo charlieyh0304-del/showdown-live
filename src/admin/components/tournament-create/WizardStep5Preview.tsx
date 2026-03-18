@@ -235,7 +235,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                           : '순위전'}
                     </div>
                     <div className="text-gray-400 text-sm mt-1">
-                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthPlace ? 2 : 0)}명
+                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthPlace ? 4 : 0)}명
                     </div>
                   </div>
                 </>
