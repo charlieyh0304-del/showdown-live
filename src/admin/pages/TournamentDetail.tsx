@@ -98,17 +98,38 @@ export default function TournamentDetail() {
 
   const handleSimulate = async () => {
     if (!tournament) return;
-    const playerCount = simCount; // NumberStepper에서 설정한 값 사용
-    if (!confirm(`시뮬레이션을 실행합니다.\n\n• 가상 참가자 ${playerCount}명 생성\n• 기존 참가자/경기 데이터가 초기화됩니다\n• 대회 규칙 설정은 유지됩니다\n\n계속하시겠습니까?`)) return;
+    const hasExistingPlayers = tournamentPlayers.length > 0;
+    const hasExistingReferees = referees.length > 0;
+    const playerCount = hasExistingPlayers ? tournamentPlayers.length : simCount;
+
+    const msgParts = [
+      `시뮬레이션을 실행합니다.\n`,
+      hasExistingPlayers
+        ? `• 등록된 선수 ${playerCount}명으로 진행`
+        : `• 가상 참가자 ${playerCount}명 생성`,
+      hasExistingReferees
+        ? `• 등록된 심판 ${referees.length}명 배정`
+        : `• 가상 심판 3명 생성`,
+      `• 기존 경기 데이터가 초기화됩니다`,
+      `• 대회 규칙 설정은 유지됩니다`,
+      `\n계속하시겠습니까?`,
+    ];
+    if (!confirm(msgParts.join('\n'))) return;
 
     setSimulating(true);
     try {
       setSimProgress('시뮬레이션 데이터 생성 중...');
-      const result = simulateTournament(tournament, playerCount);
+      const result = simulateTournament(tournament, playerCount, {
+        existingPlayers: hasExistingPlayers ? tournamentPlayers.map(p => ({ id: p.id, name: p.name })) : undefined,
+        existingReferees: hasExistingReferees ? referees.map(r => ({ id: r.id, name: r.name })) : undefined,
+      });
 
-      setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
-      for (const player of result.players) {
-        await addTournamentPlayer({ name: player.name });
+      // 기존 선수가 없을 때만 새로 등록
+      if (!hasExistingPlayers) {
+        setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
+        for (const player of result.players) {
+          await addTournamentPlayer({ name: player.name });
+        }
       }
 
       if (result.teams && result.teams.length > 0) {

@@ -538,7 +538,13 @@ export interface SimulationResult {
   schedule: Omit<ScheduleSlot, 'id'>[];
 }
 
-export function simulateTournament(tournament: Tournament, participantCount: number): SimulationResult {
+export interface SimulationOptions {
+  existingPlayers?: { id: string; name: string }[];
+  existingTeams?: { id: string; name: string; memberIds: string[]; memberNames: string[] }[];
+  existingReferees?: { id: string; name: string }[];
+}
+
+export function simulateTournament(tournament: Tournament, participantCount: number, options?: SimulationOptions): SimulationResult {
   const isTeam = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
 
   // 대회 설정에서 스코어링 규칙 읽기 (scoringRules > gameConfig > teamMatchSettings > 기본값)
@@ -573,20 +579,28 @@ export function simulateTournament(tournament: Tournament, participantCount: num
   const advanceCount = finalsStage?.advanceCount || tournament.finalsConfig?.advanceCount || 0;
   const rankingMatchConfig = tournament.rankingMatchConfig || tournament.stages?.find(s => s.type === 'ranking_match')?.rankingMatchConfig;
 
-  // 1. 참가자 생성
-  const players = Array.from({ length: participantCount }, (_, i) => ({
-    id: `sim_player_${i}`,
-    name: generateName(i),
-  }));
+  // 1. 참가자: 기존 등록 선수가 있으면 사용, 없으면 가상 생성
+  const players = (options?.existingPlayers && options.existingPlayers.length > 0)
+    ? options.existingPlayers.slice(0, participantCount)
+    : Array.from({ length: participantCount }, (_, i) => ({
+        id: `sim_player_${i}`,
+        name: generateName(i),
+      }));
+  // 부족분 가상 보충
+  while (players.length < participantCount) {
+    players.push({ id: `sim_player_${players.length}`, name: generateName(players.length) });
+  }
 
-  // 2. 팀 생성 (팀전 시)
+  // 2. 팀: 기존 팀이 있으면 사용, 없으면 가상 생성
   let teams: SimulationResult['teams'];
   const teamsMap = new Map<string, { id: string; name: string; memberIds: string[]; memberNames: string[] }>();
   if (isTeam) {
     const teamSize = tournament.teamRules?.teamSize || 3;
     const teamCount = Math.floor(participantCount / teamSize);
-    teams = Array.from({ length: teamCount }, (_, i) => ({
-      id: `sim_team_${i}`,
+    teams = (options?.existingTeams && options.existingTeams.length > 0)
+      ? options.existingTeams.slice(0, teamCount)
+      : Array.from({ length: teamCount }, (_, i) => ({
+          id: `sim_team_${i}`,
       name: `${i + 1}팀`,
       memberIds: players.slice(i * teamSize, (i + 1) * teamSize).map(p => p.id),
       memberNames: players.slice(i * teamSize, (i + 1) * teamSize).map(p => p.name),
@@ -596,12 +610,15 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     }
   }
 
-  // 3. 심판 생성 (3명)
-  const referees: { id: string; name: string; assignedMatchIds: string[] }[] = [
-    { id: 'sim_ref_1', name: '심판 A', assignedMatchIds: [] },
-    { id: 'sim_ref_2', name: '심판 B', assignedMatchIds: [] },
-    { id: 'sim_ref_3', name: '심판 C', assignedMatchIds: [] },
-  ];
+  // 3. 심판: 기존 등록 심판이 있으면 사용, 없으면 가상 생성
+  const referees: { id: string; name: string; assignedMatchIds: string[] }[] =
+    (options?.existingReferees && options.existingReferees.length > 0)
+      ? options.existingReferees.map(r => ({ id: r.id, name: r.name, assignedMatchIds: [] }))
+      : [
+          { id: 'sim_ref_1', name: '심판 A', assignedMatchIds: [] },
+          { id: 'sim_ref_2', name: '심판 B', assignedMatchIds: [] },
+          { id: 'sim_ref_3', name: '심판 C', assignedMatchIds: [] },
+        ];
 
   // 4. 코트 생성 (2개)
   const courts = [
