@@ -10,10 +10,13 @@ import {
   useCourts,
   useSchedule,
 } from '@shared/hooks/useFirebase';
+import { push, set, ref } from 'firebase/database';
+import { database } from '@shared/config/firebase';
 import { createEmptySet } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { simulateTournament } from '@shared/utils/simulation';
-import type { Match, Team, Player, MatchStatus, ScheduleSlot } from '@shared/types';
+import { buildGroupAssignment } from '@shared/utils/tournament';
+import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup } from '@shared/types';
 import NumberStepper from '../components/tournament-create/NumberStepper';
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
@@ -212,11 +215,13 @@ export default function TournamentDetail() {
       <div role="tabpanel" aria-label={TABS.find(t => t.key === activeTab)?.label}>
         {activeTab === 'players' && (
           <PlayersTab
+            tournament={tournament}
             tournamentPlayers={tournamentPlayers}
             globalPlayers={globalPlayers}
             addTournamentPlayer={addTournamentPlayer}
             deleteTournamentPlayer={deleteTournamentPlayer}
             addPlayersFromGlobal={addPlayersFromGlobal}
+            updateTournament={updateTournament}
             isTeamType={isTeamType}
             teams={teams}
             setTeamsBulk={setTeamsBulk}
@@ -230,6 +235,7 @@ export default function TournamentDetail() {
             teams={teams}
             setMatchesBulk={setMatchesBulk}
             updateMatch={updateMatch}
+            updateTournament={updateTournament}
             referees={referees}
             courts={courts}
             isTeamType={isTeamType}
@@ -250,6 +256,8 @@ export default function TournamentDetail() {
             matches={matches}
             updateTournament={updateTournament}
             isTeamType={isTeamType}
+            tournamentPlayers={tournamentPlayers}
+            teams={teams}
           />
         )}
         {activeTab === 'ranking' && (
@@ -267,22 +275,38 @@ export default function TournamentDetail() {
 // Players Tab
 // ========================
 interface PlayersTabProps {
+  tournament: NonNullable<ReturnType<typeof useTournament>['tournament']>;
   tournamentPlayers: Player[];
   globalPlayers: Player[];
   addTournamentPlayer: (player: Omit<Player, 'id' | 'createdAt'>) => Promise<string | null>;
   deleteTournamentPlayer: (id: string) => Promise<void>;
   addPlayersFromGlobal: (players: Player[]) => Promise<void>;
+  updateTournament: (data: Record<string, unknown>) => Promise<void>;
   isTeamType: boolean;
   teams: Team[];
   setTeamsBulk: (teams: Team[]) => Promise<void>;
 }
 
-function PlayersTab({ tournamentPlayers, globalPlayers, addTournamentPlayer, deleteTournamentPlayer, addPlayersFromGlobal, isTeamType, teams, setTeamsBulk }: PlayersTabProps) {
+function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamentPlayer, deleteTournamentPlayer, addPlayersFromGlobal, updateTournament, isTeamType, teams, setTeamsBulk }: PlayersTabProps) {
   const [generating, setGenerating] = useState(false);
   const [showGlobalModal, setShowGlobalModal] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
+  const [seeds, setSeeds] = useState<SeedEntry[]>(tournament.seeds || []);
+
+  const toggleSeed = (playerId: string, name: string) => {
+    const existing = seeds.findIndex(s => s.playerId === playerId);
+    if (existing >= 0) {
+      setSeeds(seeds.filter((_, i) => i !== existing));
+    } else {
+      setSeeds([...seeds, { position: seeds.length + 1, playerId, name }]);
+    }
+  };
+
+  const saveSeeds = async () => {
+    await updateTournament({ seeds });
+  };
 
   const handleAddPlayer = useCallback(async () => {
     if (!newPlayerName.trim()) return;
@@ -451,6 +475,34 @@ function PlayersTab({ tournamentPlayers, globalPlayers, addTournamentPlayer, del
         </div>
       )}
 
+      {/* 탑시드 지정 */}
+      {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
+        <div className="card space-y-4">
+          <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
+          <p className="text-gray-400 text-sm">시드 선수는 각 조에 분산 배치됩니다. 번호를 클릭하여 시드를 지정하세요.</p>
+          <div className="space-y-2">
+            {tournamentPlayers.map((player) => {
+              const seedNum = seeds.findIndex(s => s.playerId === player.id) + 1;
+              return (
+                <div key={player.id} className="flex items-center gap-3 bg-gray-800 rounded p-2">
+                  <button
+                    className={`w-8 h-8 rounded-full text-sm font-bold ${
+                      seedNum > 0 ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
+                    }`}
+                    onClick={() => toggleSeed(player.id, player.name)}
+                  >
+                    {seedNum > 0 ? seedNum : '-'}
+                  </button>
+                  <span className="text-white">{player.name}</span>
+                  {seedNum > 0 && <span className="text-yellow-400 text-xs">시드 #{seedNum}</span>}
+                </div>
+              );
+            })}
+          </div>
+          <button className="btn btn-primary w-full" onClick={saveSeeds}>시드 저장</button>
+        </div>
+      )}
+
       {/* 전역 선수 가져오기 모달 */}
       {showGlobalModal && (
         <div className="modal-backdrop" onClick={() => setShowGlobalModal(false)}>
@@ -521,13 +573,35 @@ interface BracketTabProps {
   teams: Team[];
   setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
+  updateTournament: (data: Record<string, unknown>) => Promise<void>;
   referees: { id: string; name: string }[];
   courts: { id: string; name: string }[];
   isTeamType: boolean;
 }
 
-function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, referees, courts, isTeamType }: BracketTabProps) {
+function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, updateTournament, referees, courts, isTeamType }: BracketTabProps) {
   const [generating, setGenerating] = useState(false);
+  const [groupAssignment, setGroupAssignment] = useState<StageGroup[]>([]);
+
+  const handleAutoGroupAssignment = async () => {
+    const groupCount = tournament.qualifyingConfig?.groupCount || 2;
+    const playerIds = tournamentPlayers.map(p => p.id);
+    const seedIds = (tournament.seeds || []).map(s => s.playerId || s.teamId).filter(Boolean) as string[];
+
+    const groups = buildGroupAssignment(playerIds, groupCount, seedIds);
+    const qualifyingStage = (tournament.stages || []).find(s => s.type === 'qualifying');
+    if (qualifyingStage) {
+      groups.forEach(g => { g.stageId = qualifyingStage.id; });
+    }
+
+    setGroupAssignment(groups);
+    if (qualifyingStage) {
+      const updatedStages = (tournament.stages || []).map(s =>
+        s.id === qualifyingStage.id ? { ...s, groups } : s
+      );
+      await updateTournament({ stages: updatedStages });
+    }
+  };
 
   const generateBracket = useCallback(async () => {
     setGenerating(true);
@@ -625,6 +699,39 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           {generating ? '생성 중...' : '대진표 자동 생성'}
         </button>
       </div>
+
+      {/* 조 편성 (조별 예선이 있을 때) */}
+      {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
+        <div className="card space-y-4 mb-4">
+          <h3 className="text-lg font-bold text-yellow-400">조 편성</h3>
+          <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment}>
+            자동 편성 (Snake Draft)
+          </button>
+
+          {/* 편성 결과 표시 */}
+          {groupAssignment.length > 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              {groupAssignment.map(group => (
+                <div key={group.id} className="bg-gray-800 rounded p-3">
+                  <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name}</h4>
+                  <ul className="space-y-1">
+                    {group.playerIds.map((pid) => {
+                      const player = tournamentPlayers.find(p => p.id === pid);
+                      const seedNum = (tournament.seeds || []).findIndex(s => s.playerId === pid) + 1;
+                      return (
+                        <li key={pid} className="text-sm text-gray-300 flex items-center gap-2">
+                          {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
+                          {player?.name || pid}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {!canGenerate && (
         <p className="text-gray-400">
@@ -853,9 +960,11 @@ interface StatusTabProps {
   matches: Match[];
   updateTournament: (data: Record<string, unknown>) => Promise<void>;
   isTeamType: boolean;
+  tournamentPlayers: Player[];
+  teams: Team[];
 }
 
-function StatusTab({ tournament, matches, updateTournament }: StatusTabProps) {
+function StatusTab({ tournament, matches, updateTournament, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
 
   const filtered = useMemo(() => {
@@ -872,6 +981,98 @@ function StatusTab({ tournament, matches, updateTournament }: StatusTabProps) {
   const handleStatusChange = useCallback(async (newStatus: 'in_progress' | 'paused' | 'completed') => {
     await updateTournament({ status: newStatus });
   }, [updateTournament]);
+
+  const handleAdvanceToFinals = async () => {
+    // 1. 조별 순위 계산
+    const qualifyingMatches = matches.filter(m => m.groupId);
+    const groupMap = new Map<string, typeof matches>();
+    qualifyingMatches.forEach(m => {
+      const gid = m.groupId!;
+      if (!groupMap.has(gid)) groupMap.set(gid, []);
+      groupMap.get(gid)!.push(m);
+    });
+
+    const advancePerGroup = tournament.finalsConfig?.advanceCount || 2;
+    const advancedIds: string[] = [];
+
+    groupMap.forEach((groupMatches) => {
+      const stats = new Map<string, { wins: number; setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number }>();
+      groupMatches.filter(m => m.status === 'completed').forEach(m => {
+        const p1 = m.player1Id || m.team1Id || '';
+        const p2 = m.player2Id || m.team2Id || '';
+        if (!stats.has(p1)) stats.set(p1, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+        if (!stats.has(p2)) stats.set(p2, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+
+        if (m.winnerId === p1) stats.get(p1)!.wins++;
+        else if (m.winnerId === p2) stats.get(p2)!.wins++;
+
+        (m.sets || []).forEach(s => {
+          stats.get(p1)!.pointsFor += s.player1Score;
+          stats.get(p1)!.pointsAgainst += s.player2Score;
+          stats.get(p2)!.pointsFor += s.player2Score;
+          stats.get(p2)!.pointsAgainst += s.player1Score;
+          if (s.player1Score > s.player2Score) { stats.get(p1)!.setsWon++; stats.get(p2)!.setsLost++; }
+          else { stats.get(p2)!.setsWon++; stats.get(p1)!.setsLost++; }
+        });
+      });
+
+      const sorted = Array.from(stats.entries())
+        .sort(([,a], [,b]) => b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst));
+
+      sorted.slice(0, advancePerGroup).forEach(([id]) => advancedIds.push(id));
+    });
+
+    // 2. 본선 Match 생성 (싱글엘리미네이션)
+    const idToName = new Map<string, string>();
+    tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
+    teams.forEach(t => idToName.set(t.id, t.name));
+
+    const finalsStageId = (tournament.stages || []).find(s => s.type === 'finals')?.id || 'finals';
+
+    let bracketSize = 4;
+    while (bracketSize < advancedIds.length) bracketSize *= 2;
+
+    const finalsMatches: Omit<Match, 'id'>[] = [];
+    for (let i = 0; i < advancedIds.length; i += 2) {
+      if (i + 1 >= advancedIds.length) break;
+      const p1 = advancedIds[i];
+      const p2 = advancedIds[i + 1];
+      const roundLabel = bracketSize >= 16 ? '16강' : bracketSize >= 8 ? '8강' : '4강';
+
+      finalsMatches.push({
+        tournamentId: tournament.id,
+        type: isTeamType ? 'team' : 'individual',
+        status: 'pending',
+        round: 1,
+        stageId: finalsStageId,
+        roundLabel,
+        ...(isTeamType ? {
+          team1Id: p1, team2Id: p2,
+          team1Name: idToName.get(p1) || p1,
+          team2Name: idToName.get(p2) || p2,
+        } : {
+          player1Id: p1, player2Id: p2,
+          player1Name: idToName.get(p1) || p1,
+          player2Name: idToName.get(p2) || p2,
+        }),
+        sets: [],
+        currentSet: 0,
+        player1Timeouts: 0,
+        player2Timeouts: 0,
+        winnerId: null,
+        createdAt: Date.now(),
+      });
+    }
+
+    // Firebase에 본선 경기 추가
+    for (const match of finalsMatches) {
+      const matchRef = push(ref(database, `matches/${tournament.id}`));
+      await set(matchRef, match);
+    }
+
+    await updateTournament({ currentStageId: finalsStageId });
+    alert(`본선 대진표 생성 완료! ${finalsMatches.length}경기가 생성되었습니다.`);
+  };
 
   return (
     <div className="space-y-6">
@@ -963,7 +1164,12 @@ function StatusTab({ tournament, matches, updateTournament }: StatusTabProps) {
                   <div className="bg-yellow-400 h-2 rounded" style={{ width: `${total > 0 ? (completed/total)*100 : 0}%` }} />
                 </div>
                 {allDone && stage.type === 'qualifying' && (
-                  <p className="text-green-400 text-sm font-semibold">예선 완료 - 본선 진출자가 결정되었습니다</p>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-green-400 text-sm font-semibold">예선 완료 - 본선 진출자가 결정되었습니다</p>
+                    <button className="btn btn-success w-full" onClick={handleAdvanceToFinals}>
+                      본선 대진표 생성
+                    </button>
+                  </div>
                 )}
                 {allDone && stage.type === 'finals' && (
                   <p className="text-green-400 text-sm font-semibold">본선 완료</p>
