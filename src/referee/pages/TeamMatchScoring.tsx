@@ -58,6 +58,30 @@ export default function TeamMatchScoring() {
   // Navigation guard
   useNavigationGuard(match?.status === 'in_progress');
 
+  // 15초 안내 (타임아웃)
+  useEffect(() => {
+    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+      setLastAction('⚠️ 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [timeoutTimer.seconds]);
+
+  // 15초 안내 (사이드 체인지)
+  useEffect(() => {
+    if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
+      setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [sideChangeTimer.seconds]);
+
+  // 15초 안내 (워밍업)
+  useEffect(() => {
+    if (warmupTimer.seconds === 15 && warmupTimer.isRunning) {
+      setLastAction('⚠️ 워밍업 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [warmupTimer.seconds]);
+
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
     if (match?.activeTimeout) {
@@ -559,13 +583,23 @@ export default function TeamMatchScoring() {
 
         <div className="flex gap-3">
           <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0}>↩️ 취소</button>
-          <button className="btn btn-secondary flex-1" onClick={() => handleTimeout(1)}
-            disabled={t1TimeoutsUsed >= 1 || !!match.activeTimeout}>
-            {team1Name} T/O{t1TimeoutsUsed < 1 ? ` (남은: ${1 - t1TimeoutsUsed})` : ''}
+          <button
+            className="btn btn-secondary flex-1"
+            onClick={() => handleTimeout(1)}
+            disabled={t1TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={`${team1Name} 타임아웃 요청, 남은 횟수 ${1 - t1TimeoutsUsed}회`}
+          >
+            {team1Name} 타임아웃
+            <span className="block text-xs opacity-75">남은 횟수: {1 - t1TimeoutsUsed}</span>
           </button>
-          <button className="btn btn-secondary flex-1" onClick={() => handleTimeout(2)}
-            disabled={t2TimeoutsUsed >= 1 || !!match.activeTimeout}>
-            {team2Name} T/O{t2TimeoutsUsed < 1 ? ` (남은: ${1 - t2TimeoutsUsed})` : ''}
+          <button
+            className="btn btn-secondary flex-1"
+            onClick={() => handleTimeout(2)}
+            disabled={t2TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={`${team2Name} 타임아웃 요청, 남은 횟수 ${1 - t2TimeoutsUsed}회`}
+          >
+            {team2Name} 타임아웃
+            <span className="block text-xs opacity-75">남은 횟수: {1 - t2TimeoutsUsed}</span>
           </button>
         </div>
 

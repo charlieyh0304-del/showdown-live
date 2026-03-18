@@ -21,6 +21,7 @@ import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
 import ActionToast from '../components/ActionToast';
@@ -49,6 +50,7 @@ export default function IndividualScoring() {
 
   const gameConfig = getEffectiveGameConfig(tournament?.scoringRules || tournament?.gameConfig);
   useNavigationGuard(match?.status === 'in_progress');
+  const setEndTrapRef = useFocusTrap(showSetEndConfirm);
 
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
@@ -56,6 +58,30 @@ export default function IndividualScoring() {
   const timeoutTimer = useCountdownTimer(() => {
     if (match) updateMatch({ activeTimeout: null });
   });
+
+  // 15초 안내 (타임아웃)
+  useEffect(() => {
+    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+      setLastAction('⚠️ 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [timeoutTimer.seconds]);
+
+  // 15초 안내 (사이드 체인지)
+  useEffect(() => {
+    if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
+      setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [sideChangeTimer.seconds]);
+
+  // 15초 안내 (워밍업)
+  useEffect(() => {
+    if (warmupTimer.seconds === 15 && warmupTimer.isRunning) {
+      setLastAction('⚠️ 워밍업 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [warmupTimer.seconds]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -497,8 +523,8 @@ export default function IndividualScoring() {
 
       {/* Set End Confirmation Dialog */}
       {showSetEndConfirm && (
-        <div className="modal-backdrop" style={{ zIndex: 100 }}>
-          <div className="flex flex-col items-center gap-6 p-8 max-w-sm">
+        <div className="modal-backdrop" style={{ zIndex: 100 }} role="dialog" aria-modal="true" aria-label="세트 종료 확인">
+          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm">
             <h2 className="text-2xl font-bold text-yellow-400">세트 종료 확인</h2>
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
@@ -651,13 +677,23 @@ export default function IndividualScoring() {
           <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0}>
             ↩️ 취소
           </button>
-          <button className="btn btn-secondary flex-1" onClick={() => handleTimeout(1)}
-            disabled={p1TimeoutsUsed >= 1 || !!match.activeTimeout}>
-            {player1Name} T/O{p1TimeoutsUsed < 1 ? ` (남은: ${1 - p1TimeoutsUsed})` : ''}
+          <button
+            className="btn btn-secondary flex-1"
+            onClick={() => handleTimeout(1)}
+            disabled={p1TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={`${player1Name} 타임아웃 요청, 남은 횟수 ${1 - p1TimeoutsUsed}회`}
+          >
+            {player1Name} 타임아웃
+            <span className="block text-xs opacity-75">남은 횟수: {1 - p1TimeoutsUsed}</span>
           </button>
-          <button className="btn btn-secondary flex-1" onClick={() => handleTimeout(2)}
-            disabled={p2TimeoutsUsed >= 1 || !!match.activeTimeout}>
-            {player2Name} T/O{p2TimeoutsUsed < 1 ? ` (남은: ${1 - p2TimeoutsUsed})` : ''}
+          <button
+            className="btn btn-secondary flex-1"
+            onClick={() => handleTimeout(2)}
+            disabled={p2TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={`${player2Name} 타임아웃 요청, 남은 횟수 ${1 - p2TimeoutsUsed}회`}
+          >
+            {player2Name} 타임아웃
+            <span className="block text-xs opacity-75">남은 횟수: {1 - p2TimeoutsUsed}</span>
           </button>
         </div>
 

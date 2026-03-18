@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePracticeMatch } from '../../hooks/usePracticeMatch';
-import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import {
   checkSetWinner,
   checkMatchWinner,
@@ -17,6 +16,7 @@ import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType } from '@shared/types';
 import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
 import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import TimerModal from '../../components/TimerModal';
@@ -26,7 +26,6 @@ import ActionToast from '../../components/ActionToast';
 export default function PracticeScoring() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addSession } = usePracticeHistory();
   const { canAct } = useDoubleClickGuard();
   const audio = useAudioFeedback();
 
@@ -56,10 +55,36 @@ export default function PracticeScoring() {
   const [pauseElapsed, setPauseElapsed] = useState(0);
   const [pauseReason, setPauseReason] = useState('');
 
+  const setEndTrapRef = useFocusTrap(showSetEndConfirm);
+
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
   const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
   const timeoutTimer = useCountdownTimer(() => updateMatch({ activeTimeout: null }));
+
+  // 15초 안내 (타임아웃)
+  useEffect(() => {
+    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+      setLastAction('⚠️ 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [timeoutTimer.seconds]);
+
+  // 15초 안내 (사이드 체인지)
+  useEffect(() => {
+    if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
+      setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [sideChangeTimer.seconds]);
+
+  // 15초 안내 (워밍업)
+  useEffect(() => {
+    if (warmupTimer.seconds === 15 && warmupTimer.isRunning) {
+      setLastAction('⚠️ 워밍업 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [warmupTimer.seconds]);
 
   // localStorage sharing (spectator mode)
   useEffect(() => {
@@ -248,15 +273,6 @@ export default function PracticeScoring() {
       });
       audio.matchComplete();
       vibrate(hapticPatterns.matchComplete);
-      addSession({
-        id: crypto.randomUUID(),
-        date: Date.now(),
-        matchType,
-        sessionType: 'free',
-        duration: Math.floor((Date.now() - match.startedAt) / 1000),
-        totalActions: match.actionLog.length + 1,
-        finalScore: sets.map(s => `${s.player1Score}-${s.player2Score}`).join(', '),
-      });
     } else {
       audio.setComplete();
       vibrate(hapticPatterns.setComplete);
@@ -268,7 +284,7 @@ export default function PracticeScoring() {
       });
     }
     setShowSetEndConfirm(false);
-  }, [match, config, updateMatch, addSession, matchType]);
+  }, [match, config, updateMatch, matchType]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);
@@ -451,8 +467,8 @@ export default function PracticeScoring() {
 
       {/* Set End Confirmation */}
       {showSetEndConfirm && (
-        <div className="modal-backdrop" style={{ zIndex: 100 }}>
-          <div className="flex flex-col items-center gap-6 p-8 max-w-sm">
+        <div className="modal-backdrop" style={{ zIndex: 100 }} role="dialog" aria-modal="true" aria-label="세트 종료 확인">
+          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm">
             <h2 className="text-2xl font-bold text-yellow-400">세트 종료 확인</h2>
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
@@ -625,15 +641,19 @@ export default function PracticeScoring() {
             className="btn btn-secondary flex-1 py-3 text-sm"
             onClick={() => handleTimeout(1)}
             disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
+            aria-label={`${p1Name} 타임아웃 요청, 남은 횟수 ${1 - match.player1Timeouts}회`}
           >
-            {p1Name} T/O{match.player1Timeouts < 1 ? ` (${1 - match.player1Timeouts})` : ''}
+            {p1Name} 타임아웃
+            <span className="block text-xs opacity-75">남은 횟수: {1 - match.player1Timeouts}</span>
           </button>
           <button
             className="btn btn-secondary flex-1 py-3 text-sm"
             onClick={() => handleTimeout(2)}
             disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
+            aria-label={`${p2Name} 타임아웃 요청, 남은 횟수 ${1 - match.player2Timeouts}회`}
           >
-            {p2Name} T/O{match.player2Timeouts < 1 ? ` (${1 - match.player2Timeouts})` : ''}
+            {p2Name} 타임아웃
+            <span className="block text-xs opacity-75">남은 횟수: {1 - match.player2Timeouts}</span>
           </button>
         </div>
         {/* Warmup + Pause */}

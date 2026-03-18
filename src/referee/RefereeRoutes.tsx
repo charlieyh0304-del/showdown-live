@@ -8,9 +8,6 @@ import TeamMatchScoring from './pages/TeamMatchScoring';
 import PracticeHome from './pages/practice/PracticeHome';
 import PracticeSetup from './pages/practice/PracticeSetup';
 import PracticeScoring from './pages/practice/PracticeScoring';
-import ScenarioList from './pages/practice/ScenarioList';
-import ScenarioPlayer from './pages/practice/ScenarioPlayer';
-import PracticeHistory from './pages/practice/PracticeHistory';
 
 export default function RefereeRoutes() {
   return (
@@ -25,9 +22,6 @@ export default function RefereeRoutes() {
         <Route index element={<PracticeHome />} />
         <Route path="setup" element={<PracticeSetup />} />
         <Route path="play" element={<PracticeScoring />} />
-        <Route path="scenarios" element={<ScenarioList />} />
-        <Route path="scenario/:scenarioId" element={<ScenarioPlayer />} />
-        <Route path="history" element={<PracticeHistory />} />
       </Route>
     </Routes>
   );

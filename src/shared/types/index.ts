@@ -343,9 +343,6 @@ export interface AuthSession {
 }
 
 // ===== 심판 연습 모드 =====
-export type PracticeSessionType = 'free' | 'scenario' | 'tutorial';
-export type ScenarioCategory = 'close_game' | 'fault_heavy' | 'violation' | 'deuce' | 'timeout' | 'full_match';
-
 export interface PracticeMatch {
   id: string;
   type: MatchType;
@@ -377,7 +374,6 @@ export interface PracticeMatch {
   // 워밍업
   warmupUsed: boolean;
   pauseHistory: { time: string; reason: string; set: number; duration?: number }[];
-  scenarioId?: string;
   actionLog: PracticeAction[];
   startedAt: number;
   completedAt?: number;
@@ -388,48 +384,6 @@ export interface PracticeAction {
   type: 'score' | 'fault' | 'violation' | 'timeout' | 'timeout_end' | 'start';
   player: 1 | 2;
   detail?: string;
-}
-
-export interface PracticeScenario {
-  id: string;
-  name: string;
-  description: string;
-  category: ScenarioCategory;
-  matchType: MatchType;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  initialState?: {
-    sets: SetScore[];
-    currentSet: number;
-  };
-  events: ScenarioEvent[];
-  expectedActions: ExpectedAction[];
-}
-
-export interface ScenarioEvent {
-  type: 'score' | 'fault' | 'violation' | 'timeout_request';
-  player: 1 | 2;
-  description: string;
-  expectedRefereeAction: string;
-}
-
-export interface ExpectedAction {
-  type: PracticeAction['type'];
-  player: 1 | 2;
-  detail?: string;
-}
-
-export interface PracticeSession {
-  id: string;
-  date: number;
-  matchType: MatchType;
-  sessionType: PracticeSessionType;
-  scenarioId?: string;
-  scenarioName?: string;
-  duration: number;
-  accuracy?: number;
-  totalActions: number;
-  correctActions?: number;
-  finalScore: string;
 }
 
 // ===== 타이브레이커 =====
