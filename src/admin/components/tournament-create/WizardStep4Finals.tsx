@@ -17,6 +17,7 @@ interface WizardStep4FinalsProps {
     // context from prior steps
     hasGroupStage?: boolean;
     advanceCount?: number;
+    participantCount?: number;
     scoringRules?: ScoringRules;
   };
   dispatch: (action: { type: 'SET_FIELD'; field: string; value: unknown }) => void;
@@ -58,39 +59,8 @@ const ARRANGEMENT_OPTIONS: {
   { value: 'random', label: '랜덤', description: '무작위 대진 편성' },
 ];
 
-function getRoundLabel(round: number): string {
-  if (round === 2) return '결승';
-  if (round === 4) return '4강';
-  if (round === 8) return '8강';
-  if (round === 16) return '16강';
-  if (round === 32) return '32강';
-  return `${round}강`;
-}
-
-function getAvailableRounds(advanceCount: number): number[] {
-  const rounds: number[] = [];
-  let r = 2;
-  while (r <= 32) {
-    if (r <= advanceCount) {
-      rounds.push(r);
-    }
-    r *= 2;
-  }
-  return rounds.sort((a, b) => b - a);
-}
-
-function getDefaultStartRound(advanceCount: number): number {
-  let r = 2;
-  while (r * 2 <= advanceCount) {
-    r *= 2;
-  }
-  return r;
-}
-
 export default function WizardStep4Finals({ state, dispatch }: WizardStep4FinalsProps) {
   const advanceCount = state.advanceCount || 8;
-  const availableRounds = getAvailableRounds(advanceCount);
-  const startRound = state.finalsStartRound || getDefaultStartRound(advanceCount);
 
   const setField = (field: string, value: unknown) => {
     dispatch({ type: 'SET_FIELD', field, value });
@@ -130,42 +100,53 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       </div>
 
       {/* 본선 시작 강 */}
-      {state.finalsFormat !== 'round_robin' && availableRounds.length > 0 && (
+      {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
-          <h2 className="text-xl font-bold">본선 시작 강</h2>
-          <select
-            className="input"
-            value={startRound}
-            onChange={(e) => setField('finalsStartRound', Number(e.target.value))}
-            aria-label="본선 시작 라운드"
-          >
-            {availableRounds.map((r) => (
-              <option key={r} value={r}>
-                {getRoundLabel(r)}
-              </option>
+          <h3 className="text-lg font-semibold mb-2">본선 시작 라운드</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { value: 32, label: '32강' },
+              { value: 16, label: '16강' },
+              { value: 8, label: '8강' },
+              { value: 4, label: '4강' },
+            ].filter(opt => {
+              // 진출 인원보다 큰 라운드만 표시
+              const ac = state.advanceCount || state.participantCount || 8;
+              return opt.value <= ac * 2;
+            }).map(opt => (
+              <button
+                key={opt.value}
+                className={`btn py-3 text-lg ${state.finalsStartRound === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: opt.value })}
+                aria-pressed={state.finalsStartRound === opt.value}
+              >
+                {opt.label}
+              </button>
             ))}
-          </select>
-          <p className="text-gray-400 text-sm">
-            진출 인원: {advanceCount}명 → {getRoundLabel(startRound)}부터 시작
-          </p>
+          </div>
+          {/* BYE 안내 */}
+          {advanceCount < state.finalsStartRound && (
+            <p className="text-yellow-500 text-sm mt-2">
+              진출 {advanceCount}명 / {state.finalsStartRound}강 → {state.finalsStartRound - advanceCount}명은 부전승(BYE) 처리됩니다
+            </p>
+          )}
         </div>
       )}
 
       {/* 예선과 동일 규칙 사용 */}
       <div className="card space-y-4">
-        <div className="flex items-center justify-between">
-          <label className="text-lg font-semibold">예선과 동일 규칙 사용</label>
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-lg font-semibold">예선과 동일 규칙 사용</span>
           <button
-            className={`btn ${
-              state.sameRulesAsQualifying ? 'btn-success' : 'bg-gray-700 text-white'
-            }`}
+            role="switch"
+            aria-checked={state.sameRulesAsQualifying}
+            aria-label="예선과 동일 규칙 사용"
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.sameRulesAsQualifying ? 'bg-green-600' : 'bg-gray-600'}`}
             onClick={() => setField('sameRulesAsQualifying', !state.sameRulesAsQualifying)}
-            aria-pressed={state.sameRulesAsQualifying}
-            aria-label="예선과 동일 규칙 사용 토글"
           >
-            {state.sameRulesAsQualifying ? 'ON' : 'OFF'}
+            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.sameRulesAsQualifying ? 'translate-x-7' : 'translate-x-1'}`} />
           </button>
-        </div>
+        </label>
 
         {/* 본선 스코어링 규칙 (sameRulesAsQualifying=false 일 때) */}
         {!state.sameRulesAsQualifying && (
@@ -211,26 +192,23 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               }
               ariaLabel="본선 최소 점수차"
             />
-            <div className="flex items-center gap-4">
-              <label className="text-lg font-semibold">듀스 적용</label>
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-lg font-semibold">듀스 적용</span>
               <button
-                className={`btn ${
-                  state.finalsScoringRules.deuceEnabled
-                    ? 'btn-success'
-                    : 'bg-gray-700 text-white'
-                }`}
+                role="switch"
+                aria-checked={state.finalsScoringRules.deuceEnabled}
+                aria-label="듀스 적용"
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.finalsScoringRules.deuceEnabled ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() =>
                   setField('finalsScoringRules', {
                     ...state.finalsScoringRules,
                     deuceEnabled: !state.finalsScoringRules.deuceEnabled,
                   })
                 }
-                aria-pressed={state.finalsScoringRules.deuceEnabled}
-                aria-label="본선 듀스 적용 토글"
               >
-                {state.finalsScoringRules.deuceEnabled ? '적용' : '미적용'}
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.finalsScoringRules.deuceEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
-            </div>
+            </label>
           </div>
         )}
       </div>
@@ -264,55 +242,52 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
           </div>
 
           {/* 같은 조 회피 */}
-          <div className="flex items-center justify-between mt-4">
-            <label className="text-lg font-semibold">같은 조 회피</label>
+          <label className="flex items-center justify-between cursor-pointer mt-4">
+            <span className="text-lg font-semibold">같은 조 회피 편성</span>
             <button
-              className={`btn ${
-                state.avoidSameGroup ? 'btn-success' : 'bg-gray-700 text-white'
-              }`}
+              role="switch"
+              aria-checked={state.avoidSameGroup}
+              aria-label="같은 조 회피 편성"
+              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.avoidSameGroup ? 'bg-green-600' : 'bg-gray-600'}`}
               onClick={() => setField('avoidSameGroup', !state.avoidSameGroup)}
-              aria-pressed={state.avoidSameGroup}
-              aria-label="같은 조 회피 토글"
             >
-              {state.avoidSameGroup ? 'ON' : 'OFF'}
+              <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.avoidSameGroup ? 'translate-x-7' : 'translate-x-1'}`} />
             </button>
-          </div>
+          </label>
         </div>
       )}
 
       {/* 3/4위 결정전 */}
       <div className="card">
-        <div className="flex items-center justify-between">
-          <label className="text-lg font-semibold">3/4위 결정전</label>
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-lg font-semibold">3/4위 결정전</span>
           <button
-            className={`btn ${
-              state.thirdPlaceMatch ? 'btn-success' : 'bg-gray-700 text-white'
-            }`}
+            role="switch"
+            aria-checked={state.thirdPlaceMatch}
+            aria-label="3/4위 결정전"
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.thirdPlaceMatch ? 'bg-green-600' : 'bg-gray-600'}`}
             onClick={() => setField('thirdPlaceMatch', !state.thirdPlaceMatch)}
-            aria-pressed={state.thirdPlaceMatch}
-            aria-label="3/4위 결정전 토글"
           >
-            {state.thirdPlaceMatch ? 'ON' : 'OFF'}
+            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.thirdPlaceMatch ? 'translate-x-7' : 'translate-x-1'}`} />
           </button>
-        </div>
+        </label>
       </div>
 
       {/* 순위결정전 */}
       <div className="card space-y-4">
         <h2 className="text-xl font-bold">순위결정전</h2>
-        <div className="flex items-center justify-between">
-          <label className="text-lg font-semibold">순위결정전 진행</label>
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-lg font-semibold">순위결정전 진행</span>
           <button
-            className={`btn ${
-              state.hasRankingMatch ? 'btn-success' : 'bg-gray-700 text-white'
-            }`}
+            role="switch"
+            aria-checked={state.hasRankingMatch}
+            aria-label="순위결정전 진행"
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasRankingMatch ? 'bg-green-600' : 'bg-gray-600'}`}
             onClick={() => setField('hasRankingMatch', !state.hasRankingMatch)}
-            aria-pressed={state.hasRankingMatch}
-            aria-label="순위결정전 진행 토글"
           >
-            {state.hasRankingMatch ? 'ON' : 'OFF'}
+            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.hasRankingMatch ? 'translate-x-7' : 'translate-x-1'}`} />
           </button>
-        </div>
+        </label>
 
         {state.hasRankingMatch && (
           <div className="space-y-4 mt-4 p-4 bg-gray-800 rounded-lg">

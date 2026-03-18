@@ -163,6 +163,18 @@ function reducer(state: WizardState, action: Action): WizardState {
         };
         next.hasThirdPlaceMatch = next.thirdPlaceMatch;
       }
+      if (action.field === 'type') {
+        const t = action.value as TournamentType;
+        if (t === 'team' || t === 'randomTeamLeague') {
+          next.qualifyingScoringRules = { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2, deuceEnabled: true };
+          next.finalsScoringRules = { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2, deuceEnabled: true };
+          next.teamSize = t === 'randomTeamLeague' ? 3 : next.teamSize;
+        } else {
+          next.qualifyingScoringRules = { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2, deuceEnabled: true };
+          next.finalsScoringRules = { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2, deuceEnabled: true };
+        }
+        next.presetId = null;
+      }
       if (action.field === 'finalsFormat') {
         next.formatType = action.value as BracketFormatType;
       }
@@ -218,6 +230,14 @@ function reducer(state: WizardState, action: Action): WizardState {
     default:
       return state;
   }
+}
+
+function nearestBracketRound(count: number): string {
+  if (count >= 32) return '32강';
+  if (count >= 16) return '16강';
+  if (count >= 8) return '8강';
+  if (count >= 4) return '4강';
+  return '결승';
 }
 
 // ===== Component =====
@@ -365,10 +385,7 @@ export default function TournamentCreate() {
                   key={opt.value}
                   type="button"
                   className={`btn text-lg py-4 ${state.type === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-                  onClick={() => {
-                    dispatch({ type: 'SET_FIELD', field: 'type', value: opt.value });
-                    dispatch({ type: 'SET_FIELD', field: 'presetId', value: null });
-                  }}
+                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: opt.value })}
                   aria-pressed={state.type === opt.value}
                 >
                   {opt.label}
@@ -378,7 +395,12 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">빠른 설정 (프리셋)</h2>
+            <h2 className="text-xl font-bold">
+              {state.type === 'individual' ? '개인전 설정' : state.type === 'team' ? '팀전 설정' : '랜덤 팀리그 설정'}
+            </h2>
+            <p className="text-gray-400 text-sm">
+              {state.type === 'individual' ? '기본: 11점 | 2세트 선승' : '기본: 31점 | 1세트 단판'}
+            </p>
             <div className="space-y-3" role="radiogroup" aria-label="대회 프리셋">
               {filteredPresets.map(preset => (
                 <button
@@ -427,16 +449,18 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">조별리그 진행</h2>
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-lg font-semibold">조별 예선 진행</span>
               <button
-                className={`btn ${state.hasGroupStage ? 'btn-success' : 'bg-gray-700 text-white'}`}
+                role="switch"
+                aria-checked={state.hasGroupStage}
+                aria-label="조별 예선 진행"
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasGroupStage ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasGroupStage', value: !state.hasGroupStage })}
-                aria-pressed={state.hasGroupStage}
               >
-                {state.hasGroupStage ? 'ON' : 'OFF'}
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.hasGroupStage ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
-            </div>
+            </label>
 
             {state.hasGroupStage && (
               <div className="space-y-4 mt-4 pl-4 border-l-2 border-yellow-400">
@@ -472,16 +496,18 @@ export default function TournamentCreate() {
                   );
                 })()}
 
-                <div className="flex items-center justify-between">
-                  <label className="text-lg font-semibold">탑시드 적용</label>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-lg font-semibold">탑시드 배정</span>
                   <button
-                    className={`btn ${state.useTopSeed ? 'btn-success' : 'bg-gray-700 text-white'}`}
+                    role="switch"
+                    aria-checked={state.useTopSeed}
+                    aria-label="탑시드 배정"
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.useTopSeed ? 'bg-green-600' : 'bg-gray-600'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'useTopSeed', value: !state.useTopSeed })}
-                    aria-pressed={state.useTopSeed}
                   >
-                    {state.useTopSeed ? 'ON' : 'OFF'}
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.useTopSeed ? 'translate-x-7' : 'translate-x-1'}`} />
                   </button>
-                </div>
+                </label>
 
                 {state.useTopSeed && (
                   <NumberStepper
@@ -493,6 +519,31 @@ export default function TournamentCreate() {
                     ariaLabel="시드 수"
                   />
                 )}
+
+                {(() => {
+                  const perGroup = Math.floor(state.participantCount / state.groupCount);
+                  return (
+                    <>
+                      <NumberStepper
+                        label="조당 진출 인원"
+                        value={state.advancePerGroup}
+                        min={1}
+                        max={perGroup}
+                        onChange={v => dispatch({ type: 'SET_FIELD', field: 'advancePerGroup', value: v })}
+                        ariaLabel="각 조에서 본선에 진출하는 인원 수"
+                      />
+
+                      <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
+                        <p className="text-blue-300 font-semibold text-lg">
+                          본선 진출: {state.groupCount}조 × {state.advancePerGroup}명 = 총 {state.advanceCount}명
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          본선 {nearestBracketRound(state.advanceCount)} 시작
+                        </p>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -105,18 +105,18 @@ export default function WizardStep3Qualifying({ state, dispatch }: WizardStepPro
       />
 
       {/* 듀스 적용 */}
-      <div>
-        <label className="block mb-2 font-semibold text-lg">듀스 적용</label>
+      <label className="flex items-center justify-between cursor-pointer">
+        <span className="text-lg font-semibold">듀스 적용</span>
         <button
-          className={`btn ${rules.deuceEnabled ? 'btn-success' : 'btn-secondary'}`}
-          style={{ minWidth: '80px', height: '48px', fontSize: '1.1rem' }}
+          role="switch"
+          aria-checked={rules.deuceEnabled}
+          aria-label="듀스 적용"
+          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${rules.deuceEnabled ? 'bg-green-600' : 'bg-gray-600'}`}
           onClick={() => updateScoringRule('deuceEnabled', !rules.deuceEnabled)}
-          aria-label={`듀스 ${rules.deuceEnabled ? '해제' : '적용'}`}
-          aria-pressed={rules.deuceEnabled}
         >
-          {rules.deuceEnabled ? 'ON' : 'OFF'}
+          <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${rules.deuceEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
         </button>
-      </div>
+      </label>
 
       {/* 조별 진출 인원 */}
       <NumberStepper
