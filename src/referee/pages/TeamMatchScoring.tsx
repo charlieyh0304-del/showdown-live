@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useMatch } from '@shared/hooks/useFirebase';
+import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
   checkSetWinner,
   createEmptySet,
@@ -9,6 +9,7 @@ import {
   shouldSideChange,
   createScoreHistoryEntry,
   getMaxServes,
+  getEffectiveGameConfig,
 } from '@shared/utils/scoring';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
@@ -22,7 +23,7 @@ import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
 import ActionToast from '../components/ActionToast';
 
-const TEAM_GAME_CONFIG = {
+const DEFAULT_TEAM_CONFIG = {
   SETS_TO_WIN: 1,
   MAX_SETS: 1,
   POINTS_TO_WIN: 31,
@@ -33,6 +34,10 @@ export default function TeamMatchScoring() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
   const navigate = useNavigate();
   const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
+  const { tournament } = useTournament(tournamentId ?? null);
+  const gameConfig = tournament
+    ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
+    : DEFAULT_TEAM_CONFIG;
   const { canAct } = useDoubleClickGuard();
   const audio = useAudioFeedback();
 
@@ -248,7 +253,7 @@ export default function TeamMatchScoring() {
     vibrate(hapticPatterns.scoreUp);
 
     // Winner check
-    const setWinner = checkSetWinner(cs.player1Score, cs.player2Score, TEAM_GAME_CONFIG);
+    const setWinner = checkSetWinner(cs.player1Score, cs.player2Score, gameConfig);
     if (setWinner) {
       const winnerId = setWinner === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
       cs.winnerId = winnerId;
@@ -264,7 +269,7 @@ export default function TeamMatchScoring() {
     }
 
     // Side change (16 points)
-    if (shouldSideChange('team', cs, match.sideChangeUsed ?? false, sets, TEAM_GAME_CONFIG)) {
+    if (shouldSideChange('team', cs, match.sideChangeUsed ?? false, sets, gameConfig)) {
       await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,

@@ -309,7 +309,7 @@ export default function TournamentView() {
           <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'ranking' && (
-          <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} />
+          <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} stageFilter={stageFilter} />
         )}
         {activeTab === 'history' && (
           <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
@@ -1168,12 +1168,18 @@ function RankingTab({
   tournamentType,
   isFavorite,
   onSelectPlayer,
+  stageFilter,
 }: {
   matches: Match[];
   tournamentType: string;
   isFavorite: (id: string) => boolean;
   onSelectPlayer: (name: string) => void;
+  stageFilter: 'all' | 'qualifying' | 'finals' | 'ranking';
 }) {
+  if (stageFilter === 'qualifying') {
+    return <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} />;
+  }
+
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
 
   if (isTeam) {
@@ -1181,6 +1187,39 @@ function RankingTab({
   }
 
   return <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} />;
+}
+
+function GroupRankingView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const groups = useMemo(() => {
+    const map = new Map<string, Match[]>();
+    matches.forEach(m => {
+      const gid = m.groupId || 'default';
+      if (!map.has(gid)) map.set(gid, []);
+      map.get(gid)!.push(m);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [matches]);
+
+  if (groups.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>예선 순위 정보가 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {groups.map(([groupId, groupMatches]) => (
+        <div key={groupId} className="card">
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem' }}>
+            {groupId === 'default' ? '순위' : `${groupId}조 순위`}
+          </h3>
+          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function IndividualRankingTable({
