@@ -225,6 +225,7 @@ export function calculateMatchCount(
   hasFinalsStage: boolean,
   advanceCount: number,
   rankingMatch: RankingMatchConfig,
+  finalsStartRound?: number,
 ): { qualifying: number; finals: number; ranking: number; total: number } {
   let qualifying = 0;
   let finals = 0;
@@ -235,11 +236,11 @@ export function calculateMatchCount(
       // 풀리그
       qualifying = (participantCount * (participantCount - 1)) / 2;
     } else {
-      // 조별리그
-      const perGroup = Math.ceil(participantCount / groupCount);
+      // 조별리그: 각 조 인원을 정확히 계산
+      const basePerGroup = Math.floor(participantCount / groupCount);
+      const remainder = participantCount % groupCount;
       for (let g = 0; g < groupCount; g++) {
-        // 마지막 조는 남은 인원
-        const n = g < groupCount - 1 ? perGroup : participantCount - perGroup * (groupCount - 1);
+        const n = basePerGroup + (g < remainder ? 1 : 0);
         if (n >= 2) {
           qualifying += (n * (n - 1)) / 2;
         }
@@ -248,8 +249,14 @@ export function calculateMatchCount(
   }
 
   if (hasFinalsStage) {
-    // 싱글 엘리미네이션: N-1 경기
-    finals = advanceCount - 1;
+    // 본선 참가 인원: finalsStartRound가 있으면 그것 사용, 없으면 advanceCount 또는 participantCount
+    const finalsParticipants = finalsStartRound
+      ? finalsStartRound
+      : hasGroupStage
+        ? advanceCount
+        : participantCount;
+    // 싱글 엘리미네이션: N-1 경기 (BYE 포함 시에도 동일)
+    finals = Math.max(0, finalsParticipants - 1);
   }
 
   if (hasFinalsStage && rankingMatch.enabled) {

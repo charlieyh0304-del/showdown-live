@@ -150,6 +150,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
     state.hasFinalsStage,
     state.advanceCount,
     state.rankingMatch,
+    state.startingRound,
   );
 
   const perGroup = state.groupCount > 0
