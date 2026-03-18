@@ -302,7 +302,7 @@ export default function TournamentCreate() {
         formatType: state.hasGroupStage ? 'group_knockout' : state.formatType,
         scoringRules: state.qualifyingScoringRules,
         matchRules: state.qualifyingMatchRules,
-        stages: stages.length > 0 ? stages : undefined,
+        ...(stages.length > 0 ? { stages } : {}),
         ...(state.hasGroupStage ? {
           qualifyingConfig: {
             format: state.qualifyingFormat,
@@ -325,7 +325,8 @@ export default function TournamentCreate() {
       });
 
       if (id) navigate(`/admin/tournament/${id}`);
-    } catch {
+    } catch (err) {
+      console.error('대회 생성 오류:', err);
       setError('대회 생성 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);

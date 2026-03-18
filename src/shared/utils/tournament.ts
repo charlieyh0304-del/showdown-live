@@ -34,8 +34,8 @@ export function buildStagesFromWizard(input: BuildStagesInput): TournamentStage[
       order: order++,
       type: 'qualifying',
       format: input.qualifyingFormat === 'group_round_robin' ? 'group_knockout' : 'round_robin',
-      scoringRules: input.qualifyingScoringRules ?? undefined,
-      matchRules: input.qualifyingMatchRules ?? undefined,
+      ...(input.qualifyingScoringRules ? { scoringRules: input.qualifyingScoringRules } : {}),
+      ...(input.qualifyingMatchRules ? { matchRules: input.qualifyingMatchRules } : {}),
       groupCount: input.groupCount,
       status: 'pending',
     });
@@ -48,8 +48,8 @@ export function buildStagesFromWizard(input: BuildStagesInput): TournamentStage[
       order: order++,
       type: 'finals',
       format: 'single_elimination',
-      scoringRules: input.finalsScoringRules ?? undefined,
-      matchRules: input.finalsMatchRules ?? undefined,
+      ...(input.finalsScoringRules ? { scoringRules: input.finalsScoringRules } : {}),
+      ...(input.finalsMatchRules ? { matchRules: input.finalsMatchRules } : {}),
       advanceCount: input.advanceCount,
       status: 'pending',
     });
@@ -61,7 +61,7 @@ export function buildStagesFromWizard(input: BuildStagesInput): TournamentStage[
         order: order++,
         type: 'ranking_match',
         format: 'single_elimination',
-        scoringRules: input.rankingMatch.scoringRules ?? undefined,
+        ...(input.rankingMatch.scoringRules ? { scoringRules: input.rankingMatch.scoringRules } : {}),
         status: 'pending',
       });
     }
