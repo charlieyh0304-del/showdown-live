@@ -38,6 +38,8 @@ export function usePracticeMatch(options: UsePracticeMatchOptions) {
     sideChangeUsed: false,
     scoreHistory: [],
     isPaused: false,
+    warmupUsed: false,
+    pauseHistory: [],
     actionLog: [],
     startedAt: Date.now(),
   }));

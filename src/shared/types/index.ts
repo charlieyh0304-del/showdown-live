@@ -221,6 +221,10 @@ export interface Match {
   isPaused?: boolean;
   pauseReason?: string;
   pauseStartTime?: number;
+  // 일시정지 이력
+  pauseHistory?: { time: string; reason: string; set: number; duration?: number }[];
+  // 워밍업
+  warmupUsed?: boolean;
   // 팀전 필드
   team1Id?: string;
   team2Id?: string;
@@ -370,6 +374,9 @@ export interface PracticeMatch {
   scoreHistory: ScoreHistoryEntry[];
   // 일시정지
   isPaused: boolean;
+  // 워밍업
+  warmupUsed: boolean;
+  pauseHistory: { time: string; reason: string; set: number; duration?: number }[];
   scenarioId?: string;
   actionLog: PracticeAction[];
   startedAt: number;
