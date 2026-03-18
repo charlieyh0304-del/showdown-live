@@ -1,5 +1,5 @@
 import NumberStepper from './NumberStepper';
-import type { ScoringRules } from '@shared/types';
+import type { ScoringRules, RankingMatchConfig } from '@shared/types';
 
 interface WizardStep4FinalsProps {
   state: {
@@ -14,6 +14,7 @@ interface WizardStep4FinalsProps {
     rankingStartRank: number;
     rankingEndRank: number;
     rankingFormat: 'round_robin' | 'single_elimination';
+    rankingMatch?: RankingMatchConfig;
     // context from prior steps
     hasGroupStage?: boolean;
     advanceCount?: number;
@@ -291,28 +292,86 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
 
         {state.hasRankingMatch && (
           <div className="space-y-4 mt-4 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-bold text-cyan-400">순위 범위</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <NumberStepper
-                label="시작 순위"
-                value={state.rankingStartRank}
-                min={3}
-                max={advanceCount}
-                onChange={(v) => setField('rankingStartRank', v)}
-                ariaLabel="순위결정전 시작 순위"
-              />
-              <NumberStepper
-                label="끝 순위"
-                value={state.rankingEndRank}
-                min={state.rankingStartRank}
-                max={advanceCount}
-                onChange={(v) => setField('rankingEndRank', v)}
-                ariaLabel="순위결정전 끝 순위"
-              />
-            </div>
-            <p className="text-gray-400 text-sm">
-              {state.rankingStartRank}위 ~ {state.rankingEndRank}위 순위를 결정합니다.
-            </p>
+            {/* 5~8위 결정전 */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="font-semibold">5~8위 결정전</span>
+              <button
+                role="switch"
+                aria-checked={state.rankingMatch?.fifthToEighth ?? false}
+                aria-label="5~8위 결정전"
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.rankingMatch?.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighth: !state.rankingMatch?.fifthToEighth })}
+              >
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.rankingMatch?.fifthToEighth ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </label>
+
+            {state.rankingMatch?.fifthToEighth && (
+              <div className="ml-4 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-400">결정 방식</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    className={`p-3 rounded-lg text-center text-sm border-2 ${
+                      state.rankingMatch?.fifthToEighthFormat === 'simple'
+                        ? 'border-yellow-400 bg-gray-700'
+                        : 'border-transparent bg-gray-700 hover:border-gray-600'
+                    }`}
+                    onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighthFormat: 'simple' })}
+                  >
+                    간소화 (2경기)<br/>
+                    <span className="text-xs opacity-75">5vs8, 6vs7</span>
+                  </button>
+                  <button
+                    className={`p-3 rounded-lg text-center text-sm border-2 ${
+                      state.rankingMatch?.fifthToEighthFormat === 'full'
+                        ? 'border-yellow-400 bg-gray-700'
+                        : 'border-transparent bg-gray-700 hover:border-gray-600'
+                    }`}
+                    onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighthFormat: 'full' })}
+                  >
+                    교차전 (4경기)<br/>
+                    <span className="text-xs opacity-75">교차 → 순위전</span>
+                  </button>
+                  <button
+                    className={`p-3 rounded-lg text-center text-sm border-2 ${
+                      state.rankingMatch?.fifthToEighthFormat === 'round_robin'
+                        ? 'border-yellow-400 bg-gray-700'
+                        : 'border-transparent bg-gray-700 hover:border-gray-600'
+                    }`}
+                    onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighthFormat: 'round_robin' })}
+                  >
+                    풀리그 (6경기)<br/>
+                    <span className="text-xs opacity-75">4명 라운드로빈</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* IBSA 하위 순위 그룹 */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="font-semibold">하위 순위 그룹 결정전 (IBSA 방식)</span>
+              <button
+                role="switch"
+                aria-checked={state.rankingMatch?.classificationGroups ?? false}
+                aria-label="하위 순위 그룹 결정전"
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.rankingMatch?.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => setField('rankingMatch', { ...state.rankingMatch, classificationGroups: !state.rankingMatch?.classificationGroups })}
+              >
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.rankingMatch?.classificationGroups ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </label>
+            {state.rankingMatch?.classificationGroups && (
+              <div className="ml-4">
+                <NumberStepper
+                  label="그룹 크기"
+                  value={state.rankingMatch.classificationGroupSize || 4}
+                  min={3}
+                  max={8}
+                  onChange={(v) => setField('rankingMatch', { ...state.rankingMatch, classificationGroupSize: v })}
+                  ariaLabel="하위 순위 그룹 크기"
+                />
+              </div>
+            )}
 
             <h3 className="text-lg font-bold text-cyan-400 mt-4">순위결정전 형식</h3>
             <div

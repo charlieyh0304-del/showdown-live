@@ -224,9 +224,7 @@ export function calculateMatchCount(
   groupCount: number,
   hasFinalsStage: boolean,
   advanceCount: number,
-  rankingMatchEnabled: boolean,
-  thirdPlace: boolean,
-  fifthPlace: boolean,
+  rankingMatch: RankingMatchConfig,
 ): { qualifying: number; finals: number; ranking: number; total: number } {
   let qualifying = 0;
   let finals = 0;
@@ -254,11 +252,32 @@ export function calculateMatchCount(
     finals = advanceCount - 1;
   }
 
-  if (hasFinalsStage && rankingMatchEnabled) {
-    // 3/4위 결정전: 2명 → 1경기
-    if (thirdPlace) ranking += 1;
-    // 5~8위 결정전: 4명 싱글 엘리미네이션 → 3경기 (준결승 2 + 결승/3위전 1)
-    if (fifthPlace) ranking += 3;
+  if (hasFinalsStage && rankingMatch.enabled) {
+    // 3/4위 결정전: 1경기
+    if (rankingMatch.thirdPlace) ranking += 1;
+
+    // 5~8위 결정전
+    if (rankingMatch.fifthToEighth) {
+      switch (rankingMatch.fifthToEighthFormat) {
+        case 'simple': ranking += 2; break;      // 5vs8, 6vs7
+        case 'full': ranking += 4; break;        // 교차2 + 순위2
+        case 'round_robin': ranking += 6; break; // 4명 풀리그
+      }
+    }
+
+    // 하위 순위 그룹 결정전 (IBSA 방식)
+    if (rankingMatch.classificationGroups) {
+      const finalsParticipants = advanceCount;
+      const classified = participantCount - finalsParticipants;
+      const groupSize = rankingMatch.classificationGroupSize || 4;
+      const groups = Math.ceil(classified / groupSize);
+      for (let i = 0; i < groups; i++) {
+        const n = Math.min(groupSize, classified - i * groupSize);
+        if (n >= 2) {
+          ranking += (n * (n - 1)) / 2;
+        }
+      }
+    }
   }
 
   return {

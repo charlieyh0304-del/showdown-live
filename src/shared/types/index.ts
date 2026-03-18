@@ -88,8 +88,14 @@ export interface FinalsStageConfig {
 // ===== 순위결정전 설정 =====
 export interface RankingMatchConfig {
   enabled: boolean;
-  thirdPlace: boolean;
-  fifthPlace: boolean;
+  thirdPlace: boolean;                    // 3/4위 결정전
+  fifthToEighth: boolean;                 // 5~8위 결정전
+  fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
+  // simple: 2경기 (5vs8, 6vs7만)
+  // full: 4경기 (교차전 → 순위전)
+  // round_robin: 4명 풀리그 6경기
+  classificationGroups: boolean;          // 하위 순위 그룹 결정전 (IBSA 방식)
+  classificationGroupSize: number;        // 그룹 크기 (기본 4)
   scoringRules?: ScoringRules;
 }
 

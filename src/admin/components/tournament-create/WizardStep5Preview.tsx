@@ -149,9 +149,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
     state.groupCount,
     state.hasFinalsStage,
     state.advanceCount,
-    state.rankingMatch.enabled,
-    state.rankingMatch.thirdPlace,
-    state.rankingMatch.fifthPlace,
+    state.rankingMatch,
   );
 
   const perGroup = state.groupCount > 0
@@ -228,14 +226,14 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                   >
                     <div className="text-sm text-orange-400 font-semibold">순위결정전</div>
                     <div className="text-white font-bold mt-1">
-                      {state.rankingMatch.thirdPlace && state.rankingMatch.fifthPlace
+                      {state.rankingMatch.thirdPlace && state.rankingMatch.fifthToEighth
                         ? '3-8위'
                         : state.rankingMatch.thirdPlace
                           ? '3-4위'
                           : '순위전'}
                     </div>
                     <div className="text-gray-400 text-sm mt-1">
-                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthPlace ? 4 : 0)}명
+                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthToEighth ? 4 : 0)}명
                     </div>
                   </div>
                 </>
@@ -303,7 +301,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             <SummaryRow
               label="순위 범위"
               value={
-                state.rankingMatch.thirdPlace && state.rankingMatch.fifthPlace
+                state.rankingMatch.thirdPlace && state.rankingMatch.fifthToEighth
                   ? '3위~8위'
                   : state.rankingMatch.thirdPlace
                     ? '3위~4위'
@@ -311,7 +309,16 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
               }
             />
             <SummaryRow label="3/4위전" value={state.rankingMatch.thirdPlace ? '진행' : '미진행'} />
-            <SummaryRow label="5/6위전" value={state.rankingMatch.fifthPlace ? '진행' : '미진행'} />
+            <SummaryRow label="5~8위전" value={
+              state.rankingMatch.fifthToEighth
+                ? state.rankingMatch.fifthToEighthFormat === 'simple' ? '간소화 (2경기)'
+                  : state.rankingMatch.fifthToEighthFormat === 'full' ? '교차전 (4경기)'
+                  : '풀리그 (6경기)'
+                : '미진행'
+            } />
+            {state.rankingMatch.classificationGroups && (
+              <SummaryRow label="하위 순위 그룹" value={`${state.rankingMatch.classificationGroupSize}명씩 풀리그`} />
+            )}
             <SummaryRow label="예상 경기 수" value={`${matchCounts.ranking}경기`} />
           </dl>
         </section>

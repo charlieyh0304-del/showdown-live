@@ -83,7 +83,7 @@ export const WIZARD_PRESETS: WizardPreset[] = [
     qualifyingConfig: { format: 'round_robin', groupCount: 1 },
     hasFinalsStage: true,
     finalsConfig: { format: 'single_elimination', advanceCount: 8, startingRound: 8, seedMethod: 'ranking' },
-    rankingMatch: { enabled: true, thirdPlace: true, fifthPlace: false },
+    rankingMatch: { enabled: true, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4 },
   },
   {
     id: 'group_knockout_standard',
@@ -97,7 +97,7 @@ export const WIZARD_PRESETS: WizardPreset[] = [
     qualifyingConfig: { format: 'group_round_robin', groupCount: 4 },
     hasFinalsStage: true,
     finalsConfig: { format: 'single_elimination', advanceCount: 8, startingRound: 8, seedMethod: 'ranking' },
-    rankingMatch: { enabled: true, thirdPlace: true, fifthPlace: false },
+    rankingMatch: { enabled: true, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4 },
   },
   {
     id: 'fast_tournament',
@@ -133,7 +133,7 @@ export const WIZARD_PRESETS: WizardPreset[] = [
     qualifyingConfig: { format: 'group_round_robin', groupCount: 2 },
     hasFinalsStage: true,
     finalsConfig: { format: 'single_elimination', advanceCount: 4, startingRound: 4, seedMethod: 'ranking' },
-    rankingMatch: { enabled: true, thirdPlace: true, fifthPlace: false },
+    rankingMatch: { enabled: true, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4 },
   },
   {
     id: 'ibsa_team_finals',
@@ -148,6 +148,6 @@ export const WIZARD_PRESETS: WizardPreset[] = [
     qualifyingConfig: { format: 'group_round_robin', groupCount: 2 },
     hasFinalsStage: true,
     finalsConfig: { format: 'single_elimination', advanceCount: 4, startingRound: 4, seedMethod: 'ranking' },
-    rankingMatch: { enabled: true, thirdPlace: true, fifthPlace: false },
+    rankingMatch: { enabled: true, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4 },
   },
 ];
