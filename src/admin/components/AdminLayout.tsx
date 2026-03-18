@@ -62,6 +62,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         >
           경기장
         </NavLink>
+        <NavLink
+          to="/admin/settings"
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          aria-label="설정"
+        >
+          설정
+        </NavLink>
         <div className="flex-1" />
         <button
           className="btn btn-danger"

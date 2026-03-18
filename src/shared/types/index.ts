@@ -330,12 +330,22 @@ export interface TeamRanking {
 
 // ===== 앱 설정 =====
 export interface AppConfig {
-  adminPin: string; // SHA-256 해시
+  adminPin: string; // SHA-256 해시 (레거시, 단일 관리자용)
+}
+
+// ===== 관리자 =====
+export interface Admin {
+  id: string;
+  name: string;
+  pin: string; // SHA-256 해시
+  createdAt: number;
 }
 
 // ===== 인증 세션 =====
 export interface AuthSession {
   mode: 'admin' | 'referee';
+  adminId?: string;
+  adminName?: string;
   refereeId?: string;
   refereeName?: string;
   tournamentId?: string;

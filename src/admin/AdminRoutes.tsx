@@ -6,6 +6,7 @@ import TournamentDetail from './pages/TournamentDetail';
 import PlayerManagement from './pages/PlayerManagement';
 import RefereeManagement from './pages/RefereeManagement';
 import CourtManagement from './pages/CourtManagement';
+import AdminSettings from './pages/AdminSettings';
 
 export default function AdminRoutes() {
   return (
@@ -17,6 +18,7 @@ export default function AdminRoutes() {
         <Route path="/players" element={<PlayerManagement />} />
         <Route path="/referees" element={<RefereeManagement />} />
         <Route path="/courts" element={<CourtManagement />} />
+        <Route path="/settings" element={<AdminSettings />} />
       </Routes>
     </AdminLayout>
   );
