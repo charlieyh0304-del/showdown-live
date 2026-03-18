@@ -30,6 +30,38 @@ export default function TournamentView() {
   const { matches, loading: mLoading } = useMatches(id || null);
   const { isFavorite, toggleFavorite } = useFavorites();
   const [activeTab, setActiveTab] = useState<TabId>('live');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    const q = searchQuery.trim().toLowerCase();
+    return matches.filter(m =>
+      m.player1Name?.toLowerCase().includes(q) ||
+      m.player2Name?.toLowerCase().includes(q) ||
+      m.team1Name?.toLowerCase().includes(q) ||
+      m.team2Name?.toLowerCase().includes(q)
+    );
+  }, [searchQuery, matches]);
+
+  const playerMatches = useMemo(() => {
+    if (!selectedPlayer) return [];
+    return matches.filter(m =>
+      m.player1Name === selectedPlayer || m.player2Name === selectedPlayer ||
+      m.team1Name === selectedPlayer || m.team2Name === selectedPlayer
+    );
+  }, [selectedPlayer, matches]);
+
+  const playerStats = useMemo(() => {
+    if (!playerMatches.length) return null;
+    const wins = playerMatches.filter(m => {
+      if (m.player1Name === selectedPlayer) return m.winnerId === m.player1Id;
+      if (m.player2Name === selectedPlayer) return m.winnerId === m.player2Id;
+      if (m.team1Name === selectedPlayer) return m.winnerId === m.team1Id;
+      return m.winnerId === m.team2Id;
+    }).length;
+    return { total: playerMatches.length, wins, losses: playerMatches.length - wins };
+  }, [playerMatches, selectedPlayer]);
 
   const loading = tLoading || mLoading;
 
@@ -63,6 +95,76 @@ export default function TournamentView() {
           {tournament.date} · {getTournamentTypeLabel(tournament.type)}
         </p>
       </div>
+
+      {/* Search */}
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          className="input"
+          style={{ width: '100%' }}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="선수 또는 팀 이름 검색"
+          aria-label="선수 검색"
+        />
+      </div>
+
+      {searchResults && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
+            검색 결과: {searchResults.length}건
+          </h3>
+          {searchResults.map(match => {
+            const isIndividual = match.type === 'individual';
+            const label = isIndividual
+              ? `${match.player1Name || '선수1'} vs ${match.player2Name || '선수2'}`
+              : `${match.team1Name || '팀1'} vs ${match.team2Name || '팀2'}`;
+            return (
+              <div key={match.id} className="card" style={{ marginBottom: '0.5rem', padding: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold' }}>{label}</span>
+                  <span style={{ color: match.status === 'completed' ? '#22c55e' : match.status === 'in_progress' ? '#ef4444' : '#9ca3af', fontWeight: 'bold', fontSize: '0.875rem' }}>
+                    {match.status === 'completed' ? '완료' : match.status === 'in_progress' ? '진행중' : '대기'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Player record panel */}
+      {selectedPlayer && (
+        <div className="card" style={{ marginBottom: '1.5rem', border: '2px solid #facc15' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{selectedPlayer} 경기 기록</h3>
+            <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => setSelectedPlayer(null)}>닫기</button>
+          </div>
+          {playerStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', textAlign: 'center', marginBottom: '1rem' }}>
+              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.total}</p><p style={{ color: '#9ca3af' }}>총 경기</p></div>
+              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ color: '#9ca3af' }}>승</p></div>
+              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ color: '#9ca3af' }}>패</p></div>
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '15rem', overflowY: 'auto' }}>
+            {playerMatches.map(m => (
+              <div key={m.id} style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.875rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{m.player1Name || m.team1Name} vs {m.player2Name || m.team2Name}</span>
+                  <span style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15' }}>
+                    {m.status === 'completed' ? '완료' : '진행중'}
+                  </span>
+                </div>
+                {m.sets && m.sets.length > 0 && (
+                  <div style={{ color: '#9ca3af', marginTop: '0.25rem' }}>
+                    {m.sets.map((s, i) => `세트${i + 1}: ${s.player1Score}-${s.player2Score}`).join(' | ')}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tab navigation */}
       <div
@@ -107,7 +209,7 @@ export default function TournamentView() {
           <BracketTab matches={matches} tournamentType={tournament.type} />
         )}
         {activeTab === 'ranking' && (
-          <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} />
+          <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'history' && (
           <HistoryTab matches={matches} navigate={navigate} tournamentId={id!} />
@@ -514,26 +616,30 @@ function RankingTab({
   matches,
   tournamentType,
   isFavorite,
+  onSelectPlayer,
 }: {
   matches: Match[];
   tournamentType: string;
   isFavorite: (id: string) => boolean;
+  onSelectPlayer: (name: string) => void;
 }) {
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
 
   if (isTeam) {
-    return <TeamRankingTable matches={matches} />;
+    return <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} />;
   }
 
-  return <IndividualRankingTable matches={matches} isFavorite={isFavorite} />;
+  return <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} />;
 }
 
 function IndividualRankingTable({
   matches,
   isFavorite,
+  onSelectPlayer,
 }: {
   matches: Match[];
   isFavorite: (id: string) => boolean;
+  onSelectPlayer: (name: string) => void;
 }) {
   const rankings: PlayerRanking[] = useMemo(() => calculateIndividualRanking(matches), [matches]);
 
@@ -571,7 +677,12 @@ function IndividualRankingTable({
               <td style={tdStyle}>{r.rank}</td>
               <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 'bold' }}>
                 {isFavorite(r.playerId) && <span style={{ color: 'var(--color-primary)', marginRight: '0.25rem' }}>★</span>}
-                {r.playerName}
+                <button
+                  onClick={() => onSelectPlayer(r.playerName)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                >
+                  {r.playerName}
+                </button>
               </td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}>{r.wins}</td>
               <td style={{ ...tdStyle, color: 'var(--color-danger)' }}>{r.losses}</td>
@@ -585,7 +696,7 @@ function IndividualRankingTable({
   );
 }
 
-function TeamRankingTable({ matches }: { matches: Match[] }) {
+function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   const rankings: TeamRanking[] = useMemo(() => calculateTeamRanking(matches), [matches]);
 
   if (rankings.length === 0) {
@@ -614,7 +725,14 @@ function TeamRankingTable({ matches }: { matches: Match[] }) {
           {rankings.map((r) => (
             <tr key={r.teamId} style={{ borderBottom: '1px solid #1f2937' }}>
               <td style={tdStyle}>{r.rank}</td>
-              <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 'bold' }}>{r.teamName}</td>
+              <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 'bold' }}>
+                <button
+                  onClick={() => onSelectPlayer(r.teamName)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                >
+                  {r.teamName}
+                </button>
+              </td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}>{r.wins}</td>
               <td style={{ ...tdStyle, color: 'var(--color-danger)' }}>{r.losses}</td>
               <td style={tdStyle}>{r.pointsFor}</td>

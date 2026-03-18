@@ -12,6 +12,7 @@ import {
 } from '@shared/hooks/useFirebase';
 import { createEmptySet } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
+import { simulateTournament } from '@shared/utils/simulation';
 import type { Match, Team, Player, MatchStatus, ScheduleSlot } from '@shared/types';
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
@@ -40,6 +41,8 @@ export default function TournamentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>('players');
+  const [simulating, setSimulating] = useState(false);
+  const [simProgress, setSimProgress] = useState('');
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
   const { matches, loading: mLoading, setMatchesBulk, updateMatch } = useMatches(id ?? null);
@@ -71,6 +74,41 @@ export default function TournamentDetail() {
 
   const isTeamType = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
 
+  const handleSimulate = async () => {
+    if (!tournament) return;
+    if (!confirm('시뮬레이션을 실행하면 가상 참가자와 경기 결과가 생성됩니다.\n기존 데이터가 초기화됩니다.\n\n계속하시겠습니까?')) return;
+
+    setSimulating(true);
+    try {
+      const count = 8;
+      setSimProgress('시뮬레이션 데이터 생성 중...');
+      const result = simulateTournament(tournament, count);
+
+      setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
+      for (const player of result.players) {
+        await addTournamentPlayer({ name: player.name });
+      }
+
+      if (result.teams && result.teams.length > 0) {
+        setSimProgress(`팀 ${result.teams.length}개 생성 중...`);
+        await setTeamsBulk(result.teams);
+      }
+
+      setSimProgress(`경기 ${result.matches.length}건 생성 중...`);
+      await setMatchesBulk(result.matches);
+
+      setSimProgress('대회 상태 업데이트 중...');
+      await updateTournament({ status: 'completed' });
+
+      setSimProgress('시뮬레이션 완료!');
+    } catch (err) {
+      console.error('시뮬레이션 오류:', err);
+      setSimProgress('시뮬레이션 중 오류 발생');
+    } finally {
+      setSimulating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -82,6 +120,21 @@ export default function TournamentDetail() {
           뒤로
         </button>
       </div>
+
+      {tournament.status === 'draft' && (
+        <div className="card bg-purple-900/30 border-purple-500 p-4">
+          <h3 className="text-lg font-bold text-purple-400 mb-2">테스트 시뮬레이션</h3>
+          <p className="text-gray-400 text-sm mb-3">가상 참가자, 경기 결과, 순위를 자동으로 생성합니다.</p>
+          {simProgress && <p className="text-cyan-400 text-sm mb-2">{simProgress}</p>}
+          <button
+            className="btn bg-purple-700 hover:bg-purple-600 text-white w-full"
+            onClick={handleSimulate}
+            disabled={simulating}
+          >
+            {simulating ? '시뮬레이션 진행 중...' : '시뮬레이션 실행'}
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-2 flex-wrap border-b border-gray-700 pb-2" role="tablist" aria-label="대회 상세 탭">
         {TABS.map(tab => (
@@ -168,21 +221,24 @@ interface PlayersTabProps {
 
 function PlayersTab({ tournamentPlayers, globalPlayers, addTournamentPlayer, deleteTournamentPlayer, addPlayersFromGlobal, isTeamType, teams, setTeamsBulk }: PlayersTabProps) {
   const [generating, setGenerating] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
   const [showGlobalModal, setShowGlobalModal] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newClub, setNewClub] = useState('');
-  const [newClass, setNewClass] = useState('');
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
 
   const handleAddPlayer = useCallback(async () => {
-    if (!newName.trim()) return;
-    await addTournamentPlayer({ name: newName.trim(), club: newClub.trim() || undefined, class: newClass.trim() || undefined });
-    setNewName('');
-    setNewClub('');
-    setNewClass('');
-    setShowAddForm(false);
-  }, [newName, newClub, newClass, addTournamentPlayer]);
+    if (!newPlayerName.trim()) return;
+    await addTournamentPlayer({ name: newPlayerName.trim() });
+    setNewPlayerName('');
+  }, [newPlayerName, addTournamentPlayer]);
+
+  const handleBulkAdd = useCallback(async () => {
+    const names = bulkNames.split('\n').map(n => n.trim()).filter(n => n);
+    for (const name of names) {
+      await addTournamentPlayer({ name });
+    }
+    setBulkNames('');
+  }, [bulkNames, addTournamentPlayer]);
 
   const handleImportGlobal = useCallback(async () => {
     const toImport = globalPlayers.filter(p => selectedGlobalIds.includes(p.id));
@@ -231,78 +287,55 @@ function PlayersTab({ tournamentPlayers, globalPlayers, addTournamentPlayer, del
       <div className="card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <h2 className="text-xl font-bold">대회 참가 선수 ({tournamentPlayers.length}명)</h2>
-          <div className="flex gap-2">
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowAddForm(!showAddForm)}
-              aria-label="새 선수 등록"
-            >
-              새 선수 등록
-            </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setShowGlobalModal(true)}
-              aria-label="전역 선수에서 가져오기"
-            >
-              전역 선수에서 가져오기
-            </button>
-          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowGlobalModal(true)}
+            aria-label="전역 선수에서 가져오기"
+          >
+            전역 선수에서 가져오기
+          </button>
         </div>
 
-        {showAddForm && (
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-600 space-y-3">
-            <h3 className="font-bold text-lg">새 선수 등록</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">이름 *</label>
-                <input
-                  className="input"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  placeholder="선수 이름"
-                  aria-label="선수 이름"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">소속</label>
-                <input
-                  className="input"
-                  value={newClub}
-                  onChange={e => setNewClub(e.target.value)}
-                  placeholder="소속 클럽"
-                  aria-label="소속 클럽"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">등급</label>
-                <input
-                  className="input"
-                  value={newClass}
-                  onChange={e => setNewClass(e.target.value)}
-                  placeholder="B1, B2, B3"
-                  aria-label="등급"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="btn btn-accent"
-                onClick={handleAddPlayer}
-                disabled={!newName.trim()}
-                aria-label="선수 추가"
-              >
-                추가
-              </button>
-              <button
-                className="btn bg-gray-700 text-white hover:bg-gray-600"
-                onClick={() => setShowAddForm(false)}
-                aria-label="취소"
-              >
-                취소
-              </button>
-            </div>
+        {/* 선수 추가 */}
+        <div className="card space-y-4">
+          <h3 className="text-lg font-bold">선수 추가</h3>
+
+          {/* 개별 추가 */}
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              value={newPlayerName}
+              onChange={e => setNewPlayerName(e.target.value)}
+              placeholder="선수 이름"
+              aria-label="선수 이름"
+              onKeyDown={e => { if (e.key === 'Enter' && newPlayerName.trim()) handleAddPlayer(); }}
+            />
+            <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()}>
+              추가
+            </button>
           </div>
-        )}
+
+          {/* 일괄 추가 */}
+          <details>
+            <summary className="text-sm text-blue-400 cursor-pointer">여러 명 한번에 등록</summary>
+            <div className="mt-2 space-y-2">
+              <textarea
+                className="input w-full h-32"
+                value={bulkNames}
+                onChange={e => setBulkNames(e.target.value)}
+                placeholder={"이름을 줄바꿈으로 구분하여 입력\n홍길동\n김철수\n이영희"}
+                aria-label="일괄 등록할 선수 이름 목록"
+              />
+              <button
+                className="btn btn-success w-full"
+                onClick={handleBulkAdd}
+                disabled={!bulkNames.trim()}
+              >
+                {bulkNames.trim() ? bulkNames.trim().split('\n').filter(n => n.trim()).length : 0}명 일괄 등록
+              </button>
+            </div>
+          </details>
+        </div>
 
         {tournamentPlayers.length === 0 ? (
           <p className="text-gray-400">참가 선수가 없습니다. 선수를 등록해주세요.</p>
