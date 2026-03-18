@@ -1,71 +1,226 @@
 import { useState, useCallback, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTournaments } from '@shared/hooks/useFirebase';
-import { TOURNAMENT_PRESETS, FORMAT_OPTIONS } from '@shared/constants/presets';
-import type { TournamentType, BracketFormatType, ScoringRules, MatchRules, TeamRules } from '@shared/types';
+import { WIZARD_PRESETS } from '@shared/constants/presets';
+import { buildStagesFromWizard, mapToLegacyFormat } from '@shared/utils/tournament';
+import type { TournamentType, BracketFormatType, ScoringRules, MatchRules, TeamRules, TiebreakerRule, RankingMatchConfig } from '@shared/types';
 import StepIndicator from '../components/tournament-create/StepIndicator';
 import NumberStepper from '../components/tournament-create/NumberStepper';
+import WizardStep3Qualifying from '../components/tournament-create/WizardStep3Qualifying';
+import WizardStep4Finals from '../components/tournament-create/WizardStep4Finals';
+import WizardStep5Preview from '../components/tournament-create/WizardStep5Preview';
+
+// ===== Wizard State =====
 
 interface WizardState {
-  step: 1 | 2 | 3 | 4;
+  step: number;
+  // Step 1
   name: string;
   date: string;
   type: TournamentType;
   presetId: string | null;
+  // Step 2
+  participantCount: number;
+  participantNames: string[];
+  hasGroupStage: boolean;
+  groupCount: number;
+  useTopSeed: boolean;
+  seedCount: number;
+  teamSize: number;
+  // Step 3 (예선)
+  qualifyingFormat: 'round_robin' | 'group_round_robin';
+  qualifyingScoringRules: ScoringRules;
+  qualifyingMatchRules: MatchRules;
+  advanceCount: number;
+  advancePerGroup: number;
+  tiebreakerRules: TiebreakerRule[];
+  // Step 4 (본선)
+  hasFinalsStage: boolean;
+  finalsFormat: 'single_elimination' | 'double_elimination' | 'round_robin';
+  finalsStartRound: number;
+  finalsScoringRules: ScoringRules;
+  finalsMatchRules: MatchRules;
+  sameRulesAsQualifying: boolean;
+  bracketArrangement: 'cross_group' | 'sequential' | 'random';
+  avoidSameGroup: boolean;
+  thirdPlaceMatch: boolean;
+  hasRankingMatch: boolean;
+  rankingStartRank: number;
+  rankingEndRank: number;
+  rankingFormat: 'round_robin' | 'single_elimination';
+  rankingMatch: RankingMatchConfig;
+  // Common
   scoringRules: ScoringRules;
   matchRules: MatchRules;
   teamRules: TeamRules;
   formatType: BracketFormatType;
   useCustomRules: boolean;
-  groupCount: number;
+  startingRound: number;
+  seedMethod: 'ranking' | 'manual' | 'random';
+  hasThirdPlaceMatch: boolean;
 }
 
 type Action =
   | { type: 'SET_FIELD'; field: string; value: unknown }
   | { type: 'APPLY_PRESET'; presetId: string }
   | { type: 'NEXT_STEP' }
-  | { type: 'PREV_STEP' };
+  | { type: 'PREV_STEP' }
+  | { type: 'GO_TO_STEP'; step: number };
+
+const DEFAULT_SCORING: ScoringRules = {
+  winScore: 11,
+  setsToWin: 2,
+  maxSets: 3,
+  minLead: 2,
+  deuceEnabled: true,
+};
+
+const DEFAULT_MATCH_RULES: MatchRules = {
+  timeoutsPerPlayer: 1,
+  timeoutDurationSeconds: 60,
+};
+
+const DEFAULT_TEAM_RULES: TeamRules = {
+  teamSize: 3,
+  rotationEnabled: true,
+  rotationInterval: 6,
+};
 
 const defaultState: WizardState = {
   step: 1,
   name: '',
   date: new Date().toISOString().split('T')[0],
   type: 'individual',
-  presetId: 'ibsa_individual',
-  scoringRules: { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2, deuceEnabled: true },
-  matchRules: { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 },
-  teamRules: { teamSize: 3, rotationEnabled: true, rotationInterval: 6 },
+  presetId: null,
+  participantCount: 8,
+  participantNames: [],
+  hasGroupStage: false,
+  groupCount: 2,
+  useTopSeed: false,
+  seedCount: 4,
+  teamSize: 3,
+  qualifyingFormat: 'round_robin',
+  qualifyingScoringRules: { ...DEFAULT_SCORING },
+  qualifyingMatchRules: { ...DEFAULT_MATCH_RULES },
+  advanceCount: 8,
+  advancePerGroup: 2,
+  tiebreakerRules: ['head_to_head', 'set_difference', 'point_difference', 'points_for'],
+  hasFinalsStage: false,
+  finalsFormat: 'single_elimination',
+  finalsStartRound: 8,
+  finalsScoringRules: { ...DEFAULT_SCORING },
+  finalsMatchRules: { ...DEFAULT_MATCH_RULES },
+  sameRulesAsQualifying: true,
+  bracketArrangement: 'cross_group',
+  avoidSameGroup: true,
+  thirdPlaceMatch: true,
+  hasRankingMatch: false,
+  rankingStartRank: 5,
+  rankingEndRank: 8,
+  rankingFormat: 'single_elimination',
+  rankingMatch: { enabled: false, thirdPlace: true, fifthPlace: false },
+  scoringRules: { ...DEFAULT_SCORING },
+  matchRules: { ...DEFAULT_MATCH_RULES },
+  teamRules: { ...DEFAULT_TEAM_RULES },
   formatType: 'round_robin',
   useCustomRules: false,
-  groupCount: 4,
+  startingRound: 8,
+  seedMethod: 'ranking',
+  hasThirdPlaceMatch: true,
 };
+
+function getNextStep(current: number, hasGroupStage: boolean): number {
+  if (current === 2 && !hasGroupStage) return 4;
+  return Math.min(5, current + 1);
+}
+
+function getPrevStep(current: number, hasGroupStage: boolean): number {
+  if (current === 4 && !hasGroupStage) return 2;
+  return Math.max(1, current - 1);
+}
 
 function reducer(state: WizardState, action: Action): WizardState {
   switch (action.type) {
-    case 'SET_FIELD':
-      return { ...state, [action.field]: action.value };
+    case 'SET_FIELD': {
+      const next = { ...state, [action.field]: action.value };
+      // Sync derived fields
+      if (action.field === 'hasGroupStage') {
+        next.hasFinalsStage = action.value as boolean;
+        next.qualifyingFormat = next.groupCount > 1 ? 'group_round_robin' : 'round_robin';
+      }
+      if (action.field === 'groupCount') {
+        next.qualifyingFormat = (action.value as number) > 1 ? 'group_round_robin' : 'round_robin';
+        next.advanceCount = next.advancePerGroup * (action.value as number);
+      }
+      if (action.field === 'advancePerGroup') {
+        next.advanceCount = (action.value as number) * next.groupCount;
+      }
+      if (action.field === 'thirdPlaceMatch' || action.field === 'hasRankingMatch') {
+        next.rankingMatch = {
+          ...next.rankingMatch,
+          thirdPlace: next.thirdPlaceMatch,
+          enabled: next.hasRankingMatch,
+        };
+        next.hasThirdPlaceMatch = next.thirdPlaceMatch;
+      }
+      if (action.field === 'finalsFormat') {
+        next.formatType = action.value as BracketFormatType;
+      }
+      if (action.field === 'finalsStartRound') {
+        next.startingRound = action.value as number;
+      }
+      return next;
+    }
     case 'APPLY_PRESET': {
-      const preset = TOURNAMENT_PRESETS.find(p => p.id === action.presetId);
+      const preset = WIZARD_PRESETS.find(p => p.id === action.presetId);
       if (!preset) return state;
+      const hasGroup = preset.hasQualifying ?? false;
+      const groupCount = preset.qualifyingConfig?.groupCount ?? state.groupCount;
+      const advanceCount = preset.finalsConfig?.advanceCount ?? state.advanceCount;
+      const startRound = preset.finalsConfig?.startingRound ?? state.finalsStartRound;
+      const thirdPlace = preset.rankingMatch?.thirdPlace ?? state.thirdPlaceMatch;
+      const rankingEnabled = preset.rankingMatch?.enabled ?? false;
       return {
         ...state,
         presetId: action.presetId,
         type: preset.type,
+        qualifyingScoringRules: { ...preset.scoringRules },
+        finalsScoringRules: { ...preset.scoringRules },
         scoringRules: { ...preset.scoringRules },
-        matchRules: { ...preset.matchRules },
-        teamRules: preset.teamRules ? { ...preset.teamRules } : state.teamRules,
+        hasGroupStage: hasGroup,
+        hasFinalsStage: preset.hasFinalsStage ?? hasGroup,
+        groupCount,
+        qualifyingFormat: groupCount > 1 ? 'group_round_robin' : 'round_robin',
+        advanceCount,
+        finalsFormat: preset.hasFinalsStage ? (preset.finalsConfig?.format ?? 'single_elimination') : state.finalsFormat,
+        finalsStartRound: startRound,
+        startingRound: startRound,
+        seedMethod: (preset.finalsConfig?.seedMethod as 'ranking' | 'manual' | 'random') ?? 'ranking',
+        thirdPlaceMatch: thirdPlace,
+        hasThirdPlaceMatch: thirdPlace,
+        hasRankingMatch: rankingEnabled,
+        rankingMatch: {
+          enabled: rankingEnabled,
+          thirdPlace,
+          fifthPlace: preset.rankingMatch?.fifthPlace ?? false,
+        },
+        teamSize: preset.teamRules?.teamSize ?? state.teamSize,
+        teamRules: preset.teamRules ?? state.teamRules,
         formatType: preset.formatType,
-        useCustomRules: false,
       };
     }
     case 'NEXT_STEP':
-      return { ...state, step: Math.min(4, state.step + 1) as WizardState['step'] };
+      return { ...state, step: getNextStep(state.step, state.hasGroupStage) };
     case 'PREV_STEP':
-      return { ...state, step: Math.max(1, state.step - 1) as WizardState['step'] };
+      return { ...state, step: getPrevStep(state.step, state.hasGroupStage) };
+    case 'GO_TO_STEP':
+      return { ...state, step: Math.max(1, Math.min(5, action.step)) };
     default:
       return state;
   }
 }
+
+// ===== Component =====
 
 export default function TournamentCreate() {
   const navigate = useNavigate();
@@ -74,27 +229,79 @@ export default function TournamentCreate() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const stepLabels = ['기본 정보', '참가자 설정', '예선 설정', '본선/순위결정전', '미리보기'];
+
   const handleSubmit = useCallback(async () => {
-    if (!state.name.trim()) { setError('대회명을 입력해주세요.'); return; }
+    if (!state.name.trim()) {
+      setError('대회명을 입력해주세요.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       const isTeam = state.type === 'team' || state.type === 'randomTeamLeague';
-      const gameConfig = { winScore: state.scoringRules.winScore, setsToWin: state.scoringRules.setsToWin };
-      const teamMatchSettings = isTeam ? { winScore: state.scoringRules.winScore, setsToWin: state.scoringRules.setsToWin, minLead: state.scoringRules.minLead } : undefined;
+      const hasFinalsStage = state.hasFinalsStage;
+
+      const stages = buildStagesFromWizard({
+        hasGroupStage: state.hasGroupStage,
+        groupCount: state.groupCount,
+        qualifyingFormat: state.qualifyingFormat,
+        qualifyingScoringRules: state.qualifyingScoringRules,
+        qualifyingMatchRules: state.qualifyingMatchRules,
+        hasFinalsStage,
+        advanceCount: state.advanceCount,
+        finalsScoringRules: state.sameRulesAsQualifying ? state.qualifyingScoringRules : state.finalsScoringRules,
+        finalsMatchRules: state.finalsMatchRules,
+        rankingMatch: state.rankingMatch,
+      });
+
+      const legacyFormat = mapToLegacyFormat(state.hasGroupStage, hasFinalsStage);
 
       const id = await addTournament({
         name: state.name.trim(),
         date: state.date,
         type: state.type,
-        format: 'full_league',
+        format: legacyFormat,
         status: 'draft',
-        gameConfig,
-        ...(teamMatchSettings ? { teamMatchSettings } : {}),
-        formatType: state.formatType,
-        scoringRules: state.scoringRules,
-        matchRules: state.matchRules,
-        ...(isTeam ? { teamRules: state.teamRules } : {}),
+        gameConfig: {
+          winScore: state.qualifyingScoringRules.winScore,
+          setsToWin: state.qualifyingScoringRules.setsToWin,
+        },
+        ...(isTeam ? {
+          teamMatchSettings: {
+            winScore: state.qualifyingScoringRules.winScore,
+            setsToWin: state.qualifyingScoringRules.setsToWin,
+            minLead: state.qualifyingScoringRules.minLead,
+          },
+          teamRules: {
+            teamSize: state.teamSize,
+            rotationEnabled: state.teamRules.rotationEnabled,
+            rotationInterval: state.teamRules.rotationInterval,
+          },
+        } : {}),
+        formatType: state.hasGroupStage ? 'group_knockout' : state.formatType,
+        scoringRules: state.qualifyingScoringRules,
+        matchRules: state.qualifyingMatchRules,
+        stages: stages.length > 0 ? stages : undefined,
+        ...(state.hasGroupStage ? {
+          qualifyingConfig: {
+            format: state.qualifyingFormat,
+            groupCount: state.groupCount,
+            scoringRules: state.qualifyingScoringRules,
+          },
+        } : {}),
+        ...(hasFinalsStage ? {
+          finalsConfig: {
+            format: state.finalsFormat as 'single_elimination' | 'double_elimination',
+            advanceCount: state.advanceCount,
+            startingRound: state.finalsStartRound,
+            seedMethod: state.seedMethod,
+            scoringRules: state.sameRulesAsQualifying ? state.qualifyingScoringRules : state.finalsScoringRules,
+          },
+        } : {}),
+        ...(state.rankingMatch.enabled ? {
+          rankingMatchConfig: state.rankingMatch,
+        } : {}),
       });
 
       if (id) navigate(`/admin/tournament/${id}`);
@@ -105,12 +312,18 @@ export default function TournamentCreate() {
     }
   }, [state, addTournament, navigate]);
 
-  const stepLabels = ['기본 정보', '경기 규칙', '대회 형식', '확인'];
+  const filteredPresets = WIZARD_PRESETS.filter(p => p.type === state.type);
+
+  // Build Step 5 compatible state
+  const step5State = {
+    ...state,
+    step: state.step as 1 | 2 | 3 | 4 | 5,
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-3xl font-bold text-yellow-400">새 대회 만들기</h1>
-      <StepIndicator currentStep={state.step} totalSteps={4} labels={stepLabels} />
+      <StepIndicator currentStep={state.step} totalSteps={5} labels={stepLabels} />
 
       {/* Step 1: 기본 정보 */}
       {state.step === 1 && (
@@ -118,14 +331,25 @@ export default function TournamentCreate() {
           <div className="card space-y-4">
             <div>
               <label htmlFor="name" className="block mb-2 font-semibold text-lg">대회명</label>
-              <input id="name" className="input" value={state.name}
+              <input
+                id="name"
+                className="input"
+                value={state.name}
                 onChange={e => dispatch({ type: 'SET_FIELD', field: 'name', value: e.target.value })}
-                placeholder="대회명을 입력하세요" aria-label="대회명" />
+                placeholder="대회명을 입력하세요"
+                aria-label="대회명"
+              />
             </div>
             <div>
               <label htmlFor="date" className="block mb-2 font-semibold text-lg">날짜</label>
-              <input id="date" type="date" className="input" value={state.date}
-                onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })} aria-label="대회 날짜" />
+              <input
+                id="date"
+                type="date"
+                className="input"
+                value={state.date}
+                onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })}
+                aria-label="대회 날짜"
+              />
             </div>
           </div>
 
@@ -137,10 +361,16 @@ export default function TournamentCreate() {
                 { value: 'team' as const, label: '팀전' },
                 { value: 'randomTeamLeague' as const, label: '랜덤 팀리그전' },
               ]).map(opt => (
-                <button key={opt.value} type="button"
+                <button
+                  key={opt.value}
+                  type="button"
                   className={`btn text-lg py-4 ${state.type === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: opt.value })}
-                  aria-pressed={state.type === opt.value}>
+                  onClick={() => {
+                    dispatch({ type: 'SET_FIELD', field: 'type', value: opt.value });
+                    dispatch({ type: 'SET_FIELD', field: 'presetId', value: null });
+                  }}
+                  aria-pressed={state.type === opt.value}
+                >
                   {opt.label}
                 </button>
               ))}
@@ -150,147 +380,187 @@ export default function TournamentCreate() {
           <div className="card space-y-4">
             <h2 className="text-xl font-bold">빠른 설정 (프리셋)</h2>
             <div className="space-y-3" role="radiogroup" aria-label="대회 프리셋">
-              {TOURNAMENT_PRESETS.map(preset => (
-                <button key={preset.id} role="radio" aria-checked={state.presetId === preset.id}
+              {filteredPresets.map(preset => (
+                <button
+                  key={preset.id}
+                  role="radio"
+                  aria-checked={state.presetId === preset.id}
                   className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
-                  onClick={() => dispatch({ type: 'APPLY_PRESET', presetId: preset.id })}>
+                  onClick={() => dispatch({ type: 'APPLY_PRESET', presetId: preset.id })}
+                >
                   <h3 className="text-lg font-bold">{preset.name}</h3>
                   <p className="text-gray-400 text-sm">{preset.description}</p>
                 </button>
               ))}
-              <button role="radio" aria-checked={state.useCustomRules}
-                className={`card w-full text-left p-4 border-2 ${state.useCustomRules ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
-                onClick={() => dispatch({ type: 'SET_FIELD', field: 'useCustomRules', value: true })}>
-                <h3 className="text-lg font-bold text-cyan-400">직접 설정</h3>
-                <p className="text-gray-400 text-sm">모든 규칙을 직접 설정합니다</p>
-              </button>
+              {filteredPresets.length === 0 && (
+                <p className="text-gray-500 text-sm">선택한 유형에 대한 프리셋이 없습니다.</p>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 2: 경기 규칙 */}
+      {/* Step 2: 참가자 설정 */}
       {state.step === 2 && (
         <div className="space-y-6">
           <div className="card space-y-6">
-            <h2 className="text-xl font-bold">점수 규칙</h2>
-            <NumberStepper label="승리 점수" value={state.scoringRules.winScore} min={3} max={51}
-              onChange={v => dispatch({ type: 'SET_FIELD', field: 'scoringRules', value: { ...state.scoringRules, winScore: v } })}
-              ariaLabel="승리 점수" />
-            <div className="flex gap-2">
-              {[7, 11, 21, 31].map(v => (
-                <button key={v} className={`btn flex-1 ${state.scoringRules.winScore === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'scoringRules', value: { ...state.scoringRules, winScore: v } })}>
-                  {v}점
+            <h2 className="text-xl font-bold">참가자 수</h2>
+            <NumberStepper
+              label="참가자 수"
+              value={state.participantCount}
+              min={4}
+              max={128}
+              onChange={v => dispatch({ type: 'SET_FIELD', field: 'participantCount', value: v })}
+              ariaLabel="참가자 수"
+            />
+            <div className="flex gap-2 flex-wrap">
+              {[4, 8, 16, 32, 64].map(v => (
+                <button
+                  key={v}
+                  className={`btn flex-1 min-w-[60px] ${state.participantCount === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'participantCount', value: v })}
+                >
+                  {v}명
                 </button>
               ))}
             </div>
-            <NumberStepper label="세트 수 (선승)" value={state.scoringRules.setsToWin} min={1} max={5}
-              onChange={v => dispatch({ type: 'SET_FIELD', field: 'scoringRules', value: { ...state.scoringRules, setsToWin: v, maxSets: v * 2 - 1 } })}
-              ariaLabel="선승 세트 수" />
-            <NumberStepper label="최소 점수차" value={state.scoringRules.minLead} min={0} max={5}
-              onChange={v => dispatch({ type: 'SET_FIELD', field: 'scoringRules', value: { ...state.scoringRules, minLead: v } })}
-              ariaLabel="최소 점수차" />
-            <div className="flex items-center gap-4">
-              <label className="text-lg font-semibold">듀스 적용</label>
+          </div>
+
+          <div className="card space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">조별리그 진행</h2>
               <button
-                className={`btn ${state.scoringRules.deuceEnabled ? 'btn-success' : 'bg-gray-700 text-white'}`}
-                onClick={() => dispatch({ type: 'SET_FIELD', field: 'scoringRules', value: { ...state.scoringRules, deuceEnabled: !state.scoringRules.deuceEnabled } })}
-                aria-pressed={state.scoringRules.deuceEnabled}>
-                {state.scoringRules.deuceEnabled ? '적용' : '미적용'}
+                className={`btn ${state.hasGroupStage ? 'btn-success' : 'bg-gray-700 text-white'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasGroupStage', value: !state.hasGroupStage })}
+                aria-pressed={state.hasGroupStage}
+              >
+                {state.hasGroupStage ? 'ON' : 'OFF'}
               </button>
             </div>
+
+            {state.hasGroupStage && (
+              <div className="space-y-4 mt-4 pl-4 border-l-2 border-yellow-400">
+                <NumberStepper
+                  label="조 수"
+                  value={state.groupCount}
+                  min={2}
+                  max={16}
+                  onChange={v => dispatch({ type: 'SET_FIELD', field: 'groupCount', value: v })}
+                  ariaLabel="조 수"
+                />
+
+                {(() => {
+                  const perGroup = Math.floor(state.participantCount / state.groupCount);
+                  const remainder = state.participantCount % state.groupCount;
+                  return (
+                    <div className="space-y-2">
+                      <p className="text-cyan-400 font-semibold text-lg">
+                        조당 {perGroup}명
+                        {remainder > 0 && ` (${remainder}개 조는 ${perGroup + 1}명)`}
+                      </p>
+                      {remainder > 0 && (
+                        <p className="text-yellow-500 text-sm">
+                          참가자가 균등하게 배분되지 않습니다. {state.groupCount}개 조 중 {remainder}개 조에 1명이 더 배정됩니다.
+                        </p>
+                      )}
+                      {perGroup < 2 && (
+                        <p className="text-red-500 text-sm font-bold">
+                          조당 인원이 너무 적습니다. 조 수를 줄이거나 참가자 수를 늘려주세요.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center justify-between">
+                  <label className="text-lg font-semibold">탑시드 적용</label>
+                  <button
+                    className={`btn ${state.useTopSeed ? 'btn-success' : 'bg-gray-700 text-white'}`}
+                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'useTopSeed', value: !state.useTopSeed })}
+                    aria-pressed={state.useTopSeed}
+                  >
+                    {state.useTopSeed ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+
+                {state.useTopSeed && (
+                  <NumberStepper
+                    label="시드 수"
+                    value={state.seedCount}
+                    min={1}
+                    max={Math.min(state.participantCount, state.groupCount * 2)}
+                    onChange={v => dispatch({ type: 'SET_FIELD', field: 'seedCount', value: v })}
+                    ariaLabel="시드 수"
+                  />
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="card space-y-4">
-            <h2 className="text-xl font-bold">경기 규칙</h2>
-            <NumberStepper label="선수당 타임아웃 횟수" value={state.matchRules.timeoutsPerPlayer} min={0} max={3}
-              onChange={v => dispatch({ type: 'SET_FIELD', field: 'matchRules', value: { ...state.matchRules, timeoutsPerPlayer: v } })}
-              ariaLabel="타임아웃 횟수" />
-            <NumberStepper label="타임아웃 시간 (초)" value={state.matchRules.timeoutDurationSeconds} min={30} max={120} step={10}
-              onChange={v => dispatch({ type: 'SET_FIELD', field: 'matchRules', value: { ...state.matchRules, timeoutDurationSeconds: v } })}
-              ariaLabel="타임아웃 시간" />
-          </div>
-
-          <div className="card p-4">
-            <h3 className="text-lg font-bold mb-2">설정 미리보기</h3>
-            <p className="text-cyan-400 font-semibold text-lg">
-              {state.scoringRules.winScore}점 | {state.scoringRules.setsToWin}세트 선승 | 최대 {state.scoringRules.maxSets}세트 | {state.scoringRules.minLead}점차
-              {state.scoringRules.deuceEnabled ? ' | 듀스 적용' : ''}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: 대회 형식 */}
-      {state.step === 3 && (
-        <div className="space-y-6">
-          <div className="card space-y-4">
-            <h2 className="text-xl font-bold">대회 진행 방식</h2>
-            <div className="space-y-3" role="radiogroup" aria-label="대회 형식 선택">
-              {FORMAT_OPTIONS.map(fmt => (
-                <button key={fmt.value} role="radio" aria-checked={state.formatType === fmt.value}
-                  className={`card w-full text-left p-4 border-2 ${state.formatType === fmt.value ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
-                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'formatType', value: fmt.value })}>
-                  <h3 className="text-lg font-bold">{fmt.label}</h3>
-                  <p className="text-gray-400 text-sm">{fmt.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {state.formatType === 'group_knockout' && (
+          {(state.type === 'team' || state.type === 'randomTeamLeague') && (
             <div className="card space-y-4">
-              <h2 className="text-xl font-bold">조별리그 설정</h2>
-              <NumberStepper label="조 수" value={state.groupCount} min={2} max={8}
-                onChange={v => dispatch({ type: 'SET_FIELD', field: 'groupCount', value: v })} ariaLabel="조 수" />
+              <h2 className="text-xl font-bold">팀 설정</h2>
+              <NumberStepper
+                label="팀 인원"
+                value={state.teamSize}
+                min={2}
+                max={6}
+                onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamSize', value: v })}
+                ariaLabel="팀 인원"
+              />
             </div>
           )}
         </div>
       )}
 
-      {/* Step 4: 확인 */}
+      {/* Step 3: 예선 설정 */}
+      {state.step === 3 && (
+        <WizardStep3Qualifying state={state} dispatch={dispatch} />
+      )}
+
+      {/* Step 4: 본선/순위결정전 */}
       {state.step === 4 && (
-        <div className="space-y-6">
-          <div className="card space-y-4" role="region" aria-label="대회 설정 요약">
-            <h2 className="text-2xl font-bold text-yellow-400">설정 확인</h2>
-            <dl style={{ fontSize: '1.15rem' }}>
-              {[
-                ['대회명', state.name || '(미입력)'],
-                ['날짜', state.date],
-                ['유형', state.type === 'individual' ? '개인전' : state.type === 'team' ? '팀전' : '랜덤 팀리그전'],
-                ['형식', FORMAT_OPTIONS.find(f => f.value === state.formatType)?.label || state.formatType],
-                ['점수 규칙', `${state.scoringRules.winScore}점 | ${state.scoringRules.setsToWin}세트 선승 | ${state.scoringRules.minLead}점차${state.scoringRules.deuceEnabled ? ' | 듀스' : ''}`],
-                ['타임아웃', `${state.matchRules.timeoutsPerPlayer}회 / ${state.matchRules.timeoutDurationSeconds}초`],
-              ].map(([key, val]) => (
-                <div key={key as string} className="flex justify-between py-2 border-b border-gray-700">
-                  <dt className="text-gray-400">{key}</dt>
-                  <dd className="font-bold text-white">{val}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-          {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
-        </div>
+        <WizardStep4Finals state={state} dispatch={dispatch} />
+      )}
+
+      {/* Step 5: 미리보기 */}
+      {state.step === 5 && (
+        <WizardStep5Preview state={step5State as Parameters<typeof WizardStep5Preview>[0]['state']} dispatch={dispatch} onSubmit={handleSubmit} />
       )}
 
       {/* Navigation */}
+      {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
       <div className="flex gap-4">
         {state.step > 1 && (
-          <button className="btn btn-secondary flex-1" onClick={() => dispatch({ type: 'PREV_STEP' })} aria-label="이전 단계">
+          <button
+            className="btn btn-secondary flex-1"
+            onClick={() => dispatch({ type: 'PREV_STEP' })}
+            aria-label="이전 단계"
+          >
             이전
           </button>
         )}
-        {state.step < 4 ? (
-          <button className="btn btn-primary flex-1" onClick={() => dispatch({ type: 'NEXT_STEP' })} aria-label="다음 단계">
+        {state.step < 5 ? (
+          <button
+            className="btn btn-primary flex-1"
+            onClick={() => dispatch({ type: 'NEXT_STEP' })}
+            aria-label="다음 단계"
+          >
             다음
           </button>
         ) : (
-          <button className="btn btn-success flex-1" onClick={handleSubmit} disabled={saving} aria-label="대회 생성">
+          <button
+            className="btn btn-success flex-1"
+            onClick={handleSubmit}
+            disabled={saving}
+            aria-label="대회 생성"
+          >
             {saving ? '생성 중...' : '대회 생성'}
           </button>
         )}
-        <button className="btn btn-accent" onClick={() => navigate('/admin')} aria-label="취소">취소</button>
+        <button className="btn btn-accent" onClick={() => navigate('/admin')} aria-label="취소">
+          취소
+        </button>
       </div>
     </div>
   );

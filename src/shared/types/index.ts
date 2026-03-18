@@ -39,16 +39,100 @@ export interface TeamRules {
   rotationInterval?: number;
 }
 
+// ===== 브라켓 라운드 =====
+export type BracketRound = '128강' | '64강' | '32강' | '16강' | '8강' | '4강' | '결승';
+export type BracketSeedingMethod = 'group_cross' | 'seed_order' | 'random';
+
+// ===== 스테이지 유형 =====
+export type StageType = 'qualifying' | 'finals' | 'ranking_match';
+
 // ===== 대회 스테이지 =====
 export interface TournamentStage {
   id: string;
   name: string;
   order: number;
+  type?: StageType;
   format: BracketFormatType;
   scoringRules?: ScoringRules;
+  matchRules?: MatchRules;
   groupCount?: number;
   advanceCount?: number;
+  groups?: StageGroup[];
+  groupConfig?: GroupConfig;
+  bracketConfig?: BracketConfig;
+  advanceConfig?: StageAdvanceConfig;
+  rankingMatchConfig?: RankingMatchConfig;
+  seeds?: SeedEntry[];
+  advancedParticipantIds?: string[];
   status: 'pending' | 'in_progress' | 'completed';
+}
+
+// ===== 예선 스테이지 설정 =====
+export interface QualifyingStageConfig {
+  format: 'round_robin' | 'group_round_robin';
+  groupCount: number;
+  scoringRules?: ScoringRules;
+  matchRules?: MatchRules;
+}
+
+// ===== 본선 스테이지 설정 =====
+export interface FinalsStageConfig {
+  format: 'single_elimination' | 'double_elimination';
+  advanceCount: number;
+  startingRound: number;
+  seedMethod: 'ranking' | 'manual' | 'random';
+  scoringRules?: ScoringRules;
+  matchRules?: MatchRules;
+}
+
+// ===== 순위결정전 설정 =====
+export interface RankingMatchConfig {
+  enabled: boolean;
+  thirdPlace: boolean;
+  fifthPlace: boolean;
+  scoringRules?: ScoringRules;
+}
+
+// ===== 조 =====
+export interface StageGroup {
+  id: string;
+  stageId: string;
+  name: string;
+  playerIds: string[];
+  teamIds: string[];
+  seedOrder?: string[];
+}
+
+// ===== 시드 항목 =====
+export interface SeedEntry {
+  position: number;
+  playerId?: string;
+  teamId?: string;
+  name: string;
+}
+
+// ===== 조 편성 설정 =====
+export interface GroupConfig {
+  groupCount: number;
+  playersPerGroup?: number;
+  advanceCount: number;
+  seedingEnabled: boolean;
+}
+
+// ===== 브라켓 설정 =====
+export interface BracketConfig {
+  format: 'single_elimination' | 'double_elimination';
+  startingRound?: BracketRound;
+  seedingMethod: BracketSeedingMethod;
+  hasThirdPlaceMatch?: boolean;
+  hasFifthPlaceMatch?: boolean;
+}
+
+// ===== 스테이지 진출 설정 =====
+export interface StageAdvanceConfig {
+  advanceCount: number;
+  advanceMethod: 'ranking' | 'manual';
+  advancePerGroup?: number;
 }
 
 // ===== 대회 템플릿 =====
@@ -84,6 +168,10 @@ export interface Tournament {
   stages?: TournamentStage[];
   currentStageId?: string;
   templateId?: string;
+  qualifyingConfig?: QualifyingStageConfig;
+  finalsConfig?: FinalsStageConfig;
+  rankingMatchConfig?: RankingMatchConfig;
+  seeds?: SeedEntry[];
   createdAt: number;
   updatedAt: number;
 }
@@ -238,6 +326,10 @@ export interface Match {
   stageId?: string;
   groupId?: string;
   bracketPosition?: number;
+  bracketRound?: BracketRound;
+  roundLabel?: string;
+  player1Seed?: number;
+  player2Seed?: number;
   bye?: boolean;
   sourceMatch1Id?: string;
   sourceMatch2Id?: string;
@@ -411,6 +503,23 @@ export interface PracticeSession {
   totalActions: number;
   correctActions?: number;
   finalScore: string;
+}
+
+// ===== 위자드용 프리셋 (확장) =====
+export interface WizardPreset {
+  id: string;
+  name: string;
+  description: string;
+  type: TournamentType;
+  scoringRules: ScoringRules;
+  matchRules: MatchRules;
+  teamRules?: TeamRules;
+  formatType: BracketFormatType;
+  hasQualifying?: boolean;
+  qualifyingConfig?: Partial<QualifyingStageConfig>;
+  hasFinalsStage?: boolean;
+  finalsConfig?: Partial<FinalsStageConfig>;
+  rankingMatch?: Partial<RankingMatchConfig>;
 }
 
 // ===== 타이브레이커 =====

@@ -1,4 +1,4 @@
-import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry } from '../types';
+import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry, Match, Tournament } from '../types';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -175,4 +175,25 @@ export function createScoreHistoryEntry(opts: {
     time: new Date().toLocaleTimeString('ko-KR'),
     ...opts,
   };
+}
+
+// ===== 스코어링 규칙 우선순위 체인 =====
+// match.appliedScoringRules > stage.scoringRules > tournament.scoringRules > gameConfig
+export function getEffectiveScoringRules(
+  match: Match,
+  tournament: Tournament,
+): ReturnType<typeof getEffectiveGameConfig> {
+  if (match.appliedScoringRules) {
+    return getEffectiveGameConfig(match.appliedScoringRules);
+  }
+  if (match.stageId && tournament.stages) {
+    const stage = tournament.stages.find(s => s.id === match.stageId);
+    if (stage?.scoringRules) {
+      return getEffectiveGameConfig(stage.scoringRules);
+    }
+  }
+  if (tournament.scoringRules) {
+    return getEffectiveGameConfig(tournament.scoringRules);
+  }
+  return getEffectiveGameConfig(tournament.gameConfig, match.type);
 }
