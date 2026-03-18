@@ -151,21 +151,9 @@ function reducer(state: WizardState, action: Action): WizardState {
       if (action.field === 'groupCount') {
         next.qualifyingFormat = (action.value as number) > 1 ? 'group_round_robin' : 'round_robin';
         next.advanceCount = next.advancePerGroup * (action.value as number);
-        // Auto-adjust finalsStartRound to nearest power of 2 >= advanceCount
-        const newAdvance = next.advanceCount;
-        let round = 4;
-        while (round < newAdvance) round *= 2;
-        next.finalsStartRound = round;
-        next.startingRound = round;
       }
       if (action.field === 'advancePerGroup') {
         next.advanceCount = (action.value as number) * next.groupCount;
-        // Auto-adjust finalsStartRound to nearest power of 2 >= advanceCount
-        const newAdvance = next.advanceCount;
-        let round = 4;
-        while (round < newAdvance) round *= 2;
-        next.finalsStartRound = round;
-        next.startingRound = round;
       }
       if (action.field === 'thirdPlaceMatch' || action.field === 'hasRankingMatch') {
         next.rankingMatch = {
@@ -567,22 +555,46 @@ export default function TournamentCreate() {
                         const wildcardCount = Math.max(0, finalsSlots - directAdvance);
 
                         return (
-                          <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
-                            <p className="text-blue-300 font-semibold text-lg">
-                              조별 진출: {state.groupCount}조 × {state.advancePerGroup}명 = {directAdvance}명
-                            </p>
-                            {wildcardCount > 0 && (
-                              <p className="text-yellow-300 font-semibold">
-                                + 와일드카드 {wildcardCount}명 (각 조 {state.advancePerGroup + 1}위 중 상위 성적)
+                          <>
+                            <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
+                              <p className="text-blue-300 font-semibold text-lg">
+                                조별 진출: {state.groupCount}조 × {state.advancePerGroup}명 = {directAdvance}명
                               </p>
-                            )}
-                            <p className="text-white font-bold text-lg">
-                              본선 총 진출: {directAdvance + wildcardCount}명
-                            </p>
-                            <p className="text-gray-400 text-sm">
-                              본선 {nearestBracketRound(directAdvance + wildcardCount)} 시작
-                            </p>
-                          </div>
+                              {wildcardCount > 0 && (
+                                <div className="bg-yellow-900/30 rounded p-3 mt-2">
+                                  <p className="text-yellow-300 font-semibold">
+                                    와일드카드 {wildcardCount}명 추가 진출
+                                  </p>
+                                  <p className="text-yellow-200/70 text-sm">
+                                    각 조 {state.advancePerGroup + 1}위 중 성적이 가장 좋은 {wildcardCount}명이 본선에 진출합니다
+                                  </p>
+                                </div>
+                              )}
+                              <p className="text-white font-bold text-lg">
+                                본선 총 진출: {directAdvance + wildcardCount}명
+                              </p>
+                              <p className="text-gray-400 text-sm">
+                                본선 {nearestBracketRound(directAdvance + wildcardCount)} 시작
+                              </p>
+                            </div>
+
+                            {/* 본선 시작 라운드 */}
+                            <div className="mt-4">
+                              <h3 className="text-lg font-semibold mb-2">본선 시작 라운드</h3>
+                              <div className="grid grid-cols-4 gap-2">
+                                {[4, 8, 16, 32].filter(v => v >= directAdvance).map(v => (
+                                  <button
+                                    key={v}
+                                    className={`btn py-3 ${state.finalsStartRound === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: v })}
+                                    aria-pressed={state.finalsStartRound === v}
+                                  >
+                                    {v === 4 ? '4강' : v === 8 ? '8강' : v === 16 ? '16강' : '32강'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </>
                         );
                       })()}
                     </>

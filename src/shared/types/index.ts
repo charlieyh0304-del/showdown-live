@@ -209,6 +209,7 @@ export interface Referee {
   name: string;
   role: 'main' | 'assistant';
   pin?: string; // SHA-256 해시
+  assignedMatchIds?: string[];
   createdAt: number;
 }
 
