@@ -49,6 +49,11 @@ interface WizardState {
   rankingEndRank: number;
   rankingFormat: 'round_robin' | 'single_elimination';
   rankingMatch: RankingMatchConfig;
+  // 순위결정전 (top-level로 분리)
+  fifthToEighth: boolean;
+  fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
+  classificationGroups: boolean;
+  classificationGroupSize: number;
   // Common
   scoringRules: ScoringRules;
   matchRules: MatchRules;
@@ -119,6 +124,10 @@ const defaultState: WizardState = {
   rankingEndRank: 8,
   rankingFormat: 'single_elimination',
   rankingMatch: { enabled: false, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4 },
+  fifthToEighth: false,
+  fifthToEighthFormat: 'simple' as const,
+  classificationGroups: false,
+  classificationGroupSize: 4,
   scoringRules: { ...DEFAULT_SCORING },
   matchRules: { ...DEFAULT_MATCH_RULES },
   teamRules: { ...DEFAULT_TEAM_RULES },
@@ -155,27 +164,8 @@ function reducer(state: WizardState, action: Action): WizardState {
       if (action.field === 'advancePerGroup') {
         next.advanceCount = (action.value as number) * next.groupCount;
       }
-      if (action.field === 'thirdPlaceMatch' || action.field === 'hasRankingMatch') {
-        next.rankingMatch = {
-          ...next.rankingMatch,
-          thirdPlace: next.thirdPlaceMatch,
-          enabled: next.hasRankingMatch,
-        };
+      if (action.field === 'thirdPlaceMatch') {
         next.hasThirdPlaceMatch = next.thirdPlaceMatch;
-      }
-      if (action.field === 'rankingMatch') {
-        const rmVal = action.value as RankingMatchConfig;
-        next.rankingMatch = {
-          enabled: rmVal.enabled ?? next.hasRankingMatch,
-          thirdPlace: rmVal.thirdPlace ?? next.thirdPlaceMatch,
-          fifthToEighth: rmVal.fifthToEighth ?? false,
-          fifthToEighthFormat: rmVal.fifthToEighthFormat ?? 'simple',
-          classificationGroups: rmVal.classificationGroups ?? false,
-          classificationGroupSize: rmVal.classificationGroupSize ?? 4,
-        };
-        next.hasRankingMatch = next.rankingMatch.enabled;
-        next.thirdPlaceMatch = next.rankingMatch.thirdPlace;
-        next.hasThirdPlaceMatch = next.rankingMatch.thirdPlace;
       }
       if (action.field === 'type') {
         const t = action.value as TournamentType;
@@ -195,6 +185,15 @@ function reducer(state: WizardState, action: Action): WizardState {
       if (action.field === 'finalsStartRound') {
         next.startingRound = action.value as number;
       }
+      // rankingMatch 조립 (항상 실행)
+      next.rankingMatch = {
+        enabled: next.hasRankingMatch,
+        thirdPlace: next.thirdPlaceMatch,
+        fifthToEighth: next.fifthToEighth,
+        fifthToEighthFormat: next.fifthToEighthFormat,
+        classificationGroups: next.classificationGroups,
+        classificationGroupSize: next.classificationGroupSize,
+      };
       return next;
     }
     case 'APPLY_PRESET': {
@@ -225,6 +224,10 @@ function reducer(state: WizardState, action: Action): WizardState {
         thirdPlaceMatch: thirdPlace,
         hasThirdPlaceMatch: thirdPlace,
         hasRankingMatch: rankingEnabled,
+        fifthToEighth: preset.rankingMatch?.fifthToEighth ?? false,
+        fifthToEighthFormat: preset.rankingMatch?.fifthToEighthFormat ?? 'simple',
+        classificationGroups: preset.rankingMatch?.classificationGroups ?? false,
+        classificationGroupSize: preset.rankingMatch?.classificationGroupSize ?? 4,
         rankingMatch: {
           enabled: rankingEnabled,
           thirdPlace,

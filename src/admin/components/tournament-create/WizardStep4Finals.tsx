@@ -1,5 +1,5 @@
 import NumberStepper from './NumberStepper';
-import type { ScoringRules, RankingMatchConfig } from '@shared/types';
+import type { ScoringRules } from '@shared/types';
 
 interface WizardStep4FinalsProps {
   state: {
@@ -14,7 +14,10 @@ interface WizardStep4FinalsProps {
     rankingStartRank: number;
     rankingEndRank: number;
     rankingFormat: 'round_robin' | 'single_elimination';
-    rankingMatch?: RankingMatchConfig;
+    fifthToEighth: boolean;
+    fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
+    classificationGroups: boolean;
+    classificationGroupSize: number;
     // context from prior steps
     hasGroupStage?: boolean;
     advanceCount?: number;
@@ -62,14 +65,9 @@ const ARRANGEMENT_OPTIONS: {
 
 export default function WizardStep4Finals({ state, dispatch }: WizardStep4FinalsProps) {
   const advanceCount = state.advanceCount || 8;
-  const rm = state.rankingMatch || { enabled: false, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'full' as const, classificationGroups: false, classificationGroupSize: 4 };
 
   const setField = (field: string, value: unknown) => {
     dispatch({ type: 'SET_FIELD', field, value });
-  };
-
-  const updateRankingMatch = (updates: Partial<RankingMatchConfig>) => {
-    dispatch({ type: 'SET_FIELD', field: 'rankingMatch', value: { ...rm, ...updates } });
   };
 
   return (
@@ -302,48 +300,48 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               <span className="font-semibold">5~8위 결정전</span>
               <button
                 role="switch"
-                aria-checked={rm.fifthToEighth ?? false}
+                aria-checked={state.fifthToEighth}
                 aria-label="5~8위 결정전"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${rm.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() => updateRankingMatch({ fifthToEighth: !rm.fifthToEighth })}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => setField('fifthToEighth', !state.fifthToEighth)}
               >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${rm.fifthToEighth ? 'translate-x-7' : 'translate-x-1'}`} />
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.fifthToEighth ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </label>
 
-            {rm.fifthToEighth && (
+            {state.fifthToEighth && (
               <div className="ml-4 space-y-2">
                 <h4 className="text-sm font-semibold text-gray-400">결정 방식</h4>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      rm.fifthToEighthFormat === 'simple'
+                      state.fifthToEighthFormat === 'simple'
                         ? 'border-yellow-400 bg-gray-700'
                         : 'border-transparent bg-gray-700 hover:border-gray-600'
                     }`}
-                    onClick={() => updateRankingMatch({ fifthToEighthFormat: 'simple' })}
+                    onClick={() => setField('fifthToEighthFormat', 'simple')}
                   >
                     <span className="block">간소화 (2경기)</span>
                     <span className="block text-xs opacity-75">5vs8, 6vs7</span>
                   </button>
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      rm.fifthToEighthFormat === 'full'
+                      state.fifthToEighthFormat === 'full'
                         ? 'border-yellow-400 bg-gray-700'
                         : 'border-transparent bg-gray-700 hover:border-gray-600'
                     }`}
-                    onClick={() => updateRankingMatch({ fifthToEighthFormat: 'full' })}
+                    onClick={() => setField('fifthToEighthFormat', 'full')}
                   >
                     <span className="block">교차전 (4경기)</span>
                     <span className="block text-xs opacity-75">교차 → 순위전</span>
                   </button>
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      rm.fifthToEighthFormat === 'round_robin'
+                      state.fifthToEighthFormat === 'round_robin'
                         ? 'border-yellow-400 bg-gray-700'
                         : 'border-transparent bg-gray-700 hover:border-gray-600'
                     }`}
-                    onClick={() => updateRankingMatch({ fifthToEighthFormat: 'round_robin' })}
+                    onClick={() => setField('fifthToEighthFormat', 'round_robin')}
                   >
                     <span className="block">풀리그 (6경기)</span>
                     <span className="block text-xs opacity-75">4명 라운드로빈</span>
@@ -357,22 +355,22 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               <span className="font-semibold">하위 순위 그룹 결정전 (IBSA 방식)</span>
               <button
                 role="switch"
-                aria-checked={rm.classificationGroups ?? false}
+                aria-checked={state.classificationGroups}
                 aria-label="하위 순위 그룹 결정전"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${rm.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() => updateRankingMatch({ classificationGroups: !rm.classificationGroups })}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => setField('classificationGroups', !state.classificationGroups)}
               >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${rm.classificationGroups ? 'translate-x-7' : 'translate-x-1'}`} />
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.classificationGroups ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </label>
-            {rm.classificationGroups && (
+            {state.classificationGroups && (
               <div className="ml-4">
                 <NumberStepper
                   label="그룹 크기"
-                  value={rm.classificationGroupSize || 4}
+                  value={state.classificationGroupSize}
                   min={3}
                   max={8}
-                  onChange={(v) => updateRankingMatch({ classificationGroupSize: v })}
+                  onChange={(v) => setField('classificationGroupSize', v)}
                   ariaLabel="하위 순위 그룹 크기"
                 />
               </div>

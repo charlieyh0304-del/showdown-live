@@ -182,9 +182,18 @@ export interface SimulationResult {
 
 export function simulateTournament(tournament: Tournament, participantCount: number): SimulationResult {
   const isTeam = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
-  const winScore = tournament.scoringRules?.winScore || tournament.gameConfig?.winScore || (isTeam ? 31 : 11);
-  const setsToWin = tournament.scoringRules?.setsToWin || tournament.gameConfig?.setsToWin || (isTeam ? 1 : 2);
-  const minLead = tournament.scoringRules?.minLead || 2;
+
+  // 대회 설정에서 스코어링 규칙 읽기 (scoringRules > gameConfig > teamMatchSettings > 기본값)
+  const scoringRules = tournament.scoringRules || {
+    winScore: isTeam ? 31 : 11,
+    setsToWin: isTeam ? 1 : 2,
+    maxSets: isTeam ? 1 : 3,
+    minLead: 2,
+    deuceEnabled: true,
+  };
+  const winScore = scoringRules.winScore || tournament.gameConfig?.winScore || (isTeam ? (tournament.teamMatchSettings?.winScore || 31) : 11);
+  const setsToWin = scoringRules.setsToWin || tournament.gameConfig?.setsToWin || (isTeam ? (tournament.teamMatchSettings?.setsToWin || 1) : 2);
+  const minLead = scoringRules.minLead || tournament.teamMatchSettings?.minLead || 2;
   const matchType: 'individual' | 'team' = isTeam ? 'team' : 'individual';
 
   // 1. 참가자 생성
@@ -219,14 +228,16 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     { id: 'sim_court_2', name: '2코트' },
   ];
 
-  // 5. 조별 편성 (대회 설정의 groupCount 사용, 없으면 2조)
+  // 5. 조별 편성 (대회 설정의 groupCount 사용)
   const participants = isTeam ? teams! : players;
-  const configGroupCount = tournament.qualifyingConfig?.groupCount ?? tournament.stages?.find(s => s.type === 'qualifying')?.groupCount;
-  const useGroups = participants.length >= 4 && (configGroupCount ? configGroupCount > 1 : true);
-  const groupCount = useGroups ? (configGroupCount || 2) : 1;
+  const configGroupCount = tournament.qualifyingConfig?.groupCount
+    || tournament.stages?.find(s => s.type === 'qualifying')?.groupCount
+    || undefined;
+  const hasGroupStage = configGroupCount ? configGroupCount > 1 : participants.length >= 4;
+  const groupCount = hasGroupStage ? (configGroupCount || Math.min(Math.ceil(participants.length / 4), 4)) : 1;
   const groups: { id: string; members: typeof participants }[] = [];
 
-  if (useGroups) {
+  if (hasGroupStage) {
     // Snake draft로 균등 배분 (buildGroupAssignment와 동일 로직)
     const groupMembers: (typeof participants)[] = Array.from({ length: groupCount }, () => []);
     for (let i = 0; i < participants.length; i++) {
@@ -306,7 +317,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
           refereeName: referees[refIndex].name,
           courtId: courts[courtIndex].id,
           courtName: courts[courtIndex].name,
-          groupId: useGroups ? group.id : undefined,
+          groupId: hasGroupStage ? group.id : undefined,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           ...(isTeam ? {

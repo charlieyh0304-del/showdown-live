@@ -78,13 +78,13 @@ export default function TournamentDetail() {
 
   const handleSimulate = async () => {
     if (!tournament) return;
-    if (!confirm(`시뮬레이션을 실행합니다.\n\n• 가상 참가자 ${simCount}명 생성\n• 기존 참가자/경기 데이터가 초기화됩니다\n• 대회 규칙 설정은 유지됩니다\n\n계속하시겠습니까?`)) return;
+    const playerCount = tournamentPlayers.length > 0 ? tournamentPlayers.length : simCount;
+    if (!confirm(`시뮬레이션을 실행합니다.\n\n• 참가자 ${playerCount}명 ${tournamentPlayers.length > 0 ? '(등록된 선수 사용)' : '(가상 생성)'}\n• 기존 경기 데이터가 초기화됩니다\n• 대회 규칙 설정은 유지됩니다\n\n계속하시겠습니까?`)) return;
 
     setSimulating(true);
     try {
-      const count = simCount;
       setSimProgress('시뮬레이션 데이터 생성 중...');
-      const result = simulateTournament(tournament, count);
+      const result = simulateTournament(tournament, playerCount);
 
       setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
       for (const player of result.players) {
@@ -104,9 +104,22 @@ export default function TournamentDetail() {
         await setScheduleBulk(result.schedule);
       }
 
-      if (result.referees && result.referees.length > 0) {
-        setSimProgress(`심판 ${result.referees.length}명 배정 정보 저장 중...`);
-        for (const ref of result.referees) {
+      // 심판 자동 배정: 기존 등록된 심판이 있으면 사용, 없으면 가상 심판 사용
+      const existingReferees = referees;
+      const simReferees = existingReferees.length > 0
+        ? existingReferees.map(r => ({ id: r.id, name: r.name, assignedMatchIds: [] as string[] }))
+        : result.referees;
+
+      if (simReferees && simReferees.length > 0) {
+        // 기존 심판에게 경기 배정
+        if (existingReferees.length > 0) {
+          result.matches.forEach((_, idx) => {
+            const refIdx = idx % simReferees.length;
+            simReferees[refIdx].assignedMatchIds.push(`sim_match_${idx}`);
+          });
+        }
+        setSimProgress(`심판 ${simReferees.length}명 배정 정보 저장 중...`);
+        for (const ref of simReferees) {
           await updateReferee(ref.id, { assignedMatchIds: ref.assignedMatchIds });
         }
       }
@@ -114,7 +127,9 @@ export default function TournamentDetail() {
       setSimProgress('대회 상태 업데이트 중...');
       await updateTournament({ status: 'completed' });
 
-      setSimProgress('시뮬레이션 완료!');
+      setSimProgress('시뮬레이션 완료! ✅');
+      // 3초 후 메시지 클리어
+      setTimeout(() => setSimProgress(''), 3000);
     } catch (err) {
       console.error('시뮬레이션 오류:', err);
       setSimProgress('시뮬레이션 중 오류 발생');

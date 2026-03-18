@@ -32,6 +32,22 @@ export default function TournamentView() {
   const [activeTab, setActiveTab] = useState<TabId>('live');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<'all' | 'qualifying' | 'finals' | 'ranking'>('all');
+
+  const stageMap = useMemo(() => {
+    const qualifying = matches.filter(m => m.groupId);
+    const finals = matches.filter(m => !m.groupId && m.stageId?.includes('finals'));
+    const ranking = matches.filter(m => m.stageId?.includes('ranking'));
+    const other = matches.filter(m => !m.groupId && !m.stageId);
+    return { qualifying, finals, ranking, other };
+  }, [matches]);
+
+  const filteredMatches = useMemo(() => {
+    if (stageFilter === 'all') return matches;
+    if (stageFilter === 'qualifying') return stageMap.qualifying;
+    if (stageFilter === 'finals') return stageMap.finals;
+    return stageMap.ranking;
+  }, [stageFilter, matches, stageMap]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return null;
@@ -198,6 +214,31 @@ export default function TournamentView() {
         </div>
       )}
 
+      {/* Stage filter */}
+      {(stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto' }}>
+          {([
+            { key: 'all' as const, label: '전체', count: matches.length },
+            { key: 'qualifying' as const, label: '예선', count: stageMap.qualifying.length },
+            { key: 'finals' as const, label: '본선', count: stageMap.finals.length },
+            { key: 'ranking' as const, label: '순위결정전', count: stageMap.ranking.length },
+          ] as const).filter(s => s.count > 0 || s.key === 'all').map(s => (
+            <button
+              key={s.key}
+              className={`btn ${stageFilter === s.key ? 'btn-primary' : ''}`}
+              style={{
+                padding: '0.5rem 1rem',
+                whiteSpace: 'nowrap',
+                backgroundColor: stageFilter === s.key ? undefined : '#374151',
+              }}
+              onClick={() => setStageFilter(s.key)}
+            >
+              {s.label} ({s.count})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tab navigation */}
       <div
         role="tablist"
@@ -235,16 +276,16 @@ export default function TournamentView() {
       {/* Tab panels */}
       <div role="tabpanel" id={`panel-${activeTab}`} aria-label={TAB_LABELS[activeTab]}>
         {activeTab === 'live' && (
-          <LiveTab matches={matches} isFavorite={isFavorite} toggleFavorite={toggleFavorite} navigate={navigate} tournamentId={id!} />
+          <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={toggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
         {activeTab === 'bracket' && (
-          <BracketTab matches={matches} tournamentType={tournament.type} />
+          <BracketTab matches={filteredMatches} tournamentType={tournament.type} />
         )}
         {activeTab === 'ranking' && (
-          <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} />
+          <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'history' && (
-          <HistoryTab matches={matches} navigate={navigate} tournamentId={id!} />
+          <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
         )}
       </div>
     </div>
