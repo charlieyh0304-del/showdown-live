@@ -62,9 +62,14 @@ const ARRANGEMENT_OPTIONS: {
 
 export default function WizardStep4Finals({ state, dispatch }: WizardStep4FinalsProps) {
   const advanceCount = state.advanceCount || 8;
+  const rm = state.rankingMatch || { enabled: false, thirdPlace: true, fifthToEighth: false, fifthToEighthFormat: 'full' as const, classificationGroups: false, classificationGroupSize: 4 };
 
   const setField = (field: string, value: unknown) => {
     dispatch({ type: 'SET_FIELD', field, value });
+  };
+
+  const updateRankingMatch = (updates: Partial<RankingMatchConfig>) => {
+    dispatch({ type: 'SET_FIELD', field: 'rankingMatch', value: { ...rm, ...updates } });
   };
 
   return (
@@ -297,48 +302,48 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               <span className="font-semibold">5~8위 결정전</span>
               <button
                 role="switch"
-                aria-checked={state.rankingMatch?.fifthToEighth ?? false}
+                aria-checked={rm.fifthToEighth ?? false}
                 aria-label="5~8위 결정전"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.rankingMatch?.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighth: !state.rankingMatch?.fifthToEighth })}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${rm.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => updateRankingMatch({ fifthToEighth: !rm.fifthToEighth })}
               >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.rankingMatch?.fifthToEighth ? 'translate-x-7' : 'translate-x-1'}`} />
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${rm.fifthToEighth ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </label>
 
-            {state.rankingMatch?.fifthToEighth && (
+            {rm.fifthToEighth && (
               <div className="ml-4 space-y-2">
                 <h4 className="text-sm font-semibold text-gray-400">결정 방식</h4>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      state.rankingMatch?.fifthToEighthFormat === 'simple'
+                      rm.fifthToEighthFormat === 'simple'
                         ? 'border-yellow-400 bg-gray-700'
                         : 'border-transparent bg-gray-700 hover:border-gray-600'
                     }`}
-                    onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighthFormat: 'simple' })}
+                    onClick={() => updateRankingMatch({ fifthToEighthFormat: 'simple' })}
                   >
                     간소화 (2경기)<br/>
                     <span className="text-xs opacity-75">5vs8, 6vs7</span>
                   </button>
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      state.rankingMatch?.fifthToEighthFormat === 'full'
+                      rm.fifthToEighthFormat === 'full'
                         ? 'border-yellow-400 bg-gray-700'
                         : 'border-transparent bg-gray-700 hover:border-gray-600'
                     }`}
-                    onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighthFormat: 'full' })}
+                    onClick={() => updateRankingMatch({ fifthToEighthFormat: 'full' })}
                   >
                     교차전 (4경기)<br/>
                     <span className="text-xs opacity-75">교차 → 순위전</span>
                   </button>
                   <button
                     className={`p-3 rounded-lg text-center text-sm border-2 ${
-                      state.rankingMatch?.fifthToEighthFormat === 'round_robin'
+                      rm.fifthToEighthFormat === 'round_robin'
                         ? 'border-yellow-400 bg-gray-700'
                         : 'border-transparent bg-gray-700 hover:border-gray-600'
                     }`}
-                    onClick={() => setField('rankingMatch', { ...state.rankingMatch, fifthToEighthFormat: 'round_robin' })}
+                    onClick={() => updateRankingMatch({ fifthToEighthFormat: 'round_robin' })}
                   >
                     풀리그 (6경기)<br/>
                     <span className="text-xs opacity-75">4명 라운드로빈</span>
@@ -352,22 +357,22 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               <span className="font-semibold">하위 순위 그룹 결정전 (IBSA 방식)</span>
               <button
                 role="switch"
-                aria-checked={state.rankingMatch?.classificationGroups ?? false}
+                aria-checked={rm.classificationGroups ?? false}
                 aria-label="하위 순위 그룹 결정전"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.rankingMatch?.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() => setField('rankingMatch', { ...state.rankingMatch, classificationGroups: !state.rankingMatch?.classificationGroups })}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${rm.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => updateRankingMatch({ classificationGroups: !rm.classificationGroups })}
               >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.rankingMatch?.classificationGroups ? 'translate-x-7' : 'translate-x-1'}`} />
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${rm.classificationGroups ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </label>
-            {state.rankingMatch?.classificationGroups && (
+            {rm.classificationGroups && (
               <div className="ml-4">
                 <NumberStepper
                   label="그룹 크기"
-                  value={state.rankingMatch.classificationGroupSize || 4}
+                  value={rm.classificationGroupSize || 4}
                   min={3}
                   max={8}
-                  onChange={(v) => setField('rankingMatch', { ...state.rankingMatch, classificationGroupSize: v })}
+                  onChange={(v) => updateRankingMatch({ classificationGroupSize: v })}
                   ariaLabel="하위 순위 그룹 크기"
                 />
               </div>
