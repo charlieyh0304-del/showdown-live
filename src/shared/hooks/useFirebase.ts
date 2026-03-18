@@ -11,7 +11,7 @@ export function usePlayers() {
   useEffect(() => {
     const unsub = onValue(ref(database, 'players'), (snap) => {
       const data = snap.val();
-      setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
+      setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -42,7 +42,7 @@ export function useReferees() {
   useEffect(() => {
     const unsub = onValue(ref(database, 'referees'), (snap) => {
       const data = snap.val();
-      setReferees(data ? Object.entries(data).map(([id, r]) => ({ id, ...(r as Omit<Referee, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
+      setReferees(data ? Object.entries(data).map(([id, r]) => ({ id, ...(r as Omit<Referee, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -73,7 +73,7 @@ export function useCourts() {
   useEffect(() => {
     const unsub = onValue(ref(database, 'courts'), (snap) => {
       const data = snap.val();
-      setCourts(data ? Object.entries(data).map(([id, c]) => ({ id, ...(c as Omit<Court, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
+      setCourts(data ? Object.entries(data).map(([id, c]) => ({ id, ...(c as Omit<Court, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -196,8 +196,10 @@ export function useMatches(tournamentId: string | null) {
     if (!tournamentId) return;
     await remove(ref(database, `matches/${tournamentId}`));
     for (const match of newMatches) {
+      // undefined 값 제거 (Firebase는 undefined를 거부)
+      const clean = JSON.parse(JSON.stringify(match));
       const newRef = push(ref(database, `matches/${tournamentId}`));
-      await set(newRef, match);
+      await set(newRef, clean);
     }
   }, [tournamentId]);
 
@@ -262,7 +264,7 @@ export function useTournamentLocalPlayers(tournamentId: string | null) {
     if (!tournamentId) { setPlayers([]); setLoading(false); return; }
     const unsub = onValue(ref(database, `tournamentPlayers/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => a.name.localeCompare(b.name, 'ko')) : []);
+      setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -327,7 +329,7 @@ export function useSchedule(tournamentId: string | null) {
     if (!tournamentId) { setSchedule([]); setLoading(false); return; }
     const unsub = onValue(ref(database, `schedule/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setSchedule(data ? Object.entries(data).map(([id, s]) => ({ id, ...(s as Omit<ScheduleSlot, 'id'>) })).sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)) : []);
+      setSchedule(data ? Object.entries(data).map(([id, s]) => ({ id, ...(s as Omit<ScheduleSlot, 'id'>) })).sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || '')) : []);
       setLoading(false);
     });
     return () => unsub();

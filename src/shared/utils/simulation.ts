@@ -401,7 +401,7 @@ function generateFinalsMatches(
         courtId: courts[courtIndex].id,
         courtName: courts[courtIndex].name,
         stageId,
-        groupId: undefined,
+        // groupId 없음 (본선/순위결정전)
         roundLabel,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -722,7 +722,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
           courtId: courts[courtIndex].id,
           courtName: courts[courtIndex].name,
           stageId: qualifyingStageId,
-          groupId: hasGroupStage ? group.id : undefined,
+          ...(hasGroupStage ? { groupId: group.id } : {}),
           createdAt: Date.now(),
           updatedAt: Date.now(),
           ...(isTeam ? {
