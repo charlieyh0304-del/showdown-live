@@ -98,8 +98,8 @@ export default function TournamentDetail() {
 
   const handleSimulate = async () => {
     if (!tournament) return;
-    const playerCount = tournamentPlayers.length > 0 ? tournamentPlayers.length : simCount;
-    if (!confirm(`시뮬레이션을 실행합니다.\n\n• 참가자 ${playerCount}명 ${tournamentPlayers.length > 0 ? '(등록된 선수 사용)' : '(가상 생성)'}\n• 기존 경기 데이터가 초기화됩니다\n• 대회 규칙 설정은 유지됩니다\n\n계속하시겠습니까?`)) return;
+    const playerCount = simCount; // NumberStepper에서 설정한 값 사용
+    if (!confirm(`시뮬레이션을 실행합니다.\n\n• 가상 참가자 ${playerCount}명 생성\n• 기존 참가자/경기 데이터가 초기화됩니다\n• 대회 규칙 설정은 유지됩니다\n\n계속하시겠습니까?`)) return;
 
     setSimulating(true);
     try {
