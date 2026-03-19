@@ -7,11 +7,12 @@ import { requestNotificationPermission } from '@shared/utils/notifications';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import type { Match, PlayerRanking, TeamRanking } from '@shared/types';
 
-type TabId = 'live' | 'bracket' | 'ranking' | 'players' | 'history';
+type TabId = 'live' | 'bracket' | 'groups' | 'ranking' | 'players' | 'history';
 
 const TAB_LABELS: Record<TabId, string> = {
   live: '실시간',
   bracket: '대진표',
+  groups: '조 목록',
   ranking: '순위',
   players: '선수',
   history: '히스토리',
@@ -63,6 +64,13 @@ export default function TournamentView() {
     );
     return { qualifying, finals, ranking, other };
   }, [matches]);
+
+  const hasGroupStage = useMemo(() => {
+    if (tournament?.formatType === 'group_knockout') return true;
+    if (tournament?.qualifyingConfig) return true;
+    if (tournament?.stages?.some(s => s.type === 'qualifying' || s.format === 'group_knockout' || s.format === 'round_robin')) return true;
+    return matches.some(m => m.groupId);
+  }, [tournament, matches]);
 
   const filteredMatches = useMemo(() => {
     if (stageFilter === 'all') return matches;
@@ -200,7 +208,16 @@ export default function TournamentView() {
         <div className="card" style={{ marginBottom: '1.5rem', border: '2px solid #facc15' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{selectedPlayer} 경기 기록</h3>
-            <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => setSelectedPlayer(null)}>닫기</button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }}
+                onClick={() => navigate(`/spectator/player/${id}/${encodeURIComponent(selectedPlayer)}`)}
+              >
+                프로필
+              </button>
+              <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => setSelectedPlayer(null)}>닫기</button>
+            </div>
           </div>
           {playerStats && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center', marginBottom: '1rem' }}>
@@ -293,7 +310,12 @@ export default function TournamentView() {
           padding: '0.25rem',
         }}
       >
-        {(Object.keys(TAB_LABELS) as TabId[]).map((tab) => (
+        {(Object.keys(TAB_LABELS) as TabId[]).filter((tab) => {
+          if (tab === 'groups') {
+            return hasGroupStage;
+          }
+          return true;
+        }).map((tab) => (
           <button
             key={tab}
             role="tab"
@@ -321,6 +343,9 @@ export default function TournamentView() {
         )}
         {activeTab === 'bracket' && (
           <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={setSelectedPlayer} />
+        )}
+        {activeTab === 'groups' && (
+          <GroupsTab matches={matches} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'ranking' && (
           <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} stageFilter={stageFilter} />
@@ -816,6 +841,60 @@ function GroupStageView({ matches, onSelectPlayer }: { matches: Match[]; onSelec
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ===== Groups Tab =====
+function GroupsTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const groupMatches = useMemo(() => matches.filter(m => m.groupId), [matches]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, Match[]>();
+    groupMatches.forEach(m => {
+      const gid = m.groupId || 'default';
+      if (!map.has(gid)) map.set(gid, []);
+      map.get(gid)!.push(m);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [groupMatches]);
+
+  if (groups.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>조 편성 정보가 없습니다</p>
+      </div>
+    );
+  }
+
+  const totalCompleted = groupMatches.filter(m => m.status === 'completed').length;
+  const totalMatches = groupMatches.length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+        총 {groups.length}개 조 | 예선 경기 {totalCompleted}/{totalMatches} 완료
+      </p>
+      {groups.map(([groupId, gMatches]) => {
+        const completed = gMatches.filter(m => m.status === 'completed').length;
+        const inProgress = gMatches.filter(m => m.status === 'in_progress').length;
+        return (
+          <div key={groupId} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>
+                {groupId === 'default' ? '경기' : `${groupId}조`}
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                {completed}/{gMatches.length} 완료
+                {inProgress > 0 && (
+                  <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>{inProgress} 진행중</span>
+                )}
+              </span>
+            </div>
+            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} />
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useMatches, useTournament } from '@shared/hooks/useFirebase';
+import { useMatches, useTournament, usePlayers } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
 import type { Match } from '@shared/types';
 
@@ -9,8 +9,13 @@ export default function PlayerProfileView() {
   const navigate = useNavigate();
   const { tournament, loading: tLoading } = useTournament(tournamentId || null);
   const { matches, loading: mLoading } = useMatches(tournamentId || null);
+  const { players, loading: pLoading } = usePlayers();
 
   const decodedName = decodeURIComponent(playerName || '');
+
+  const playerInfo = useMemo(() => {
+    return players.find(p => p.name === decodedName) || null;
+  }, [players, decodedName]);
 
   const playerMatches = useMemo(() => {
     return matches.filter(m =>
@@ -62,7 +67,7 @@ export default function PlayerProfileView() {
     return { wins, losses, setsWon, setsLost, pointsFor, pointsAgainst };
   }, [completedMatches, decodedName]);
 
-  const loading = tLoading || mLoading;
+  const loading = tLoading || mLoading || pLoading;
 
   if (loading) {
     return (
@@ -122,7 +127,26 @@ export default function PlayerProfileView() {
           뒤로
         </button>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#facc15' }}>{decodedName}</h1>
-        <p style={{ color: '#9ca3af' }}>{tournament.name}</p>
+        {playerInfo && (
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+            {playerInfo.club && (
+              <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#60a5fa' }}>
+                {playerInfo.club}
+              </span>
+            )}
+            {playerInfo.class && (
+              <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#c084fc' }}>
+                {playerInfo.class}
+              </span>
+            )}
+            {playerInfo.gender && (
+              <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#9ca3af' }}>
+                {playerInfo.gender === 'male' ? '남성' : '여성'}
+              </span>
+            )}
+          </div>
+        )}
+        <p style={{ color: '#9ca3af', marginTop: '0.25rem' }}>{tournament.name}</p>
       </div>
 
       {/* Stats */}

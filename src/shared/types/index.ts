@@ -356,6 +356,8 @@ export interface Team {
   name: string;
   memberIds: string[];
   memberNames?: string[];
+  maxReserves?: number;
+  genderRatio?: { male: number; female: number };
 }
 
 // ===== 팀전 내 개별 경기 (레거시 호환용) =====

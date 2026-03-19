@@ -319,6 +319,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(tournament.seeds || []);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
 
   const toggleSeed = (playerId: string, name: string) => {
     const existing = seeds.findIndex(s => s.playerId === playerId);
@@ -485,16 +486,105 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             <p className="text-gray-400">팀이 아직 생성되지 않았습니다.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {teams.map(team => (
-                <div key={team.id} className="bg-gray-800 rounded-lg p-4 border border-gray-600">
-                  <h3 className="text-lg font-bold text-cyan-400">{team.name}</h3>
-                  <ul className="mt-2 space-y-1">
-                    {(team.memberNames ?? []).map((name, i) => (
-                      <li key={i} className="text-gray-300">{name}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              {teams.map(team => {
+                const isEditing = editingTeamId === team.id;
+                const globalMaxReserves = tournament.teamRules?.maxReserves;
+                const globalGenderRatio = tournament.teamRules?.genderRatio;
+                return (
+                  <div key={team.id} className="bg-gray-800 rounded-lg p-4 border border-gray-600">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-bold text-cyan-400">{team.name}</h3>
+                      <button
+                        className="text-sm text-blue-400 hover:text-blue-300"
+                        onClick={() => setEditingTeamId(isEditing ? null : team.id)}
+                        aria-label={`${team.name} 설정 ${isEditing ? '닫기' : '편집'}`}
+                      >
+                        {isEditing ? '닫기' : '팀 설정'}
+                      </button>
+                    </div>
+                    <ul className="mt-2 space-y-1">
+                      {(team.memberNames ?? []).map((name, i) => (
+                        <li key={i} className="text-gray-300">{name}</li>
+                      ))}
+                    </ul>
+                    {/* Per-team override info (when not editing) */}
+                    {!isEditing && (team.maxReserves != null || team.genderRatio) && (
+                      <div className="mt-2 text-xs text-gray-400 space-y-0.5">
+                        {team.maxReserves != null && <p>예비 선수: {team.maxReserves}명</p>}
+                        {team.genderRatio && <p>성별 비율: 남 {team.genderRatio.male} / 여 {team.genderRatio.female}</p>}
+                      </div>
+                    )}
+                    {/* Per-team settings editor */}
+                    {isEditing && (
+                      <div className="mt-3 pt-3 border-t border-gray-700 space-y-3">
+                        <p className="text-xs text-gray-500">
+                          팀별 설정 (비워두면 대회 기본값 적용{globalMaxReserves != null || globalGenderRatio ? `: 예비 ${globalMaxReserves ?? '-'}명, 남 ${globalGenderRatio?.male ?? '-'} / 여 ${globalGenderRatio?.female ?? '-'}` : ''})
+                        </p>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">예비 선수 수</label>
+                          <input
+                            type="number"
+                            className="input w-full"
+                            min={0}
+                            max={20}
+                            value={team.maxReserves ?? ''}
+                            placeholder={globalMaxReserves != null ? `기본값: ${globalMaxReserves}` : '미설정'}
+                            onChange={e => {
+                              const val = e.target.value === '' ? undefined : Number(e.target.value);
+                              const updated = teams.map(t => t.id === team.id ? { ...t, maxReserves: val } : t);
+                              setTeamsBulk(updated);
+                            }}
+                            aria-label={`${team.name} 예비 선수 수`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">성별 비율</label>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-0.5">남</label>
+                              <input
+                                type="number"
+                                className="input w-full"
+                                min={0}
+                                max={20}
+                                value={team.genderRatio?.male ?? ''}
+                                placeholder={globalGenderRatio ? `기본: ${globalGenderRatio.male}` : '미설정'}
+                                onChange={e => {
+                                  const male = e.target.value === '' ? undefined : Number(e.target.value);
+                                  const currentFemale = team.genderRatio?.female;
+                                  const newRatio = (male == null && currentFemale == null) ? undefined : { male: male ?? 0, female: currentFemale ?? 0 };
+                                  const updated = teams.map(t => t.id === team.id ? { ...t, genderRatio: newRatio } : t);
+                                  setTeamsBulk(updated);
+                                }}
+                                aria-label={`${team.name} 남자 선수 수`}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-0.5">여</label>
+                              <input
+                                type="number"
+                                className="input w-full"
+                                min={0}
+                                max={20}
+                                value={team.genderRatio?.female ?? ''}
+                                placeholder={globalGenderRatio ? `기본: ${globalGenderRatio.female}` : '미설정'}
+                                onChange={e => {
+                                  const female = e.target.value === '' ? undefined : Number(e.target.value);
+                                  const currentMale = team.genderRatio?.male;
+                                  const newRatio = (female == null && currentMale == null) ? undefined : { male: currentMale ?? 0, female: female ?? 0 };
+                                  const updated = teams.map(t => t.id === team.id ? { ...t, genderRatio: newRatio } : t);
+                                  setTeamsBulk(updated);
+                                }}
+                                aria-label={`${team.name} 여자 선수 수`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

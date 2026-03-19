@@ -54,10 +54,6 @@ export default function PlayerManagement() {
       setError('이름을 입력해주세요.');
       return;
     }
-    if (!form.gender) {
-      setError('성별을 선택해주세요.');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -199,11 +195,11 @@ export default function PlayerManagement() {
                 </select>
               </div>
               <div>
-                <label className="block mb-1 font-semibold">성별</label>
+                <label className="block mb-1 font-semibold">성별 (선택)</label>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    className={`btn flex-1 ${form.gender === 'male' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    className={`btn flex-1 ${form.gender === 'male' ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                     onClick={() => setForm(f => ({ ...f, gender: 'male' }))}
                     aria-pressed={form.gender === 'male'}
                     aria-label="남성 선택"
@@ -212,12 +208,21 @@ export default function PlayerManagement() {
                   </button>
                   <button
                     type="button"
-                    className={`btn flex-1 ${form.gender === 'female' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    className={`btn flex-1 ${form.gender === 'female' ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                     onClick={() => setForm(f => ({ ...f, gender: 'female' }))}
                     aria-pressed={form.gender === 'female'}
                     aria-label="여성 선택"
                   >
                     여
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn flex-1 ${form.gender === '' ? 'btn-secondary ring-2 ring-gray-400' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                    onClick={() => setForm(f => ({ ...f, gender: '' }))}
+                    aria-pressed={form.gender === ''}
+                    aria-label="성별 미지정"
+                  >
+                    미지정
                   </button>
                 </div>
               </div>
