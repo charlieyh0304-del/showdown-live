@@ -17,7 +17,7 @@ import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/
 import { simulateTournament } from '@shared/utils/simulation';
 import { buildGroupAssignment } from '@shared/utils/tournament';
 import { getSampleNames } from './AdminSettings';
-import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup, SetScore } from '@shared/types';
+import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup }  from '@shared/types';
 import NumberStepper from '../components/tournament-create/NumberStepper';
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
