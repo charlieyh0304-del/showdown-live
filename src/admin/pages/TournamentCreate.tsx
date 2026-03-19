@@ -141,11 +141,11 @@ const defaultState: WizardState = {
   hasThirdPlaceMatch: true,
 };
 
-function getNextStep(current: number, hasGroupStage: boolean): number {
+function getNextStep(current: number, _hasGroupStage: boolean): number {
   return Math.min(4, current + 1);
 }
 
-function getPrevStep(current: number, hasGroupStage: boolean): number {
+function getPrevStep(current: number, _hasGroupStage: boolean): number {
   return Math.max(1, current - 1);
 }
 
