@@ -245,7 +245,7 @@ export default function PlayerProfileView() {
                   </div>
                   {m.sets && m.sets.length > 0 && (
                     <div style={{ color: '#6b7280', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-                      {m.sets.map((s, i) => `${s.player1Score}-${s.player2Score}`).join(' / ')}
+                      {m.sets.map((s) => `${s.player1Score}-${s.player2Score}`).join(' / ')}
                     </div>
                   )}
                 </button>

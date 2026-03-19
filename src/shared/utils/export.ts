@@ -1,7 +1,7 @@
 import type { Match, Tournament, Player, Team } from '../types';
 import { calculateIndividualRanking, calculateTeamRanking } from './ranking';
 
-export function exportResultsCSV(tournament: Tournament, matches: Match[], players: Player[], teams: Team[]): string {
+export function exportResultsCSV(tournament: Tournament, matches: Match[], players: Player[], _teams: Team[]): string {
   const isTeam = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
   const lines: string[] = [];
 
@@ -35,14 +35,14 @@ export function exportResultsCSV(tournament: Tournament, matches: Match[], playe
     completed.forEach((m, i) => {
       const scores = (m.sets || []).map(s => `${s.player1Score}-${s.player2Score}`).join(' / ');
       const winner = m.winnerId === m.team1Id ? (m.team1Name || '') : (m.team2Name || '');
-      lines.push(`${i + 1},${m.team1Name || ''},${m.team2Name || ''},${scores},${winner},${(m as Record<string, unknown>).walkover ? 'Y' : ''}`);
+      lines.push(`${i + 1},${m.team1Name || ''},${m.team2Name || ''},${scores},${winner},${(m as unknown as Record<string, unknown>).walkover ? 'Y' : ''}`);
     });
   } else {
     lines.push('#,선수1,선수2,세트스코어,승자,부전승');
     completed.forEach((m, i) => {
       const scores = (m.sets || []).map(s => `${s.player1Score}-${s.player2Score}`).join(' / ');
       const winner = m.winnerId === m.player1Id ? (m.player1Name || '') : (m.player2Name || '');
-      lines.push(`${i + 1},${m.player1Name || ''},${m.player2Name || ''},${scores},${winner},${(m as Record<string, unknown>).walkover ? 'Y' : ''}`);
+      lines.push(`${i + 1},${m.player1Name || ''},${m.player2Name || ''},${scores},${winner},${(m as unknown as Record<string, unknown>).walkover ? 'Y' : ''}`);
     });
   }
   return lines.join('\n');
