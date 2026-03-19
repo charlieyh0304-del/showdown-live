@@ -20,7 +20,7 @@ if (savedAccessibility) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter basename="/showdown-test">
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </React.StrictMode>
