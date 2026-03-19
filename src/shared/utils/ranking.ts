@@ -1,28 +1,10 @@
 import type { Match, PlayerRanking, TeamRanking, TiebreakerRule } from '../types';
 import { checkSetWinner } from './scoring';
 
-// 상대전적 타이브레이커
-function headToHead(a: PlayerRanking, b: PlayerRanking, matches: Match[]): number {
-  let aWins = 0, bWins = 0;
-  for (const m of matches) {
-    if (m.status !== 'completed') continue;
-    if (m.player1Id === a.playerId && m.player2Id === b.playerId) {
-      if (m.winnerId === a.playerId) aWins++;
-      else if (m.winnerId === b.playerId) bWins++;
-    } else if (m.player1Id === b.playerId && m.player2Id === a.playerId) {
-      if (m.winnerId === a.playerId) aWins++;
-      else if (m.winnerId === b.playerId) bWins++;
-    }
-  }
-  return bWins - aWins;
-}
-
-function applyTiebreaker(rule: TiebreakerRule, a: PlayerRanking, b: PlayerRanking, matches: Match[]): number {
+function applyTiebreaker(rule: TiebreakerRule, a: PlayerRanking, b: PlayerRanking): number {
   switch (rule) {
-    case 'head_to_head': return headToHead(a, b, matches);
     case 'set_difference': return (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost);
     case 'point_difference': return (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst);
-    case 'points_for': return b.pointsFor - a.pointsFor;
     default: return 0;
   }
 }
@@ -73,7 +55,7 @@ export function calculateIndividualRanking(
   const rankings = Array.from(map.values()).sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
     for (const rule of rules) {
-      const diff = applyTiebreaker(rule, a, b, matches);
+      const diff = applyTiebreaker(rule, a, b);
       if (diff !== 0) return diff;
     }
     return 0;

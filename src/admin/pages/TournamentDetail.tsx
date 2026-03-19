@@ -16,7 +16,8 @@ import { createEmptySet } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { simulateTournament } from '@shared/utils/simulation';
 import { buildGroupAssignment } from '@shared/utils/tournament';
-import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup } from '@shared/types';
+import { getSampleNames } from './AdminSettings';
+import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup, SetScore } from '@shared/types';
 import NumberStepper from '../components/tournament-create/NumberStepper';
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
@@ -119,9 +120,12 @@ export default function TournamentDetail() {
     setSimulating(true);
     try {
       setSimProgress('시뮬레이션 데이터 생성 중...');
+      const sampleNames = getSampleNames();
       const result = simulateTournament(tournament, playerCount, {
         existingPlayers: hasExistingPlayers ? tournamentPlayers.map(p => ({ id: p.id, name: p.name })) : undefined,
         existingReferees: hasExistingReferees ? referees.map(r => ({ id: r.id, name: r.name })) : undefined,
+        samplePlayerNames: sampleNames.players.length > 0 ? sampleNames.players : undefined,
+        sampleRefereeNames: sampleNames.referees.length > 0 ? sampleNames.referees : undefined,
       });
 
       // 기존 선수가 없을 때만 새로 등록
@@ -186,7 +190,7 @@ export default function TournamentDetail() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-yellow-400">{tournament.name}</h1>
-          <p className="text-gray-400 mt-1">{tournament.date} | {tournament.type === 'individual' ? '개인전' : tournament.type === 'team' ? '팀전' : '랜덤 팀리그전'}</p>
+          <p className="text-gray-400 mt-1">{tournament.date}{tournament.endDate ? ` ~ ${tournament.endDate}` : ''} | {tournament.type === 'individual' ? '개인전' : tournament.type === 'team' ? '팀전' : '랜덤 팀리그전'}</p>
         </div>
         <button className="btn btn-secondary" onClick={() => navigate('/admin')} aria-label="뒤로가기">
           뒤로
@@ -835,13 +839,17 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
   const [generating, setGenerating] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [onlyUnassigned, setOnlyUnassigned] = useState(false);
 
   const generateSchedule = useCallback(async () => {
     if (courts.length === 0 || matches.length === 0) return;
     setGenerating(true);
     try {
-      const pendingMatches = matches.filter(m => m.status === 'pending' || m.status === 'in_progress');
-      const slots: Omit<ScheduleSlot, 'id'>[] = [];
+      const targetMatches = onlyUnassigned
+        ? matches.filter(m => (m.status === 'pending' || m.status === 'in_progress') && !m.scheduledDate)
+        : matches.filter(m => m.status === 'pending' || m.status === 'in_progress');
+      const newSlots: Omit<ScheduleSlot, 'id'>[] = [];
       const courtSlots = courts.map(c => ({ courtId: c.id, courtName: c.name, nextTime: startTime }));
 
       const addMinutes = (time: string, mins: number): string => {
@@ -852,7 +860,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         return `${hh}:${mm}`;
       };
 
-      for (const match of pendingMatches) {
+      for (const match of targetMatches) {
         courtSlots.sort((a, b) => a.nextTime.localeCompare(b.nextTime));
         const court = courtSlots[0];
 
@@ -860,17 +868,19 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
           ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
           : `${match.team1Name ?? ''} vs ${match.team2Name ?? ''}`;
 
-        slots.push({
+        newSlots.push({
           matchId: match.id,
           courtId: court.courtId,
           courtName: court.courtName,
           scheduledTime: court.nextTime,
+          scheduledDate: scheduleDate,
           label,
           status: match.status,
         });
 
         await updateMatch(match.id, {
           scheduledTime: court.nextTime,
+          scheduledDate: scheduleDate,
           courtId: court.courtId,
           courtName: court.courtName,
         });
@@ -878,25 +888,61 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         court.nextTime = addMinutes(court.nextTime, interval);
       }
 
-      await setScheduleBulk(slots);
+      // If only assigning unassigned, keep existing schedule slots
+      if (onlyUnassigned) {
+        const existingSlots = schedule.map(s => ({
+          matchId: s.matchId,
+          courtId: s.courtId,
+          courtName: s.courtName,
+          scheduledTime: s.scheduledTime,
+          scheduledDate: s.scheduledDate,
+          label: s.label,
+          status: s.status,
+        }));
+        await setScheduleBulk([...existingSlots, ...newSlots]);
+      } else {
+        await setScheduleBulk(newSlots);
+      }
     } finally {
       setGenerating(false);
     }
-  }, [matches, courts, startTime, interval, setScheduleBulk, updateMatch]);
+  }, [matches, courts, startTime, interval, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch]);
 
-  const timeSlots = useMemo(() => {
-    const times = [...new Set(schedule.map(s => s.scheduledTime))].sort();
-    return times.map(time => ({
-      time,
-      slots: courts.map(court => schedule.find(s => s.scheduledTime === time && s.courtId === court.id) ?? null),
-    }));
-  }, [schedule, courts]);
+  // Group schedule by date, then by time
+  const dates = useMemo(() => {
+    const dateSet = [...new Set(schedule.map(s => s.scheduledDate || ''))].sort();
+    return dateSet;
+  }, [schedule]);
+
+  const hasMultipleDates = dates.length > 1 || (dates.length === 1 && dates[0] !== '');
+
+  const timeSlotsByDate = useMemo(() => {
+    return dates.map(date => {
+      const dateSlots = schedule.filter(s => (s.scheduledDate || '') === date);
+      const times = [...new Set(dateSlots.map(s => s.scheduledTime))].sort();
+      const rows = times.map(time => ({
+        time,
+        slots: courts.map(court => dateSlots.find(s => s.scheduledTime === time && s.courtId === court.id) ?? null),
+      }));
+      return { date, rows };
+    });
+  }, [schedule, courts, dates]);
 
   return (
     <div className="space-y-6">
       <div className="card space-y-4">
         <h2 className="text-xl font-bold">스케줄 설정</h2>
         <div className="flex gap-4 flex-wrap">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">날짜</label>
+            <input
+              type="date"
+              className="input"
+              value={scheduleDate}
+              onChange={e => setScheduleDate(e.target.value)}
+              aria-label="경기 날짜"
+            />
+          </div>
           <div>
             <label htmlFor="start-time" className="block text-sm text-gray-400 mb-1">시작 시간</label>
             <input
@@ -922,6 +968,15 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
             />
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={onlyUnassigned}
+            onChange={e => setOnlyUnassigned(e.target.checked)}
+            aria-label="미배정 경기만 배정"
+          />
+          미배정 경기만 배정 (기존 스케줄 유지)
+        </label>
         <button
           className="btn btn-accent"
           onClick={generateSchedule}
@@ -933,40 +988,54 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         {courts.length === 0 && <p className="text-gray-400">경기장을 먼저 등록해주세요.</p>}
       </div>
 
-      {timeSlots.length > 0 && (
+      {timeSlotsByDate.length > 0 && timeSlotsByDate.some(d => d.rows.length > 0) && (
         <div className="card overflow-x-auto">
           <h2 className="text-xl font-bold mb-4">스케줄 표</h2>
-          <table className="w-full border-collapse" aria-label="스케줄 그리드">
-            <thead>
-              <tr>
-                <th className="border border-gray-600 p-3 text-left bg-gray-800">시간</th>
-                {courts.map(c => (
-                  <th key={c.id} className="border border-gray-600 p-3 text-center bg-gray-800">{c.name}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {timeSlots.map(row => (
-                <tr key={row.time}>
-                  <td className="border border-gray-600 p-3 font-semibold text-cyan-400">{row.time}</td>
-                  {row.slots.map((slot, i) => (
-                    <td key={i} className="border border-gray-600 p-3 text-center">
-                      {slot ? (
-                        <div>
-                          <p className="font-semibold text-sm">{slot.label}</p>
-                          <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[slot.status]}`}>
-                            {STATUS_LABELS[slot.status]}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-600">-</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {timeSlotsByDate.map(({ date, rows }) => {
+            if (rows.length === 0) return null;
+            return (
+              <div key={date || 'no-date'} className="mb-6">
+                {hasMultipleDates && (
+                  <h3 className="text-lg font-bold text-yellow-400 mb-2">
+                    {date || '날짜 미지정'}
+                  </h3>
+                )}
+                <table className="w-full border-collapse mb-4" aria-label={`스케줄 그리드${date ? ` - ${date}` : ''}`}>
+                  <thead>
+                    <tr>
+                      {hasMultipleDates && <th className="border border-gray-600 p-3 text-left bg-gray-800">날짜</th>}
+                      <th className="border border-gray-600 p-3 text-left bg-gray-800">시간</th>
+                      {courts.map(c => (
+                        <th key={c.id} className="border border-gray-600 p-3 text-center bg-gray-800">{c.name}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(row => (
+                      <tr key={row.time}>
+                        {hasMultipleDates && <td className="border border-gray-600 p-3 text-sm text-gray-400">{date || '-'}</td>}
+                        <td className="border border-gray-600 p-3 font-semibold text-cyan-400">{row.time}</td>
+                        {row.slots.map((slot, i) => (
+                          <td key={i} className="border border-gray-600 p-3 text-center">
+                            {slot ? (
+                              <div>
+                                <p className="font-semibold text-sm">{slot.label}</p>
+                                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[slot.status]}`}>
+                                  {STATUS_LABELS[slot.status]}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-600">-</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

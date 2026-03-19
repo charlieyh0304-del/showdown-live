@@ -1,16 +1,19 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useTournament, useMatches, useFavorites } from '@shared/hooks/useFirebase';
+import { useTournament, useMatches, useFavorites, useSchedule } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
+import { requestNotificationPermission } from '@shared/utils/notifications';
+import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import type { Match, PlayerRanking, TeamRanking } from '@shared/types';
 
-type TabId = 'live' | 'bracket' | 'ranking' | 'history';
+type TabId = 'live' | 'bracket' | 'ranking' | 'players' | 'history';
 
 const TAB_LABELS: Record<TabId, string> = {
   live: '실시간',
   bracket: '대진표',
   ranking: '순위',
+  players: '선수',
   history: '히스토리',
 };
 
@@ -28,7 +31,18 @@ export default function TournamentView() {
   const navigate = useNavigate();
   const { tournament, loading: tLoading } = useTournament(id || null);
   const { matches, loading: mLoading } = useMatches(id || null);
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
+  const { schedule } = useSchedule(id || null);
+
+  useMatchNotifications(favoriteIds, matches, schedule);
+
+  const handleToggleFavorite = useCallback((playerId: string) => {
+    const newFavs = toggleFavorite(playerId);
+    if (newFavs.includes(playerId)) {
+      requestNotificationPermission();
+    }
+  }, [toggleFavorite]);
+
   const [activeTab, setActiveTab] = useState<TabId>('live');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
@@ -303,13 +317,16 @@ export default function TournamentView() {
       {/* Tab panels */}
       <div role="tabpanel" id={`panel-${activeTab}`} aria-label={TAB_LABELS[activeTab]}>
         {activeTab === 'live' && (
-          <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={toggleFavorite} navigate={navigate} tournamentId={id!} />
+          <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
         {activeTab === 'bracket' && (
           <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'ranking' && (
           <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} stageFilter={stageFilter} />
+        )}
+        {activeTab === 'players' && (
+          <PlayersTab matches={matches} onSelectPlayer={setSelectedPlayer} />
         )}
         {activeTab === 'history' && (
           <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
@@ -1370,7 +1387,120 @@ function PlayerMatchRow({ match: m, navigate, tournamentId }: { match: Match; na
   );
 }
 
+// ===== Players Tab =====
+function PlayersTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const [playerSearch, setPlayerSearch] = useState('');
+
+  const playerList = useMemo(() => {
+    const stats = new Map<string, {
+      id: string; name: string; wins: number; losses: number;
+      setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number;
+    }>();
+
+    for (const m of matches) {
+      const p1Id = m.player1Id || m.team1Id || '';
+      const p2Id = m.player2Id || m.team2Id || '';
+      const p1Name = m.player1Name || m.team1Name || '';
+      const p2Name = m.player2Name || m.team2Name || '';
+
+      if (p1Id && p1Name && !stats.has(p1Id)) {
+        stats.set(p1Id, { id: p1Id, name: p1Name, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+      }
+      if (p2Id && p2Name && !stats.has(p2Id)) {
+        stats.set(p2Id, { id: p2Id, name: p2Name, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+      }
+
+      if (m.status === 'completed' && p1Id && p2Id) {
+        const s1 = stats.get(p1Id);
+        const s2 = stats.get(p2Id);
+        if (s1 && s2) {
+          if (m.winnerId === p1Id) { s1.wins++; s2.losses++; }
+          else if (m.winnerId === p2Id) { s2.wins++; s1.losses++; }
+
+          (m.sets || []).forEach(set => {
+            if (set.player1Score > set.player2Score) { s1.setsWon++; s2.setsLost++; }
+            else if (set.player2Score > set.player1Score) { s2.setsWon++; s1.setsLost++; }
+            s1.pointsFor += set.player1Score; s1.pointsAgainst += set.player2Score;
+            s2.pointsFor += set.player2Score; s2.pointsAgainst += set.player1Score;
+          });
+        }
+      }
+    }
+
+    return Array.from(stats.values()).sort((a, b) =>
+      b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || a.name.localeCompare(b.name)
+    );
+  }, [matches]);
+
+  const filteredPlayers = useMemo(() => {
+    if (!playerSearch.trim()) return playerList;
+    const q = playerSearch.trim().toLowerCase();
+    return playerList.filter(p => p.name.toLowerCase().includes(q));
+  }, [playerList, playerSearch]);
+
+  if (playerList.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>등록된 선수가 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          className="input"
+          style={{ width: '100%' }}
+          value={playerSearch}
+          onChange={e => setPlayerSearch(e.target.value)}
+          placeholder="선수 이름 검색"
+          aria-label="선수 이름 검색"
+        />
+      </div>
+      <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+        총 {filteredPlayers.length}명{playerSearch.trim() ? ` (검색: "${playerSearch.trim()}")` : ''}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {filteredPlayers.map(p => (
+          <button
+            key={p.id}
+            className="card"
+            onClick={() => onSelectPlayer(p.name)}
+            style={{
+              width: '100%',
+              textAlign: 'left',
+              cursor: 'pointer',
+              padding: '0.75rem 1rem',
+              border: '1px solid #374151',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#facc15' }}>{p.name}</span>
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem' }}>
+                <span>
+                  <span style={{ color: '#22c55e' }}>{p.wins}승</span>
+                  {' '}
+                  <span style={{ color: '#ef4444' }}>{p.losses}패</span>
+                </span>
+                <span style={{ color: '#9ca3af' }}>{p.setsWon}-{p.setsLost}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+        {filteredPlayers.length === 0 && playerSearch.trim() && (
+          <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+            <p style={{ color: '#9ca3af' }}>"{playerSearch.trim()}"에 해당하는 선수가 없습니다</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ===== History Tab =====
+const HISTORY_ITEMS_PER_PAGE = 20;
+
 function HistoryTab({
   matches,
   navigate,
@@ -1380,6 +1510,8 @@ function HistoryTab({
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
 }) {
+  const [page, setPage] = useState(1);
+
   const completedMatches = useMemo(
     () =>
       matches
@@ -1388,9 +1520,15 @@ function HistoryTab({
     [matches]
   );
 
+  const inProgressCount = useMemo(() => matches.filter(m => m.status === 'in_progress').length, [matches]);
+  const pendingCount = useMemo(() => matches.filter(m => m.status === 'pending').length, [matches]);
+
+  const totalPages = Math.ceil(completedMatches.length / HISTORY_ITEMS_PER_PAGE);
+  const pagedCompleted = completedMatches.slice((page - 1) * HISTORY_ITEMS_PER_PAGE, page * HISTORY_ITEMS_PER_PAGE);
+
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
-    completedMatches.forEach(m => {
+    pagedCompleted.forEach(m => {
       let key: string;
       if (m.groupId) {
         key = m.groupId;
@@ -1414,7 +1552,7 @@ function HistoryTab({
       if (bIdx === -1) return 1;
       return aIdx - bIdx;
     });
-  }, [completedMatches]);
+  }, [pagedCompleted]);
 
   if (completedMatches.length === 0) {
     return (
@@ -1426,6 +1564,10 @@ function HistoryTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+        전체 {matches.length}경기 | 완료 {completedMatches.length}경기 | 진행중 {inProgressCount}경기 | 대기 {pendingCount}경기
+      </p>
+
       {groups.map(([groupId, groupMatches]) => (
         <div key={groupId}>
           {groupId === '본선' && (
@@ -1482,6 +1624,14 @@ function HistoryTab({
           </ul>
         </div>
       ))}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+          <button className="btn btn-sm btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>이전</button>
+          <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{page} / {totalPages}</span>
+          <button className="btn btn-sm btn-secondary" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>다음</button>
+        </div>
+      )}
     </div>
   );
 }

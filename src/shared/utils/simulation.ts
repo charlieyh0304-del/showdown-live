@@ -542,6 +542,8 @@ export interface SimulationOptions {
   existingPlayers?: { id: string; name: string }[];
   existingTeams?: { id: string; name: string; memberIds: string[]; memberNames: string[] }[];
   existingReferees?: { id: string; name: string }[];
+  samplePlayerNames?: string[];
+  sampleRefereeNames?: string[];
 }
 
 export function simulateTournament(tournament: Tournament, participantCount: number, options?: SimulationOptions): SimulationResult {
@@ -579,16 +581,22 @@ export function simulateTournament(tournament: Tournament, participantCount: num
   const advanceCount = finalsStage?.advanceCount || tournament.finalsConfig?.advanceCount || 0;
   const rankingMatchConfig = tournament.rankingMatchConfig || tournament.stages?.find(s => s.type === 'ranking_match')?.rankingMatchConfig;
 
-  // 1. 참가자: 기존 등록 선수가 있으면 사용, 없으면 가상 생성
+  // 1. 참가자: 기존 등록 선수 → 샘플 이름 → 가상 이름 순으로 사용
+  const samplePlayers = options?.samplePlayerNames || [];
+  const genPlayerName = (i: number): string => {
+    if (i < samplePlayers.length) return samplePlayers[i];
+    return generateName(i);
+  };
+
   const players = (options?.existingPlayers && options.existingPlayers.length > 0)
     ? options.existingPlayers.slice(0, participantCount)
     : Array.from({ length: participantCount }, (_, i) => ({
         id: `sim_player_${i}`,
-        name: generateName(i),
+        name: genPlayerName(i),
       }));
-  // 부족분 가상 보충
+  // 부족분 보충 (샘플 → 가상)
   while (players.length < participantCount) {
-    players.push({ id: `sim_player_${players.length}`, name: generateName(players.length) });
+    players.push({ id: `sim_player_${players.length}`, name: genPlayerName(players.length) });
   }
 
   // 2. 팀: 기존 팀이 있으면 사용, 없으면 가상 생성
@@ -610,15 +618,15 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     }
   }
 
-  // 3. 심판: 기존 등록 심판이 있으면 사용, 없으면 가상 생성
+  // 3. 심판: 기존 등록 심판 → 샘플 이름 → 가상 이름 순으로 사용
+  const sampleRefs = options?.sampleRefereeNames || [];
+  const defaultRefNames = sampleRefs.length >= 3
+    ? sampleRefs.slice(0, 3)
+    : ['심판 A', '심판 B', '심판 C'];
   const referees: { id: string; name: string; assignedMatchIds: string[] }[] =
     (options?.existingReferees && options.existingReferees.length > 0)
       ? options.existingReferees.map(r => ({ id: r.id, name: r.name, assignedMatchIds: [] }))
-      : [
-          { id: 'sim_ref_1', name: '심판 A', assignedMatchIds: [] },
-          { id: 'sim_ref_2', name: '심판 B', assignedMatchIds: [] },
-          { id: 'sim_ref_3', name: '심판 C', assignedMatchIds: [] },
-        ];
+      : defaultRefNames.map((name, i) => ({ id: `sim_ref_${i + 1}`, name, assignedMatchIds: [] }));
 
   // 4. 코트 생성 (2개)
   const courts = [

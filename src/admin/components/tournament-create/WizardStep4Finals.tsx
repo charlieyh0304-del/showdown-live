@@ -1,12 +1,9 @@
 import NumberStepper from './NumberStepper';
-import type { ScoringRules } from '@shared/types';
 
 interface WizardStep4FinalsProps {
   state: {
     finalsFormat: 'single_elimination' | 'double_elimination' | 'round_robin';
     finalsStartRound: number;
-    finalsScoringRules: ScoringRules;
-    sameRulesAsQualifying: boolean;
     bracketArrangement: 'cross_group' | 'sequential' | 'random';
     avoidSameGroup: boolean;
     thirdPlaceMatch: boolean;
@@ -22,7 +19,6 @@ interface WizardStep4FinalsProps {
     hasGroupStage?: boolean;
     advanceCount?: number;
     participantCount?: number;
-    scoringRules?: ScoringRules;
   };
   dispatch: (action: { type: 'SET_FIELD'; field: string; value: unknown }) => void;
 }
@@ -137,85 +133,6 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
         </div>
       )}
 
-      {/* 예선과 동일 규칙 사용 */}
-      <div className="card space-y-4">
-        <label className="flex items-center justify-between cursor-pointer">
-          <span className="text-lg font-semibold">예선과 동일 규칙 사용</span>
-          <button
-            role="switch"
-            aria-checked={state.sameRulesAsQualifying}
-            aria-label="예선과 동일 규칙 사용"
-            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.sameRulesAsQualifying ? 'bg-green-600' : 'bg-gray-600'}`}
-            onClick={() => setField('sameRulesAsQualifying', !state.sameRulesAsQualifying)}
-          >
-            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.sameRulesAsQualifying ? 'translate-x-7' : 'translate-x-1'}`} />
-          </button>
-        </label>
-
-        {/* 본선 스코어링 규칙 (sameRulesAsQualifying=false 일 때) */}
-        {!state.sameRulesAsQualifying && (
-          <div className="space-y-4 mt-4 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-bold text-cyan-400">본선 스코어링 규칙</h3>
-            <NumberStepper
-              label="승리 점수"
-              value={state.finalsScoringRules.winScore}
-              min={3}
-              max={51}
-              onChange={(v) =>
-                setField('finalsScoringRules', {
-                  ...state.finalsScoringRules,
-                  winScore: v,
-                })
-              }
-              ariaLabel="본선 승리 점수"
-            />
-            <NumberStepper
-              label="세트 선승"
-              value={state.finalsScoringRules.setsToWin}
-              min={1}
-              max={5}
-              onChange={(v) =>
-                setField('finalsScoringRules', {
-                  ...state.finalsScoringRules,
-                  setsToWin: v,
-                  maxSets: v * 2 - 1,
-                })
-              }
-              ariaLabel="본선 선승 세트 수"
-            />
-            <NumberStepper
-              label="최소 점수차"
-              value={state.finalsScoringRules.minLead}
-              min={0}
-              max={5}
-              onChange={(v) =>
-                setField('finalsScoringRules', {
-                  ...state.finalsScoringRules,
-                  minLead: v,
-                })
-              }
-              ariaLabel="본선 최소 점수차"
-            />
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-lg font-semibold">듀스 적용</span>
-              <button
-                role="switch"
-                aria-checked={state.finalsScoringRules.deuceEnabled}
-                aria-label="듀스 적용"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.finalsScoringRules.deuceEnabled ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() =>
-                  setField('finalsScoringRules', {
-                    ...state.finalsScoringRules,
-                    deuceEnabled: !state.finalsScoringRules.deuceEnabled,
-                  })
-                }
-              >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.finalsScoringRules.deuceEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
-              </button>
-            </label>
-          </div>
-        )}
-      </div>
 
       {/* 편성 방식 (조별 예선이 있을 때만) */}
       {state.hasGroupStage && (

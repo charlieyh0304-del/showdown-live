@@ -19,6 +19,7 @@ import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
 import { useKeyboardShortcuts } from '@shared/hooks/useKeyboardShortcuts';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { vibrate, hapticPatterns } from '@shared/utils/haptic';
+import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
 import ActionToast from '../components/ActionToast';
@@ -265,6 +266,7 @@ export default function TeamMatchScoring() {
         currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
       });
+      if (tournamentId) autoBackupToLocal(tournamentId);
       return;
     }
 
@@ -283,7 +285,8 @@ export default function TeamMatchScoring() {
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
     });
-  }, [match, updateMatch, canAct, sideChangeTimer, audio]);
+    if (tournamentId) autoBackupDebounced(tournamentId);
+  }, [match, updateMatch, canAct, sideChangeTimer, audio, tournamentId]);
 
   // Undo (GAP-10: include serve info in announce)
   const handleUndo = useCallback(async () => {

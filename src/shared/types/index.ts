@@ -161,6 +161,7 @@ export interface Tournament {
   id: string;
   name: string;
   date: string;
+  endDate?: string;
   type: TournamentType;
   format: TournamentFormat;
   status: TournamentStatus;
@@ -290,6 +291,7 @@ export interface Match {
   courtId?: string;
   refereeId?: string;
   scheduledTime?: string;
+  scheduledDate?: string;
   // 비정규화 필드 (관람 모드 경량 구독용)
   courtName?: string;
   refereeName?: string;
@@ -373,6 +375,7 @@ export interface ScheduleSlot {
   courtId: string;
   courtName?: string;
   scheduledTime: string;
+  scheduledDate?: string;
   label: string; // "홍길동 vs 김철수" 또는 "1팀 vs 2팀"
   status: MatchStatus;
 }

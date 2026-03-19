@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import ErrorBoundary from '@shared/components/ErrorBoundary';
 
 interface SpectatorLayoutProps {
   children: ReactNode;
@@ -67,7 +68,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           overflowY: 'auto',
         }}
       >
-        {children}
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </main>
 
       {/* Bottom tab navigation */}

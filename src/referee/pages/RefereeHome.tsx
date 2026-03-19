@@ -41,6 +41,26 @@ export default function RefereeHome() {
 
   const myMatches = matches.filter(m => m.refereeId === refereeId);
 
+  // Sort matches by date -> time
+  const sortedMyMatches = useMemo(() => {
+    return [...myMatches].sort((a, b) => {
+      const dateA = a.scheduledDate || '';
+      const dateB = b.scheduledDate || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.scheduledTime || '';
+      const timeB = b.scheduledTime || '';
+      return timeA.localeCompare(timeB);
+    });
+  }, [myMatches]);
+
+  // Group by date
+  const dateGroups = useMemo(() => {
+    const dates = [...new Set(sortedMyMatches.map(m => m.scheduledDate || ''))].sort();
+    return dates;
+  }, [sortedMyMatches]);
+
+  const hasMultipleDates = dateGroups.length > 1 || (dateGroups.length === 1 && dateGroups[0] !== '');
+
   const stageGroups = useMemo(() => {
     const qualifying = myMatches.filter(m => m.groupId || m.stageId?.includes('qualifying'));
     const finals = myMatches.filter(m => !m.groupId && (m.stageId?.includes('finals') || m.roundLabel) && !m.stageId?.includes('ranking') && !m.roundLabel?.includes('결정전'));
@@ -80,7 +100,59 @@ export default function RefereeHome() {
         <div className="card text-center py-12">
           <p className="text-xl text-gray-400">배정된 경기가 없습니다</p>
         </div>
+      ) : hasMultipleDates ? (
+        /* Multi-day view: group by date */
+        <div className="flex flex-col gap-6">
+          {dateGroups.map(date => {
+            const dateMatches = sortedMyMatches.filter(m => (m.scheduledDate || '') === date);
+            return (
+              <div key={date || 'no-date'} className="mb-4">
+                <h2 className="text-xl font-bold text-yellow-400 mb-3 border-b border-gray-700 pb-2">
+                  {date || '날짜 미지정'} ({dateMatches.length}경기)
+                </h2>
+                <div className="flex flex-col gap-3">
+                  {dateMatches.map(match => {
+                    const score = getCurrentScore(match);
+                    return (
+                      <button
+                        key={match.id}
+                        className="card w-full text-left hover:border-yellow-400 transition-colors cursor-pointer"
+                        onClick={() => handleMatchClick(match)}
+                        aria-label={`${getMatchLabel(match)} - ${STATUS_LABELS[match.status]}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {match.type === 'team' && (
+                              <span className="px-2 py-0.5 rounded bg-purple-700 text-purple-100 text-xs font-bold">팀전</span>
+                            )}
+                            <span className="text-lg font-bold">{getMatchLabel(match)}</span>
+                            {match.roundLabel && <span className="text-xs bg-gray-700 px-2 py-0.5 rounded">{match.roundLabel}</span>}
+                            {match.groupId && <span className="text-xs bg-blue-900 px-2 py-0.5 rounded">{match.groupId}조</span>}
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
+                            {STATUS_LABELS[match.status]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-gray-400 text-sm">
+                          {match.courtName && <span>코트: {match.courtName}</span>}
+                          {match.scheduledDate && <span>{match.scheduledDate}</span>}
+                          {match.scheduledTime && <span>{match.scheduledTime}</span>}
+                        </div>
+                        {score && (
+                          <div className="mt-2 text-2xl font-bold text-cyan-400" aria-live="polite">
+                            {score}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        /* Single-day or legacy view: group by stage */
         <div className="flex flex-col gap-6">
           {stageGroups.map(group => (
             <div key={group.label} className="mb-6">
@@ -88,7 +160,13 @@ export default function RefereeHome() {
                 {group.label} ({group.matches.length}경기)
               </h2>
               {STATUS_ORDER.map(status => {
-                const statusMatches = group.matches.filter(m => m.status === status);
+                const statusMatches = group.matches
+                  .filter(m => m.status === status)
+                  .sort((a, b) => {
+                    const timeA = a.scheduledTime || '';
+                    const timeB = b.scheduledTime || '';
+                    return timeA.localeCompare(timeB);
+                  });
                 if (statusMatches.length === 0) return null;
                 return (
                   <div key={status} className="mb-3">
@@ -120,6 +198,7 @@ export default function RefereeHome() {
                             </div>
                             <div className="flex items-center gap-4 text-gray-400 text-sm">
                               {match.courtName && <span>코트: {match.courtName}</span>}
+                              {match.scheduledDate && <span>{match.scheduledDate}</span>}
                               {match.scheduledTime && <span>{match.scheduledTime}</span>}
                             </div>
                             {score && (

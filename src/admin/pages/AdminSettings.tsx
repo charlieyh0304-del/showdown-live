@@ -5,10 +5,66 @@ import { hashPin, verifyPin } from '@shared/utils/crypto';
 import { useAuth } from '@shared/hooks/useAuth';
 import type { Admin } from '@shared/types';
 
+const SAMPLE_STORAGE_KEY = 'showdown_sample_names';
+
+interface SampleNames {
+  players: string[];
+  referees: string[];
+}
+
+function loadSampleNames(): SampleNames {
+  try {
+    const saved = localStorage.getItem(SAMPLE_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { players: [], referees: [] };
+}
+
+function saveSampleNames(data: SampleNames) {
+  localStorage.setItem(SAMPLE_STORAGE_KEY, JSON.stringify(data));
+  // Firebase에도 저장
+  set(ref(database, 'config/sampleNames'), data).catch(() => {});
+}
+
+export function getSampleNames(): SampleNames {
+  return loadSampleNames();
+}
+
 export default function AdminSettings() {
   const { session } = useAuth();
   const [admins, setAdmins] = useState<(Admin & { id: string })[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 샘플 이름
+  const [sampleData, setSampleData] = useState<SampleNames>(loadSampleNames);
+  const [samplePlayerText, setSamplePlayerText] = useState(sampleData.players.join('\n'));
+  const [sampleRefereeText, setSampleRefereeText] = useState(sampleData.referees.join('\n'));
+  const [sampleSaved, setSampleSaved] = useState('');
+
+  // Firebase에서 샘플 이름 로드
+  useEffect(() => {
+    const sampleRef = ref(database, 'config/sampleNames');
+    const unsub = onValue(sampleRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val() as SampleNames;
+        setSampleData(data);
+        setSamplePlayerText(data.players.join('\n'));
+        setSampleRefereeText(data.referees.join('\n'));
+        localStorage.setItem(SAMPLE_STORAGE_KEY, JSON.stringify(data));
+      }
+    }, { onlyOnce: true });
+    return () => unsub();
+  }, []);
+
+  const handleSaveSampleNames = () => {
+    const players = samplePlayerText.split('\n').map(s => s.trim()).filter(s => s);
+    const referees = sampleRefereeText.split('\n').map(s => s.trim()).filter(s => s);
+    const data = { players, referees };
+    setSampleData(data);
+    saveSampleNames(data);
+    setSampleSaved(`선수 ${players.length}명, 심판 ${referees.length}명 저장 완료`);
+    setTimeout(() => setSampleSaved(''), 3000);
+  };
 
   // 비밀번호 변경
   const [showChangePin, setShowChangePin] = useState(false);
@@ -297,6 +353,39 @@ export default function AdminSettings() {
             ))}
           </div>
         )}
+      </div>
+      {/* 시뮬레이션 샘플 이름 */}
+      <div className="card">
+        <h2 className="text-xl font-bold mb-3">시뮬레이션 샘플 이름</h2>
+        <p className="text-gray-400 text-sm mb-4">
+          선수/심판이 등록되지 않은 대회에서 시뮬레이션 실행 시 사용됩니다. 줄바꿈으로 구분하세요.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-1">선수 이름 ({samplePlayerText.split('\n').filter(s => s.trim()).length}명)</label>
+            <textarea
+              className="input w-full h-48"
+              value={samplePlayerText}
+              onChange={e => setSamplePlayerText(e.target.value)}
+              placeholder={"홍길동\n김철수\n이영희\n박민수\n최수진"}
+              aria-label="샘플 선수 이름 목록"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-1">심판 이름 ({sampleRefereeText.split('\n').filter(s => s.trim()).length}명)</label>
+            <textarea
+              className="input w-full h-48"
+              value={sampleRefereeText}
+              onChange={e => setSampleRefereeText(e.target.value)}
+              placeholder={"심판 A\n심판 B\n심판 C"}
+              aria-label="샘플 심판 이름 목록"
+            />
+          </div>
+        </div>
+        {sampleSaved && <p className="text-green-400 text-sm mt-2" role="alert">{sampleSaved}</p>}
+        <button className="btn btn-primary w-full mt-3" onClick={handleSaveSampleNames}>
+          샘플 이름 저장
+        </button>
       </div>
     </div>
   );

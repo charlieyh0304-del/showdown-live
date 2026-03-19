@@ -17,6 +17,7 @@ interface WizardState {
   // Step 1
   name: string;
   date: string;
+  endDate: string;
   type: TournamentType;
   presetId: string | null;
   // Step 2
@@ -89,12 +90,15 @@ const DEFAULT_TEAM_RULES: TeamRules = {
   teamSize: 3,
   rotationEnabled: true,
   rotationInterval: 6,
+  maxReserves: 1,
+  genderRatio: { male: 2, female: 1 },
 };
 
 const defaultState: WizardState = {
   step: 1,
   name: '',
   date: new Date().toISOString().split('T')[0],
+  endDate: '',
   type: 'individual',
   presetId: null,
   participantCount: 8,
@@ -307,6 +311,7 @@ export default function TournamentCreate() {
       const id = await addTournament({
         name: state.name.trim(),
         date: state.date,
+        ...(state.endDate ? { endDate: state.endDate } : {}),
         type: state.type,
         format: legacyFormat,
         status: 'draft',
@@ -389,15 +394,27 @@ export default function TournamentCreate() {
               />
             </div>
             <div>
-              <label htmlFor="date" className="block mb-2 font-semibold text-lg">날짜</label>
-              <input
-                id="date"
-                type="date"
-                className="input"
-                value={state.date}
-                onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })}
-                aria-label="대회 날짜"
-              />
+              <label htmlFor="date" className="block mb-2 font-semibold text-lg">대회 기간</label>
+              <div className="flex gap-2 items-center">
+                <input
+                  id="date"
+                  type="date"
+                  className="input flex-1"
+                  value={state.date}
+                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })}
+                  aria-label="시작 날짜"
+                />
+                <span className="text-gray-400">~</span>
+                <input
+                  type="date"
+                  className="input flex-1"
+                  value={state.endDate}
+                  min={state.date}
+                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: e.target.value })}
+                  aria-label="종료 날짜"
+                />
+              </div>
+              <p className="text-gray-500 text-xs mt-1">1일 대회는 종료 날짜를 비워두세요</p>
             </div>
           </div>
 
@@ -638,6 +655,43 @@ export default function TournamentCreate() {
                 onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamSize', value: v })}
                 ariaLabel="팀 인원"
               />
+              <NumberStepper
+                label="예비 선수"
+                value={state.teamRules.maxReserves ?? 1}
+                min={0}
+                max={2}
+                onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamRules', value: { ...state.teamRules, maxReserves: v } })}
+                ariaLabel="예비 선수 수"
+              />
+              <p className="text-cyan-400 text-sm font-semibold">
+                출전 {state.teamSize}명 + 예비 {state.teamRules.maxReserves ?? 1}명 = 총 {state.teamSize + (state.teamRules.maxReserves ?? 1)}명
+              </p>
+              {/* 성별 비율 */}
+              <div className="space-y-2">
+                <label className="block font-semibold">성별 비율</label>
+                <div className="flex gap-3 items-center">
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-400">남</span>
+                    <NumberStepper
+                      label=""
+                      value={state.teamRules.genderRatio?.male ?? 2}
+                      min={0}
+                      max={state.teamSize}
+                      onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamRules', value: {
+                        ...state.teamRules,
+                        genderRatio: { male: v, female: state.teamSize - v }
+                      }})}
+                      ariaLabel="남성 인원"
+                    />
+                  </div>
+                  <span className="text-gray-400">:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-pink-400">여</span>
+                    <span className="text-lg font-bold">{state.teamSize - (state.teamRules.genderRatio?.male ?? 2)}</span>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-sm">팀당 남 {state.teamRules.genderRatio?.male ?? 2}명, 여 {state.teamSize - (state.teamRules.genderRatio?.male ?? 2)}명</p>
+              </div>
             </div>
           )}
         </div>

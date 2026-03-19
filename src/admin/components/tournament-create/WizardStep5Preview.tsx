@@ -11,7 +11,7 @@ import { calculateMatchCount } from '@shared/utils/tournament';
 // ===== 위자드 상태 타입 =====
 
 export interface TournamentWizardState {
-  step: 1 | 2 | 3 | 4 | 5;
+  step: 1 | 2 | 3 | 4;
   // Step 1: 기본 정보
   name: string;
   date: string;
@@ -20,14 +20,13 @@ export interface TournamentWizardState {
   // Step 2: 참가자
   participantCount: number;
   participantNames: string[];
-  // Step 3: 예선 설정
   hasGroupStage: boolean;
   groupCount: number;
   qualifyingFormat: 'round_robin' | 'group_round_robin';
   qualifyingScoringRules: ScoringRules;
   qualifyingMatchRules: MatchRules;
   advancePerGroup: number;
-  // Step 4: 본선/순위결정전 설정
+  // Step 3: 본선/순위결정전 설정 (was Step 4)
   hasFinalsStage: boolean;
   finalsFormat: 'single_elimination' | 'double_elimination';
   advanceCount: number;
@@ -50,7 +49,7 @@ export type WizardAction =
   | { type: 'APPLY_PRESET'; presetId: string }
   | { type: 'NEXT_STEP' }
   | { type: 'PREV_STEP' }
-  | { type: 'GO_TO_STEP'; step: 1 | 2 | 3 | 4 | 5 };
+  | { type: 'GO_TO_STEP'; step: 1 | 2 | 3 | 4 };
 
 // ===== 헬퍼 =====
 
@@ -116,7 +115,7 @@ function SectionHeader({
   dispatch,
 }: {
   title: string;
-  step: 1 | 2 | 3 | 4 | 5;
+  step: 1 | 2 | 3 | 4;
   dispatch: React.Dispatch<WizardAction>;
 }) {
   return (
@@ -258,7 +257,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       {/* 3. 예선 설정 요약 */}
       {state.hasGroupStage && (
         <section className="card p-5" aria-label="예선 설정">
-          <SectionHeader title="예선 설정" step={3} dispatch={dispatch} />
+          <SectionHeader title="예선 설정" step={2} dispatch={dispatch} />
           <dl>
             <SummaryRow label="형식" value={state.groupCount > 1 ? '조별 라운드로빈' : '풀리그'} />
             {state.groupCount > 1 && (
@@ -278,7 +277,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       {/* 4. 본선 설정 요약 */}
       {state.hasFinalsStage && (
         <section className="card p-5" aria-label="본선 설정">
-          <SectionHeader title="본선 설정" step={4} dispatch={dispatch} />
+          <SectionHeader title="본선 설정" step={3} dispatch={dispatch} />
           <dl>
             <SummaryRow
               label="형식"
@@ -297,7 +296,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       {/* 5. 순위결정전 요약 */}
       {state.hasFinalsStage && state.rankingMatch.enabled && (
         <section className="card p-5" aria-label="순위결정전 설정">
-          <SectionHeader title="순위결정전" step={4} dispatch={dispatch} />
+          <SectionHeader title="순위결정전" step={3} dispatch={dispatch} />
           <dl>
             <SummaryRow
               label="순위 범위"

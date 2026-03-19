@@ -1,6 +1,7 @@
 import { Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useTournament } from '@shared/hooks/useFirebase';
+import ErrorBoundary from '@shared/components/ErrorBoundary';
 
 export default function RefereeLayout() {
   const { session, isReferee, logout } = useAuth();
@@ -36,7 +37,9 @@ export default function RefereeLayout() {
         </button>
       </header>
       <main className="flex-1">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

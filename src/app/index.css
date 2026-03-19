@@ -269,3 +269,139 @@ button, a, input, select {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ===== High Contrast Mode ===== */
+.mode-high-contrast {
+  --color-bg: #000000;
+  --color-text: #FFFFFF;
+  --color-primary: #FFD700;
+  --color-secondary: #00FFFF;
+  --color-success: #00FF00;
+  --color-danger: #FF0000;
+  --color-warning: #FF8C00;
+}
+
+.mode-high-contrast body {
+  background-color: #000000;
+  color: #FFFFFF;
+}
+
+.mode-high-contrast .card {
+  background-color: #000000;
+  border: 2px solid #FFFFFF;
+}
+
+.mode-high-contrast .btn {
+  border: 2px solid currentColor;
+  font-weight: bold;
+}
+
+.mode-high-contrast .btn-primary {
+  background-color: #FFD700;
+  color: #000000;
+  border-color: #FFD700;
+}
+
+.mode-high-contrast .btn-success {
+  background-color: #00FF00;
+  color: #000000;
+  border-color: #00FF00;
+}
+
+.mode-high-contrast .btn-danger {
+  background-color: #FF0000;
+  color: #FFFFFF;
+  border-color: #FF0000;
+}
+
+.mode-high-contrast .input {
+  background-color: #000000;
+  color: #FFFFFF;
+  border: 2px solid #FFFFFF;
+}
+
+.mode-high-contrast .input:focus {
+  border-color: #FFD700;
+  outline: 3px solid #FFD700;
+}
+
+/* All interactive elements get visible focus in high-contrast */
+.mode-high-contrast *:focus {
+  outline: 3px solid #FFD700 !important;
+  outline-offset: 2px;
+}
+
+.mode-high-contrast .text-gray-400,
+.mode-high-contrast .text-gray-500 {
+  color: #CCCCCC !important;
+}
+
+.mode-high-contrast .bg-gray-800 {
+  background-color: #1a1a1a !important;
+  border: 1px solid #666 !important;
+}
+
+.mode-high-contrast .bg-gray-700 {
+  background-color: #2a2a2a !important;
+}
+
+.mode-high-contrast .text-yellow-400 {
+  color: #FFD700 !important;
+}
+
+.mode-high-contrast .text-cyan-400 {
+  color: #00FFFF !important;
+}
+
+.mode-high-contrast .nav-link {
+  border: 2px solid transparent;
+}
+
+.mode-high-contrast .nav-link.active {
+  border-color: #FFD700;
+  background-color: #FFD700;
+  color: #000000;
+}
+
+/* Status badges high contrast */
+.mode-high-contrast .bg-green-600 {
+  background-color: #00FF00 !important;
+  color: #000000 !important;
+}
+
+.mode-high-contrast .bg-orange-500 {
+  background-color: #FF8C00 !important;
+  color: #000000 !important;
+}
+
+.mode-high-contrast .modal-content {
+  background-color: #000000;
+  border: 2px solid #FFFFFF;
+}
+
+/* ===== Font Size Modes ===== */
+.font-large {
+  font-size: 120%;
+}
+
+.font-xlarge {
+  font-size: 140%;
+}
+
+.font-large .btn,
+.font-large .input {
+  font-size: 1.1rem;
+  padding: 0.75rem 1.25rem;
+}
+
+.font-xlarge .btn,
+.font-xlarge .input {
+  font-size: 1.25rem;
+  padding: 1rem 1.5rem;
+}
+
+/* ===== Improved focus visibility for ALL modes ===== */
+*:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}

@@ -4,6 +4,7 @@ import { useAuth, useAdminPinExists } from '@shared/hooks/useAuth';
 import { hashPin } from '@shared/utils/crypto';
 import { ref, set } from 'firebase/database';
 import { database } from '@shared/config/firebase';
+import ErrorBoundary from '@shared/components/ErrorBoundary';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -82,7 +83,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </button>
       </nav>
       <main className="flex-1 p-4">
-        {children}
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </main>
     </div>
   );

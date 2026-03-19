@@ -1,0 +1,43 @@
+{
+  "rules": {
+    "tournaments": {
+      ".read": true,
+      "$tournamentId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['name', 'type', 'status'])"
+      }
+    },
+    "matches": {
+      ".read": true,
+      "$tournamentId": { ".write": true }
+    },
+    "tournamentPlayers": {
+      ".read": true,
+      "$tournamentId": { ".write": true }
+    },
+    "teams": {
+      ".read": true,
+      "$tournamentId": { ".write": true }
+    },
+    "schedule": {
+      ".read": true,
+      "$tournamentId": { ".write": true }
+    },
+    "players": {
+      ".read": true,
+      ".write": true
+    },
+    "referees": {
+      ".read": true,
+      ".write": true
+    },
+    "courts": {
+      ".read": true,
+      ".write": true
+    },
+    "notifications": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

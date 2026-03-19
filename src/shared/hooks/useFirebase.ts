@@ -380,12 +380,15 @@ export function useFavorites() {
     }
   });
 
-  const toggleFavorite = useCallback((playerId: string) => {
+  const toggleFavorite = useCallback((playerId: string): string[] => {
+    let result: string[] = [];
     setFavoriteIds(prev => {
       const next = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
       localStorage.setItem('showdown_favorites', JSON.stringify(next));
+      result = next;
       return next;
     });
+    return result;
   }, []);
 
   const isFavorite = useCallback((playerId: string) => {

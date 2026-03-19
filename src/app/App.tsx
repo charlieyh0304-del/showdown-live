@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import ModeSelector from './ModeSelector';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
 import LoadingSpinner from '@shared/components/LoadingSpinner';
+import AccessibilityMenu from '@shared/components/AccessibilityMenu';
 
 const AdminRoutes = lazy(() => import('../admin/AdminRoutes'));
 const RefereeRoutes = lazy(() => import('../referee/RefereeRoutes'));
@@ -20,6 +21,7 @@ function App() {
           <Route path="/spectator/*" element={<SpectatorRoutes />} />
         </Routes>
       </Suspense>
+      <AccessibilityMenu />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import TournamentView from './pages/TournamentView';
 import LiveMatchView from './pages/LiveMatchView';
 import FavoritesView from './pages/FavoritesView';
 import PracticeWatchView from './pages/PracticeWatchView';
+import PlayerProfileView from './pages/PlayerProfileView';
 
 export default function SpectatorRoutes() {
   return (
@@ -13,6 +14,7 @@ export default function SpectatorRoutes() {
         <Route path="/" element={<SpectatorHome />} />
         <Route path="/tournament/:id" element={<TournamentView />} />
         <Route path="/match/:tournamentId/:matchId" element={<LiveMatchView />} />
+        <Route path="/player/:tournamentId/:playerName" element={<PlayerProfileView />} />
         <Route path="/favorites" element={<FavoritesView />} />
         <Route path="/practice" element={<PracticeWatchView />} />
       </Routes>

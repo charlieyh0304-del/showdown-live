@@ -19,6 +19,7 @@ import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
+import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -282,7 +283,8 @@ export default function IndividualScoring() {
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
     });
-  }, [match, gameConfig, updateMatch, audio, canAct, sideChangeTimer]);
+    if (tournamentId) autoBackupDebounced(tournamentId);
+  }, [match, gameConfig, updateMatch, audio, canAct, sideChangeTimer, tournamentId]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(async () => {
@@ -296,6 +298,7 @@ export default function IndividualScoring() {
       audio.matchComplete();
       vibrate(hapticPatterns.matchComplete);
       await updateMatch({ sets, status: 'completed', winnerId });
+      if (tournamentId) autoBackupToLocal(tournamentId);
     } else {
       audio.setComplete();
       vibrate(hapticPatterns.setComplete);

@@ -6,9 +6,10 @@ interface PlayerForm {
   name: string;
   club: string;
   class: string;
+  gender: 'male' | 'female' | '';
 }
 
-const EMPTY_FORM: PlayerForm = { name: '', club: '', class: '' };
+const EMPTY_FORM: PlayerForm = { name: '', club: '', class: '', gender: '' };
 const CLASS_OPTIONS = ['', 'B1', 'B2', 'B3'];
 
 export default function PlayerManagement() {
@@ -35,7 +36,7 @@ export default function PlayerManagement() {
   }, []);
 
   const openEdit = useCallback((player: Player) => {
-    setForm({ name: player.name, club: player.club ?? '', class: player.class ?? '' });
+    setForm({ name: player.name, club: player.club ?? '', class: player.class ?? '', gender: player.gender ?? '' });
     setEditId(player.id);
     setError('');
     setModalMode('edit');
@@ -60,6 +61,7 @@ export default function PlayerManagement() {
         name: form.name.trim(),
         ...(form.club ? { club: form.club.trim() } : {}),
         ...(form.class ? { class: form.class } : {}),
+        ...(form.gender ? { gender: form.gender } : {}),
       };
       if (modalMode === 'edit' && editId) {
         await updatePlayer(editId, data);
@@ -116,6 +118,7 @@ export default function PlayerManagement() {
             <div key={p.id} className="card flex items-center justify-between flex-wrap gap-3">
               <div>
                 <span className="font-bold text-lg">{p.name}</span>
+                {p.gender && <span className="ml-2 text-xs text-gray-500">{p.gender === 'male' ? '남' : '여'}</span>}
                 {p.club && <span className="ml-3 text-gray-400">({p.club})</span>}
                 {p.class && <span className="ml-3 text-cyan-400">[{p.class}]</span>}
               </div>
@@ -190,6 +193,38 @@ export default function PlayerManagement() {
                     <option key={c} value={c}>{c || '미지정'}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block mb-1 font-semibold">성별</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`btn flex-1 ${form.gender === 'male' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    onClick={() => setForm(f => ({ ...f, gender: 'male' }))}
+                    aria-pressed={form.gender === 'male'}
+                    aria-label="남성 선택"
+                  >
+                    남
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn flex-1 ${form.gender === 'female' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    onClick={() => setForm(f => ({ ...f, gender: 'female' }))}
+                    aria-pressed={form.gender === 'female'}
+                    aria-label="여성 선택"
+                  >
+                    여
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn flex-1 ${form.gender === '' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    onClick={() => setForm(f => ({ ...f, gender: '' }))}
+                    aria-pressed={form.gender === ''}
+                    aria-label="미지정"
+                  >
+                    미지정
+                  </button>
+                </div>
               </div>
               {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
               <div className="flex gap-4">
