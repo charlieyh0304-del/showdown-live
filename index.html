@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="쇼다운">
-    <link rel="manifest" href="/showdown-test/manifest.webmanifest">
+    <link rel="manifest" href="/manifest.webmanifest">
     <title>쇼다운 대회 관리</title>
     <script>
       // 경로에 따라 모드별 manifest 동적 교체
@@ -17,17 +17,17 @@
         var manifest = document.querySelector('link[rel="manifest"]');
         if (!manifest) return;
         if (path.indexOf('/spectator') !== -1) {
-          manifest.href = '/showdown-test/manifest-spectator.json';
+          manifest.href = '/manifest-spectator.json';
           document.title = '쇼다운 관람';
           document.querySelector('meta[name="theme-color"]').content = '#1a73e8';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관람';
         } else if (path.indexOf('/referee') !== -1) {
-          manifest.href = '/showdown-test/manifest-referee.json';
+          manifest.href = '/manifest-referee.json';
           document.title = '쇼다운 심판';
           document.querySelector('meta[name="theme-color"]').content = '#f59e0b';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 심판';
         } else if (path.indexOf('/admin') !== -1) {
-          manifest.href = '/showdown-test/manifest-admin.json';
+          manifest.href = '/manifest-admin.json';
           document.title = '쇼다운 관리';
           document.querySelector('meta[name="theme-color"]').content = '#ef4444';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관리';

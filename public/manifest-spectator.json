@@ -2,13 +2,13 @@
   "name": "쇼다운 관람",
   "short_name": "관람",
   "description": "쇼다운 경기 실시간 관람",
-  "start_url": "/showdown-test/spectator",
-  "scope": "/showdown-test/spectator",
+  "start_url": "/spectator",
+  "scope": "/spectator",
   "display": "standalone",
   "theme_color": "#1a73e8",
   "background_color": "#000000",
   "icons": [
-    { "src": "/showdown-test/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/showdown-test/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import ModeSelector from './ModeSelector';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
 import LoadingSpinner from '@shared/components/LoadingSpinner';
@@ -21,6 +21,7 @@ function App() {
             <Route path="/admin/*" element={<AdminRoutes />} />
             <Route path="/referee/*" element={<RefereeRoutes />} />
             <Route path="/spectator/*" element={<SpectatorRoutes />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
         <AccessibilityMenu />

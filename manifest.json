@@ -2,7 +2,7 @@
   "name": "쇼다운 심판 앱",
   "short_name": "쇼다운",
   "description": "쇼다운 심판 점수 기록, 랜덤 팀 리그전, 실시간 관람",
-  "start_url": "./index.html",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
