@@ -54,6 +54,10 @@ export default function PlayerManagement() {
       setError('이름을 입력해주세요.');
       return;
     }
+    if (!form.gender) {
+      setError('성별을 선택해주세요.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -214,15 +218,6 @@ export default function PlayerManagement() {
                     aria-label="여성 선택"
                   >
                     여
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn flex-1 ${form.gender === '' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-                    onClick={() => setForm(f => ({ ...f, gender: '' }))}
-                    aria-pressed={form.gender === ''}
-                    aria-label="미지정"
-                  >
-                    미지정
                   </button>
                 </div>
               </div>

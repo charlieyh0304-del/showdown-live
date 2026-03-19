@@ -70,7 +70,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
     <div className="space-y-6">
       {/* 본선 형식 선택 */}
       <div className="card space-y-4">
-        <h2 className="text-xl font-bold">본선 형식</h2>
+        <h2 className="text-xl font-bold">{state.hasGroupStage ? '본선 형식' : '대회 형식'}</h2>
         <div
           className="grid grid-cols-1 sm:grid-cols-3 gap-3"
           role="radiogroup"

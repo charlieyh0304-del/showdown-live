@@ -1,4 +1,4 @@
-import { useState, useCallback, useReducer } from 'react';
+import { useState, useCallback, useReducer, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTournaments } from '@shared/hooks/useFirebase';
 import { WIZARD_PRESETS } from '@shared/constants/presets';
@@ -6,7 +6,6 @@ import { buildStagesFromWizard, mapToLegacyFormat } from '@shared/utils/tourname
 import type { TournamentType, BracketFormatType, ScoringRules, MatchRules, TeamRules, TiebreakerRule, RankingMatchConfig } from '@shared/types';
 import StepIndicator from '../components/tournament-create/StepIndicator';
 import NumberStepper from '../components/tournament-create/NumberStepper';
-import WizardStep3Qualifying from '../components/tournament-create/WizardStep3Qualifying';
 import WizardStep4Finals from '../components/tournament-create/WizardStep4Finals';
 import WizardStep5Preview from '../components/tournament-create/WizardStep5Preview';
 
@@ -143,12 +142,10 @@ const defaultState: WizardState = {
 };
 
 function getNextStep(current: number, hasGroupStage: boolean): number {
-  if (current === 2 && !hasGroupStage) return 4;
-  return Math.min(5, current + 1);
+  return Math.min(4, current + 1);
 }
 
 function getPrevStep(current: number, hasGroupStage: boolean): number {
-  if (current === 4 && !hasGroupStage) return 2;
   return Math.max(1, current - 1);
 }
 
@@ -249,7 +246,7 @@ function reducer(state: WizardState, action: Action): WizardState {
       const nextStep = getNextStep(state.step, state.hasGroupStage);
       const next = { ...state, step: nextStep };
       // When skipping to Step 4 without group stage, enable finals stage
-      if (state.step === 2 && nextStep === 4 && !state.hasGroupStage) {
+      if (state.step === 2 && nextStep === 3 && !state.hasGroupStage) {
         next.hasFinalsStage = true;
       }
       return next;
@@ -257,7 +254,7 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'PREV_STEP':
       return { ...state, step: getPrevStep(state.step, state.hasGroupStage) };
     case 'GO_TO_STEP':
-      return { ...state, step: Math.max(1, Math.min(5, action.step)) };
+      return { ...state, step: Math.max(1, Math.min(4, action.step)) };
     default:
       return state;
   }
@@ -280,7 +277,13 @@ export default function TournamentCreate() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const stepLabels = ['기본 정보', '참가자 설정', '예선 설정', '본선/순위결정전', '미리보기'];
+  const stepLabels = ['기본 정보', '참가자 설정', '대회 형식', '미리보기'];
+  const stepRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    stepRef.current?.focus();
+  }, [state.step]);
 
   const handleSubmit = useCallback(async () => {
     if (!state.name.trim()) {
@@ -370,13 +373,13 @@ export default function TournamentCreate() {
   // Build Step 5 compatible state
   const step5State = {
     ...state,
-    step: state.step as 1 | 2 | 3 | 4 | 5,
+    step: state.step as 1 | 2 | 3 | 4,
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6" ref={stepRef} tabIndex={-1} style={{ outline: 'none' }}>
       <h1 className="text-3xl font-bold text-yellow-400">새 대회 만들기</h1>
-      <StepIndicator currentStep={state.step} totalSteps={5} labels={stepLabels} />
+      <StepIndicator currentStep={state.step} totalSteps={4} labels={stepLabels} />
 
       {/* Step 1: 기본 정보 */}
       {state.step === 1 && (
@@ -420,23 +423,38 @@ export default function TournamentCreate() {
 
           <div className="card space-y-4">
             <h2 className="text-xl font-bold">유형 선택</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {([
-                { value: 'individual' as const, label: '개인전' },
-                { value: 'team' as const, label: '팀전' },
-                { value: 'randomTeamLeague' as const, label: '랜덤 팀리그전' },
-              ]).map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`btn text-lg py-4 ${state.type === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: opt.value })}
-                  aria-pressed={state.type === opt.value}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                className={`btn text-lg py-4 ${state.type === 'individual' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: 'individual' })}
+                aria-pressed={state.type === 'individual'}
+              >
+                개인전
+              </button>
+              <button
+                type="button"
+                className={`btn text-lg py-4 ${(state.type === 'team' || state.type === 'randomTeamLeague') ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: 'team' })}
+                aria-pressed={state.type === 'team' || state.type === 'randomTeamLeague'}
+              >
+                팀전
+              </button>
             </div>
+            {(state.type === 'team' || state.type === 'randomTeamLeague') && (
+              <label className="flex items-center justify-between cursor-pointer mt-2">
+                <span className="text-lg font-semibold">랜덤 팀 구성</span>
+                <button
+                  role="switch"
+                  aria-checked={state.type === 'randomTeamLeague'}
+                  aria-label="랜덤 팀 구성"
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.type === 'randomTeamLeague' ? 'bg-green-600' : 'bg-gray-600'}`}
+                  onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: state.type === 'randomTeamLeague' ? 'team' : 'randomTeamLeague' })}
+                >
+                  <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.type === 'randomTeamLeague' ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </label>
+            )}
           </div>
 
           <div className="card space-y-4">
@@ -453,7 +471,7 @@ export default function TournamentCreate() {
                   className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                   onClick={() => {
                     dispatch({ type: 'APPLY_PRESET', presetId: preset.id });
-                    dispatch({ type: 'GO_TO_STEP', step: 5 });
+                    dispatch({ type: 'GO_TO_STEP', step: 4 });
                   }}
                 >
                   <h3 className="text-lg font-bold">{preset.name}</h3>
@@ -697,18 +715,13 @@ export default function TournamentCreate() {
         </div>
       )}
 
-      {/* Step 3: 예선 설정 */}
+      {/* Step 3: 대회 형식 */}
       {state.step === 3 && (
-        <WizardStep3Qualifying state={state} dispatch={dispatch} />
-      )}
-
-      {/* Step 4: 본선/순위결정전 */}
-      {state.step === 4 && (
         <WizardStep4Finals state={state} dispatch={dispatch} />
       )}
 
-      {/* Step 5: 미리보기 */}
-      {state.step === 5 && (
+      {/* Step 4: 미리보기 */}
+      {state.step === 4 && (
         <WizardStep5Preview state={step5State as any} dispatch={dispatch as any} onSubmit={handleSubmit} />
       )}
 
@@ -724,7 +737,7 @@ export default function TournamentCreate() {
             이전
           </button>
         )}
-        {state.step < 5 ? (
+        {state.step < 4 ? (
           <button
             className="btn btn-primary flex-1"
             onClick={() => dispatch({ type: 'NEXT_STEP' })}
