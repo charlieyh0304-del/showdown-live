@@ -37,6 +37,8 @@ export interface TeamRules {
   teamSize: number;
   rotationEnabled: boolean;
   rotationInterval?: number;
+  maxReserves?: number;
+  genderRatio?: { male: number; female: number };
 }
 
 // ===== 브라켓 라운드 =====
@@ -201,6 +203,7 @@ export interface Player {
   name: string;
   club?: string;
   class?: string; // B1, B2, B3
+  gender?: 'male' | 'female' | '';
   createdAt: number;
 }
 
