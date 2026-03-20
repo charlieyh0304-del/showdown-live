@@ -411,7 +411,7 @@ export default function TeamMatchScoring() {
   }
 
   // ===== IN_PROGRESS =====
-  const sets = match.sets ?? [createEmptySet()];
+  const sets = Array.isArray(match.sets) && match.sets.length > 0 ? match.sets : [createEmptySet()];
   const currentSet = sets[0] ?? createEmptySet();
   const currentServe = match.currentServe ?? 'player1';
   const serveCountVal = match.serveCount ?? 0;

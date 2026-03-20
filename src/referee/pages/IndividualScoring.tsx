@@ -421,7 +421,7 @@ export default function IndividualScoring() {
   // ===== COMPLETED =====
   if (match.status === 'completed') {
     const winnerName = match.winnerId === match.player1Id ? player1Name : player2Name;
-    const setWins = match.sets ? countSetWins(match.sets, gameConfig) : { player1: 0, player2: 0 };
+    const setWins = Array.isArray(match.sets) && match.sets.length > 0 ? countSetWins(match.sets, gameConfig) : { player1: 0, player2: 0 };
     const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-4">
@@ -450,7 +450,7 @@ export default function IndividualScoring() {
   }
 
   // ===== IN_PROGRESS =====
-  const sets = match.sets ?? [createEmptySet()];
+  const sets = Array.isArray(match.sets) && match.sets.length > 0 ? match.sets : [createEmptySet()];
   const currentSetIndex = match.currentSet ?? 0;
   const currentSet = sets[currentSetIndex] ?? createEmptySet();
   const setWins = countSetWins(sets, gameConfig);
