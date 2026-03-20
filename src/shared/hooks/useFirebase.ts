@@ -169,7 +169,13 @@ export function useMatches(tournamentId: string | null) {
     if (!tournamentId) { setMatches([]); setLoading(false); return; }
     const unsub = onValue(ref(database, `matches/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setMatches(data ? Object.entries(data).map(([id, m]) => ({ id, ...(m as Omit<Match, 'id'>) })).sort((a, b) => a.round - b.round) : []);
+      setMatches(data ? Object.entries(data).map(([id, raw]) => {
+        const m = raw as Record<string, unknown>;
+        if (m.sets && !Array.isArray(m.sets)) m.sets = Object.values(m.sets as object);
+        if (m.scoreHistory && !Array.isArray(m.scoreHistory)) m.scoreHistory = Object.values(m.scoreHistory as object);
+        if (m.pauseHistory && !Array.isArray(m.pauseHistory)) m.pauseHistory = Object.values(m.pauseHistory as object);
+        return { id, ...(m as unknown as Omit<Match, 'id'>) };
+      }).sort((a, b) => (a.round ?? 0) - (b.round ?? 0)) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -215,7 +221,21 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
     if (!tournamentId || !matchId) { setMatch(null); setLoading(false); return; }
     const unsub = onValue(ref(database, `matches/${tournamentId}/${matchId}`), (snap) => {
       const data = snap.val();
-      setMatch(data ? { id: matchId, ...data } : null);
+      if (data) {
+        // Firebase may store arrays as objects — normalize sets and scoreHistory
+        if (data.sets && !Array.isArray(data.sets)) {
+          data.sets = Object.values(data.sets);
+        }
+        if (data.scoreHistory && !Array.isArray(data.scoreHistory)) {
+          data.scoreHistory = Object.values(data.scoreHistory);
+        }
+        if (data.pauseHistory && !Array.isArray(data.pauseHistory)) {
+          data.pauseHistory = Object.values(data.pauseHistory);
+        }
+        setMatch({ id: matchId, ...data });
+      } else {
+        setMatch(null);
+      }
       setLoading(false);
     });
     return () => unsub();
