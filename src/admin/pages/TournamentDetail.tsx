@@ -800,6 +800,18 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     await updateMatch(matchId, data);
   }, [updateMatch, referees, courts]);
 
+  const handleBulkAssignReferees = useCallback(async () => {
+    const unassigned = matches.filter(m => !m.refereeId && m.status !== 'completed');
+    if (unassigned.length === 0 || referees.length === 0) return;
+
+    const updates = unassigned.map((match, i) => {
+      const ref = referees[i % referees.length];
+      return updateMatch(match.id, { refereeId: ref.id, refereeName: ref.name });
+    });
+    await Promise.all(updates);
+    alert(`${unassigned.length}경기에 심판이 배정되었습니다.`);
+  }, [matches, referees, updateMatch]);
+
   const canGenerate = isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2;
 
   return (
@@ -853,6 +865,21 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         <p className="text-gray-400">
           {isTeamType ? '팀이 2개 이상 필요합니다.' : '참가 선수가 2명 이상 필요합니다.'}
         </p>
+      )}
+
+      {matches.length > 0 && referees.length > 0 && (
+        <div className="card p-4 space-y-3">
+          <h3 className="font-bold">일괄 심판 배정</h3>
+          <p className="text-gray-400 text-sm">심판을 선택하면 배정되지 않은 모든 경기에 순서대로 배정됩니다.</p>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              className="btn btn-primary"
+              onClick={handleBulkAssignReferees}
+            >
+              자동 배정 (라운드로빈)
+            </button>
+          </div>
+        </div>
       )}
 
       {matches.length === 0 ? (

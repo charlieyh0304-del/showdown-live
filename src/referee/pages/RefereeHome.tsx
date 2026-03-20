@@ -98,7 +98,15 @@ export default function RefereeHome() {
 
       {myMatches.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-xl text-gray-400">배정된 경기가 없습니다</p>
+          <div className="space-y-3">
+            <p className="text-xl text-gray-400">배정된 경기가 없습니다</p>
+            <p className="text-sm text-gray-500">
+              관리자가 대진표에서 경기별로 심판을 배정해야 이 화면에 표시됩니다.
+            </p>
+            <p className="text-sm text-gray-500">
+              관리자에게 심판 배정을 요청해주세요.
+            </p>
+          </div>
         </div>
       ) : hasMultipleDates ? (
         /* Multi-day view: group by date */
