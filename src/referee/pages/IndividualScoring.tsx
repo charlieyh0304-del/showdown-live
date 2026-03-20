@@ -483,6 +483,29 @@ export default function IndividualScoring() {
   }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
   useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
 
+  // DEBUG: test minimal render to find crash source
+  return (
+    <div style={{ padding: '2rem', color: 'white', backgroundColor: '#111' }}>
+      <h1 style={{ color: '#facc15', fontSize: '1.5rem' }}>심판 채점 (디버그 모드)</h1>
+      <p>{String(player1Name)} vs {String(player2Name)}</p>
+      <p>점수: {Number(leftScore)} - {Number(rightScore)}</p>
+      <p>세트: {Number(setWins.player1)} - {Number(setWins.player2)}</p>
+      <p>서브: {String(serverName)} ({Number(serveCountVal + 1)}/{Number(maxServes)})</p>
+      <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+        <button className="btn btn-success" style={{ padding: '1rem 2rem', fontSize: '1.25rem' }}
+          onClick={() => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`)}>
+          {String(player1Name)} +2
+        </button>
+        <button className="btn btn-success" style={{ padding: '1rem 2rem', fontSize: '1.25rem' }}
+          onClick={() => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`)}>
+          {String(player2Name)} +2
+        </button>
+      </div>
+      <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => navigate('/referee/games')}>목록으로</button>
+    </div>
+  );
+
+  /* ORIGINAL RETURN - temporarily disabled for debugging
   return (
     <div className="min-h-screen flex flex-col">
       <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
@@ -751,4 +774,5 @@ export default function IndividualScoring() {
       )}
     </div>
   );
+  ORIGINAL RETURN END */
 }
