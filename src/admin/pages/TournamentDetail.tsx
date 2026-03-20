@@ -61,7 +61,7 @@ export default function TournamentDetail() {
   const [simCountInitialized, setSimCountInitialized] = useState(false);
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
-  const { matches, loading: mLoading, setMatchesBulk, updateMatch } = useMatches(id ?? null);
+  const { matches, loading: mLoading, setMatchesBulk, updateMatch, addMatch, deleteMatch } = useMatches(id ?? null);
   const { players: globalPlayers, loading: gpLoading } = usePlayers();
   const { players: tournamentPlayers, loading: tpLoading, addPlayer: addTournamentPlayer, deletePlayer: deleteTournamentPlayer, addPlayersFromGlobal } = useTournamentLocalPlayers(id ?? null);
   const { teams, setTeamsBulk } = useTeams(id ?? null);
@@ -269,6 +269,8 @@ export default function TournamentDetail() {
             teams={teams}
             setMatchesBulk={setMatchesBulk}
             updateMatch={updateMatch}
+            addMatch={addMatch}
+            deleteMatch={deleteMatch}
             updateTournament={updateTournament}
             referees={referees}
             courts={courts}
@@ -700,15 +702,60 @@ interface BracketTabProps {
   teams: Team[];
   setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
+  addMatch: (match: Omit<Match, 'id'>) => Promise<string | null>;
+  deleteMatch: (matchId: string) => Promise<void>;
   updateTournament: (data: Record<string, unknown>) => Promise<void>;
   referees: { id: string; name: string }[];
   courts: { id: string; name: string }[];
   isTeamType: boolean;
 }
 
-function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, updateTournament, referees, courts, isTeamType }: BracketTabProps) {
+function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, addMatch, deleteMatch, updateTournament, referees, courts, isTeamType }: BracketTabProps) {
   const [generating, setGenerating] = useState(false);
   const [groupAssignment, setGroupAssignment] = useState<StageGroup[]>([]);
+  const [groupEditWarning, setGroupEditWarning] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addPlayer1, setAddPlayer1] = useState('');
+  const [addPlayer2, setAddPlayer2] = useState('');
+  const [addGroupId, setAddGroupId] = useState('');
+  const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+  const [editPlayer1, setEditPlayer1] = useState('');
+  const [editPlayer2, setEditPlayer2] = useState('');
+
+  // Load saved group assignments from tournament stages
+  useEffect(() => {
+    const stages = toArray(tournament.stages);
+    const qualifying = stages.find(s => s.type === 'qualifying');
+    if (qualifying) {
+      const savedGroups = toArray(qualifying.groups);
+      if (savedGroups.length > 0) {
+        setGroupAssignment(savedGroups);
+      }
+    }
+  }, [tournament.stages]);
+
+  const handleMovePlayer = async (playerId: string, fromGroupId: string, toGroupId: string) => {
+    if (fromGroupId === toGroupId) return;
+    const updatedGroups = groupAssignment.map(g => {
+      if (g.id === fromGroupId) {
+        return { ...g, playerIds: g.playerIds.filter(pid => pid !== playerId) };
+      }
+      if (g.id === toGroupId) {
+        return { ...g, playerIds: [...g.playerIds, playerId] };
+      }
+      return g;
+    });
+    setGroupAssignment(updatedGroups);
+    setGroupEditWarning(true);
+
+    const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
+    if (qualifyingStage) {
+      const updatedStages = toArray(tournament.stages).map(s =>
+        s.id === qualifyingStage.id ? { ...s, groups: updatedGroups } : s
+      );
+      await updateTournament({ stages: updatedStages });
+    }
+  };
 
   const handleAutoGroupAssignment = async () => {
     const groupCount = tournament.qualifyingConfig?.groupCount || 2;
@@ -722,6 +769,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     }
 
     setGroupAssignment(groups);
+    setGroupEditWarning(false);
     if (qualifyingStage) {
       const updatedStages = toArray(tournament.stages).map(s =>
         s.id === qualifyingStage.id ? { ...s, groups } : s
@@ -823,21 +871,188 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     alert(`${unassigned.length}경기에 심판이 배정되었습니다.`);
   }, [matches, referees, updateMatch]);
 
+  const handleAddMatch = useCallback(async () => {
+    if (!addPlayer1 || !addPlayer2 || addPlayer1 === addPlayer2) return;
+    const now = Date.now();
+    const maxRound = matches.length > 0 ? Math.max(...matches.map(m => m.round ?? 0)) : 0;
+    if (isTeamType) {
+      const t1 = teams.find(t => t.id === addPlayer1);
+      const t2 = teams.find(t => t.id === addPlayer2);
+      if (!t1 || !t2) return;
+      await addMatch({
+        tournamentId: tournament.id,
+        type: 'team',
+        status: 'pending',
+        round: maxRound + 1,
+        team1Id: t1.id,
+        team2Id: t2.id,
+        team1Name: t1.name,
+        team2Name: t2.name,
+        team1: t1,
+        team2: t2,
+        sets: [createEmptySet()],
+        currentSet: 0,
+        player1Timeouts: 0,
+        player2Timeouts: 0,
+        winnerId: null,
+        createdAt: now,
+        ...(addGroupId ? { groupId: addGroupId } : {}),
+      });
+    } else {
+      const p1 = tournamentPlayers.find(p => p.id === addPlayer1);
+      const p2 = tournamentPlayers.find(p => p.id === addPlayer2);
+      if (!p1 || !p2) return;
+      await addMatch({
+        tournamentId: tournament.id,
+        type: 'individual',
+        status: 'pending',
+        round: maxRound + 1,
+        player1Id: p1.id,
+        player2Id: p2.id,
+        player1Name: p1.name,
+        player2Name: p2.name,
+        sets: [createEmptySet()],
+        currentSet: 0,
+        player1Timeouts: 0,
+        player2Timeouts: 0,
+        winnerId: null,
+        createdAt: now,
+        ...(addGroupId ? { groupId: addGroupId } : {}),
+      });
+    }
+    setAddPlayer1('');
+    setAddPlayer2('');
+    setAddGroupId('');
+    setShowAddForm(false);
+  }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, addMatch]);
+
+  const handleDeleteMatch = useCallback(async (matchId: string) => {
+    if (!confirm('이 경기를 삭제하시겠습니까?')) return;
+    await deleteMatch(matchId);
+  }, [deleteMatch]);
+
+  const openEditModal = useCallback((match: Match) => {
+    setEditingMatchId(match.id);
+    if (isTeamType) {
+      setEditPlayer1(match.team1Id ?? '');
+      setEditPlayer2(match.team2Id ?? '');
+    } else {
+      setEditPlayer1(match.player1Id ?? '');
+      setEditPlayer2(match.player2Id ?? '');
+    }
+  }, [isTeamType]);
+
+  const handleEditMatch = useCallback(async () => {
+    if (!editingMatchId || !editPlayer1 || !editPlayer2 || editPlayer1 === editPlayer2) return;
+    if (isTeamType) {
+      const t1 = teams.find(t => t.id === editPlayer1);
+      const t2 = teams.find(t => t.id === editPlayer2);
+      if (!t1 || !t2) return;
+      await updateMatch(editingMatchId, {
+        team1Id: t1.id,
+        team2Id: t2.id,
+        team1Name: t1.name,
+        team2Name: t2.name,
+        team1: t1,
+        team2: t2,
+      });
+    } else {
+      const p1 = tournamentPlayers.find(p => p.id === editPlayer1);
+      const p2 = tournamentPlayers.find(p => p.id === editPlayer2);
+      if (!p1 || !p2) return;
+      await updateMatch(editingMatchId, {
+        player1Id: p1.id,
+        player2Id: p2.id,
+        player1Name: p1.name,
+        player2Name: p2.name,
+      });
+    }
+    setEditingMatchId(null);
+  }, [editingMatchId, editPlayer1, editPlayer2, isTeamType, teams, tournamentPlayers, updateMatch]);
+
+  const handleSwapRound = useCallback(async (matchId: string, direction: 'up' | 'down') => {
+    const sorted = [...matches].sort((a, b) => (a.round ?? 0) - (b.round ?? 0));
+    const idx = sorted.findIndex(m => m.id === matchId);
+    if (idx < 0) return;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    const currentMatch = sorted[idx];
+    const targetMatch = sorted[targetIdx];
+    await Promise.all([
+      updateMatch(currentMatch.id, { round: targetMatch.round }),
+      updateMatch(targetMatch.id, { round: currentMatch.round }),
+    ]);
+  }, [matches, updateMatch]);
+
   const canGenerate = isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2;
+  const selectOptions = isTeamType
+    ? teams.map(t => ({ id: t.id, name: t.name }))
+    : tournamentPlayers.map(p => ({ id: p.id, name: p.name }));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-xl font-bold">대진표</h2>
-        <button
-          className="btn btn-accent"
-          onClick={generateBracket}
-          disabled={generating || !canGenerate}
-          aria-label="대진표 자동 생성"
-        >
-          {generating ? '생성 중...' : '대진표 자동 생성'}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            className="btn btn-accent"
+            onClick={generateBracket}
+            disabled={generating || !canGenerate}
+            aria-label="대진표 자동 생성"
+          >
+            {generating ? '생성 중...' : '대진표 자동 생성'}
+          </button>
+          <button
+            className="btn btn-success"
+            onClick={() => setShowAddForm(v => !v)}
+            aria-label="경기 추가"
+          >
+            경기 추가
+          </button>
+        </div>
       </div>
+
+      {/* 경기 추가 폼 */}
+      {showAddForm && (
+        <div className="card space-y-3 border-green-600">
+          <h3 className="font-bold text-green-400">경기 추가</h3>
+          <div className="flex gap-3 flex-wrap items-end">
+            <div className="flex-1 min-w-40">
+              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
+              <select className="input w-full" value={addPlayer1} onChange={e => setAddPlayer1(e.target.value)} aria-label={isTeamType ? '팀 1 선택' : '선수 1 선택'}>
+                <option value="">선택</option>
+                {selectOptions.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-40">
+              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
+              <select className="input w-full" value={addPlayer2} onChange={e => setAddPlayer2(e.target.value)} aria-label={isTeamType ? '팀 2 선택' : '선수 2 선택'}>
+                <option value="">선택</option>
+                {selectOptions.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-32">
+              <label className="block text-sm text-gray-400 mb-1">조 ID (선택)</label>
+              <input className="input w-full" value={addGroupId} onChange={e => setAddGroupId(e.target.value)} placeholder="예: group_1" aria-label="조 ID" />
+            </div>
+            <button
+              className="btn btn-success"
+              onClick={handleAddMatch}
+              disabled={!addPlayer1 || !addPlayer2 || addPlayer1 === addPlayer2}
+              aria-label="추가"
+            >
+              추가
+            </button>
+          </div>
+          {addPlayer1 && addPlayer2 && addPlayer1 === addPlayer2 && (
+            <p className="text-red-400 text-sm">같은 선수/팀을 선택할 수 없습니다.</p>
+          )}
+        </div>
+      )}
 
       {/* 조 편성 (조별 예선이 있을 때) */}
       {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
@@ -848,27 +1063,64 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           </button>
 
           {/* 편성 결과 표시 */}
-          {groupAssignment.length > 0 && (
-            <div className="grid grid-cols-2 gap-4">
-              {groupAssignment.map(group => (
-                <div key={group.id} className="bg-gray-800 rounded p-3">
-                  <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name}</h4>
-                  <ul className="space-y-1">
-                    {group.playerIds.map((pid) => {
-                      const player = tournamentPlayers.find(p => p.id === pid);
-                      const seedNum = toArray(tournament.seeds).findIndex(s => s.playerId === pid) + 1;
-                      return (
-                        <li key={pid} className="text-sm text-gray-300 flex items-center gap-2">
-                          {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
-                          {player?.name || pid}
-                        </li>
-                      );
-                    })}
-                  </ul>
+          {groupAssignment.length > 0 && (() => {
+            const sizes = groupAssignment.map(g => g.playerIds.length);
+            const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length;
+            const isUnbalanced = sizes.some(s => Math.abs(s - avgSize) > 1);
+            return (
+              <>
+                {/* Group size summary */}
+                <div className={`text-sm px-3 py-2 rounded ${isUnbalanced ? 'bg-yellow-900/50 border border-yellow-600 text-yellow-300' : 'bg-gray-700 text-gray-300'}`}>
+                  {groupAssignment.map((g, i) => (
+                    <span key={g.id}>
+                      {i > 0 && ' | '}
+                      <span className={sizes[i] !== Math.round(avgSize) && isUnbalanced ? 'text-yellow-400 font-bold' : ''}>
+                        {g.name} ({sizes[i]}명)
+                      </span>
+                    </span>
+                  ))}
+                  {isUnbalanced && <span className="ml-2 text-yellow-400"> -- 조별 인원이 불균형합니다</span>}
                 </div>
-              ))}
-            </div>
-          )}
+
+                {/* Warning after manual edit */}
+                {groupEditWarning && (
+                  <div className="text-sm px-3 py-2 rounded bg-orange-900/50 border border-orange-600 text-orange-300">
+                    조 편성이 수동으로 변경되었습니다. 대진표를 다시 생성해야 변경 사항이 반영됩니다.
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  {groupAssignment.map(group => (
+                    <div key={group.id} className="bg-gray-800 rounded p-3">
+                      <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name} ({group.playerIds.length}명)</h4>
+                      <ul className="space-y-1">
+                        {group.playerIds.map((pid) => {
+                          const player = tournamentPlayers.find(p => p.id === pid);
+                          const seedNum = toArray(tournament.seeds).findIndex(s => s.playerId === pid) + 1;
+                          return (
+                            <li key={pid} className="text-sm text-gray-300 flex items-center gap-2">
+                              {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
+                              <span className="flex-1">{player?.name || pid}</span>
+                              <select
+                                className="bg-gray-700 text-gray-200 text-xs rounded px-1 py-0.5 border border-gray-600"
+                                value={group.id}
+                                onChange={e => handleMovePlayer(pid, group.id, e.target.value)}
+                                aria-label={`${player?.name || pid} 조 이동`}
+                              >
+                                {groupAssignment.map(g => (
+                                  <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                              </select>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -899,10 +1151,29 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         </div>
       ) : (
         <div className="space-y-3">
-          {matches.map(match => (
+          {matches.map((match, matchIdx) => (
             <div key={match.id} className="card space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
+                  {/* Reorder buttons */}
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-30"
+                      onClick={() => handleSwapRound(match.id, 'up')}
+                      disabled={matchIdx === 0}
+                      aria-label="순서 위로"
+                    >
+                      &uarr;
+                    </button>
+                    <button
+                      className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-30"
+                      onClick={() => handleSwapRound(match.id, 'down')}
+                      disabled={matchIdx === matches.length - 1}
+                      aria-label="순서 아래로"
+                    >
+                      &darr;
+                    </button>
+                  </div>
                   <span className="text-gray-400 text-sm">R{match.round}</span>
                   <span className="font-bold text-lg">
                     {match.type === 'individual'
@@ -910,9 +1181,29 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                       : `${match.team1Name ?? '?'} vs ${match.team2Name ?? '?'}`}
                   </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                  {STATUS_LABELS[match.status]}
-                </span>
+                <div className="flex items-center gap-2">
+                  {match.status === 'pending' && (
+                    <button
+                      className="text-xs text-blue-400 hover:text-blue-300 border border-blue-600 rounded px-2 py-1"
+                      onClick={() => openEditModal(match)}
+                      aria-label="경기 수정"
+                    >
+                      수정
+                    </button>
+                  )}
+                  {match.status === 'pending' && (
+                    <button
+                      className="text-red-500 hover:text-red-400 font-bold text-lg leading-none px-1"
+                      onClick={() => handleDeleteMatch(match.id)}
+                      aria-label="경기 삭제"
+                    >
+                      &times;
+                    </button>
+                  )}
+                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
+                    {STATUS_LABELS[match.status]}
+                  </span>
+                </div>
               </div>
 
               <div className="flex gap-3 flex-wrap">
@@ -949,6 +1240,47 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           ))}
         </div>
       )}
+
+      {/* 경기 수정 모달 */}
+      {editingMatchId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingMatchId(null)}>
+          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4 border border-gray-700" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-yellow-400">경기 수정</h3>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
+              <select className="input w-full" value={editPlayer1} onChange={e => setEditPlayer1(e.target.value)} aria-label={isTeamType ? '팀 1 변경' : '선수 1 변경'}>
+                <option value="">선택</option>
+                {selectOptions.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
+              <select className="input w-full" value={editPlayer2} onChange={e => setEditPlayer2(e.target.value)} aria-label={isTeamType ? '팀 2 변경' : '선수 2 변경'}>
+                <option value="">선택</option>
+                {selectOptions.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+            {editPlayer1 && editPlayer2 && editPlayer1 === editPlayer2 && (
+              <p className="text-red-400 text-sm">같은 선수/팀을 선택할 수 없습니다.</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button className="btn btn-secondary" onClick={() => setEditingMatchId(null)} aria-label="취소">취소</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleEditMatch}
+                disabled={!editPlayer1 || !editPlayer2 || editPlayer1 === editPlayer2}
+                aria-label="저장"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -970,6 +1302,98 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
   const [generating, setGenerating] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [onlyUnassigned, setOnlyUnassigned] = useState(false);
+
+  // Manual schedule editing state
+  const [manualEdits, setManualEdits] = useState<Record<string, { scheduledDate: string; scheduledTime: string; courtId: string; courtName: string }>>({});
+  const [savingMatchId, setSavingMatchId] = useState<string | null>(null);
+  const [resettingSchedule, setResettingSchedule] = useState(false);
+
+  const getManualEdit = (match: Match) => {
+    if (manualEdits[match.id]) return manualEdits[match.id];
+    return {
+      scheduledDate: match.scheduledDate || '',
+      scheduledTime: match.scheduledTime || '',
+      courtId: match.courtId || '',
+      courtName: match.courtName || '',
+    };
+  };
+
+  const setManualEdit = (matchId: string, field: string, value: string) => {
+    setManualEdits(prev => {
+      const current = prev[matchId] || {
+        scheduledDate: matches.find(m => m.id === matchId)?.scheduledDate || '',
+        scheduledTime: matches.find(m => m.id === matchId)?.scheduledTime || '',
+        courtId: matches.find(m => m.id === matchId)?.courtId || '',
+        courtName: matches.find(m => m.id === matchId)?.courtName || '',
+      };
+      if (field === 'courtId') {
+        const court = courts.find(c => c.id === value);
+        return { ...prev, [matchId]: { ...current, courtId: value, courtName: court?.name || '' } };
+      }
+      return { ...prev, [matchId]: { ...current, [field]: value } };
+    });
+  };
+
+  const handleSaveManualEdit = useCallback(async (matchId: string) => {
+    const edit = manualEdits[matchId];
+    if (!edit) return;
+    setSavingMatchId(matchId);
+    try {
+      await updateMatch(matchId, {
+        scheduledDate: edit.scheduledDate || undefined,
+        scheduledTime: edit.scheduledTime || undefined,
+        courtId: edit.courtId || undefined,
+        courtName: edit.courtName || undefined,
+      });
+      const existingSlots = schedule.map(s => {
+        if (s.matchId === matchId) {
+          return { matchId: s.matchId, courtId: edit.courtId || s.courtId, courtName: edit.courtName || s.courtName, scheduledTime: edit.scheduledTime || s.scheduledTime, scheduledDate: edit.scheduledDate || s.scheduledDate, label: s.label, status: s.status };
+        }
+        return { matchId: s.matchId, courtId: s.courtId, courtName: s.courtName, scheduledTime: s.scheduledTime, scheduledDate: s.scheduledDate, label: s.label, status: s.status };
+      });
+      if (!schedule.find(s => s.matchId === matchId)) {
+        const match = matches.find(m => m.id === matchId);
+        if (match && edit.scheduledTime) {
+          const label = match.type === 'individual'
+            ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
+            : `${match.team1Name ?? ''} vs ${match.team2Name ?? ''}`;
+          existingSlots.push({ matchId, courtId: edit.courtId, courtName: edit.courtName, scheduledTime: edit.scheduledTime, scheduledDate: edit.scheduledDate, label, status: match.status });
+        }
+      }
+      await setScheduleBulk(existingSlots);
+      setManualEdits(prev => { const next = { ...prev }; delete next[matchId]; return next; });
+    } finally {
+      setSavingMatchId(null);
+    }
+  }, [manualEdits, matches, schedule, setScheduleBulk, updateMatch]);
+
+  const handleResetSchedule = useCallback(async () => {
+    if (!confirm('모든 경기의 스케줄(날짜, 시간)을 초기화하시겠습니까?')) return;
+    setResettingSchedule(true);
+    try {
+      for (const match of matches) {
+        if (match.scheduledDate || match.scheduledTime) {
+          await updateMatch(match.id, { scheduledDate: undefined, scheduledTime: undefined, courtId: undefined, courtName: undefined });
+        }
+      }
+      await setScheduleBulk([]);
+      setManualEdits({});
+    } finally {
+      setResettingSchedule(false);
+    }
+  }, [matches, updateMatch, setScheduleBulk]);
+
+  const sortedMatches = useMemo(() => {
+    return [...matches].sort((a, b) => {
+      const dateA = a.scheduledDate || '';
+      const dateB = b.scheduledDate || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.scheduledTime || '';
+      const timeB = b.scheduledTime || '';
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+      return (a.round || 0) - (b.round || 0);
+    });
+  }, [matches]);
 
   const generateSchedule = useCallback(async () => {
     if (courts.length === 0 || matches.length === 0) return;
@@ -1165,6 +1589,95 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Manual schedule editing */}
+      {matches.length > 0 && (
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-xl font-bold">개별 경기 스케줄</h2>
+            <button
+              className="btn bg-red-700 hover:bg-red-600 text-white"
+              onClick={handleResetSchedule}
+              disabled={resettingSchedule || matches.length === 0}
+              aria-label="스케줄 초기화"
+            >
+              {resettingSchedule ? '초기화 중...' : '스케줄 초기화'}
+            </button>
+          </div>
+          <div className="space-y-3">
+            {sortedMatches.map(match => {
+              const edit = getManualEdit(match);
+              const matchLabel = match.type === 'individual'
+                ? `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`
+                : `${match.team1Name ?? '?'} vs ${match.team2Name ?? '?'}`;
+              const hasEdits = !!manualEdits[match.id];
+              return (
+                <div key={match.id} className="bg-gray-800 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs">R{match.round}</span>
+                      <span className="font-semibold text-sm">{matchLabel}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[match.status]}`}>
+                        {STATUS_LABELS[match.status]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                      {match.scheduledDate && <span>{match.scheduledDate}</span>}
+                      {match.scheduledTime && <span>{match.scheduledTime}</span>}
+                      {match.courtName && <span>/ {match.courtName}</span>}
+                      {!match.scheduledDate && !match.scheduledTime && <span className="text-gray-600">미배정</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-3 flex-wrap items-end">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">날짜</label>
+                      <input
+                        type="date"
+                        className="input text-sm"
+                        value={edit.scheduledDate}
+                        onChange={e => setManualEdit(match.id, 'scheduledDate', e.target.value)}
+                        aria-label={`${matchLabel} 날짜`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">시간</label>
+                      <input
+                        type="time"
+                        className="input text-sm"
+                        value={edit.scheduledTime}
+                        onChange={e => setManualEdit(match.id, 'scheduledTime', e.target.value)}
+                        aria-label={`${matchLabel} 시간`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">경기장</label>
+                      <select
+                        className="input text-sm"
+                        value={edit.courtId}
+                        onChange={e => setManualEdit(match.id, 'courtId', e.target.value)}
+                        aria-label={`${matchLabel} 경기장`}
+                      >
+                        <option value="">미배정</option>
+                        {courts.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      className="btn btn-accent text-sm px-4 py-2"
+                      onClick={() => handleSaveManualEdit(match.id)}
+                      disabled={!hasEdits || savingMatchId === match.id}
+                      aria-label={`${matchLabel} 스케줄 저장`}
+                    >
+                      {savingMatchId === match.id ? '저장 중...' : '저장'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
