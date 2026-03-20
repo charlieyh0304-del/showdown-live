@@ -1316,7 +1316,7 @@ function TournamentResultsSummary({
       }
     });
 
-    return { top3, totalMatches, completedCount, totalSets, highestMatch, isFinished };
+    return { top3, totalMatches, completedCount, totalSets, highestMatch: highestMatch as { name: string; totalPoints: number } | null, isFinished };
   }, [matches, tournamentType]);
 
   if (summary.top3.length === 0) return null;
