@@ -18,8 +18,6 @@ import type { SetScore, ScoreActionType } from '@shared/types';
 import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
-import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import TimerModal from '../../components/TimerModal';
 import SetGroupedHistory from '../../components/SetGroupedHistory';
 import ActionToast from '../../components/ActionToast';
@@ -29,7 +27,7 @@ export default function PracticeScoring() {
   const [searchParams] = useSearchParams();
   const { addSession } = usePracticeHistory();
   const { canAct } = useDoubleClickGuard();
-  const audio = useAudioFeedback();
+
 
   const matchType = (searchParams.get('type') || 'individual') as 'individual' | 'team';
   const p1Name = searchParams.get('p1') || '연습선수A';
@@ -197,8 +195,6 @@ export default function PracticeScoring() {
     );
 
     addAction({ type: 'score', player: actingPlayer, detail: `${label} (${points}점)` });
-    audio.scoreUp();
-    vibrate(hapticPatterns.scoreUp);
     setScoreFlash(f => f + 1);
 
     const pName = scoringPlayer === 1 ? p1Name : p2Name;
@@ -260,7 +256,7 @@ export default function PracticeScoring() {
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
     });
-  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer, audio]);
+  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(() => {
@@ -273,8 +269,6 @@ export default function PracticeScoring() {
       updateMatch({
         sets, status: 'completed', winnerId, completedAt: Date.now(),
       });
-      audio.matchComplete();
-      vibrate(hapticPatterns.matchComplete);
       addSession({
         id: crypto.randomUUID(),
         date: Date.now(),
@@ -285,8 +279,6 @@ export default function PracticeScoring() {
         finalScore: sets.map(s => `${s.player1Score}-${s.player2Score}`).join(', '),
       });
     } else {
-      audio.setComplete();
-      vibrate(hapticPatterns.setComplete);
       sets.push(createEmptySet());
       updateMatch({
         sets, currentSet: ci + 1,
@@ -295,7 +287,7 @@ export default function PracticeScoring() {
       });
     }
     setShowSetEndConfirm(false);
-  }, [match, config, updateMatch, matchType, audio, addSession]);
+  }, [match, config, updateMatch, matchType, addSession]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);

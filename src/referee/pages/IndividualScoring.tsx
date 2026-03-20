@@ -13,9 +13,7 @@ import {
   createScoreHistoryEntry,
   getMaxServes,
 } from '@shared/utils/scoring';
-import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
-import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
@@ -31,7 +29,7 @@ export default function IndividualScoring() {
   const navigate = useNavigate();
   const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
   const { tournament } = useTournament(tournamentId ?? null);
-  const audio = useAudioFeedback();
+
   const { canAct } = useDoubleClickGuard();
 
   const [announcement, setAnnouncement] = useState('');
@@ -249,8 +247,6 @@ export default function IndividualScoring() {
       currentServe, serveCount, 'individual',
     );
 
-    audio.scoreUp();
-    vibrate(hapticPatterns.scoreUp);
     setScoreFlash(f => f + 1);
 
     const pName = scoringPlayer === 1 ? p1Name : p2Name;
@@ -314,7 +310,7 @@ export default function IndividualScoring() {
       scoreHistory: newHistory,
     });
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, gameConfig, updateMatch, audio, canAct, sideChangeTimer, tournamentId]);
+  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(async () => {
@@ -325,13 +321,9 @@ export default function IndividualScoring() {
     const matchWinner = checkMatchWinner(sets, gameConfig);
     if (matchWinner) {
       const winnerId = matchWinner === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
-      audio.matchComplete();
-      vibrate(hapticPatterns.matchComplete);
       await updateMatch({ sets, status: 'completed', winnerId });
       if (tournamentId) autoBackupToLocal(tournamentId);
     } else {
-      audio.setComplete();
-      vibrate(hapticPatterns.setComplete);
       sets.push(createEmptySet());
       await updateMatch({
         sets, currentSet: ci + 1,
@@ -340,7 +332,7 @@ export default function IndividualScoring() {
       });
     }
     setShowSetEndConfirm(false);
-  }, [match, gameConfig, updateMatch, audio, tournamentId]);
+  }, [match, gameConfig, updateMatch, tournamentId]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);

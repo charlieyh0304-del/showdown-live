@@ -15,9 +15,7 @@ import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
-import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
-import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
@@ -39,8 +37,6 @@ export default function TeamMatchScoring() {
     ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
     : DEFAULT_TEAM_CONFIG;
   const { canAct } = useDoubleClickGuard();
-  const audio = useAudioFeedback();
-
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
@@ -285,18 +281,12 @@ export default function TeamMatchScoring() {
       `${tName} ${points}점. 스코어 ${serverScore} 대 ${receiverScore}. ${nextServerName} ${nextCount + 1}번째 서브`
     );
 
-    // Audio & haptic feedback (GAP-12)
-    audio.scoreUp();
-    vibrate(hapticPatterns.scoreUp);
-
     // Winner check
     const setWinner = checkSetWinner(cs.player1Score, cs.player2Score, gameConfig);
     if (setWinner) {
       const winnerId = setWinner === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
       cs.winnerId = winnerId;
       sets[0] = cs;
-      audio.matchComplete();
-      vibrate(hapticPatterns.matchComplete);
       await updateMatch({
         sets, status: 'completed', winnerId,
         currentServe: nextServe, serveCount: nextCount,
@@ -322,7 +312,7 @@ export default function TeamMatchScoring() {
       scoreHistory: newHistory,
     });
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, audio, tournamentId]);
+  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId]);
 
   // Undo (GAP-10: include serve info in announce)
   const handleUndo = useCallback(async () => {
