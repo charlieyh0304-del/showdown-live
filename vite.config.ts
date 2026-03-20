@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
 
 export default defineConfig({
-        base: process.env.DEPLOY_TARGET === 'github' ? '/showdown-test/' : '/',
+        base: process.env.DEPLOY_TARGET === 'github' ? '/showdown-live/' : '/',
   plugins: [
     react(),
     VitePWA({

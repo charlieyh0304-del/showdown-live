@@ -19,7 +19,10 @@
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
       "Bash(./node_modules/.bin/tsc --noEmit 2>&1 | head -60)",
-      "WebFetch(domain:ibsasport.org)"
+      "WebFetch(domain:ibsasport.org)",
+      "WebSearch",
+      "Bash(git -C \".claude/worktrees/agent-a25b9be3\" diff -- src/admin/components/tournament-create/WizardSte1)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
