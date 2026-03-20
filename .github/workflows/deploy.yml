@@ -29,7 +29,7 @@ jobs:
 
       - run: npm ci
 
-      - run: npx vite build --mode development
+      - run: npm run build
         env:
           DEPLOY_TARGET: github
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

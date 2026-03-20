@@ -385,6 +385,8 @@ export default function IndividualScoring() {
     }
   }, [match]);
 
+  console.log('[DEBUG-1] matchLoading:', matchLoading, 'match:', !!match, 'match?.status:', match?.status);
+
   if (matchLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -402,11 +404,16 @@ export default function IndividualScoring() {
     );
   }
 
+  console.log('[DEBUG-2] match.sets:', JSON.stringify(match.sets), 'type:', typeof match.sets, 'isArray:', Array.isArray(match.sets));
+  console.log('[DEBUG-3] match keys:', Object.keys(match).join(', '));
+
   const player1Name = match.player1Name ?? '선수1';
   const player2Name = match.player2Name ?? '선수2';
 
+  console.log('[DEBUG-4] before pending check, status:', match.status);
   // ===== PENDING: serve selection =====
   if (match.status === 'pending') {
+    console.log('[DEBUG-5] rendering pending UI');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
         <h1 className="text-3xl font-bold text-yellow-400">경기 준비</h1>
@@ -434,6 +441,7 @@ export default function IndividualScoring() {
     );
   }
 
+  console.log('[DEBUG-6] before completed check');
   // ===== COMPLETED =====
   if (match.status === 'completed') {
     const winnerName = match.winnerId === match.player1Id ? player1Name : player2Name;
@@ -465,6 +473,7 @@ export default function IndividualScoring() {
     );
   }
 
+  console.log('[DEBUG-7] in_progress section reached');
   // ===== IN_PROGRESS =====
   const sets = Array.isArray(match.sets) && match.sets.length > 0 ? match.sets : [createEmptySet()];
   const currentSetIndex = match.currentSet ?? 0;
