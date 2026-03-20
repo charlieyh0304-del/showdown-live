@@ -1609,19 +1609,86 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         ? matches.filter(m => (m.status === 'pending' || m.status === 'in_progress') && !m.scheduledDate)
         : matches.filter(m => m.status === 'pending' || m.status === 'in_progress');
       const newSlots: Omit<ScheduleSlot, 'id'>[] = [];
-      const courtSlots = courts.map(c => ({ courtId: c.id, courtName: c.name, nextTime: startTime }));
 
-      const addMinutes = (time: string, mins: number): string => {
-        const [h, m] = time.split(':').map(Number);
-        const total = h * 60 + m + mins;
-        const hh = Math.floor(total / 60).toString().padStart(2, '0');
-        const mm = (total % 60).toString().padStart(2, '0');
+      // Track per-court: { courtId, courtName, date, timeMinutes }
+      const courtSlots = courts.map(c => {
+        const [h, m] = startTime.split(':').map(Number);
+        return { courtId: c.id, courtName: c.name, date: scheduleDate, timeMinutes: h * 60 + m };
+      });
+
+      // Track per-player last end time: { date, timeMinutes }
+      const playerLastEnd = new Map<string, { date: string; time: number }>();
+
+      const getPlayerIds = (match: Match): string[] => {
+        const ids: string[] = [];
+        if (match.player1Id) ids.push(match.player1Id);
+        if (match.player2Id) ids.push(match.player2Id);
+        if (match.team1Id) ids.push(match.team1Id);
+        if (match.team2Id) ids.push(match.team2Id);
+        return ids;
+      };
+
+      const dayStartMinutes = (() => { const [h, m] = startTime.split(':').map(Number); return h * 60 + m; })();
+      const dayEndMinutes = 23 * 60; // 23:00 이후에는 다음날로
+
+      const formatTime = (minutes: number): string => {
+        const hh = Math.floor(minutes / 60).toString().padStart(2, '0');
+        const mm = (minutes % 60).toString().padStart(2, '0');
         return `${hh}:${mm}`;
       };
 
+      const addDays = (dateStr: string, days: number): string => {
+        const d = new Date(dateStr);
+        d.setDate(d.getDate() + days);
+        return d.toISOString().split('T')[0];
+      };
+
       for (const match of targetMatches) {
-        courtSlots.sort((a, b) => a.nextTime.localeCompare(b.nextTime));
-        const court = courtSlots[0];
+        const playerIds = getPlayerIds(match);
+
+        // Find the earliest time this match can start:
+        // 1. Court must be free
+        // 2. Both players must have rested (interval minutes since their last match)
+        let bestCourtIdx = 0;
+        let bestDate = scheduleDate;
+        let bestTime = Infinity;
+
+        for (let ci = 0; ci < courtSlots.length; ci++) {
+          const court = courtSlots[ci];
+          let candidateDate = court.date;
+          let candidateTime = court.timeMinutes;
+
+          // Check player rest time
+          for (const pid of playerIds) {
+            const last = playerLastEnd.get(pid);
+            if (last) {
+              if (last.date === candidateDate && last.time > candidateTime) {
+                candidateTime = last.time;
+              } else if (last.date > candidateDate) {
+                candidateDate = last.date;
+                candidateTime = Math.max(dayStartMinutes, last.time);
+              }
+            }
+          }
+
+          // Compare: prefer earliest date+time
+          const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
+          const bestTotal = new Date(bestDate).getTime() + bestTime;
+          if (ci === 0 || candidateTotal < bestTotal) {
+            bestCourtIdx = ci;
+            bestDate = candidateDate;
+            bestTime = candidateTime;
+          }
+        }
+
+        // If past day end, roll to next day
+        if (bestTime >= dayEndMinutes) {
+          bestDate = addDays(bestDate, 1);
+          bestTime = dayStartMinutes;
+        }
+
+        const court = courtSlots[bestCourtIdx];
+        const timeStr = formatTime(bestTime);
 
         const label = match.type === 'individual'
           ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
@@ -1631,20 +1698,29 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
           matchId: match.id,
           courtId: court.courtId,
           courtName: court.courtName,
-          scheduledTime: court.nextTime,
-          scheduledDate: scheduleDate,
+          scheduledTime: timeStr,
+          scheduledDate: bestDate,
           label,
           status: match.status,
         });
 
         await updateMatch(match.id, {
-          scheduledTime: court.nextTime,
-          scheduledDate: scheduleDate,
+          scheduledTime: timeStr,
+          scheduledDate: bestDate,
           courtId: court.courtId,
           courtName: court.courtName,
         });
 
-        court.nextTime = addMinutes(court.nextTime, interval);
+        // Update court next available time
+        const endTime = bestTime + interval;
+        court.date = bestDate;
+        court.timeMinutes = endTime >= dayEndMinutes ? (court.date = addDays(bestDate, 1), dayStartMinutes) : endTime;
+
+        // Update player last end time
+        const playerEnd = endTime >= dayEndMinutes ? { date: addDays(bestDate, 1), time: dayStartMinutes } : { date: bestDate, time: endTime };
+        for (const pid of playerIds) {
+          playerLastEnd.set(pid, playerEnd);
+        }
       }
 
       // If only assigning unassigned, keep existing schedule slots
