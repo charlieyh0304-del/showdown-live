@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
@@ -16,7 +16,6 @@ import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
-import { useKeyboardShortcuts } from '@shared/hooks/useKeyboardShortcuts';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
@@ -515,12 +514,18 @@ export default function TeamMatchScoring() {
   const team1Name = match?.team1Name ?? '팀1';
   const team2Name = match?.team2Name ?? '팀2';
 
-  const shortcuts = useMemo(() => ({
-    'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${team1Name} 골`),
-    'ArrowRight': () => handleIBSAScore(2, 'goal', 2, false, `${team2Name} 골`),
-    'KeyZ': () => handleUndo(),
-  }), [handleIBSAScore, handleUndo, team1Name, team2Name]);
-  useKeyboardShortcuts(shortcuts, match?.status === 'in_progress');
+  // Keyboard shortcuts - useEffect directly (useMemo + useKeyboardShortcuts causes React #310)
+  useEffect(() => {
+    if (match?.status !== 'in_progress') return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'ArrowLeft') { e.preventDefault(); handleIBSAScore(1, 'goal', 2, false, `${team1Name} 골`); }
+      if (e.code === 'ArrowRight') { e.preventDefault(); handleIBSAScore(2, 'goal', 2, false, `${team2Name} 골`); }
+      if (e.code === 'KeyZ') { e.preventDefault(); handleUndo(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [match?.status, handleIBSAScore, handleUndo, team1Name, team2Name]);
 
   if (matchLoading) {
     return <div className="flex items-center justify-center min-h-screen"><p className="text-2xl text-gray-400 animate-pulse">경기 로딩 중...</p></div>;
