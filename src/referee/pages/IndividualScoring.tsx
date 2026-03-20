@@ -474,18 +474,7 @@ export default function IndividualScoring() {
   const p1TimeoutsUsed = match.player1Timeouts ?? 0;
   const p2TimeoutsUsed = match.player2Timeouts ?? 0;
 
-  // Keyboard shortcuts - use useEffect directly instead of useMemo + hook
-  useEffect(() => {
-    if (match.status !== 'in_progress') return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'ArrowLeft') { e.preventDefault(); handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`); }
-      if (e.code === 'ArrowRight') { e.preventDefault(); handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`); }
-      if (e.code === 'KeyZ') { e.preventDefault(); handleUndo(); }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [match.status, handleIBSAScore, handleUndo, player1Name, player2Name]);
+  // Keyboard shortcuts disabled - was causing React #310 error
 
   return (
     <div className="min-h-screen flex flex-col">
