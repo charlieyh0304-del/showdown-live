@@ -120,6 +120,32 @@ function simulateScoreHistory(
         serveCount = 0;
       }
     }
+
+    // 세트당 랜덤으로 타임아웃 1회 삽입 (50% 확률)
+    if (Math.random() < 0.5) {
+      const timeoutCaller: 'player1' | 'player2' = Math.random() < 0.5 ? 'player1' : 'player2';
+      const callerName = timeoutCaller === 'player1' ? p1Name : p2Name;
+      // 세트 중간 정도에 삽입
+      const insertIdx = Math.floor(history.length / 2);
+      const refEntry = history[insertIdx] || history[history.length - 1];
+      const timeoutTime = refEntry
+        ? new Date(baseTime + setIdx * 10 * 60 * 1000 + Math.floor(entryIndex / 2) * 30000)
+        : new Date(baseTime + setIdx * 10 * 60 * 1000);
+
+      history.splice(insertIdx, 0, {
+        time: timeoutTime.toLocaleTimeString('ko-KR'),
+        scoringPlayer: callerName,
+        actionPlayer: callerName,
+        actionType: 'timeout',
+        actionLabel: `${callerName} 타임아웃`,
+        points: 0,
+        set: setIdx + 1,
+        server: server === 'player1' ? p1Name : p2Name,
+        serveNumber: serveCount + 1,
+        scoreBefore: refEntry ? refEntry.scoreAfter : { player1: 0, player2: 0 },
+        scoreAfter: refEntry ? refEntry.scoreAfter : { player1: 0, player2: 0 },
+      });
+    }
   }
 
   // 최신 기록이 앞에 오도록 역순 정렬

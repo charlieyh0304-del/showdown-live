@@ -1505,6 +1505,9 @@ interface ScheduleTabProps {
 function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }: ScheduleTabProps) {
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
+  const [endTime, setEndTime] = useState('23:00');
+  const [restInterval, setRestInterval] = useState(interval);
+  const [nextDayStartTime, setNextDayStartTime] = useState(startTime);
   const [generating, setGenerating] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [onlyUnassigned, setOnlyUnassigned] = useState(false);
@@ -1629,7 +1632,8 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
       };
 
       const dayStartMinutes = (() => { const [h, m] = startTime.split(':').map(Number); return h * 60 + m; })();
-      const dayEndMinutes = 23 * 60; // 23:00 이후에는 다음날로
+      const dayEndMinutes = (() => { const [h, m] = endTime.split(':').map(Number); return h * 60 + m; })();
+      const nextDayStart = (() => { const [h, m] = nextDayStartTime.split(':').map(Number); return h * 60 + m; })();
 
       const formatTime = (minutes: number): string => {
         const hh = Math.floor(minutes / 60).toString().padStart(2, '0');
@@ -1684,7 +1688,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         // If past day end, roll to next day
         if (bestTime >= dayEndMinutes) {
           bestDate = addDays(bestDate, 1);
-          bestTime = dayStartMinutes;
+          bestTime = nextDayStart;
         }
 
         const court = courtSlots[bestCourtIdx];
@@ -1712,12 +1716,13 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         });
 
         // Update court next available time
-        const endTime = bestTime + interval;
+        const courtEndTime = bestTime + interval;
         court.date = bestDate;
-        court.timeMinutes = endTime >= dayEndMinutes ? (court.date = addDays(bestDate, 1), dayStartMinutes) : endTime;
+        court.timeMinutes = courtEndTime >= dayEndMinutes ? (court.date = addDays(bestDate, 1), nextDayStart) : courtEndTime;
 
-        // Update player last end time
-        const playerEnd = endTime >= dayEndMinutes ? { date: addDays(bestDate, 1), time: dayStartMinutes } : { date: bestDate, time: endTime };
+        // Update player last end time (uses restInterval for player rest)
+        const playerEndTime = bestTime + restInterval;
+        const playerEnd = playerEndTime >= dayEndMinutes ? { date: addDays(bestDate, 1), time: nextDayStart } : { date: bestDate, time: playerEndTime };
         for (const pid of playerIds) {
           playerLastEnd.set(pid, playerEnd);
         }
@@ -1741,7 +1746,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
     } finally {
       setGenerating(false);
     }
-  }, [matches, courts, startTime, interval, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch]);
+  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch]);
 
   // Group schedule by date, then by time
   const dates = useMemo(() => {
@@ -1800,6 +1805,43 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
               min={10}
               max={120}
               aria-label="경기 간격"
+            />
+          </div>
+        </div>
+        <div className="flex gap-4 flex-wrap">
+          <div>
+            <label htmlFor="end-time" className="block text-sm text-gray-400 mb-1">마감 시간</label>
+            <input
+              id="end-time"
+              type="time"
+              className="input"
+              value={endTime}
+              onChange={e => setEndTime(e.target.value)}
+              aria-label="마감 시간"
+            />
+          </div>
+          <div>
+            <label htmlFor="rest-interval" className="block text-sm text-gray-400 mb-1">선수 휴식 시간 (분)</label>
+            <input
+              id="rest-interval"
+              type="number"
+              className="input"
+              value={restInterval}
+              onChange={e => setRestInterval(Number(e.target.value))}
+              min={10}
+              max={240}
+              aria-label="선수 휴식 시간"
+            />
+          </div>
+          <div>
+            <label htmlFor="next-day-start" className="block text-sm text-gray-400 mb-1">다음날 시작 시간</label>
+            <input
+              id="next-day-start"
+              type="time"
+              className="input"
+              value={nextDayStartTime}
+              onChange={e => setNextDayStartTime(e.target.value)}
+              aria-label="다음날 시작 시간"
             />
           </div>
         </div>
