@@ -47,8 +47,27 @@ export default function TournamentView() {
   const [activeTab, setActiveTab] = useState<TabId>('live');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const playerPanelRef = useRef<HTMLDivElement>(null);
+  const playerTriggerRef = useRef<HTMLElement | null>(null);
   const [stageFilter, setStageFilter] = useState<'all' | 'qualifying' | 'finals' | 'ranking'>('all');
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedPlayer && playerPanelRef.current) {
+      playerPanelRef.current.focus();
+    }
+    if (!selectedPlayer && playerTriggerRef.current) {
+      playerTriggerRef.current.focus();
+      playerTriggerRef.current = null;
+    }
+  }, [selectedPlayer]);
+
+  const handleSelectPlayer = useCallback((player: string | null) => {
+    if (player) {
+      playerTriggerRef.current = document.activeElement as HTMLElement;
+    }
+    setSelectedPlayer(player);
+  }, []);
 
   const stageMap = useMemo(() => {
     const qualifying = matches.filter(m => m.groupId || m.stageId?.includes('qualifying'));
@@ -206,7 +225,18 @@ export default function TournamentView() {
 
       {/* Player record panel */}
       {selectedPlayer && (
-        <div className="card" style={{ marginBottom: '1.5rem', border: '2px solid #facc15' }}>
+        <div
+          ref={playerPanelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-label={`${selectedPlayer} 경기 기록`}
+          aria-modal="true"
+          className="card"
+          style={{ marginBottom: '1.5rem', border: '2px solid #facc15', outline: 'none' }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') handleSelectPlayer(null);
+          }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{selectedPlayer} 경기 기록</h3>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -217,7 +247,7 @@ export default function TournamentView() {
               >
                 프로필
               </button>
-              <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => setSelectedPlayer(null)}>닫기</button>
+              <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => handleSelectPlayer(null)}>닫기</button>
             </div>
           </div>
           {playerStats && (() => {
@@ -230,9 +260,9 @@ export default function TournamentView() {
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승률</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22d3ee' }}>{playerStats.setsWon}-{playerStats.setsLost}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15' }}>{playerStats.pointsFor}-{playerStats.pointsAgainst}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>포인트 득실</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.pointsFor}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 득점</p></div>
+                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#22d3ee' }}><span style={{ color: '#22c55e' }}>{playerStats.setsWon}승</span> <span style={{ color: '#ef4444' }}>{playerStats.setsLost}패</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트</p></div>
+                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}><span style={{ color: '#facc15' }}>득 {playerStats.pointsFor}</span> <span style={{ color: '#9ca3af' }}>/</span> <span style={{ color: '#ef4444' }}>실 {playerStats.pointsAgainst}</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>포인트</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15' }}>+{playerStats.pointsFor - playerStats.pointsAgainst}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>득실차</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a78bfa' }}>{avgPoints}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>경기당 득점</p></div>
               </div>
             );
@@ -350,16 +380,16 @@ export default function TournamentView() {
           <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
         {activeTab === 'bracket' && (
-          <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={setSelectedPlayer} />
+          <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
         )}
         {activeTab === 'groups' && (
-          <GroupsTab matches={matches} onSelectPlayer={setSelectedPlayer} />
+          <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} />
         )}
         {activeTab === 'ranking' && (
-          <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={setSelectedPlayer} stageFilter={stageFilter} />
+          <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
         )}
         {activeTab === 'players' && (
-          <PlayersTab matches={matches} onSelectPlayer={setSelectedPlayer} />
+          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} />
         )}
         {activeTab === 'history' && (
           <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
@@ -1348,7 +1378,7 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>경기</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>승</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>패</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트득실</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트 승패</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>점수득실</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>득실차</th>
@@ -1388,7 +1418,7 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.played}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}>{r.wins}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{r.losses}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.setsWon}-{r.setsLost}</td>
+              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.setsWon}승 {r.setsLost}패</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
@@ -1909,7 +1939,7 @@ function IndividualRankingTable({
             <th scope="col" style={thStyle}>경기수</th>
             <th scope="col" style={thStyle}>승</th>
             <th scope="col" style={thStyle}>패</th>
-            <th scope="col" style={thStyle}>세트</th>
+            <th scope="col" style={thStyle}>세트 승패</th>
             <th scope="col" style={thStyle}>세트차</th>
             <th scope="col" style={thStyle}>포인트</th>
             <th scope="col" style={thStyle}>득실차</th>
@@ -1937,7 +1967,7 @@ function IndividualRankingTable({
               <td style={tdStyle}>{r.played}</td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}>{r.wins}</td>
               <td style={{ ...tdStyle, color: 'var(--color-danger)' }}>{r.losses}</td>
-              <td style={tdStyle}>{r.setsWon}/{r.setsLost}</td>
+              <td style={tdStyle}>{r.setsWon}승 {r.setsLost}패</td>
               <td style={{ ...tdStyle, color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>
               <td style={tdStyle}>{r.pointsFor}/{r.pointsAgainst}</td>
               <td style={{ ...tdStyle, color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
@@ -2052,8 +2082,8 @@ function PlayerMatchRow({
 }) {
   const isP1 = m.player1Name === selectedPlayer || m.team1Name === selectedPlayer;
   const opponentName = isP1
-    ? (m.player2Name || m.team2Name || '?')
-    : (m.player1Name || m.team1Name || '?');
+    ? (m.player2Name || m.team2Name || '상대 미정')
+    : (m.player1Name || m.team1Name || '상대 미정');
   const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
   const isWin = m.status === 'completed' && m.winnerId === myId;
   const isCompleted = m.status === 'completed';
@@ -2095,17 +2125,19 @@ function PlayerMatchRow({
         {/* Top line: win/loss, opponent, stage badge, navigate arrow */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 'bold' }}>vs {opponentName}</span>
             {isCompleted && (
               <span style={{
                 color: isWin ? '#22c55e' : '#ef4444',
                 fontWeight: 'bold',
-                fontSize: '0.875rem',
-                minWidth: '1.25rem',
+                fontSize: '0.75rem',
+                backgroundColor: isWin ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                padding: '0.125rem 0.5rem',
+                borderRadius: '0.25rem',
               }}>
-                {isWin ? '승' : '패'}
+                {isWin ? '승리' : '패배'}
               </span>
             )}
-            <span style={{ fontWeight: 'bold' }}>vs {opponentName}</span>
             {stageBadge && (
               <span style={{
                 fontSize: '0.6875rem',
@@ -2127,8 +2159,9 @@ function PlayerMatchRow({
             <button
               onClick={(e) => { e.stopPropagation(); navigate(`/spectator/match/${tournamentId}/${m.id}`); }}
               style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              aria-label={m.status === 'completed' ? `${opponentName} 경기 상세 보기` : `${opponentName} 경기 실시간 보기`}
             >
-              {m.status === 'completed' ? '상세 >' : '진행중 >'}
+              {m.status === 'completed' ? '경기 상세 보기' : '실시간 보기'}
             </button>
           </div>
         </div>
@@ -2161,7 +2194,7 @@ function PlayerMatchRow({
         {/* Total points summary */}
         {isCompleted && Array.isArray(m.sets) && m.sets.length > 0 && (
           <div style={{ color: '#9ca3af', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-            득 {matchPointsFor} - 실 {matchPointsAgainst}
+            득점 {matchPointsFor} / 실점 {matchPointsAgainst} (차이 {matchPointsFor - matchPointsAgainst > 0 ? '+' : ''}{matchPointsFor - matchPointsAgainst})
           </div>
         )}
       </div>
@@ -2316,7 +2349,7 @@ function PlayersTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                   {' '}
                   <span style={{ color: '#ef4444' }}>{p.losses}패</span>
                 </span>
-                <span style={{ color: '#9ca3af' }}>{p.setsWon}-{p.setsLost}</span>
+                <span style={{ color: '#9ca3af' }}>{p.setsWon}승 {p.setsLost}패</span>
               </div>
             </div>
           </button>
