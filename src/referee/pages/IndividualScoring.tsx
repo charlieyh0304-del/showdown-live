@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
@@ -14,7 +14,6 @@ import {
   getMaxServes,
 } from '@shared/utils/scoring';
 import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
-import { useKeyboardShortcuts } from '@shared/hooks/useKeyboardShortcuts';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { vibrate, hapticPatterns } from '@shared/utils/haptic';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
