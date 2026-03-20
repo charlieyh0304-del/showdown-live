@@ -369,6 +369,22 @@ export default function IndividualScoring() {
     await updateMatch(timeoutUpdate);
   }, [match, updateMatch]);
 
+  // Debug: log match data to help diagnose rendering errors
+  useEffect(() => {
+    if (match) {
+      console.log('[IndividualScoring] match loaded:', {
+        id: match.id,
+        status: match.status,
+        setsType: typeof match.sets,
+        setsIsArray: Array.isArray(match.sets),
+        sets: match.sets,
+        currentSet: match.currentSet,
+        player1Name: match.player1Name,
+        player2Name: match.player2Name,
+      });
+    }
+  }, [match]);
+
   if (matchLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
