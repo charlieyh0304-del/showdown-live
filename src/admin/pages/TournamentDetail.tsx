@@ -604,6 +604,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     className={`w-8 h-8 rounded-full text-sm font-bold ${
                       seedNum > 0 ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
                     }`}
+                    aria-label={seedNum > 0 ? `${player.name} 시드 ${seedNum} (해제하려면 클릭)` : `${player.name} 시드 지정`}
                     onClick={() => toggleSeed(player.id, player.name)}
                   >
                     {seedNum > 0 ? seedNum : '-'}

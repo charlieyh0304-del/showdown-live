@@ -627,22 +627,26 @@ export default function IndividualScoring() {
           <div className="space-y-2">
             {foulActions.map(action => (
               <div key={action.type} className="grid grid-cols-2 gap-2">
-                <button
-                  className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  disabled={!!match.activeTimeout || isPausedLocal}
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
-                >
-                  {player1Name} {action.label}<br/>
-                  <span className="text-xs opacity-75">→ {player2Name} +1점</span>
-                </button>
-                <button
-                  className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  disabled={!!match.activeTimeout || isPausedLocal}
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
-                >
-                  {player2Name} {action.label}<br/>
-                  <span className="text-xs opacity-75">→ {player1Name} +1점</span>
-                </button>
+                {(action.type !== 'irregular_serve' || currentServe === 'player1') ? (
+                  <button
+                    className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
+                    disabled={!!match.activeTimeout || isPausedLocal}
+                    onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
+                  >
+                    {player1Name} {action.label}<br/>
+                    <span className="text-xs opacity-75">→ {player2Name} +1점</span>
+                  </button>
+                ) : <div />}
+                {(action.type !== 'irregular_serve' || currentServe === 'player2') ? (
+                  <button
+                    className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
+                    disabled={!!match.activeTimeout || isPausedLocal}
+                    onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
+                  >
+                    {player2Name} {action.label}<br/>
+                    <span className="text-xs opacity-75">→ {player1Name} +1점</span>
+                  </button>
+                ) : <div />}
               </div>
             ))}
           </div>
