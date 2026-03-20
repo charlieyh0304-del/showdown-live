@@ -260,10 +260,10 @@ export default function TournamentView() {
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승률</p></div>
-                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#22d3ee' }}><span style={{ color: '#22c55e' }}>{playerStats.setsWon}승</span> <span style={{ color: '#ef4444' }}>{playerStats.setsLost}패</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트</p></div>
-                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}><span style={{ color: '#facc15' }}>득 {playerStats.pointsFor}</span> <span style={{ color: '#9ca3af' }}>/</span> <span style={{ color: '#ef4444' }}>실 {playerStats.pointsAgainst}</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>포인트</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15' }}>+{playerStats.pointsFor - playerStats.pointsAgainst}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>득실차</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a78bfa' }}>{avgPoints}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>경기당 득점</p></div>
+                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#22d3ee' }}><span style={{ color: '#22c55e' }}>{playerStats.setsWon}승</span> <span style={{ color: '#ef4444' }}>{playerStats.setsLost}패</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 세트 (전체 {completedCount}경기)</p></div>
+                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}><span style={{ color: '#facc15' }}>{playerStats.pointsFor}</span> <span style={{ color: '#9ca3af' }}>:</span> <span style={{ color: '#ef4444' }}>{playerStats.pointsAgainst}</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 포인트 (득:실)</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: playerStats.pointsFor - playerStats.pointsAgainst >= 0 ? '#22c55e' : '#ef4444' }}>{playerStats.pointsFor - playerStats.pointsAgainst > 0 ? '+' : ''}{playerStats.pointsFor - playerStats.pointsAgainst}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>포인트 득실차</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a78bfa' }}>{avgPoints}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>경기당 평균 득점</p></div>
               </div>
             );
           })()}
