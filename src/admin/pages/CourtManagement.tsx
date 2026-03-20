@@ -105,7 +105,8 @@ export default function CourtManagement() {
     }
   }, [closeModal]);
 
-  const getRefereeNames = useCallback((ids: string[]) => {
+  const getRefereeNames = useCallback((ids?: string[]) => {
+    if (!ids || ids.length === 0) return '';
     return ids.map(id => referees.find(r => r.id === id)?.name ?? '알 수 없음').join(', ');
   }, [referees]);
 
