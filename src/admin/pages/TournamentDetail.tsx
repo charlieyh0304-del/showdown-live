@@ -1145,6 +1145,207 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         </div>
       )}
 
+      {/* 본선 대진 편성 카드 */}
+      {(() => {
+        const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id;
+        const finalsMatches = matches.filter(m => m.stageId === finalsStageId || (m.stageId && m.stageId.includes('finals')));
+        if (finalsMatches.length === 0 || !finalsStageId) return null;
+
+        // Build advanced players list with group origin
+        const qualifyingGroups = (() => {
+          const qualifying = toArray(tournament.stages).find(s => s.type === 'qualifying');
+          return qualifying ? toArray(qualifying.groups) : [];
+        })();
+        const qualifyingMatches = matches.filter(m => m.groupId);
+        const groupIdToName = new Map<string, string>();
+        qualifyingGroups.forEach(g => { groupIdToName.set(g.id, g.name); });
+
+        // Determine which group each advanced player came from and their rank
+        const groupRankings = new Map<string, { groupId: string; groupName: string; rank: number }>();
+        const groupMap = new Map<string, typeof matches>();
+        qualifyingMatches.forEach(m => {
+          const gid = m.groupId!;
+          if (!groupMap.has(gid)) groupMap.set(gid, []);
+          groupMap.get(gid)!.push(m);
+        });
+
+        groupMap.forEach((gMatches, gid) => {
+          const stats = new Map<string, { wins: number; setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number }>();
+          gMatches.filter(m => m.status === 'completed').forEach(m => {
+            const p1 = m.player1Id || m.team1Id || '';
+            const p2 = m.player2Id || m.team2Id || '';
+            if (!stats.has(p1)) stats.set(p1, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+            if (!stats.has(p2)) stats.set(p2, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+            if (m.winnerId === p1) stats.get(p1)!.wins++;
+            else if (m.winnerId === p2) stats.get(p2)!.wins++;
+            (m.sets || []).forEach(s => {
+              stats.get(p1)!.pointsFor += s.player1Score;
+              stats.get(p1)!.pointsAgainst += s.player2Score;
+              stats.get(p2)!.pointsFor += s.player2Score;
+              stats.get(p2)!.pointsAgainst += s.player1Score;
+              if (s.player1Score > s.player2Score) { stats.get(p1)!.setsWon++; stats.get(p2)!.setsLost++; }
+              else { stats.get(p2)!.setsWon++; stats.get(p1)!.setsLost++; }
+            });
+          });
+          const sorted = Array.from(stats.entries())
+            .sort(([,a], [,b]) => b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst));
+          sorted.forEach(([id], idx) => {
+            groupRankings.set(id, { groupId: gid, groupName: groupIdToName.get(gid) || gid, rank: idx + 1 });
+          });
+        });
+
+        const idToName = new Map<string, string>();
+        tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
+        teams.forEach(t => idToName.set(t.id, t.name));
+
+        // All advanced player IDs from finals matches
+        const advancedIds = new Set<string>();
+        finalsMatches.forEach(m => {
+          const p1 = isTeamType ? m.team1Id : m.player1Id;
+          const p2 = isTeamType ? m.team2Id : m.player2Id;
+          if (p1) advancedIds.add(p1);
+          if (p2) advancedIds.add(p2);
+        });
+        const advancedList = Array.from(advancedIds);
+
+        const getLabel = (pid: string) => {
+          const info = groupRankings.get(pid);
+          const name = idToName.get(pid) || pid;
+          if (info) return `${info.groupName} ${info.rank}위: ${name}`;
+          return name;
+        };
+
+        const applyArrangement = async (mode: 'cross' | 'sequential' | 'random') => {
+          // Collect advanced with group info, sorted by group then rank
+          const withInfo = advancedList.map(id => ({ id, ...(groupRankings.get(id) || { groupId: '', groupName: '', rank: 0 }) }));
+          const groupIds = [...new Set(withInfo.map(w => w.groupId))].sort();
+          const byGroup = new Map<string, typeof withInfo>();
+          withInfo.forEach(w => {
+            if (!byGroup.has(w.groupId)) byGroup.set(w.groupId, []);
+            byGroup.get(w.groupId)!.push(w);
+          });
+          byGroup.forEach(arr => arr.sort((a, b) => a.rank - b.rank));
+
+          let pairs: [string, string][] = [];
+
+          if (mode === 'cross') {
+            // Cross: A1 vs B2, B1 vs A2, C1 vs D2, D1 vs C2
+            for (let i = 0; i < groupIds.length; i += 2) {
+              const gA = byGroup.get(groupIds[i]) || [];
+              const gB = byGroup.get(groupIds[i + 1] || groupIds[i]) || [];
+              if (gA[0] && gB[1]) pairs.push([gA[0].id, gB[1].id]);
+              if (gB[0] && gA[1]) pairs.push([gB[0].id, gA[1].id]);
+              // If more than 2 per group, pair remaining
+              for (let k = 2; k < Math.max(gA.length, gB.length); k++) {
+                if (gA[k] && gB[k]) pairs.push([gA[k].id, gB[k].id]);
+                else if (gA[k]) pairs.push([gA[k].id, gA[k].id]);
+              }
+            }
+          } else if (mode === 'sequential') {
+            // Sequential: A1 vs A2, B1 vs B2, ...
+            groupIds.forEach(gid => {
+              const arr = byGroup.get(gid) || [];
+              for (let k = 0; k < arr.length; k += 2) {
+                if (arr[k + 1]) pairs.push([arr[k].id, arr[k + 1].id]);
+              }
+            });
+          } else {
+            // Random: shuffle all then pair
+            const shuffled = [...advancedList].sort(() => Math.random() - 0.5);
+            for (let k = 0; k < shuffled.length; k += 2) {
+              if (shuffled[k + 1]) pairs.push([shuffled[k], shuffled[k + 1]]);
+            }
+          }
+
+          // Update existing finals matches with new pairings
+          const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+          for (let i = 0; i < Math.min(pairs.length, sortedFinals.length); i++) {
+            const [p1, p2] = pairs[i];
+            const matchData: Partial<Match> = isTeamType ? {
+              team1Id: p1, team2Id: p2,
+              team1Name: idToName.get(p1) || p1,
+              team2Name: idToName.get(p2) || p2,
+            } : {
+              player1Id: p1, player2Id: p2,
+              player1Name: idToName.get(p1) || p1,
+              player2Name: idToName.get(p2) || p2,
+            };
+            await updateMatch(sortedFinals[i].id, matchData);
+          }
+          alert('본선 대진이 변경되었습니다.');
+        };
+
+        const handleSlotChange = async (matchId: string, slot: 'player1' | 'player2', newId: string) => {
+          const name = idToName.get(newId) || newId;
+          const matchData: Partial<Match> = isTeamType
+            ? (slot === 'player1' ? { team1Id: newId, team1Name: name } : { team2Id: newId, team2Name: name })
+            : (slot === 'player1' ? { player1Id: newId, player1Name: name } : { player2Id: newId, player2Name: name });
+          await updateMatch(matchId, matchData);
+        };
+
+        const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+
+        return (
+          <div className="card space-y-4 border-yellow-600">
+            <h3 className="text-lg font-bold text-yellow-400">본선 대진 편성 (교차 편성 가능)</h3>
+
+            {/* Preset buttons */}
+            <div className="flex gap-2 flex-wrap">
+              <button className="btn btn-primary" onClick={() => applyArrangement('cross')} aria-label="교차 편성">
+                교차 편성
+              </button>
+              <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label="순차 편성">
+                순차 편성
+              </button>
+              <button className="btn bg-purple-700 hover:bg-purple-600 text-white" onClick={() => applyArrangement('random')} aria-label="랜덤 편성">
+                랜덤 편성
+              </button>
+            </div>
+
+            {/* Current bracket with dropdowns */}
+            <div className="space-y-2">
+              {sortedFinals.map((m, i) => {
+                const p1Id = isTeamType ? m.team1Id : m.player1Id;
+                const p2Id = isTeamType ? m.team2Id : m.player2Id;
+                return (
+                  <div key={m.id} className="bg-gray-800 rounded-lg p-3 flex items-center gap-3 flex-wrap">
+                    <span className="text-gray-400 text-sm font-mono w-16">경기{i + 1}</span>
+                    <select
+                      className="input flex-1 min-w-36"
+                      value={p1Id || ''}
+                      onChange={e => handleSlotChange(m.id, 'player1', e.target.value)}
+                      disabled={m.status !== 'pending'}
+                      aria-label={`경기${i + 1} 선수1 선택`}
+                    >
+                      <option value="">선택</option>
+                      {advancedList.map(pid => (
+                        <option key={pid} value={pid}>{getLabel(pid)}</option>
+                      ))}
+                    </select>
+                    <span className="text-gray-400 font-bold">vs</span>
+                    <select
+                      className="input flex-1 min-w-36"
+                      value={p2Id || ''}
+                      onChange={e => handleSlotChange(m.id, 'player2', e.target.value)}
+                      disabled={m.status !== 'pending'}
+                      aria-label={`경기${i + 1} 선수2 선택`}
+                    >
+                      <option value="">선택</option>
+                      {advancedList.map(pid => (
+                        <option key={pid} value={pid}>{getLabel(pid)}</option>
+                      ))}
+                    </select>
+                    {m.status !== 'pending' && (
+                      <span className="text-xs text-orange-400">진행중/완료 경기는 변경 불가</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {matches.length === 0 ? (
         <div className="card text-center py-8">
           <p className="text-gray-400">생성된 대진표가 없습니다.</p>
@@ -1199,6 +1400,11 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     >
                       &times;
                     </button>
+                  )}
+                  {match.walkover && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
+                      부전승
+                    </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
                     {STATUS_LABELS[match.status]}
@@ -1703,6 +1909,10 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
   const [correctionSets, setCorrectionSets] = useState<SetScore[]>([]);
   const [correctionReason, setCorrectionReason] = useState('');
   const [correctionSaving, setCorrectionSaving] = useState(false);
+  const [walkoverMatch, setWalkoverMatch] = useState<Match | null>(null);
+  const [walkoverWinnerId, setWalkoverWinnerId] = useState('');
+  const [walkoverReason, setWalkoverReason] = useState('');
+  const [walkoverSaving, setWalkoverSaving] = useState(false);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return matches;
@@ -1888,6 +2098,57 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
     }
   };
 
+  const openWalkoverModal = (match: Match) => {
+    setWalkoverMatch(match);
+    setWalkoverWinnerId('');
+    setWalkoverReason('');
+  };
+
+  const closeWalkoverModal = () => {
+    setWalkoverMatch(null);
+    setWalkoverWinnerId('');
+    setWalkoverReason('');
+  };
+
+  const handleSaveWalkover = async () => {
+    if (!walkoverMatch || !walkoverWinnerId || !walkoverReason.trim()) return;
+    setWalkoverSaving(true);
+    try {
+      const historyEntry: ScoreHistoryEntry = {
+        time: new Date().toISOString(),
+        scoringPlayer: '',
+        actionPlayer: 'admin',
+        actionType: 'walkover',
+        actionLabel: `부전승: ${walkoverReason.trim()}`,
+        points: 0,
+        set: 0,
+        server: '',
+        serveNumber: 0,
+        scoreBefore: { player1: 0, player2: 0 },
+        scoreAfter: { player1: 0, player2: 0 },
+      };
+
+      const existingHistory = toArray(walkoverMatch.scoreHistory);
+
+      await updateMatch(walkoverMatch.id, {
+        status: 'completed',
+        winnerId: walkoverWinnerId,
+        walkover: true,
+        walkoverReason: walkoverReason.trim(),
+        sets: [{ player1Score: 0, player2Score: 0, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: walkoverWinnerId }],
+        scoreHistory: [...existingHistory, historyEntry],
+      } as Partial<Match>);
+
+      alert('부전승 처리가 완료되었습니다.');
+      closeWalkoverModal();
+    } catch (err) {
+      console.error('부전승 처리 오류:', err);
+      alert('부전승 처리 중 오류가 발생했습니다.');
+    } finally {
+      setWalkoverSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="card flex items-center gap-4 flex-wrap">
@@ -2049,11 +2310,31 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 <div className="flex items-center gap-2">
                   {match.courtName && <span className="text-sm text-gray-400">{match.courtName}</span>}
                   {match.scheduledTime && <span className="text-sm text-cyan-400">{match.scheduledTime}</span>}
+                  {match.walkover && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
+                      부전승
+                    </span>
+                  )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
                     {STATUS_LABELS[match.status]}
                   </span>
+                  {match.status !== 'completed' && (
+                    <button
+                      className="btn bg-orange-600 hover:bg-orange-500 text-white text-xs px-3 py-1"
+                      onClick={() => openWalkoverModal(match)}
+                      aria-label="부전승 처리"
+                    >
+                      부전승
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {match.status === 'completed' && match.walkover && match.walkoverReason && (
+                <div className="text-sm text-orange-300 mt-1">
+                  부전승 사유: {match.walkoverReason}
+                </div>
+              )}
 
               {match.status === 'completed' && match.sets && (
                 <div className="flex items-center gap-2 flex-wrap mt-2">
@@ -2169,6 +2450,92 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
               <button
                 className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
                 onClick={closeCorrectionModal}
+                aria-label="취소"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 부전승 처리 모달 */}
+      {walkoverMatch && (
+        <div className="modal-backdrop" onClick={closeWalkoverModal}>
+          <div className="card max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-orange-400">부전승 처리</h2>
+              <button
+                className="text-gray-400 hover:text-white font-bold text-xl"
+                onClick={closeWalkoverModal}
+                aria-label="닫기"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="font-semibold text-lg">
+                {walkoverMatch.type === 'individual'
+                  ? `${walkoverMatch.player1Name ?? '?'} vs ${walkoverMatch.player2Name ?? '?'}`
+                  : `${walkoverMatch.team1Name ?? '?'} vs ${walkoverMatch.team2Name ?? '?'}`}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-2">승자 선택</label>
+              <div className="flex gap-2">
+                {(() => {
+                  const p1Id = walkoverMatch.player1Id || walkoverMatch.team1Id || '';
+                  const p1Name = walkoverMatch.type === 'individual' ? (walkoverMatch.player1Name ?? '선수1') : (walkoverMatch.team1Name ?? '팀1');
+                  const p2Id = walkoverMatch.player2Id || walkoverMatch.team2Id || '';
+                  const p2Name = walkoverMatch.type === 'individual' ? (walkoverMatch.player2Name ?? '선수2') : (walkoverMatch.team2Name ?? '팀2');
+                  return (
+                    <>
+                      <button
+                        className={`btn flex-1 ${walkoverWinnerId === p1Id ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                        onClick={() => setWalkoverWinnerId(p1Id)}
+                        aria-label={`${p1Name} 승`}
+                      >
+                        {p1Name} 승
+                      </button>
+                      <button
+                        className={`btn flex-1 ${walkoverWinnerId === p2Id ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                        onClick={() => setWalkoverWinnerId(p2Id)}
+                        aria-label={`${p2Name} 승`}
+                      >
+                        {p2Name} 승
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-1">사유 (필수)</label>
+              <input
+                type="text"
+                className="input w-full"
+                value={walkoverReason}
+                onChange={e => setWalkoverReason(e.target.value)}
+                placeholder="예: 기권, 부상, 노쇼"
+                aria-label="부전승 사유"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                className="btn bg-orange-600 hover:bg-orange-500 text-white flex-1"
+                onClick={handleSaveWalkover}
+                disabled={!walkoverWinnerId || !walkoverReason.trim() || walkoverSaving}
+                aria-label="부전승 확인"
+              >
+                {walkoverSaving ? '처리 중...' : '확인'}
+              </button>
+              <button
+                className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
+                onClick={closeWalkoverModal}
                 aria-label="취소"
               >
                 취소

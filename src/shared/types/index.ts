@@ -253,7 +253,8 @@ export type ScoreActionType =
   | 'pause'             // 일시정지
   | 'resume'            // 재개
   | 'substitution'      // 선수 교체
-  | 'correction';       // 점수 수정 (관리자)
+  | 'correction'        // 점수 수정 (관리자)
+  | 'walkover';         // 부전승
 
 export interface ScoreAction {
   type: ScoreActionType;
@@ -356,6 +357,8 @@ export interface Match {
   player1Seed?: number;
   player2Seed?: number;
   bye?: boolean;
+  walkover?: boolean;
+  walkoverReason?: string;
   sourceMatch1Id?: string;
   sourceMatch2Id?: string;
   appliedScoringRules?: ScoringRules;
