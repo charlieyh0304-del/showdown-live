@@ -519,8 +519,22 @@ export default function IndividualScoring() {
   //   'KeyZ': () => handleUndo(),
   // }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
   // useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
-  console.log('[DEBUG-9] after shortcuts disabled, about to return JSX');
+  console.log('[DEBUG-9] about to return MINIMAL JSX');
 
+  // TEMPORARY: minimal render to isolate crash
+  return (
+    <div style={{ padding: '2rem', color: 'white' }}>
+      <h1>DEBUG: 최소 렌더 테스트</h1>
+      <p>상태: {String(match.status)}</p>
+      <p>선수: {String(player1Name)} vs {String(player2Name)}</p>
+      <p>점수: {String(leftScore)} - {String(rightScore)}</p>
+      <p>세트: {String(setWins.player1)} - {String(setWins.player2)}</p>
+      <p>서브: {String(serverName)}</p>
+      <button className="btn btn-primary mt-4" onClick={() => navigate('/referee/games')}>목록으로</button>
+    </div>
+  );
+
+  /* ORIGINAL JSX - temporarily disabled
   return (
     <div className="min-h-screen flex flex-col">
       <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
@@ -789,4 +803,5 @@ export default function IndividualScoring() {
       )}
     </div>
   );
+  ORIGINAL JSX END */
 }
