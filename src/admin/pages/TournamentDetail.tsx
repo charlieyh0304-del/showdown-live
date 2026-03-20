@@ -190,8 +190,8 @@ export default function TournamentDetail() {
 
       // === 경기 데이터에서 sim_ ID를 실제 Firebase ID로 교체 후 저장 ===
       setSimProgress(`경기 ${result.matches.length}건 생성 중...`);
-      const remapId = (id: string | undefined) => {
-        if (!id) return id;
+      const remapId = (id: string | null | undefined): string | undefined => {
+        if (!id) return undefined;
         return playerIdMap.get(id) || id;
       };
       const remappedMatches = result.matches.map(m => ({
@@ -807,7 +807,7 @@ interface BracketTabProps {
   matches: Match[];
   tournamentPlayers: Player[];
   teams: Team[];
-  setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<void>;
+  setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<string[] | void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
   addMatch: (match: Omit<Match, 'id'>) => Promise<string | null>;
   deleteMatch: (matchId: string) => Promise<void>;
