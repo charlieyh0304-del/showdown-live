@@ -500,6 +500,18 @@ export default function IndividualScoring() {
   const p1TimeoutsUsed = match.player1Timeouts ?? 0;
   const p2TimeoutsUsed = match.player2Timeouts ?? 0;
 
+  console.log('[DEBUG-8] computed values:', {
+    leftScore, rightScore, leftName, rightName, serverName,
+    p1TimeoutsUsed, p2TimeoutsUsed,
+    setsLen: sets.length, currentSetIndex, setWins,
+    currentServe, serveCountVal, maxServes,
+    foulActionsLen: foulActions.length, penaltyActionsLen: penaltyActions.length,
+    historyLen: history.length,
+    activeTimeout: match.activeTimeout,
+    isPaused: match.isPaused,
+    announcement: typeof announcement, lastAction: typeof lastAction,
+  });
+
   // Keyboard shortcuts
   const shortcuts = useMemo(() => ({
     'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`),
@@ -507,6 +519,7 @@ export default function IndividualScoring() {
     'KeyZ': () => handleUndo(),
   }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
   useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
+  console.log('[DEBUG-9] after useMemo/shortcuts, about to return JSX');
 
   return (
     <div className="min-h-screen flex flex-col">
