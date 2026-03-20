@@ -1,4 +1,4 @@
-import type { Match, PlayerRanking, TeamRanking, TiebreakerRule } from '../types';
+import type { Match, PlayerRanking, TeamRanking, TiebreakerRule, SetScore } from '../types';
 import { checkSetWinner } from './scoring';
 
 function applyTiebreaker(rule: TiebreakerRule, a: PlayerRanking, b: PlayerRanking): number {
@@ -33,16 +33,16 @@ export function calculateIndividualRanking(
     r1.played++;
     r2.played++;
 
-    if (match.sets) {
-      for (const set of match.sets) {
-        const w = checkSetWinner(set.player1Score, set.player2Score);
-        if (w === 1) { r1.setsWon++; r2.setsLost++; }
-        else if (w === 2) { r2.setsWon++; r1.setsLost++; }
-        r1.pointsFor += set.player1Score;
-        r1.pointsAgainst += set.player2Score;
-        r2.pointsFor += set.player2Score;
-        r2.pointsAgainst += set.player1Score;
-      }
+    // Defensive: match.sets may be a Firebase object if not normalized
+    const sets: SetScore[] = match.sets ? (Array.isArray(match.sets) ? match.sets : Object.values(match.sets) as SetScore[]) : [];
+    for (const set of sets) {
+      const w = checkSetWinner(set.player1Score, set.player2Score);
+      if (w === 1) { r1.setsWon++; r2.setsLost++; }
+      else if (w === 2) { r2.setsWon++; r1.setsLost++; }
+      r1.pointsFor += set.player1Score;
+      r1.pointsAgainst += set.player2Score;
+      r2.pointsFor += set.player2Score;
+      r2.pointsAgainst += set.player1Score;
     }
 
     if (match.winnerId === match.player1Id) { r1.wins++; r2.losses++; }
@@ -90,8 +90,10 @@ export function calculateTeamRanking(matches: Match[]): TeamRanking[] {
     else if (match.winnerId === match.team2Id) { r2.wins++; r1.losses++; }
 
     // 31점 단일 세트: sets[0]에서 점수 집계
-    if (match.sets && match.sets.length > 0) {
-      const set = match.sets[0];
+    // Defensive: match.sets may be a Firebase object if not normalized
+    const teamSets: SetScore[] = match.sets ? (Array.isArray(match.sets) ? match.sets : Object.values(match.sets) as SetScore[]) : [];
+    if (teamSets.length > 0) {
+      const set = teamSets[0];
       r1.pointsFor += set.player1Score;
       r1.pointsAgainst += set.player2Score;
       r2.pointsFor += set.player2Score;

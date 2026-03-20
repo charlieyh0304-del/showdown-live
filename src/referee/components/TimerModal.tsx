@@ -30,7 +30,7 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
           {display}
         </div>
         {subtitle && <p className="text-xl text-gray-300">{subtitle}</p>}
-        <button className="btn btn-danger btn-large" onClick={onClose}>
+        <button className="btn btn-danger btn-large" onClick={onClose} aria-label={closeLabel}>
           {closeLabel}
         </button>
       </div>

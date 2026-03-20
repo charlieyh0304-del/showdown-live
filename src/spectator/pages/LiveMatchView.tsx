@@ -17,7 +17,7 @@ export default function LiveMatchView() {
 
   // 점수 변경 감지 → 음성 안내
   useEffect(() => {
-    if (!match || !match.sets) return;
+    if (!match || !Array.isArray(match.sets) || match.sets.length === 0) return;
     const currentSetData = match.type === 'team'
       ? match.sets[0]
       : match.sets[(match.currentSet ?? 1) - 1];
@@ -91,8 +91,8 @@ export default function LiveMatchView() {
 
       {/* 경기 기록 (최신순/시간순 토글) */}
       <ScoreHistorySection
-        history={match.scoreHistory ?? []}
-        sets={match.sets}
+        history={Array.isArray(match.scoreHistory) ? match.scoreHistory : []}
+        sets={Array.isArray(match.sets) ? match.sets : undefined}
         order={historyOrder}
         onToggle={() => setHistoryOrder(o => o === 'newest' ? 'oldest' : 'newest')}
       />
@@ -137,7 +137,7 @@ function ScoreHistorySection({
     return (
       <div className="card" style={{ marginTop: '1.5rem', padding: '1rem' }}>
         <p style={{ color: '#9ca3af', textAlign: 'center' }}>상세 경기 기록이 없습니다.</p>
-        {sets && sets.length > 0 && (
+        {Array.isArray(sets) && sets.length > 0 && (
           <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af' }}>세트 결과</h4>
             {sets.map((s, i) => (
@@ -203,7 +203,7 @@ function ScoreHistorySection({
                     </span>
                   ) : (
                     <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>
-                      {h.actionPlayer} {h.actionLabel.split(' ').pop()} → {h.scoringPlayer} +{h.points}
+                      {h.actionPlayer} {h.actionLabel?.split(' ').pop() ?? h.actionLabel} → {h.scoringPlayer} +{h.points}
                     </span>
                   )}
                 </div>
@@ -229,9 +229,9 @@ function IndividualMatchDetail({
   match: NonNullable<ReturnType<typeof useMatch>['match']>;
   gameConfig?: { winScore: number; setsToWin: number };
 }) {
-  const sets = match.sets || [];
-  const currentSet = match.currentSet || 0;
-  const currentSetData = sets[currentSet];
+  const sets = Array.isArray(match.sets) ? match.sets : [];
+  const currentSet = match.currentSet ?? 1;
+  const currentSetData = sets[currentSet - 1];
   const effectiveConfig = gameConfig ? getEffectiveGameConfig(gameConfig) : undefined;
   const setWins = countSetWins(sets, effectiveConfig);
   const hasTimeout = match.activeTimeout != null;
@@ -256,7 +256,7 @@ function IndividualMatchDetail({
 
       {/* 현재 세트 점수 */}
       <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }}>
-        <p style={{ color: '#9ca3af', marginBottom: '0.5rem', fontSize: '1rem' }}>제{currentSet + 1}세트</p>
+        <p style={{ color: '#9ca3af', marginBottom: '0.5rem', fontSize: '1rem' }}>제{currentSet}세트</p>
         <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ color: 'var(--color-primary)' }}>{currentSetData?.player1Score ?? 0}</span>
           <span style={{ color: '#6b7280', fontSize: '3rem' }}>-</span>
@@ -296,7 +296,8 @@ function IndividualMatchDetail({
 
 // ===== 팀전 상세 =====
 function TeamMatchDetail({ match }: { match: NonNullable<ReturnType<typeof useMatch>['match']> }) {
-  const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
+  const safeSets = Array.isArray(match.sets) ? match.sets : [];
+  const setData = safeSets.length > 0 ? safeSets[0] : null;
   const team1Score = setData?.player1Score ?? 0;
   const team2Score = setData?.player2Score ?? 0;
   const hasTimeout = match.activeTimeout != null;

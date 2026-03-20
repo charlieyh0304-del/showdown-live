@@ -42,7 +42,8 @@ export default function PracticeWatchView() {
       ) : (
         <div className="space-y-4">
           {practiceMatches.map(match => {
-            const currentSet = match.sets[match.currentSet];
+            const safeSets = Array.isArray(match.sets) ? match.sets : [];
+            const currentSet = safeSets[match.currentSet];
             return (
               <div key={match.id} className="card p-6">
                 <div className="flex items-center justify-between mb-3">
@@ -79,9 +80,9 @@ export default function PracticeWatchView() {
                   </div>
                 </div>
 
-                {match.sets.length > 1 && (
+                {safeSets.length > 1 && (
                   <div className="flex justify-center gap-4 mt-3">
-                    {match.sets.map((s, i) => (
+                    {safeSets.map((s, i) => (
                       <div key={i} className={`text-center px-2 py-1 rounded ${i === match.currentSet ? 'bg-gray-700' : ''}`}>
                         <div className="text-xs text-gray-500">세트 {i + 1}</div>
                         <div className="text-sm font-bold">

@@ -112,7 +112,7 @@ export default function TournamentView() {
       if (m.winnerId === winnerId) wins++;
       else losses++;
 
-      (m.sets || []).forEach(s => {
+      (Array.isArray(m.sets) ? m.sets : []).forEach(s => {
         const myScore = isP1 ? s.player1Score : s.player2Score;
         const oppScore = isP1 ? s.player2Score : s.player1Score;
         pointsFor += myScore;
@@ -419,7 +419,7 @@ function LiveTab({
   // Detect score changes for aria-live announcements, toast, and auto-scroll
   useEffect(() => {
     for (const match of liveMatches) {
-      if (match.type === 'individual' && match.sets && match.currentSet !== undefined) {
+      if (match.type === 'individual' && Array.isArray(match.sets) && match.currentSet != null) {
         const currentSetData = match.sets[match.currentSet - 1];
         if (!currentSetData) continue;
         const key = match.id;
@@ -446,7 +446,7 @@ function LiveTab({
           }
         }
         prevScoresRef.current.set(key, scoreStr);
-      } else if (match.type === 'team' && match.sets && match.sets.length > 0) {
+      } else if (match.type === 'team' && Array.isArray(match.sets) && match.sets.length > 0) {
         const setData = match.sets[0];
         const key = match.id;
         const scoreStr = `${setData.player1Score}-${setData.player2Score}`;
@@ -598,10 +598,11 @@ function IndividualMatchCard({
   toggleFavorite: (id: string) => void;
   justChanged?: boolean;
 }) {
-  const currentSetData = match.sets && match.currentSet
-    ? match.sets[match.currentSet - 1]
+  const safeSets = Array.isArray(match.sets) ? match.sets : [];
+  const currentSetData = safeSets.length > 0 && match.currentSet != null
+    ? safeSets[match.currentSet - 1] ?? null
     : null;
-  const setWins = match.sets ? countSetWins(match.sets) : { player1: 0, player2: 0 };
+  const setWins = safeSets.length > 0 ? countSetWins(safeSets) : { player1: 0, player2: 0 };
   const scoreKey = `${currentSetData?.player1Score}-${currentSetData?.player2Score}`;
 
   return (
@@ -662,7 +663,8 @@ function IndividualMatchCard({
 }
 
 function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boolean }) {
-  const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
+  const safeSets = Array.isArray(match.sets) ? match.sets : [];
+  const setData = safeSets.length > 0 ? safeSets[0] : null;
   const team1Score = setData?.player1Score ?? 0;
   const team2Score = setData?.player2Score ?? 0;
   const scoreKey = `${team1Score}-${team2Score}`;
@@ -820,7 +822,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
   const p2 = match.player2Name || match.team2Name || '?';
   const isP1Winner = match.winnerId === (match.player1Id || match.team1Id);
   const isCompleted = match.status === 'completed';
-  const sets = match.sets || [];
+  const sets = Array.isArray(match.sets) ? match.sets : [];
 
   const nameButton = (name: string, isWinner: boolean, align: 'left' | 'right') => {
     const style: React.CSSProperties = {
@@ -1044,7 +1046,7 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
       if (m.winnerId === p1Id) { s1.wins++; s2.losses++; }
       else if (m.winnerId === p2Id) { s2.wins++; s1.losses++; }
 
-      (m.sets || []).forEach(set => {
+      (Array.isArray(m.sets) ? m.sets : []).forEach(set => {
         if (set.player1Score > set.player2Score) { s1.setsWon++; s2.setsLost++; }
         else if (set.player2Score > set.player1Score) { s2.setsWon++; s1.setsLost++; }
         s1.pointsFor += set.player1Score; s1.pointsAgainst += set.player2Score;
@@ -1165,7 +1167,7 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
         ) : p1}
       </span>
       <div style={{ textAlign: 'center', minWidth: '80px' }}>
-        {isCompleted && match.sets ? (
+        {isCompleted && Array.isArray(match.sets) && match.sets.length > 0 ? (
           match.sets.map((s, i) => (
             <span key={i} style={{ color: '#9ca3af', margin: '0 0.25rem' }}>{s.player1Score}-{s.player2Score}</span>
           ))
@@ -1226,7 +1228,7 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
 
     const isP1 = match.player1Id === p1Id;
     const won = match.winnerId === p1Id;
-    if (match.sets) {
+    if (Array.isArray(match.sets) && match.sets.length > 0) {
       const setWins = countSetWins(match.sets);
       const myWins = isP1 ? setWins.player1 : setWins.player2;
       const oppWins = isP1 ? setWins.player2 : setWins.player1;
@@ -1324,7 +1326,8 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
   return (
     <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {matches.map((match) => {
-        const setData = match.sets && match.sets.length > 0 ? match.sets[0] : null;
+        const teamSets = Array.isArray(match.sets) ? match.sets : [];
+        const setData = teamSets.length > 0 ? teamSets[0] : null;
 
         return (
           <li
@@ -1417,12 +1420,12 @@ function TournamentResultsSummary({
     // Total sets played
     let totalSets = 0;
     completedMatches.forEach(m => {
-      totalSets += (m.sets || []).length;
+      totalSets += (Array.isArray(m.sets) ? m.sets : []).length;
     });
 
     // Highest scoring match
     const highestMatch = completedMatches.reduce<{ name: string; totalPoints: number } | null>((best, m) => {
-      const total = (m.sets || []).reduce((sum, s) => sum + s.player1Score + s.player2Score, 0);
+      const total = (Array.isArray(m.sets) ? m.sets : []).reduce((sum, s) => sum + s.player1Score + s.player2Score, 0);
       if (total <= 0) return best;
       if (best && total <= best.totalPoints) return best;
       const label = isTeam
@@ -1794,7 +1797,7 @@ function PlayerMatchRow({
   // Per-match point totals
   let matchPointsFor = 0;
   let matchPointsAgainst = 0;
-  if (m.sets) {
+  if (Array.isArray(m.sets)) {
     m.sets.forEach(s => {
       matchPointsFor += isP1 ? s.player1Score : s.player2Score;
       matchPointsAgainst += isP1 ? s.player2Score : s.player1Score;
@@ -1806,7 +1809,7 @@ function PlayerMatchRow({
 
   // Duration from scoreHistory timestamps
   const duration = useMemo(() => {
-    if (!m.scoreHistory || m.scoreHistory.length < 2) return null;
+    if (!Array.isArray(m.scoreHistory) || m.scoreHistory.length < 2) return null;
     const times = m.scoreHistory.map(e => new Date(e.time).getTime()).filter(t => !isNaN(t));
     if (times.length < 2) return null;
     const diffMs = Math.max(...times) - Math.min(...times);
@@ -1866,7 +1869,7 @@ function PlayerMatchRow({
         </div>
 
         {/* Set score pills */}
-        {m.sets && m.sets.length > 0 && (
+        {Array.isArray(m.sets) && m.sets.length > 0 && (
           <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {m.sets.map((s, i) => {
               const myScore = isP1 ? s.player1Score : s.player2Score;
@@ -1891,7 +1894,7 @@ function PlayerMatchRow({
         )}
 
         {/* Total points summary */}
-        {isCompleted && m.sets && m.sets.length > 0 && (
+        {isCompleted && Array.isArray(m.sets) && m.sets.length > 0 && (
           <div style={{ color: '#9ca3af', marginTop: '0.25rem', fontSize: '0.75rem' }}>
             득 {matchPointsFor} - 실 {matchPointsAgainst}
           </div>
@@ -1899,7 +1902,7 @@ function PlayerMatchRow({
       </div>
 
       {/* Expandable detail: score history timeline */}
-      {isExpanded && m.scoreHistory && m.scoreHistory.length > 0 && (
+      {isExpanded && Array.isArray(m.scoreHistory) && m.scoreHistory.length > 0 && (
         <div style={{
           borderTop: '1px solid #374151',
           padding: '0.5rem 0.75rem',
@@ -1927,7 +1930,7 @@ function PlayerMatchRow({
                     padding: '0 0.25rem',
                     borderRadius: '0.125rem',
                   }}>
-                    {entry.scoreBefore.player1}-{entry.scoreBefore.player2}
+                    {entry.scoreBefore?.player1 ?? 0}-{entry.scoreBefore?.player2 ?? 0}
                   </span>
                   <span style={{ color: '#9ca3af' }}>{entry.actionLabel}</span>
                   <span style={{ color: '#6b7280' }}>({entry.actionPlayer})</span>
@@ -1939,7 +1942,7 @@ function PlayerMatchRow({
       )}
 
       {/* If expanded but no scoreHistory */}
-      {isExpanded && (!m.scoreHistory || m.scoreHistory.length === 0) && (
+      {isExpanded && (!Array.isArray(m.scoreHistory) || m.scoreHistory.length === 0) && (
         <div style={{
           borderTop: '1px solid #374151',
           padding: '0.5rem 0.75rem',
@@ -1982,7 +1985,7 @@ function PlayersTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
           if (m.winnerId === p1Id) { s1.wins++; s2.losses++; }
           else if (m.winnerId === p2Id) { s2.wins++; s1.losses++; }
 
-          (m.sets || []).forEach(set => {
+          (Array.isArray(m.sets) ? m.sets : []).forEach(set => {
             if (set.player1Score > set.player2Score) { s1.setsWon++; s2.setsLost++; }
             else if (set.player2Score > set.player1Score) { s2.setsWon++; s1.setsLost++; }
             s1.pointsFor += set.player1Score; s1.pointsAgainst += set.player2Score;
@@ -2116,7 +2119,7 @@ function HistoryMatchCard({
   const isCompleted = match.status === 'completed';
   const isP1Winner = isCompleted && match.winnerId === (match.player1Id || match.team1Id);
   const isP2Winner = isCompleted && match.winnerId === (match.player2Id || match.team2Id);
-  const sets = match.sets || [];
+  const sets = Array.isArray(match.sets) ? match.sets : [];
   const setWins = isIndividual && sets.length > 0 ? countSetWins(sets) : null;
 
   const borderColor = match.status === 'in_progress' ? '#eab308' : isCompleted ? '#374151' : '#1f2937';

@@ -1,4 +1,4 @@
-import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry, Match, Tournament } from '../types';
+import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry, Match, Tournament, TournamentStage } from '../types';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -187,7 +187,9 @@ export function getEffectiveScoringRules(
     return getEffectiveGameConfig(match.appliedScoringRules);
   }
   if (match.stageId && tournament.stages) {
-    const stage = tournament.stages.find(s => s.id === match.stageId);
+    // Defensive: tournament.stages may still be a Firebase object if not normalized
+    const stages = Array.isArray(tournament.stages) ? tournament.stages : Object.values(tournament.stages) as TournamentStage[];
+    const stage = stages.find((s: TournamentStage) => s.id === match.stageId);
     if (stage?.scoringRules) {
       return getEffectiveGameConfig(stage.scoringRules);
     }

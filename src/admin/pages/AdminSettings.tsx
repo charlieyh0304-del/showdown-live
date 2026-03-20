@@ -46,7 +46,11 @@ export default function AdminSettings() {
     const sampleRef = ref(database, 'config/sampleNames');
     const unsub = onValue(sampleRef, (snap) => {
       if (snap.exists()) {
-        const data = snap.val() as SampleNames;
+        const raw = snap.val();
+        const data: SampleNames = {
+          players: Array.isArray(raw.players) ? raw.players : (raw.players ? Object.values(raw.players) : []),
+          referees: Array.isArray(raw.referees) ? raw.referees : (raw.referees ? Object.values(raw.referees) : []),
+        };
         setSampleData(data);
         setSamplePlayerText(data.players.join('\n'));
         setSampleRefereeText(data.referees.join('\n'));

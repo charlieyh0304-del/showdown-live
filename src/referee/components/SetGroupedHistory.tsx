@@ -28,6 +28,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
       <button
         className="text-xs text-blue-400 underline"
         onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
+        aria-label={sortOrder === 'newest' ? '오래된순으로 정렬 변경' : '최신순으로 정렬 변경'}
       >
         {sortOrder === 'newest' ? '최신순 ↓' : '오래된순 ↑'}
       </button>
@@ -47,20 +48,21 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 // HTML 원본과 동일한 actionDesc 생성
                 let actionDesc: string;
                 if (h.actionType === 'goal') {
-                  actionDesc = `${h.scoringPlayer} 골`;
+                  actionDesc = `${h.scoringPlayer || '?'} 골`;
                 } else {
-                  actionDesc = `${h.actionPlayer} ${h.actionLabel.split(' ').slice(1).join(' ')} (${h.scoringPlayer} 득점)`;
+                  const labelParts = (h.actionLabel || '').split(' ').slice(1).join(' ');
+                  actionDesc = `${h.actionPlayer || '?'} ${labelParts} (${h.scoringPlayer || '?'} 득점)`;
                 }
 
                 return (
-                  <div key={i} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2">
+                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2">
                     <div className="flex justify-between mb-1">
                       <span className="text-gray-500">
-                        {h.time} - {h.server} 서브 {h.serveNumber}회차
+                        {h.time || '--:--'} - {h.server || '?'} 서브 {h.serveNumber ?? 0}회차
                       </span>
-                      {h.scoreBefore && (
+                      {h.scoreBefore != null && (
                         <span className="text-gray-500">
-                          ({h.scoreBefore.player1}:{h.scoreBefore.player2})
+                          ({h.scoreBefore.player1 ?? 0}:{h.scoreBefore.player2 ?? 0})
                         </span>
                       )}
                     </div>
@@ -70,7 +72,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     </div>
                     <div className="mt-1 pt-1 border-t border-gray-700">
                       <span className="text-green-400 font-semibold">
-                        → 스코어: {h.scoreAfter.player1}:{h.scoreAfter.player2}
+                        → 스코어: {h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}
                       </span>
                     </div>
                   </div>

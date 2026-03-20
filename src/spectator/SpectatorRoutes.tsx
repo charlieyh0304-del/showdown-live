@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import SpectatorLayout from './components/SpectatorLayout';
 import SpectatorHome from './pages/SpectatorHome';
 import TournamentView from './pages/TournamentView';
@@ -17,6 +17,7 @@ export default function SpectatorRoutes() {
         <Route path="/player/:tournamentId/:playerName" element={<PlayerProfileView />} />
         <Route path="/favorites" element={<FavoritesView />} />
         <Route path="/practice" element={<PracticeWatchView />} />
+        <Route path="*" element={<Navigate to="" replace />} />
       </Routes>
     </SpectatorLayout>
   );

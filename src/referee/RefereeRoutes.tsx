@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import RefereeLayout from './components/RefereeLayout';
 import PracticeLayout from './components/PracticeLayout';
 import RefereeLogin from './pages/RefereeLogin';
@@ -25,6 +25,7 @@ export default function RefereeRoutes() {
         <Route path="play" element={<PracticeScoring />} />
         <Route path="history" element={<PracticeHistory />} />
       </Route>
+      <Route path="*" element={<Navigate to="" replace />} />
     </Routes>
   );
 }

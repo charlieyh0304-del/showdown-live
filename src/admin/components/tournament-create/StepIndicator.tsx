@@ -11,7 +11,7 @@ export default function StepIndicator({ currentStep, totalSteps, labels }: StepI
       aria-valuenow={currentStep}
       aria-valuemin={1}
       aria-valuemax={totalSteps}
-      aria-label={`대회 생성 ${currentStep}단계 / ${totalSteps}단계: ${labels[currentStep - 1]}`}
+      aria-label={`대회 생성 ${currentStep}단계 / ${totalSteps}단계: ${labels[currentStep - 1] || ''}`}
     >
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
         {Array.from({ length: totalSteps }, (_, i) => (
@@ -29,7 +29,7 @@ export default function StepIndicator({ currentStep, totalSteps, labels }: StepI
         ))}
       </div>
       <p className="text-sm text-gray-400 text-center">
-        {currentStep}단계: {labels[currentStep - 1]}
+        {currentStep}단계: {labels[currentStep - 1] || ''}
       </p>
     </div>
   );

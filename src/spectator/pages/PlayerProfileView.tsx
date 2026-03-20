@@ -54,7 +54,7 @@ export default function PlayerProfileView() {
       if (m.winnerId === myId) wins++;
       else losses++;
 
-      (m.sets || []).forEach(s => {
+      (Array.isArray(m.sets) ? m.sets : []).forEach(s => {
         const myScore = isP1 ? s.player1Score : s.player2Score;
         const oppScore = isP1 ? s.player2Score : s.player1Score;
         pointsFor += myScore;
@@ -224,7 +224,7 @@ export default function PlayerProfileView() {
               const result = getMatchResult(m);
               const opponent = getOpponent(m);
               const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
-              const setWins = m.sets ? countSetWins(m.sets) : { player1: 0, player2: 0 };
+              const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? countSetWins(m.sets) : { player1: 0, player2: 0 };
               const mySetWins = isP1 ? setWins.player1 : setWins.player2;
               const oppSetWins = isP1 ? setWins.player2 : setWins.player1;
 
@@ -267,7 +267,7 @@ export default function PlayerProfileView() {
                     {m.scheduledTime && <span>{m.scheduledTime}</span>}
                     {m.courtName && <span>{m.courtName}</span>}
                   </div>
-                  {m.sets && m.sets.length > 0 && (
+                  {Array.isArray(m.sets) && m.sets.length > 0 && (
                     <div style={{ color: '#6b7280', marginTop: '0.25rem', fontSize: '0.75rem' }}>
                       {m.sets.map((s) => `${s.player1Score}-${s.player2Score}`).join(' / ')}
                     </div>

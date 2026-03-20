@@ -2,22 +2,26 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="시각장애인 스포츠 쇼다운 대회 관리 앱">
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="쇼다운">
-    <link rel="manifest" href="/manifest.webmanifest">
     <title>쇼다운 대회 관리</title>
     <script>
       // 경로에 따라 모드별 manifest 동적 교체
       (function() {
         var path = location.pathname;
-        var manifest = document.querySelector('link[rel="manifest"]');
-        if (!manifest) return;
         // Detect base path from current URL (works on both / and /showdown-live/)
         var base = path.match(/^\/showdown-live/) ? '/showdown-live' : '';
+        // Create manifest link dynamically (VitePWA also generates one, avoid duplicates)
+        var manifest = document.querySelector('link[rel="manifest"]');
+        if (!manifest) {
+          manifest = document.createElement('link');
+          manifest.rel = 'manifest';
+          document.head.appendChild(manifest);
+        }
         if (path.indexOf('/spectator') !== -1) {
           manifest.href = base + '/manifest-spectator.json';
           document.title = '쇼다운 관람';
@@ -33,6 +37,9 @@
           document.title = '쇼다운 관리';
           document.querySelector('meta[name="theme-color"]').content = '#ef4444';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관리';
+        } else {
+          // Default: use the VitePWA-generated manifest
+          manifest.href = base + '/manifest.webmanifest';
         }
       })();
     </script>

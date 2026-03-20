@@ -20,6 +20,14 @@ import { getSampleNames } from './AdminSettings';
 import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup }  from '@shared/types';
 import NumberStepper from '../components/tournament-create/NumberStepper';
 
+// Firebase can return arrays as objects with numeric keys; ensure we always get an array
+function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'object') return Object.values(val);
+  return [];
+}
+
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -63,7 +71,7 @@ export default function TournamentDetail() {
   // 대회 설정에서 기본 참가자 수 추론 (tournament 로드 후 1회)
   useEffect(() => {
     if (!tournament || simCountInitialized) return;
-    const stages = tournament.stages || [];
+    const stages = toArray(tournament.stages);
     const qualifying = stages.find(s => s.type === 'qualifying');
     if (qualifying?.groupCount && qualifying.groupCount > 1) {
       setSimCount(qualifying.groupCount * 4);
@@ -318,7 +326,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [newPlayerName, setNewPlayerName] = useState('');
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
-  const [seeds, setSeeds] = useState<SeedEntry[]>(tournament.seeds || []);
+  const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
 
   const toggleSeed = (playerId: string, name: string) => {
@@ -702,17 +710,17 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   const handleAutoGroupAssignment = async () => {
     const groupCount = tournament.qualifyingConfig?.groupCount || 2;
     const playerIds = tournamentPlayers.map(p => p.id);
-    const seedIds = (tournament.seeds || []).map(s => s.playerId || s.teamId).filter(Boolean) as string[];
+    const seedIds = toArray(tournament.seeds).map(s => s.playerId || s.teamId).filter(Boolean) as string[];
 
     const groups = buildGroupAssignment(playerIds, groupCount, seedIds);
-    const qualifyingStage = (tournament.stages || []).find(s => s.type === 'qualifying');
+    const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
     if (qualifyingStage) {
       groups.forEach(g => { g.stageId = qualifyingStage.id; });
     }
 
     setGroupAssignment(groups);
     if (qualifyingStage) {
-      const updatedStages = (tournament.stages || []).map(s =>
+      const updatedStages = toArray(tournament.stages).map(s =>
         s.id === qualifyingStage.id ? { ...s, groups } : s
       );
       await updateTournament({ stages: updatedStages });
@@ -845,7 +853,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   <ul className="space-y-1">
                     {group.playerIds.map((pid) => {
                       const player = tournamentPlayers.find(p => p.id === pid);
-                      const seedNum = (tournament.seeds || []).findIndex(s => s.playerId === pid) + 1;
+                      const seedNum = toArray(tournament.seeds).findIndex(s => s.playerId === pid) + 1;
                       return (
                         <li key={pid} className="text-sm text-gray-300 flex items-center gap-2">
                           {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
@@ -895,8 +903,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   <span className="text-gray-400 text-sm">R{match.round}</span>
                   <span className="font-bold text-lg">
                     {match.type === 'individual'
-                      ? `${match.player1Name} vs ${match.player2Name}`
-                      : `${match.team1Name} vs ${match.team2Name}`}
+                      ? `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`
+                      : `${match.team1Name ?? '?'} vs ${match.team2Name ?? '?'}`}
                   </span>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
@@ -911,7 +919,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     className="input"
                     value={match.refereeId ?? ''}
                     onChange={e => handleAssign(match.id, 'refereeId', e.target.value)}
-                    aria-label={`${match.type === 'individual' ? match.player1Name + ' vs ' + match.player2Name : match.team1Name + ' vs ' + match.team2Name} 심판 배정`}
+                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} 심판 배정`}
                   >
                     <option value="">미배정</option>
                     {referees.map(r => (
@@ -925,7 +933,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     className="input"
                     value={match.courtId ?? ''}
                     onChange={e => handleAssign(match.id, 'courtId', e.target.value)}
-                    aria-label={`${match.type === 'individual' ? match.player1Name + ' vs ' + match.player2Name : match.team1Name + ' vs ' + match.team2Name} 경기장 배정`}
+                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} 경기장 배정`}
                   >
                     <option value="">미배정</option>
                     {courts.map(c => (
@@ -1200,7 +1208,9 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
       groupMap.get(gid)!.push(m);
     });
 
-    const advancePerGroup = tournament.finalsConfig?.advanceCount || 2;
+    const qualifyingGroupCount = tournament.qualifyingConfig?.groupCount || 1;
+    const totalAdvance = tournament.finalsConfig?.advanceCount || 2;
+    const advancePerGroup = qualifyingGroupCount > 1 ? Math.floor(totalAdvance / qualifyingGroupCount) : totalAdvance;
     const advancedIds: string[] = [];
 
     groupMap.forEach((groupMatches) => {
@@ -1235,7 +1245,7 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
     tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
     teams.forEach(t => idToName.set(t.id, t.name));
 
-    const finalsStageId = (tournament.stages || []).find(s => s.type === 'finals')?.id || 'finals';
+    const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id || 'finals';
 
     let bracketSize = 4;
     while (bracketSize < advancedIds.length) bracketSize *= 2;
@@ -1341,10 +1351,10 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
       </div>
 
       {/* 대회 단계 관리 */}
-      {tournament.stages && tournament.stages.length > 0 && (
+      {toArray(tournament.stages).length > 0 && (
         <div className="card space-y-4">
           <h3 className="text-xl font-bold text-yellow-400">대회 단계 관리</h3>
-          {tournament.stages.map((stage) => {
+          {toArray(tournament.stages).map((stage) => {
             const stageMatches = matches.filter(m =>
               m.stageId === stage.id ||
               (stage.type === 'qualifying' && m.groupId) ||
@@ -1436,8 +1446,8 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
                   <span className="text-gray-400 text-sm">R{match.round}</span>
                   <span className="font-bold">
                     {match.type === 'individual'
-                      ? `${match.player1Name} vs ${match.player2Name}`
-                      : `${match.team1Name} vs ${match.team2Name}`}
+                      ? `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`
+                      : `${match.team1Name ?? '?'} vs ${match.team2Name ?? '?'}`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1543,7 +1553,7 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
             <div className="space-y-2">
               {completedMatchesSorted.map(match => (
                 <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-                  <span className="font-semibold">{match.team1Name} vs {match.team2Name}</span>
+                  <span className="font-semibold">{match.team1Name ?? '?'} vs {match.team2Name ?? '?'}</span>
                   <div className="flex gap-2">
                     {(match.sets || []).map((s, i) => (
                       <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">{s.player1Score}-{s.player2Score}</span>
@@ -1618,7 +1628,7 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
           <div className="space-y-2">
             {completedMatchesSorted.map(match => (
               <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-                <span className="font-semibold">{match.player1Name} vs {match.player2Name}</span>
+                <span className="font-semibold">{match.player1Name ?? '?'} vs {match.player2Name ?? '?'}</span>
                 <div className="flex gap-2">
                   {(match.sets || []).map((s, i) => (
                     <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">{s.player1Score}-{s.player2Score}</span>

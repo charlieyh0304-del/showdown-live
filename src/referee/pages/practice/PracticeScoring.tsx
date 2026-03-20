@@ -70,7 +70,7 @@ export default function PracticeScoring() {
       setLastAction('⚠️ 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [timeoutTimer.seconds]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function PracticeScoring() {
       setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [sideChangeTimer.seconds]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
   // 15초 안내 (워밍업)
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function PracticeScoring() {
       setLastAction('⚠️ 워밍업 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [warmupTimer.seconds]);
+  }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
   // localStorage sharing (spectator mode)
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function PracticeScoring() {
     } else {
       timeoutTimer.stop();
     }
-  }, [match.activeTimeout]);
+  }, [match.activeTimeout, timeoutTimer]);
 
   // Pause elapsed counter
   useEffect(() => {
@@ -260,7 +260,7 @@ export default function PracticeScoring() {
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
     });
-  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer]);
+  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer, audio]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(() => {
@@ -295,7 +295,7 @@ export default function PracticeScoring() {
       });
     }
     setShowSetEndConfirm(false);
-  }, [match, config, updateMatch, matchType]);
+  }, [match, config, updateMatch, matchType, audio, addSession]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);

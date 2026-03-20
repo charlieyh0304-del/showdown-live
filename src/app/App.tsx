@@ -15,7 +15,7 @@ function App() {
     <ErrorBoundary>
       <div className="min-h-screen bg-black text-white">
         <ConnectionStatus />
-        <Suspense fallback={<LoadingSpinner />}>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
           <Routes>
             <Route path="/" element={<ModeSelector />} />
             <Route path="/admin/*" element={<AdminRoutes />} />

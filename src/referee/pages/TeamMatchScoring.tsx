@@ -75,7 +75,7 @@ export default function TeamMatchScoring() {
       setLastAction('⚠️ 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [timeoutTimer.seconds]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function TeamMatchScoring() {
       setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [sideChangeTimer.seconds]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
   // 15초 안내 (워밍업)
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function TeamMatchScoring() {
       setLastAction('⚠️ 워밍업 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [warmupTimer.seconds]);
+  }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function TeamMatchScoring() {
     } else {
       timeoutTimer.stop();
     }
-  }, [match?.activeTimeout]);
+  }, [match?.activeTimeout, timeoutTimer]);
 
   // Pause elapsed counter
   useEffect(() => {
@@ -323,7 +323,7 @@ export default function TeamMatchScoring() {
       scoreHistory: newHistory,
     });
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, updateMatch, canAct, sideChangeTimer, audio, tournamentId]);
+  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, audio, tournamentId]);
 
   // Undo (GAP-10: include serve info in announce)
   const handleUndo = useCallback(async () => {

@@ -65,7 +65,7 @@ export default function IndividualScoring() {
       setLastAction('⚠️ 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [timeoutTimer.seconds]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
@@ -73,7 +73,7 @@ export default function IndividualScoring() {
       setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [sideChangeTimer.seconds]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
   // 15초 안내 (워밍업)
   useEffect(() => {
@@ -81,7 +81,7 @@ export default function IndividualScoring() {
       setLastAction('⚠️ 워밍업 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
-  }, [warmupTimer.seconds]);
+  }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function IndividualScoring() {
     } else {
       timeoutTimer.stop();
     }
-  }, [match?.activeTimeout]);
+  }, [match?.activeTimeout, timeoutTimer]);
 
   // Pause elapsed time counter
   useEffect(() => {
@@ -340,7 +340,7 @@ export default function IndividualScoring() {
       });
     }
     setShowSetEndConfirm(false);
-  }, [match, gameConfig, updateMatch, audio]);
+  }, [match, gameConfig, updateMatch, audio, tournamentId]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);

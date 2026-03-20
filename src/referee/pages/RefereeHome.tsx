@@ -39,7 +39,7 @@ export default function RefereeHome() {
   const refereeId = session?.refereeId;
   const { matches, loading } = useMatches(tournamentId);
 
-  const myMatches = matches.filter(m => m.refereeId === refereeId);
+  const myMatches = useMemo(() => matches.filter(m => m.refereeId === refereeId), [matches, refereeId]);
 
   // Sort matches by date -> time
   const sortedMyMatches = useMemo(() => {

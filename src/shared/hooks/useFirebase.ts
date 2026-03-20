@@ -1,7 +1,56 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, set, push, remove, update } from 'firebase/database';
 import { database } from '../config/firebase';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
+
+// ===== Firebase array normalization helper =====
+// Firebase stores arrays as objects when indices have gaps or are sparse.
+// These helpers convert any object-stored array field back to a proper array.
+
+// Normalize all known array fields on a Match object from Firebase
+function normalizeMatchArrays(m: Record<string, unknown>): void {
+  if (m.sets && !Array.isArray(m.sets)) m.sets = Object.values(m.sets as object);
+  if (m.scoreHistory && !Array.isArray(m.scoreHistory)) m.scoreHistory = Object.values(m.scoreHistory as object);
+  if (m.pauseHistory && !Array.isArray(m.pauseHistory)) m.pauseHistory = Object.values(m.pauseHistory as object);
+  if (m.individualMatches && !Array.isArray(m.individualMatches)) m.individualMatches = Object.values(m.individualMatches as object);
+  if (m.team1ActivePlayerIds && !Array.isArray(m.team1ActivePlayerIds)) m.team1ActivePlayerIds = Object.values(m.team1ActivePlayerIds as object);
+  if (m.team1ActivePlayerNames && !Array.isArray(m.team1ActivePlayerNames)) m.team1ActivePlayerNames = Object.values(m.team1ActivePlayerNames as object);
+  if (m.team2ActivePlayerIds && !Array.isArray(m.team2ActivePlayerIds)) m.team2ActivePlayerIds = Object.values(m.team2ActivePlayerIds as object);
+  if (m.team2ActivePlayerNames && !Array.isArray(m.team2ActivePlayerNames)) m.team2ActivePlayerNames = Object.values(m.team2ActivePlayerNames as object);
+}
+
+// Normalize all known array fields on a Tournament object from Firebase
+function normalizeTournamentArrays(t: Record<string, unknown>): void {
+  if (t.stages && !Array.isArray(t.stages)) t.stages = Object.values(t.stages as object);
+  if (t.seeds && !Array.isArray(t.seeds)) t.seeds = Object.values(t.seeds as object);
+  // Normalize nested stage arrays
+  if (Array.isArray(t.stages)) {
+    for (const stage of t.stages as Record<string, unknown>[]) {
+      if (stage.seeds && !Array.isArray(stage.seeds)) stage.seeds = Object.values(stage.seeds as object);
+      if (stage.groups && !Array.isArray(stage.groups)) stage.groups = Object.values(stage.groups as object);
+      if (stage.advancedParticipantIds && !Array.isArray(stage.advancedParticipantIds)) stage.advancedParticipantIds = Object.values(stage.advancedParticipantIds as object);
+      // Normalize group arrays within each stage
+      if (Array.isArray(stage.groups)) {
+        for (const group of stage.groups as Record<string, unknown>[]) {
+          if (group.playerIds && !Array.isArray(group.playerIds)) group.playerIds = Object.values(group.playerIds as object);
+          if (group.teamIds && !Array.isArray(group.teamIds)) group.teamIds = Object.values(group.teamIds as object);
+          if (group.seedOrder && !Array.isArray(group.seedOrder)) group.seedOrder = Object.values(group.seedOrder as object);
+        }
+      }
+    }
+  }
+}
+
+// Normalize all known array fields on a Team object from Firebase
+function normalizeTeamArrays(t: Record<string, unknown>): void {
+  if (t.memberIds && !Array.isArray(t.memberIds)) t.memberIds = Object.values(t.memberIds as object);
+  if (t.memberNames && !Array.isArray(t.memberNames)) t.memberNames = Object.values(t.memberNames as object);
+}
+
+// Normalize Court array fields from Firebase
+function normalizeCourtArrays(c: Record<string, unknown>): void {
+  if (c.assignedReferees && !Array.isArray(c.assignedReferees)) c.assignedReferees = Object.values(c.assignedReferees as object);
+}
 
 // ===== 선수 =====
 export function usePlayers() {
@@ -42,7 +91,14 @@ export function useReferees() {
   useEffect(() => {
     const unsub = onValue(ref(database, 'referees'), (snap) => {
       const data = snap.val();
-      setReferees(data ? Object.entries(data).map(([id, r]) => ({ id, ...(r as Omit<Referee, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
+      setReferees(data ? Object.entries(data).map(([id, r]) => {
+        const referee = r as Record<string, unknown>;
+        // Normalize assignedMatchIds array
+        if (referee.assignedMatchIds && !Array.isArray(referee.assignedMatchIds)) {
+          referee.assignedMatchIds = Object.values(referee.assignedMatchIds as object);
+        }
+        return { id, ...(referee as unknown as Omit<Referee, 'id'>) };
+      }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -73,7 +129,11 @@ export function useCourts() {
   useEffect(() => {
     const unsub = onValue(ref(database, 'courts'), (snap) => {
       const data = snap.val();
-      setCourts(data ? Object.entries(data).map(([id, c]) => ({ id, ...(c as Omit<Court, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
+      setCourts(data ? Object.entries(data).map(([id, c]) => {
+        const court = c as Record<string, unknown>;
+        normalizeCourtArrays(court);
+        return { id, ...(court as unknown as Omit<Court, 'id'>) };
+      }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -104,7 +164,11 @@ export function useTournaments() {
   useEffect(() => {
     const unsub = onValue(ref(database, 'tournaments'), (snap) => {
       const data = snap.val();
-      setTournaments(data ? Object.entries(data).map(([id, t]) => ({ id, ...(t as Omit<Tournament, 'id'>) })).sort((a, b) => b.createdAt - a.createdAt) : []);
+      setTournaments(data ? Object.entries(data).map(([id, t]) => {
+        const tournament = t as Record<string, unknown>;
+        normalizeTournamentArrays(tournament);
+        return { id, ...(tournament as unknown as Omit<Tournament, 'id'>) };
+      }).sort((a, b) => b.createdAt - a.createdAt) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -146,7 +210,12 @@ export function useTournament(tournamentId: string | null) {
     if (!tournamentId) { setTournament(null); setLoading(false); return; }
     const unsub = onValue(ref(database, `tournaments/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setTournament(data ? { id: tournamentId, ...data } : null);
+      if (data) {
+        normalizeTournamentArrays(data);
+        setTournament({ id: tournamentId, ...data });
+      } else {
+        setTournament(null);
+      }
       setLoading(false);
     });
     return () => unsub();
@@ -171,9 +240,7 @@ export function useMatches(tournamentId: string | null) {
       const data = snap.val();
       setMatches(data ? Object.entries(data).map(([id, raw]) => {
         const m = raw as Record<string, unknown>;
-        if (m.sets && !Array.isArray(m.sets)) m.sets = Object.values(m.sets as object);
-        if (m.scoreHistory && !Array.isArray(m.scoreHistory)) m.scoreHistory = Object.values(m.scoreHistory as object);
-        if (m.pauseHistory && !Array.isArray(m.pauseHistory)) m.pauseHistory = Object.values(m.pauseHistory as object);
+        normalizeMatchArrays(m);
         return { id, ...(m as unknown as Omit<Match, 'id'>) };
       }).sort((a, b) => (a.round ?? 0) - (b.round ?? 0)) : []);
       setLoading(false);
@@ -222,16 +289,8 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
     const unsub = onValue(ref(database, `matches/${tournamentId}/${matchId}`), (snap) => {
       const data = snap.val();
       if (data) {
-        // Firebase may store arrays as objects — normalize sets and scoreHistory
-        if (data.sets && !Array.isArray(data.sets)) {
-          data.sets = Object.values(data.sets);
-        }
-        if (data.scoreHistory && !Array.isArray(data.scoreHistory)) {
-          data.scoreHistory = Object.values(data.scoreHistory);
-        }
-        if (data.pauseHistory && !Array.isArray(data.pauseHistory)) {
-          data.pauseHistory = Object.values(data.pauseHistory);
-        }
+        // Firebase may store arrays as objects — normalize all array fields
+        normalizeMatchArrays(data);
         setMatch({ id: matchId, ...data });
       } else {
         setMatch(null);
@@ -258,7 +317,11 @@ export function useTeams(tournamentId: string | null) {
     if (!tournamentId) { setTeams([]); setLoading(false); return; }
     const unsub = onValue(ref(database, `teams/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setTeams(data ? Object.entries(data).map(([id, t]) => ({ id, ...(t as Omit<Team, 'id'>) })) : []);
+      setTeams(data ? Object.entries(data).map(([id, t]) => {
+        const team = t as Record<string, unknown>;
+        normalizeTeamArrays(team);
+        return { id, ...(team as unknown as Omit<Team, 'id'>) };
+      }) : []);
       setLoading(false);
     });
     return () => unsub();
@@ -326,7 +389,19 @@ export function useTournamentReferees(tournamentId: string | null) {
   useEffect(() => {
     if (!tournamentId) { setAssignments({}); setLoading(false); return; }
     const unsub = onValue(ref(database, `tournamentReferees/${tournamentId}`), (snap) => {
-      setAssignments(snap.val() || {});
+      const raw = snap.val() || {};
+      // Normalize assignedMatchIds arrays within each referee assignment
+      const normalized: Record<string, { assignedMatchIds: string[] }> = {};
+      for (const [key, value] of Object.entries(raw)) {
+        const entry = value as Record<string, unknown>;
+        const matchIds = entry.assignedMatchIds;
+        normalized[key] = {
+          assignedMatchIds: matchIds
+            ? (Array.isArray(matchIds) ? matchIds : Object.values(matchIds as object))
+            : [],
+        };
+      }
+      setAssignments(normalized);
       setLoading(false);
     });
     return () => unsub();
@@ -375,7 +450,14 @@ export function useNotifications(tournamentId: string | null) {
     if (!tournamentId) { setNotifications([]); return; }
     const unsub = onValue(ref(database, `notifications/${tournamentId}`), (snap) => {
       const data = snap.val();
-      setNotifications(data ? Object.entries(data).map(([id, n]) => ({ id, ...(n as Omit<Notification, 'id'>) })).sort((a, b) => b.timestamp - a.timestamp) : []);
+      setNotifications(data ? Object.entries(data).map(([id, n]) => {
+        const notif = n as Record<string, unknown>;
+        // Normalize playerIds array
+        if (notif.playerIds && !Array.isArray(notif.playerIds)) {
+          notif.playerIds = Object.values(notif.playerIds as object);
+        }
+        return { id, ...(notif as unknown as Omit<Notification, 'id'>) };
+      }).sort((a, b) => b.timestamp - a.timestamp) : []);
     });
     return () => unsub();
   }, [tournamentId]);
@@ -400,15 +482,19 @@ export function useFavorites() {
     }
   });
 
+  // Use a ref to track the latest value synchronously for toggleFavorite return
+  const favoriteIdsRef = useRef(favoriteIds);
+  useEffect(() => {
+    favoriteIdsRef.current = favoriteIds;
+  }, [favoriteIds]);
+
   const toggleFavorite = useCallback((playerId: string): string[] => {
-    let result: string[] = [];
-    setFavoriteIds(prev => {
-      const next = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
-      localStorage.setItem('showdown_favorites', JSON.stringify(next));
-      result = next;
-      return next;
-    });
-    return result;
+    const prev = favoriteIdsRef.current;
+    const next = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+    localStorage.setItem('showdown_favorites', JSON.stringify(next));
+    favoriteIdsRef.current = next;
+    setFavoriteIds(next);
+    return next;
   }, []);
 
   const isFavorite = useCallback((playerId: string) => {

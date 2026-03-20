@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from './components/AdminLayout';
 import AdminHome from './pages/AdminHome';
 import TournamentCreate from './pages/TournamentCreate';
@@ -19,6 +19,7 @@ export default function AdminRoutes() {
         <Route path="/referees" element={<RefereeManagement />} />
         <Route path="/courts" element={<CourtManagement />} />
         <Route path="/settings" element={<AdminSettings />} />
+        <Route path="*" element={<Navigate to="" replace />} />
       </Routes>
     </AdminLayout>
   );
