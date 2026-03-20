@@ -771,17 +771,23 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
 
 // ===== Finals View =====
 function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
+
   const rounds = useMemo(() => {
-    const roundOrder = ['32강', '16강', '8강', '4강', '결승'];
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
       const label = m.roundLabel || `라운드 ${m.round || '?'}`;
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(m);
     });
-    return Array.from(map.entries()).sort(([a], [b]) =>
-      roundOrder.indexOf(a) - roundOrder.indexOf(b)
-    );
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      const ai = roundOrder.indexOf(a);
+      const bi = roundOrder.indexOf(b);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b);
+    });
   }, [matches]);
 
   if (matches.length === 0) {
@@ -792,27 +798,286 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
     );
   }
 
+  const roundColors: Record<string, string> = {
+    '128강': '#6366f1',
+    '64강': '#8b5cf6',
+    '32강': '#3b82f6',
+    '16강': '#06b6d4',
+    '8강': '#10b981',
+    '4강': '#f59e0b',
+    '결승': '#ef4444',
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {rounds.map(([roundLabel, roundMatches]) => (
-        <div key={roundLabel}>
-          <h3 style={{
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            color: '#facc15',
-            marginBottom: '0.75rem',
-            borderBottom: '1px solid rgba(250, 204, 21, 0.3)',
-            paddingBottom: '0.5rem',
-          }}>
-            {roundLabel}
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {roundMatches.map(m => (
-              <MatchResultCard key={m.id} match={m} onSelectPlayer={onSelectPlayer} />
-            ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+      {rounds.map(([roundLabel, roundMatches], roundIdx) => {
+        const color = roundColors[roundLabel] || '#6b7280';
+        const isFinal = roundLabel === '결승';
+
+        return (
+          <div key={roundLabel} style={{ position: 'relative' }}>
+            {/* Round header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.625rem 1rem',
+              backgroundColor: `${color}20`,
+              borderLeft: `4px solid ${color}`,
+              marginBottom: '0',
+            }}>
+              <span style={{
+                fontSize: isFinal ? '1.125rem' : '0.9375rem',
+                fontWeight: 'bold',
+                color: color,
+              }}>
+                {isFinal ? '🏆 ' : ''}{roundLabel}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                {roundMatches.filter(m => m.status === 'completed').length}/{roundMatches.length}
+              </span>
+            </div>
+
+            {/* Matches with bracket connector lines */}
+            <div style={{
+              borderLeft: roundIdx < rounds.length - 1 ? `2px solid ${color}40` : 'none',
+              marginLeft: '1px',
+              paddingLeft: '1rem',
+              paddingTop: '0.5rem',
+              paddingBottom: '0.75rem',
+            }}>
+              {roundMatches.map((m, matchIdx) => {
+                const p1 = m.player1Name || m.team1Name || 'TBD';
+                const p2 = m.player2Name || m.team2Name || 'TBD';
+                const isP1Winner = m.winnerId === (m.player1Id || m.team1Id);
+                const isP2Winner = m.winnerId === (m.player2Id || m.team2Id);
+                const isCompleted = m.status === 'completed';
+                const isInProgress = m.status === 'in_progress';
+                const sets = Array.isArray(m.sets) ? m.sets : [];
+                const setWins = sets.length > 0 ? countSetWins(sets) : null;
+
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      position: 'relative',
+                      marginBottom: matchIdx < roundMatches.length - 1 ? '0.5rem' : '0',
+                    }}
+                  >
+                    {/* Horizontal connector dot */}
+                    <div style={{
+                      position: 'absolute',
+                      left: '-1.125rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: isCompleted ? (color) : '#374151',
+                      border: `2px solid ${isCompleted ? color : '#4b5563'}`,
+                    }} />
+
+                    {/* Match card */}
+                    <div style={{
+                      backgroundColor: isFinal ? '#1a1a2e' : '#1f2937',
+                      borderRadius: '0.5rem',
+                      border: isInProgress
+                        ? '1px solid #eab308'
+                        : isFinal && isCompleted
+                        ? `1px solid ${color}60`
+                        : '1px solid #374151',
+                      overflow: 'hidden',
+                      boxShadow: isFinal ? `0 0 12px ${color}20` : 'none',
+                    }}>
+                      {/* Player 1 row */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.5rem 0.75rem',
+                        backgroundColor: isCompleted && isP1Winner ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                        borderBottom: '1px solid #2d3748',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                          {isCompleted && (
+                            <span style={{
+                              width: '4px',
+                              height: '1.25rem',
+                              borderRadius: '2px',
+                              backgroundColor: isP1Winner ? '#22c55e' : '#4b5563',
+                              flexShrink: 0,
+                            }} />
+                          )}
+                          {onSelectPlayer ? (
+                            <button
+                              onClick={() => onSelectPlayer(p1)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 0,
+                                fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
+                                color: p1 === 'TBD' ? '#4b5563' : isCompleted ? (isP1Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                                fontSize: '0.9375rem',
+                                textAlign: 'left',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              className="hover:underline hover:text-yellow-400"
+                            >
+                              {p1}
+                            </button>
+                          ) : (
+                            <span style={{
+                              fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
+                              color: p1 === 'TBD' ? '#4b5563' : isCompleted ? (isP1Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                              fontSize: '0.9375rem',
+                            }}>
+                              {p1}
+                            </span>
+                          )}
+                        </div>
+                        {setWins && (
+                          <span style={{
+                            fontWeight: 'bold',
+                            fontSize: '0.9375rem',
+                            color: isP1Winner ? '#22c55e' : '#6b7280',
+                            fontVariantNumeric: 'tabular-nums',
+                            flexShrink: 0,
+                          }}>
+                            {setWins.player1}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Player 2 row */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.5rem 0.75rem',
+                        backgroundColor: isCompleted && isP2Winner ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                          {isCompleted && (
+                            <span style={{
+                              width: '4px',
+                              height: '1.25rem',
+                              borderRadius: '2px',
+                              backgroundColor: isP2Winner ? '#22c55e' : '#4b5563',
+                              flexShrink: 0,
+                            }} />
+                          )}
+                          {onSelectPlayer ? (
+                            <button
+                              onClick={() => onSelectPlayer(p2)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 0,
+                                fontWeight: isCompleted && isP2Winner ? 'bold' : 'normal',
+                                color: p2 === 'TBD' ? '#4b5563' : isCompleted ? (isP2Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                                fontSize: '0.9375rem',
+                                textAlign: 'left',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              className="hover:underline hover:text-yellow-400"
+                            >
+                              {p2}
+                            </button>
+                          ) : (
+                            <span style={{
+                              fontWeight: isCompleted && isP2Winner ? 'bold' : 'normal',
+                              color: p2 === 'TBD' ? '#4b5563' : isCompleted ? (isP2Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                              fontSize: '0.9375rem',
+                            }}>
+                              {p2}
+                            </span>
+                          )}
+                        </div>
+                        {setWins && (
+                          <span style={{
+                            fontWeight: 'bold',
+                            fontSize: '0.9375rem',
+                            color: isP2Winner ? '#22c55e' : '#6b7280',
+                            fontVariantNumeric: 'tabular-nums',
+                            flexShrink: 0,
+                          }}>
+                            {setWins.player2}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Score detail & status bar */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.25rem 0.75rem 0.375rem',
+                        backgroundColor: '#111827',
+                        borderTop: '1px solid #2d3748',
+                      }}>
+                        {/* Set scores */}
+                        <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                          {sets.map((s, i) => (
+                            <span key={i} style={{
+                              fontSize: '0.6875rem',
+                              color: '#9ca3af',
+                              backgroundColor: '#374151',
+                              padding: '0.0625rem 0.375rem',
+                              borderRadius: '0.25rem',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}>
+                              {s.player1Score}-{s.player2Score}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Status badge */}
+                        {isInProgress && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontSize: '0.6875rem',
+                            fontWeight: 'bold',
+                            color: '#eab308',
+                            backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                            padding: '0.125rem 0.5rem',
+                            borderRadius: '9999px',
+                          }}>
+                            <span style={{
+                              display: 'inline-block',
+                              width: '5px',
+                              height: '5px',
+                              borderRadius: '50%',
+                              backgroundColor: '#eab308',
+                              animation: 'pulse 2s infinite',
+                            }} />
+                            진행중
+                          </span>
+                        )}
+                        {!isCompleted && !isInProgress && (
+                          <span style={{
+                            fontSize: '0.6875rem',
+                            color: '#4b5563',
+                          }}>
+                            대기
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

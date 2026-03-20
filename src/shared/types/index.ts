@@ -252,7 +252,8 @@ export type ScoreActionType =
   | 'timeout'           // 타임아웃
   | 'pause'             // 일시정지
   | 'resume'            // 재개
-  | 'substitution';     // 선수 교체
+  | 'substitution'      // 선수 교체
+  | 'correction';       // 점수 수정 (관리자)
 
 export interface ScoreAction {
   type: ScoreActionType;

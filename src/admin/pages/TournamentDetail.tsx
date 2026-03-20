@@ -12,12 +12,13 @@ import {
 } from '@shared/hooks/useFirebase';
 import { push, set, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { createEmptySet } from '@shared/utils/scoring';
+import { createEmptySet, checkMatchWinner, checkSetWinner } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
+import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
 import { simulateTournament } from '@shared/utils/simulation';
 import { buildGroupAssignment } from '@shared/utils/tournament';
 import { getSampleNames } from './AdminSettings';
-import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup }  from '@shared/types';
+import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup, SetScore, ScoreHistoryEntry }  from '@shared/types';
 import NumberStepper from '../components/tournament-create/NumberStepper';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -288,6 +289,7 @@ export default function TournamentDetail() {
             tournament={tournament}
             matches={matches}
             updateTournament={updateTournament}
+            updateMatch={updateMatch}
             isTeamType={isTeamType}
             tournamentPlayers={tournamentPlayers}
             teams={teams}
@@ -295,6 +297,7 @@ export default function TournamentDetail() {
         )}
         {activeTab === 'ranking' && (
           <RankingTab
+            tournament={tournament}
             matches={matches}
             isTeamType={isTeamType}
           />
@@ -1175,13 +1178,18 @@ interface StatusTabProps {
   tournament: NonNullable<ReturnType<typeof useTournament>['tournament']>;
   matches: Match[];
   updateTournament: (data: Record<string, unknown>) => Promise<void>;
+  updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
   isTeamType: boolean;
   tournamentPlayers: Player[];
   teams: Team[];
 }
 
-function StatusTab({ tournament, matches, updateTournament, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
+function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
+  const [correctionMatch, setCorrectionMatch] = useState<Match | null>(null);
+  const [correctionSets, setCorrectionSets] = useState<SetScore[]>([]);
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionSaving, setCorrectionSaving] = useState(false);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return matches;
@@ -1290,6 +1298,81 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
 
     await updateTournament({ currentStageId: finalsStageId });
     alert(`본선 대진표 생성 완료! ${finalsMatches.length}경기가 생성되었습니다.`);
+  };
+
+  const openCorrectionModal = (match: Match) => {
+    setCorrectionMatch(match);
+    setCorrectionSets(
+      (match.sets || []).map(s => ({ ...s }))
+    );
+    setCorrectionReason('');
+  };
+
+  const closeCorrectionModal = () => {
+    setCorrectionMatch(null);
+    setCorrectionSets([]);
+    setCorrectionReason('');
+  };
+
+  const handleCorrectionSetScore = (setIdx: number, player: 'player1Score' | 'player2Score', value: number) => {
+    setCorrectionSets(prev => prev.map((s, i) => i === setIdx ? { ...s, [player]: Math.max(0, value) } : s));
+  };
+
+  const correctionWinner = useMemo(() => {
+    if (correctionSets.length === 0) return null;
+    return checkMatchWinner(correctionSets);
+  }, [correctionSets]);
+
+  const handleSaveCorrection = async () => {
+    if (!correctionMatch || !correctionReason.trim()) return;
+    setCorrectionSaving(true);
+    try {
+      const newSets: SetScore[] = correctionSets.map(s => {
+        const winner = checkSetWinner(s.player1Score, s.player2Score);
+        return { ...s, winnerId: winner === 1 ? (correctionMatch.player1Id || correctionMatch.team1Id || null) : winner === 2 ? (correctionMatch.player2Id || correctionMatch.team2Id || null) : null };
+      });
+
+      const matchWinner = checkMatchWinner(newSets);
+      let newWinnerId: string | null = null;
+      if (matchWinner === 1) newWinnerId = correctionMatch.player1Id || correctionMatch.team1Id || null;
+      if (matchWinner === 2) newWinnerId = correctionMatch.player2Id || correctionMatch.team2Id || null;
+
+      const historyEntry: ScoreHistoryEntry = {
+        time: new Date().toISOString(),
+        scoringPlayer: '',
+        actionPlayer: 'admin',
+        actionType: 'correction',
+        actionLabel: `점수 수정: ${correctionReason.trim()}`,
+        points: 0,
+        set: 0,
+        server: '',
+        serveNumber: 0,
+        scoreBefore: {
+          player1: (correctionMatch.sets || []).reduce((sum, s) => sum + s.player1Score, 0),
+          player2: (correctionMatch.sets || []).reduce((sum, s) => sum + s.player2Score, 0),
+        },
+        scoreAfter: {
+          player1: newSets.reduce((sum, s) => sum + s.player1Score, 0),
+          player2: newSets.reduce((sum, s) => sum + s.player2Score, 0),
+        },
+      };
+
+      const existingHistory = toArray(correctionMatch.scoreHistory);
+
+      await updateMatch(correctionMatch.id, {
+        sets: newSets,
+        winnerId: newWinnerId,
+        scoreHistory: [...existingHistory, historyEntry],
+      });
+
+      alert('점수가 수정되었습니다.');
+      closeCorrectionModal();
+    } catch (err) {
+      console.error('점수 수정 오류:', err);
+      alert('점수 수정 중 오류가 발생했습니다.');
+    } finally {
+      setCorrectionSaving(false);
+    }
   };
 
   return (
@@ -1460,18 +1543,127 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
               </div>
 
               {match.status === 'completed' && match.sets && (
-                <div className="flex gap-2 flex-wrap mt-2">
-                  {match.sets.map((s, i) => (
-                    <span key={i} className="px-3 py-1 bg-gray-800 rounded text-sm font-mono">
-                      {match.sets && match.sets.length > 1 ? `S${i + 1}: ` : ''}{s.player1Score}-{s.player2Score}
-                    </span>
-                  ))}
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  <div className="flex gap-2 flex-wrap">
+                    {match.sets.map((s, i) => (
+                      <span key={i} className="px-3 py-1 bg-gray-800 rounded text-sm font-mono">
+                        {match.sets && match.sets.length > 1 ? `S${i + 1}: ` : ''}{s.player1Score}-{s.player2Score}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    className="btn bg-yellow-700 hover:bg-yellow-600 text-white text-xs px-3 py-1"
+                    onClick={() => openCorrectionModal(match)}
+                    aria-label="점수 수정"
+                  >
+                    점수 수정
+                  </button>
                 </div>
               )}
             </div>
           ))
         )}
       </div>
+
+      {/* 점수 수정 모달 */}
+      {correctionMatch && (
+        <div className="modal-backdrop" onClick={closeCorrectionModal}>
+          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">점수 수정</h2>
+              <button
+                className="text-gray-400 hover:text-white font-bold text-xl"
+                onClick={closeCorrectionModal}
+                aria-label="닫기"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="font-semibold text-lg">
+                {correctionMatch.type === 'individual'
+                  ? `${correctionMatch.player1Name ?? '?'} vs ${correctionMatch.player2Name ?? '?'}`
+                  : `${correctionMatch.team1Name ?? '?'} vs ${correctionMatch.team2Name ?? '?'}`}
+              </p>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              {correctionSets.map((s, i) => (
+                <div key={i} className="flex items-center gap-3 bg-gray-800 rounded-lg p-3">
+                  <span className="text-sm text-gray-400 w-10">S{i + 1}</span>
+                  <div className="flex items-center gap-2 flex-1">
+                    <label className="text-sm text-gray-300">
+                      {correctionMatch.type === 'individual' ? (correctionMatch.player1Name ?? 'P1') : (correctionMatch.team1Name ?? 'T1')}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      className="input w-20 text-center"
+                      value={s.player1Score}
+                      onChange={e => handleCorrectionSetScore(i, 'player1Score', parseInt(e.target.value) || 0)}
+                      aria-label={`세트 ${i + 1} ${correctionMatch.player1Name ?? 'P1'} 점수`}
+                    />
+                    <span className="text-gray-400">-</span>
+                    <input
+                      type="number"
+                      min={0}
+                      className="input w-20 text-center"
+                      value={s.player2Score}
+                      onChange={e => handleCorrectionSetScore(i, 'player2Score', parseInt(e.target.value) || 0)}
+                      aria-label={`세트 ${i + 1} ${correctionMatch.player2Name ?? 'P2'} 점수`}
+                    />
+                    <label className="text-sm text-gray-300">
+                      {correctionMatch.type === 'individual' ? (correctionMatch.player2Name ?? 'P2') : (correctionMatch.team2Name ?? 'T2')}
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mb-4 p-3 bg-gray-800 rounded-lg">
+              <span className="text-sm text-gray-400">자동 계산 승자: </span>
+              <span className="font-bold text-yellow-400">
+                {correctionWinner === 1
+                  ? (correctionMatch.type === 'individual' ? correctionMatch.player1Name : correctionMatch.team1Name) ?? 'P1'
+                  : correctionWinner === 2
+                  ? (correctionMatch.type === 'individual' ? correctionMatch.player2Name : correctionMatch.team2Name) ?? 'P2'
+                  : '미정 (세트 승수 부족)'}
+              </span>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-1">수정 사유 (필수)</label>
+              <input
+                type="text"
+                className="input w-full"
+                value={correctionReason}
+                onChange={e => setCorrectionReason(e.target.value)}
+                placeholder="예: 심판 기록 오류 수정"
+                aria-label="수정 사유"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                className="btn btn-accent flex-1"
+                onClick={handleSaveCorrection}
+                disabled={!correctionReason.trim() || correctionSaving}
+                aria-label="점수 수정 저장"
+              >
+                {correctionSaving ? '저장 중...' : '저장'}
+              </button>
+              <button
+                className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
+                onClick={closeCorrectionModal}
+                aria-label="취소"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1480,11 +1672,13 @@ function StatusTab({ tournament, matches, updateTournament, isTeamType, tourname
 // Ranking Tab
 // ========================
 interface RankingTabProps {
+  tournament: NonNullable<ReturnType<typeof useTournament>['tournament']>;
   matches: Match[];
   isTeamType: boolean;
 }
 
-function RankingTab({ matches, isTeamType }: RankingTabProps) {
+function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
+  const [copySuccess, setCopySuccess] = useState(false);
   const completedMatches = matches.filter(m => m.status === 'completed');
   const totalPoints = completedMatches.reduce((sum, m) => {
     return sum + (m.sets || []).reduce((s, set) => s + set.player1Score + set.player2Score, 0);
@@ -1496,10 +1690,79 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
 
   const formatDiff = (val: number) => val > 0 ? `+${val}` : `${val}`;
 
+  const handleExportCSV = () => {
+    const csv = exportResultsCSV(tournament as Parameters<typeof exportResultsCSV>[0], matches, [], []);
+    const filename = `${tournament.name}_결과_${tournament.date || 'export'}.csv`;
+    downloadCSV(csv, filename);
+  };
+
+  const handleCopyResults = async () => {
+    const lines: string[] = [];
+    lines.push(`[${tournament.name}] 결과`);
+    lines.push(`날짜: ${tournament.date}${tournament.endDate ? ` ~ ${tournament.endDate}` : ''}`);
+    lines.push(`유형: ${isTeamType ? '팀전' : '개인전'}`);
+    lines.push('');
+
+    if (isTeamType) {
+      const teamRankings = calculateTeamRanking(matches);
+      teamRankings.forEach(r => {
+        lines.push(`${r.rank}위: ${r.teamName || r.teamId} (${r.wins}승 ${r.losses}패, 득실차 ${formatDiff(r.pointsFor - r.pointsAgainst)})`);
+      });
+    } else {
+      const indivRankings = calculateIndividualRanking(matches);
+      indivRankings.forEach(r => {
+        lines.push(`${r.rank}위: ${r.playerName || r.playerId} (${r.wins}승 ${r.losses}패)`);
+      });
+    }
+
+    lines.push('');
+    lines.push(`총 ${completedMatches.length}/${matches.length} 경기 완료`);
+
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = lines.join('\n');
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
+  };
+
+  const exportButtons = (
+    <div className="card flex items-center gap-3 flex-wrap">
+      <span className="font-semibold text-gray-300">내보내기</span>
+      <button
+        className="btn btn-secondary"
+        onClick={handleExportCSV}
+        disabled={completedMatches.length === 0}
+        aria-label="CSV 내보내기"
+      >
+        CSV 내보내기
+      </button>
+      <button
+        className="btn btn-secondary"
+        onClick={handleCopyResults}
+        disabled={completedMatches.length === 0}
+        aria-label="결과 복사"
+      >
+        {copySuccess ? '복사됨!' : '결과 복사'}
+      </button>
+    </div>
+  );
+
   if (isTeamType) {
     const rankings = calculateTeamRanking(matches);
     return (
       <div className="space-y-6">
+        {exportButtons}
+
         {/* Summary stats */}
         <div className="card flex gap-6 flex-wrap">
           <div>
@@ -1571,6 +1834,8 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
   const rankings = calculateIndividualRanking(matches);
   return (
     <div className="space-y-6">
+      {exportButtons}
+
       {/* Summary stats */}
       <div className="card flex gap-6 flex-wrap">
         <div>
