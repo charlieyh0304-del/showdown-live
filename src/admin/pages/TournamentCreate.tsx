@@ -224,7 +224,7 @@ function reducer(state: WizardState, action: Action): WizardState {
         groupCount,
         qualifyingFormat: groupCount > 1 ? 'group_round_robin' : 'round_robin',
         advanceCount,
-        finalsFormat: preset.hasFinalsStage ? (preset.finalsConfig?.format ?? 'single_elimination') : state.finalsFormat,
+        finalsFormat: preset.formatType === 'round_robin' && !hasGroup ? 'round_robin' : (preset.hasFinalsStage ? (preset.finalsConfig?.format ?? 'single_elimination') : state.finalsFormat),
         finalsStartRound: startRound,
         startingRound: startRound,
         seedMethod: (preset.finalsConfig?.seedMethod as 'ranking' | 'manual' | 'random') ?? 'ranking',
@@ -251,10 +251,20 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'NEXT_STEP': {
       const nextStep = getNextStep(state.step, state.hasGroupStage);
       const next = { ...state, step: nextStep };
+      // Skip step 3 for pure round-robin (no format selection needed)
+      if (state.step === 2 && nextStep === 3 && state.formatType === 'round_robin' && !state.hasGroupStage && !state.hasFinalsStage) {
+        next.step = 4;
+      }
       return next;
     }
-    case 'PREV_STEP':
-      return { ...state, step: getPrevStep(state.step, state.hasGroupStage) };
+    case 'PREV_STEP': {
+      const prevStep = getPrevStep(state.step, state.hasGroupStage);
+      const next = { ...state, step: prevStep };
+      if (state.step === 4 && prevStep === 3 && state.formatType === 'round_robin' && !state.hasGroupStage && !state.hasFinalsStage) {
+        next.step = 2;
+      }
+      return next;
+    }
     case 'GO_TO_STEP':
       return { ...state, step: Math.max(1, Math.min(4, action.step)) };
     default:
@@ -473,7 +483,7 @@ export default function TournamentCreate() {
                   className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                   onClick={() => {
                     dispatch({ type: 'APPLY_PRESET', presetId: preset.id });
-                    dispatch({ type: 'GO_TO_STEP', step: 4 });
+                    dispatch({ type: 'GO_TO_STEP', step: 2 });
                   }}
                 >
                   <h3 className="text-lg font-bold">{preset.name}</h3>

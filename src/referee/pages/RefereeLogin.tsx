@@ -2,9 +2,25 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useTournaments, useReferees } from '@shared/hooks/useFirebase';
-import type { Tournament, Referee } from '@shared/types';
+import type { Tournament, Referee, TournamentStatus } from '@shared/types';
 
 type Step = 'tournament' | 'referee' | 'pin';
+
+const TOURNAMENT_STATUS_LABELS: Record<TournamentStatus, string> = {
+  draft: '준비중',
+  registration: '접수중',
+  in_progress: '진행중',
+  paused: '일시중지',
+  completed: '완료',
+};
+
+const TOURNAMENT_STATUS_COLORS: Record<TournamentStatus, string> = {
+  draft: 'bg-gray-600 text-gray-200',
+  registration: 'bg-blue-700 text-blue-100',
+  in_progress: 'bg-green-700 text-green-100',
+  paused: 'bg-yellow-700 text-yellow-100',
+  completed: 'bg-gray-600 text-gray-300',
+};
 
 export default function RefereeLogin() {
   const navigate = useNavigate();
@@ -19,7 +35,7 @@ export default function RefereeLogin() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const activeTournaments = tournaments.filter(t => t.status === 'in_progress');
+  const activeTournaments = tournaments.filter(t => t.status !== 'completed');
 
   const handleSelectTournament = (tournament: Tournament) => {
     setSelectedTournament(tournament);
@@ -97,7 +113,7 @@ export default function RefereeLogin() {
               </p>
             ) : activeTournaments.length === 0 ? (
               <p className="text-center text-gray-400 text-xl">
-                진행 중인 대회가 없습니다.
+                등록된 대회가 없습니다.
               </p>
             ) : (
               <div className="flex flex-col gap-4">
@@ -108,7 +124,12 @@ export default function RefereeLogin() {
                     onClick={() => handleSelectTournament(t)}
                     aria-label={`대회 선택: ${t.name}`}
                   >
-                    <div className="font-bold">{t.name}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold">{t.name}</div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${TOURNAMENT_STATUS_COLORS[t.status]}`}>
+                        {TOURNAMENT_STATUS_LABELS[t.status]}
+                      </span>
+                    </div>
                     <div className="text-sm opacity-80">{t.date}</div>
                   </button>
                 ))}
