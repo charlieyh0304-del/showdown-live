@@ -137,7 +137,7 @@ export default function CourtManagement() {
               <div>
                 <span className="font-bold text-lg">{c.name}</span>
                 {c.location && <span className="ml-3 text-gray-400">({c.location})</span>}
-                {c.assignedReferees.length > 0 && (
+                {(c.assignedReferees?.length ?? 0) > 0 && (
                   <span className="ml-3 text-cyan-400 text-sm">
                     심판: {getRefereeNames(c.assignedReferees)}
                   </span>

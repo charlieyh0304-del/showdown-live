@@ -16,18 +16,20 @@
         var path = location.pathname;
         var manifest = document.querySelector('link[rel="manifest"]');
         if (!manifest) return;
+        // Detect base path from current URL (works on both / and /showdown-test/)
+        var base = path.match(/^\/showdown-test/) ? '/showdown-test' : '';
         if (path.indexOf('/spectator') !== -1) {
-          manifest.href = '/manifest-spectator.json';
+          manifest.href = base + '/manifest-spectator.json';
           document.title = '쇼다운 관람';
           document.querySelector('meta[name="theme-color"]').content = '#1a73e8';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관람';
         } else if (path.indexOf('/referee') !== -1) {
-          manifest.href = '/manifest-referee.json';
+          manifest.href = base + '/manifest-referee.json';
           document.title = '쇼다운 심판';
           document.querySelector('meta[name="theme-color"]').content = '#f59e0b';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 심판';
         } else if (path.indexOf('/admin') !== -1) {
-          manifest.href = '/manifest-admin.json';
+          manifest.href = base + '/manifest-admin.json';
           document.title = '쇼다운 관리';
           document.querySelector('meta[name="theme-color"]').content = '#ef4444';
           document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관리';
