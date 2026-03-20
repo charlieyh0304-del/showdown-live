@@ -475,13 +475,18 @@ export default function IndividualScoring() {
   const p1TimeoutsUsed = match.player1Timeouts ?? 0;
   const p2TimeoutsUsed = match.player2Timeouts ?? 0;
 
-  // Keyboard shortcuts
-  const shortcuts = useMemo(() => ({
-    'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`),
-    'ArrowRight': () => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`),
-    'KeyZ': () => handleUndo(),
-  }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
-  useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
+  // Keyboard shortcuts - use useEffect directly instead of useMemo + hook
+  useEffect(() => {
+    if (match.status !== 'in_progress') return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'ArrowLeft') { e.preventDefault(); handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`); }
+      if (e.code === 'ArrowRight') { e.preventDefault(); handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`); }
+      if (e.code === 'KeyZ') { e.preventDefault(); handleUndo(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [match.status, handleIBSAScore, handleUndo, player1Name, player2Name]);
 
   return (
     <div className="min-h-screen flex flex-col">
