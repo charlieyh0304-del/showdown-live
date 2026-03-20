@@ -1448,38 +1448,84 @@ interface RankingTabProps {
 }
 
 function RankingTab({ matches, isTeamType }: RankingTabProps) {
+  const completedMatches = matches.filter(m => m.status === 'completed');
+  const totalPoints = completedMatches.reduce((sum, m) => {
+    return sum + (m.sets || []).reduce((s, set) => s + set.player1Score + set.player2Score, 0);
+  }, 0);
+  const avgPointsPerMatch = completedMatches.length > 0 ? (totalPoints / completedMatches.length).toFixed(1) : '0';
+
+  // Completed matches sorted by most recent first
+  const completedMatchesSorted = [...completedMatches].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+  const formatDiff = (val: number) => val > 0 ? `+${val}` : `${val}`;
+
   if (isTeamType) {
     const rankings = calculateTeamRanking(matches);
     return (
-      <div className="card overflow-x-auto">
-        <h2 className="text-xl font-bold mb-4">팀 순위</h2>
-        {rankings.length === 0 ? (
-          <p className="text-gray-400">완료된 경기가 없습니다.</p>
-        ) : (
-          <table className="w-full border-collapse" aria-label="팀 순위표">
-            <thead>
-              <tr>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
-                <th className="border border-gray-600 p-3 text-left bg-gray-800">팀명</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">경기</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">득실점</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rankings.map(r => (
-                <tr key={r.teamId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
-                  <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
-                  <td className="border border-gray-600 p-3 font-semibold">{r.teamName}</td>
-                  <td className="border border-gray-600 p-3 text-center">{r.played}</td>
-                  <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
-                  <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>
-                  <td className="border border-gray-600 p-3 text-center">{r.pointsFor}-{r.pointsAgainst}</td>
+      <div className="space-y-6">
+        {/* Summary stats */}
+        <div className="card flex gap-6 flex-wrap">
+          <div>
+            <span className="text-gray-400 text-sm">경기 진행</span>
+            <p className="text-lg font-bold">{completedMatches.length} / {matches.length}</p>
+          </div>
+          <div>
+            <span className="text-gray-400 text-sm">평균 득점 (경기당)</span>
+            <p className="text-lg font-bold">{avgPointsPerMatch}</p>
+          </div>
+        </div>
+
+        <div className="card overflow-x-auto">
+          <h2 className="text-xl font-bold mb-4">팀 순위</h2>
+          {rankings.length === 0 ? (
+            <p className="text-gray-400">완료된 경기가 없습니다.</p>
+          ) : (
+            <table className="w-full border-collapse" aria-label="팀 순위표">
+              <thead>
+                <tr>
+                  <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
+                  <th className="border border-gray-600 p-3 text-left bg-gray-800">팀명</th>
+                  <th className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
+                  <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
+                  <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
+                  <th className="border border-gray-600 p-3 text-center bg-gray-800">득실점</th>
+                  <th className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
                 </tr>
+              </thead>
+              <tbody>
+                {rankings.map(r => (
+                  <tr key={r.teamId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
+                    <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
+                    <td className="border border-gray-600 p-3 font-semibold">{r.teamName}</td>
+                    <td className="border border-gray-600 p-3 text-center">{r.played}</td>
+                    <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
+                    <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>
+                    <td className="border border-gray-600 p-3 text-center">{r.pointsFor}-{r.pointsAgainst}</td>
+                    <td className="border border-gray-600 p-3 text-center">{formatDiff(r.pointsFor - r.pointsAgainst)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Completed matches list (most recent first) */}
+        {completedMatchesSorted.length > 0 && (
+          <div className="card">
+            <h2 className="text-xl font-bold mb-4">완료된 경기</h2>
+            <div className="space-y-2">
+              {completedMatchesSorted.map(match => (
+                <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-semibold">{match.team1Name} vs {match.team2Name}</span>
+                  <div className="flex gap-2">
+                    {(match.sets || []).map((s, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">{s.player1Score}-{s.player2Score}</span>
+                    ))}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -1487,35 +1533,74 @@ function RankingTab({ matches, isTeamType }: RankingTabProps) {
 
   const rankings = calculateIndividualRanking(matches);
   return (
-    <div className="card overflow-x-auto">
-      <h2 className="text-xl font-bold mb-4">개인 순위</h2>
-      {rankings.length === 0 ? (
-        <p className="text-gray-400">완료된 경기가 없습니다.</p>
-      ) : (
-        <table className="w-full border-collapse" aria-label="개인 순위표">
-          <thead>
-            <tr>
-              <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
-              <th className="border border-gray-600 p-3 text-left bg-gray-800">이름</th>
-              <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
-              <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-              <th className="border border-gray-600 p-3 text-center bg-gray-800">세트득실</th>
-              <th className="border border-gray-600 p-3 text-center bg-gray-800">포인트득실</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rankings.map(r => (
-              <tr key={r.playerId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
-                <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
-                <td className="border border-gray-600 p-3 font-semibold">{r.playerName}</td>
-                <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
-                <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>
-                <td className="border border-gray-600 p-3 text-center">{r.setsWon}-{r.setsLost}</td>
-                <td className="border border-gray-600 p-3 text-center">{r.pointsFor}-{r.pointsAgainst}</td>
+    <div className="space-y-6">
+      {/* Summary stats */}
+      <div className="card flex gap-6 flex-wrap">
+        <div>
+          <span className="text-gray-400 text-sm">경기 진행</span>
+          <p className="text-lg font-bold">{completedMatches.length} / {matches.length}</p>
+        </div>
+        <div>
+          <span className="text-gray-400 text-sm">평균 득점 (경기당)</span>
+          <p className="text-lg font-bold">{avgPointsPerMatch}</p>
+        </div>
+      </div>
+
+      <div className="card overflow-x-auto">
+        <h2 className="text-xl font-bold mb-4">개인 순위</h2>
+        {rankings.length === 0 ? (
+          <p className="text-gray-400">완료된 경기가 없습니다.</p>
+        ) : (
+          <table className="w-full border-collapse" aria-label="개인 순위표">
+            <thead>
+              <tr>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
+                <th className="border border-gray-600 p-3 text-left bg-gray-800">이름</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">세트득실</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">세트차</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">포인트득실</th>
+                <th className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
               </tr>
+            </thead>
+            <tbody>
+              {rankings.map(r => (
+                <tr key={r.playerId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
+                  <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
+                  <td className="border border-gray-600 p-3 font-semibold">{r.playerName}</td>
+                  <td className="border border-gray-600 p-3 text-center">{r.played}</td>
+                  <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
+                  <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>
+                  <td className="border border-gray-600 p-3 text-center">{r.setsWon}-{r.setsLost}</td>
+                  <td className="border border-gray-600 p-3 text-center">{formatDiff(r.setsWon - r.setsLost)}</td>
+                  <td className="border border-gray-600 p-3 text-center">{r.pointsFor}-{r.pointsAgainst}</td>
+                  <td className="border border-gray-600 p-3 text-center">{formatDiff(r.pointsFor - r.pointsAgainst)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Completed matches list (most recent first) */}
+      {completedMatchesSorted.length > 0 && (
+        <div className="card">
+          <h2 className="text-xl font-bold mb-4">완료된 경기</h2>
+          <div className="space-y-2">
+            {completedMatchesSorted.map(match => (
+              <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                <span className="font-semibold">{match.player1Name} vs {match.player2Name}</span>
+                <div className="flex gap-2">
+                  {(match.sets || []).map((s, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">{s.player1Score}-{s.player2Score}</span>
+                  ))}
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
       )}
     </div>
   );

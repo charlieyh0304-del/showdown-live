@@ -48,6 +48,7 @@ export default function TournamentView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<'all' | 'qualifying' | 'finals' | 'ranking'>('all');
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
 
   const stageMap = useMemo(() => {
     const qualifying = matches.filter(m => m.groupId || m.stageId?.includes('qualifying'));
@@ -219,23 +220,30 @@ export default function TournamentView() {
               <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => setSelectedPlayer(null)}>닫기</button>
             </div>
           </div>
-          {playerStats && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center', marginBottom: '1rem' }}>
-              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.total}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 경기</p></div>
-              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p></div>
-              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p></div>
-              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22d3ee' }}>{playerStats.setsWon}-{playerStats.setsLost}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p></div>
-              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15' }}>{playerStats.pointsFor}-{playerStats.pointsAgainst}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>포인트 득실</p></div>
-              <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.pointsFor}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 포인트</p></div>
-            </div>
-          )}
+          {playerStats && (() => {
+            const completedCount = playerStats.wins + playerStats.losses;
+            const winRate = completedCount > 0 ? Math.round((playerStats.wins / completedCount) * 100) : 0;
+            const avgPoints = completedCount > 0 ? (playerStats.pointsFor / completedCount).toFixed(1) : '0';
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', textAlign: 'center', marginBottom: '1rem' }}>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.total}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 경기</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승률</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22d3ee' }}>{playerStats.setsWon}-{playerStats.setsLost}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15' }}>{playerStats.pointsFor}-{playerStats.pointsAgainst}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>포인트 득실</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.pointsFor}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 득점</p></div>
+                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a78bfa' }}>{avgPoints}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>경기당 득점</p></div>
+              </div>
+            );
+          })()}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '20rem', overflowY: 'auto' }}>
             {/* 예선 경기 */}
             {playerMatches.filter(m => m.groupId).length > 0 && (
               <div>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.25rem' }}>예선</h4>
                 {playerMatches.filter(m => m.groupId).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} />
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
               </div>
             )}
@@ -244,7 +252,7 @@ export default function TournamentView() {
               <div>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem', marginTop: '0.25rem' }}>본선</h4>
                 {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} />
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
               </div>
             )}
@@ -253,7 +261,7 @@ export default function TournamentView() {
               <div>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.25rem', marginTop: '0.25rem' }}>순위결정전</h4>
                 {playerMatches.filter(m => m.stageId?.includes('ranking')).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} />
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
               </div>
             )}
@@ -264,7 +272,7 @@ export default function TournamentView() {
                   <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af', marginBottom: '0.25rem', marginTop: '0.25rem' }}>기타</h4>
                 )}
                 {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} />
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
               </div>
             )}
@@ -956,13 +964,15 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.875rem' }}>
         <thead>
           <tr style={{ borderBottom: '2px solid #374151' }}>
-            <th style={{ textAlign: 'left', padding: '0.5rem', color: '#9ca3af' }}>순위</th>
-            <th style={{ textAlign: 'left', padding: '0.5rem', color: '#9ca3af' }}>이름</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af' }}>경기</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af' }}>승</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af' }}>패</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af' }}>세트득실</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af' }}>점수득실</th>
+            <th style={{ textAlign: 'left', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>순위</th>
+            <th style={{ textAlign: 'left', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>이름</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>경기</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>승</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>패</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트득실</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>점수득실</th>
+            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>득실차</th>
           </tr>
         </thead>
         <tbody>
@@ -1000,7 +1010,9 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}>{r.wins}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{r.losses}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.setsWon}-{r.setsLost}</td>
+              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
+              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
             </tr>
           ))}
         </tbody>
@@ -1258,6 +1270,157 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
   );
 }
 
+// ===== Tournament Results Summary =====
+function TournamentResultsSummary({
+  matches,
+  tournamentType,
+}: {
+  matches: Match[];
+  tournamentType: string;
+}) {
+  const summary = useMemo(() => {
+    const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
+    const completedMatches = matches.filter(m => m.status === 'completed');
+    const totalMatches = matches.length;
+    const completedCount = completedMatches.length;
+    const isFinished = totalMatches > 0 && completedCount === totalMatches;
+
+    // Calculate rankings to find top 3
+    let top3: { name: string; rank: number }[] = [];
+    if (isTeam) {
+      const rankings = calculateTeamRanking(matches);
+      top3 = rankings.slice(0, 3).map(r => ({ name: r.teamName, rank: r.rank }));
+    } else {
+      const rankings = calculateIndividualRanking(matches);
+      top3 = rankings.slice(0, 3).map(r => ({ name: r.playerName, rank: r.rank }));
+    }
+
+    // Total sets played
+    let totalSets = 0;
+    completedMatches.forEach(m => {
+      totalSets += (m.sets || []).length;
+    });
+
+    // Highest scoring match
+    let highestMatch: { name: string; totalPoints: number } | null = null;
+    completedMatches.forEach(m => {
+      let total = 0;
+      (m.sets || []).forEach(s => {
+        total += s.player1Score + s.player2Score;
+      });
+      if (total > 0 && (!highestMatch || total > highestMatch.totalPoints)) {
+        const label = isTeam
+          ? `${m.team1Name || '?'} vs ${m.team2Name || '?'}`
+          : `${m.player1Name || '?'} vs ${m.player2Name || '?'}`;
+        highestMatch = { name: label, totalPoints: total };
+      }
+    });
+
+    return { top3, totalMatches, completedCount, totalSets, highestMatch, isFinished };
+  }, [matches, tournamentType]);
+
+  if (summary.top3.length === 0) return null;
+
+  const medalStyles: { bg: string; border: string; text: string; label: string }[] = [
+    { bg: 'rgba(250, 204, 21, 0.15)', border: '#facc15', text: '#facc15', label: '1st' },
+    { bg: 'rgba(192, 192, 192, 0.12)', border: '#a8a8a8', text: '#c0c0c0', label: '2nd' },
+    { bg: 'rgba(205, 127, 50, 0.12)', border: '#cd7f32', text: '#cd7f32', label: '3rd' },
+  ];
+
+  return (
+    <div style={{
+      backgroundColor: '#1f2937',
+      borderRadius: '0.75rem',
+      padding: '1rem 1.25rem',
+      marginBottom: '1.25rem',
+      border: '1px solid #374151',
+    }}>
+      {/* Status badge */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af' }}>대회 결과 요약</span>
+        <span style={{
+          fontSize: '0.75rem',
+          fontWeight: 'bold',
+          padding: '0.25rem 0.625rem',
+          borderRadius: '9999px',
+          backgroundColor: summary.isFinished ? '#16a34a' : '#d97706',
+          color: '#fff',
+        }}>
+          {summary.isFinished ? '완료' : '진행중'}
+        </span>
+      </div>
+
+      {/* Podium */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        {summary.top3.map((entry, i) => (
+          <div key={i} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            backgroundColor: medalStyles[i].bg,
+            border: `1px solid ${medalStyles[i].border}`,
+            borderRadius: '0.5rem',
+            padding: i === 0 ? '0.75rem 1rem' : '0.5rem 1rem',
+          }}>
+            <span style={{
+              fontSize: i === 0 ? '1.5rem' : '1.125rem',
+              fontWeight: 'bold',
+              color: medalStyles[i].text,
+              minWidth: '2rem',
+              textAlign: 'center',
+            }}>
+              {medalStyles[i].label}
+            </span>
+            <span style={{
+              fontSize: i === 0 ? '1.375rem' : '1rem',
+              fontWeight: 'bold',
+              color: i === 0 ? '#facc15' : '#d1d5db',
+            }}>
+              {entry.name}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Stats row */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '0.5rem',
+        textAlign: 'center',
+        borderTop: '1px solid #374151',
+        paddingTop: '0.75rem',
+      }}>
+        <div>
+          <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#60a5fa' }}>
+            {summary.completedCount}/{summary.totalMatches}
+          </p>
+          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>경기 완료</p>
+        </div>
+        <div>
+          <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#c084fc' }}>
+            {summary.totalSets}
+          </p>
+          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>총 세트</p>
+        </div>
+        <div>
+          <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#f472b6' }}>
+            {summary.highestMatch ? summary.highestMatch.totalPoints : '-'}
+          </p>
+          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>최고 득점</p>
+        </div>
+      </div>
+
+      {/* Highest scoring match detail */}
+      {summary.highestMatch && (
+        <p style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', marginTop: '0.375rem' }}>
+          최고 득점 경기: {summary.highestMatch.name} ({summary.highestMatch.totalPoints}점)
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ===== Ranking Tab =====
 function RankingTab({
   matches,
@@ -1273,16 +1436,31 @@ function RankingTab({
   stageFilter: 'all' | 'qualifying' | 'finals' | 'ranking';
 }) {
   if (stageFilter === 'qualifying') {
-    return <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} />;
+    return (
+      <div>
+        <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
+        <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} />
+      </div>
+    );
   }
 
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
 
   if (isTeam) {
-    return <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} />;
+    return (
+      <div>
+        <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
+        <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} />
+      </div>
+    );
   }
 
-  return <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} />;
+  return (
+    <div>
+      <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
+      <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} />
+    </div>
+  );
 }
 
 function GroupRankingView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
@@ -1345,10 +1523,13 @@ function IndividualRankingTable({
           <tr style={{ backgroundColor: '#1f2937' }}>
             <th scope="col" style={thStyle}>순위</th>
             <th scope="col" style={{ ...thStyle, textAlign: 'left' }}>선수명</th>
+            <th scope="col" style={thStyle}>경기수</th>
             <th scope="col" style={thStyle}>승</th>
             <th scope="col" style={thStyle}>패</th>
             <th scope="col" style={thStyle}>세트</th>
+            <th scope="col" style={thStyle}>세트차</th>
             <th scope="col" style={thStyle}>포인트</th>
+            <th scope="col" style={thStyle}>득실차</th>
           </tr>
         </thead>
         <tbody>
@@ -1370,10 +1551,13 @@ function IndividualRankingTable({
                   {r.playerName}
                 </button>
               </td>
+              <td style={tdStyle}>{r.played}</td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}>{r.wins}</td>
               <td style={{ ...tdStyle, color: 'var(--color-danger)' }}>{r.losses}</td>
               <td style={tdStyle}>{r.setsWon}/{r.setsLost}</td>
+              <td style={{ ...tdStyle, color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>
               <td style={tdStyle}>{r.pointsFor}/{r.pointsAgainst}</td>
+              <td style={{ ...tdStyle, color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
             </tr>
           ))}
         </tbody>
@@ -1431,12 +1615,22 @@ function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSel
   );
 }
 
+function formatDiff(value: number): { text: string; color: string } {
+  if (value > 0) return { text: `+${value}`, color: '#22c55e' };
+  if (value < 0) return { text: `${value}`, color: '#ef4444' };
+  return { text: '0', color: '#6b7280' };
+}
+
 const thStyle: React.CSSProperties = {
   padding: '0.75rem 0.5rem',
   textAlign: 'center',
   fontWeight: 'bold',
   color: 'var(--color-primary)',
   whiteSpace: 'nowrap',
+  position: 'sticky',
+  top: 0,
+  backgroundColor: '#1f2937',
+  zIndex: 1,
 };
 
 const tdStyle: React.CSSProperties = {
@@ -1445,7 +1639,34 @@ const tdStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-function PlayerMatchRow({ match: m, navigate, tournamentId, selectedPlayer }: { match: Match; navigate: ReturnType<typeof useNavigate>; tournamentId: string; selectedPlayer: string }) {
+function getMatchStageBadge(m: Match): { label: string; color: string; bg: string } | null {
+  if (m.groupId || m.stageId?.includes('qualifying')) {
+    return { label: '예선', color: '#fff', bg: '#2563eb' };
+  }
+  if (m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')) {
+    return { label: '순위결정전', color: '#fff', bg: '#ea580c' };
+  }
+  if (m.stageId?.includes('finals') || m.roundLabel) {
+    return { label: m.roundLabel || '본선', color: '#000', bg: '#eab308' };
+  }
+  return null;
+}
+
+function PlayerMatchRow({
+  match: m,
+  navigate,
+  tournamentId,
+  selectedPlayer,
+  expandedMatchId,
+  onToggleExpand,
+}: {
+  match: Match;
+  navigate: ReturnType<typeof useNavigate>;
+  tournamentId: string;
+  selectedPlayer: string;
+  expandedMatchId: string | null;
+  onToggleExpand: (id: string | null) => void;
+}) {
   const isP1 = m.player1Name === selectedPlayer || m.team1Name === selectedPlayer;
   const opponentName = isP1
     ? (m.player2Name || m.team2Name || '?')
@@ -1453,6 +1674,7 @@ function PlayerMatchRow({ match: m, navigate, tournamentId, selectedPlayer }: { 
   const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
   const isWin = m.status === 'completed' && m.winnerId === myId;
   const isCompleted = m.status === 'completed';
+  const isExpanded = expandedMatchId === m.id;
 
   // Per-match point totals
   let matchPointsFor = 0;
@@ -1464,45 +1686,154 @@ function PlayerMatchRow({ match: m, navigate, tournamentId, selectedPlayer }: { 
     });
   }
 
-  // Set scores display (e.g., "11-7, 8-11, 11-9")
-  const setScores = m.sets && m.sets.length > 0
-    ? m.sets.map(s => isP1 ? `${s.player1Score}-${s.player2Score}` : `${s.player2Score}-${s.player1Score}`).join(', ')
-    : null;
+  // Stage badge
+  const stageBadge = getMatchStageBadge(m);
+
+  // Duration from scoreHistory timestamps
+  const duration = useMemo(() => {
+    if (!m.scoreHistory || m.scoreHistory.length < 2) return null;
+    const times = m.scoreHistory.map(e => new Date(e.time).getTime()).filter(t => !isNaN(t));
+    if (times.length < 2) return null;
+    const diffMs = Math.max(...times) - Math.min(...times);
+    const mins = Math.round(diffMs / 60000);
+    return mins > 0 ? mins : null;
+  }, [m.scoreHistory]);
 
   return (
-    <button
-      onClick={() => navigate(`/spectator/match/${tournamentId}/${m.id}`)}
-      style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer', border: 'none', color: 'inherit', marginBottom: '0.25rem', display: 'block' }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {isCompleted && (
-            <span style={{
-              color: isWin ? '#22c55e' : '#ef4444',
-              fontWeight: 'bold',
-              fontSize: '0.875rem',
-              minWidth: '1.25rem',
-            }}>
-              {isWin ? '승' : '패'}
-            </span>
-          )}
-          <span style={{ fontWeight: 'bold' }}>vs {opponentName}</span>
+    <div style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', marginBottom: '0.25rem', overflow: 'hidden' }}>
+      {/* Main row - clickable to expand/collapse */}
+      <div
+        style={{ padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleExpand(isExpanded ? null : m.id);
+        }}
+      >
+        {/* Top line: win/loss, opponent, stage badge, navigate arrow */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {isCompleted && (
+              <span style={{
+                color: isWin ? '#22c55e' : '#ef4444',
+                fontWeight: 'bold',
+                fontSize: '0.875rem',
+                minWidth: '1.25rem',
+              }}>
+                {isWin ? '승' : '패'}
+              </span>
+            )}
+            <span style={{ fontWeight: 'bold' }}>vs {opponentName}</span>
+            {stageBadge && (
+              <span style={{
+                fontSize: '0.6875rem',
+                fontWeight: 'bold',
+                color: stageBadge.color,
+                backgroundColor: stageBadge.bg,
+                padding: '0.125rem 0.375rem',
+                borderRadius: '0.25rem',
+                lineHeight: 1.2,
+              }}>
+                {stageBadge.label}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {duration && (
+              <span style={{ color: '#6b7280', fontSize: '0.6875rem' }}>{duration}분</span>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigate(`/spectator/match/${tournamentId}/${m.id}`); }}
+              style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              {m.status === 'completed' ? '상세 >' : '진행중 >'}
+            </button>
+          </div>
         </div>
-        <span style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15', fontSize: '0.75rem' }}>
-          {m.status === 'completed' ? '→' : '진행중 →'}
-        </span>
+
+        {/* Set score pills */}
+        {m.sets && m.sets.length > 0 && (
+          <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {m.sets.map((s, i) => {
+              const myScore = isP1 ? s.player1Score : s.player2Score;
+              const oppScore = isP1 ? s.player2Score : s.player1Score;
+              const setWon = myScore > oppScore;
+              return (
+                <span key={i} style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  color: setWon ? '#bbf7d0' : '#fecaca',
+                  backgroundColor: setWon ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  border: `1px solid ${setWon ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  padding: '0.125rem 0.5rem',
+                  borderRadius: '9999px',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {myScore}-{oppScore}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Total points summary */}
+        {isCompleted && m.sets && m.sets.length > 0 && (
+          <div style={{ color: '#9ca3af', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+            득 {matchPointsFor} - 실 {matchPointsAgainst}
+          </div>
+        )}
       </div>
-      {setScores && (
-        <div style={{ color: '#d1d5db', marginTop: '0.375rem', fontSize: '0.8125rem' }}>
-          {setScores}
+
+      {/* Expandable detail: score history timeline */}
+      {isExpanded && m.scoreHistory && m.scoreHistory.length > 0 && (
+        <div style={{
+          borderTop: '1px solid #374151',
+          padding: '0.5rem 0.75rem',
+          backgroundColor: '#111827',
+          maxHeight: '12rem',
+          overflowY: 'auto',
+        }}>
+          <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.375rem' }}>득점 타임라인</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+            {m.scoreHistory.map((entry, i) => {
+              const isMine = entry.scoringPlayer === selectedPlayer;
+              const timeStr = entry.time ? new Date(entry.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+              return (
+                <div key={i} style={{
+                  display: 'flex',
+                  gap: '0.5rem',
+                  fontSize: '0.6875rem',
+                  color: isMine ? '#bbf7d0' : '#fecaca',
+                  alignItems: 'center',
+                }}>
+                  <span style={{ color: '#6b7280', minWidth: '4rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
+                  <span style={{ fontWeight: 'bold', minWidth: '1rem' }}>S{entry.set}</span>
+                  <span style={{
+                    backgroundColor: isMine ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                    padding: '0 0.25rem',
+                    borderRadius: '0.125rem',
+                  }}>
+                    {entry.scoreBefore.player1}-{entry.scoreBefore.player2}
+                  </span>
+                  <span style={{ color: '#9ca3af' }}>{entry.actionLabel}</span>
+                  <span style={{ color: '#6b7280' }}>({entry.actionPlayer})</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
-      {isCompleted && m.sets && m.sets.length > 0 && (
-        <div style={{ color: '#9ca3af', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-          득점 {matchPointsFor} - 실점 {matchPointsAgainst}
+
+      {/* If expanded but no scoreHistory */}
+      {isExpanded && (!m.scoreHistory || m.scoreHistory.length === 0) && (
+        <div style={{
+          borderTop: '1px solid #374151',
+          padding: '0.5rem 0.75rem',
+          backgroundColor: '#111827',
+        }}>
+          <p style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center' }}>상세 득점 기록이 없습니다</p>
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -1618,7 +1949,175 @@ function PlayersTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
 }
 
 // ===== History Tab =====
-const HISTORY_ITEMS_PER_PAGE = 20;
+const HISTORY_ITEMS_PER_PAGE = 30;
+
+function HistoryMatchStatusBadge({ status }: { status: string }) {
+  if (status === 'in_progress') {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+        padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
+        backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#eab308', border: '1px solid rgba(234, 179, 8, 0.3)',
+      }}>
+        <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#eab308' }} />
+        진행중
+      </span>
+    );
+  }
+  if (status === 'completed') {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+        padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
+        backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)',
+      }}>
+        완료
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
+      backgroundColor: 'rgba(107, 114, 128, 0.15)', color: '#9ca3af', border: '1px solid rgba(107, 114, 128, 0.3)',
+    }}>
+      예정
+    </span>
+  );
+}
+
+function HistoryMatchCard({
+  match,
+  navigate,
+  tournamentId,
+}: {
+  match: Match;
+  navigate: ReturnType<typeof useNavigate>;
+  tournamentId: string;
+}) {
+  const isIndividual = match.type === 'individual';
+  const p1 = isIndividual ? (match.player1Name || '선수1') : (match.team1Name || '팀1');
+  const p2 = isIndividual ? (match.player2Name || '선수2') : (match.team2Name || '팀2');
+  const isCompleted = match.status === 'completed';
+  const isP1Winner = isCompleted && match.winnerId === (match.player1Id || match.team1Id);
+  const isP2Winner = isCompleted && match.winnerId === (match.player2Id || match.team2Id);
+  const sets = match.sets || [];
+  const setWins = isIndividual && sets.length > 0 ? countSetWins(sets) : null;
+
+  const borderColor = match.status === 'in_progress' ? '#eab308' : isCompleted ? '#374151' : '#1f2937';
+
+  return (
+    <button
+      className="card"
+      onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
+      style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${borderColor}`, padding: '0.75rem 1rem' }}
+      aria-label={`${p1} 대 ${p2}, ${isCompleted ? '완료' : match.status === 'in_progress' ? '진행중' : '예정'}`}
+    >
+      {/* Top row: badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+        <HistoryMatchStatusBadge status={match.status} />
+        {match.courtName && (
+          <span style={{
+            padding: '0.125rem 0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: 600,
+            backgroundColor: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)',
+          }}>
+            {match.courtName}
+          </span>
+        )}
+        {match.refereeName && (
+          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+            심판: {match.refereeName}
+          </span>
+        )}
+      </div>
+
+      {/* Players / teams row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+        <span style={{
+          flex: 1, fontWeight: 'bold', fontSize: '1.05rem',
+          color: isP1Winner ? '#22c55e' : isCompleted && isP2Winner ? '#9ca3af' : '#d1d5db',
+        }}>
+          {p1}
+        </span>
+
+        {/* Score area */}
+        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+          {sets.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.125rem' }}>
+              {/* Set wins for individual, or total score for team */}
+              {isIndividual && setWins ? (
+                <span style={{ fontSize: '1.125rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ color: isP1Winner ? '#22c55e' : '#d1d5db' }}>{setWins.player1}</span>
+                  <span style={{ color: '#6b7280', margin: '0 0.125rem' }}>-</span>
+                  <span style={{ color: isP2Winner ? '#22c55e' : '#d1d5db' }}>{setWins.player2}</span>
+                </span>
+              ) : !isIndividual && sets.length > 0 ? (
+                <span style={{ fontSize: '1.125rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ color: isP1Winner ? '#22c55e' : '#d1d5db' }}>{sets[0].player1Score}</span>
+                  <span style={{ color: '#6b7280', margin: '0 0.125rem' }}>-</span>
+                  <span style={{ color: isP2Winner ? '#22c55e' : '#d1d5db' }}>{sets[0].player2Score}</span>
+                </span>
+              ) : null}
+              {/* Inline set scores for individual */}
+              {isIndividual && sets.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {sets.map((s, i) => {
+                    const p1Won = s.player1Score > s.player2Score;
+                    return (
+                      <span key={i} style={{
+                        fontSize: '0.6875rem', fontVariantNumeric: 'tabular-nums',
+                        color: '#9ca3af', backgroundColor: '#374151',
+                        padding: '0.0625rem 0.375rem', borderRadius: '0.25rem',
+                        border: match.status === 'in_progress' && i === sets.length - 1 ? '1px solid #eab308' : 'none',
+                      }}>
+                        <span style={{ color: p1Won ? '#4ade80' : undefined }}>{s.player1Score}</span>
+                        -
+                        <span style={{ color: !p1Won && s.player2Score > s.player1Score ? '#4ade80' : undefined }}>{s.player2Score}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <span style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '0.875rem' }}>vs</span>
+          )}
+        </div>
+
+        <span style={{
+          flex: 1, fontWeight: 'bold', fontSize: '1.05rem', textAlign: 'right',
+          color: isP2Winner ? '#22c55e' : isCompleted && isP1Winner ? '#9ca3af' : '#d1d5db',
+        }}>
+          {p2}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function HistoryStageSectionHeader({
+  title,
+  color,
+  completedCount,
+  totalCount,
+}: {
+  title: string;
+  color: string;
+  completedCount: number;
+  totalCount: number;
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      borderBottom: `2px solid ${color}33`, paddingBottom: '0.5rem', marginBottom: '0.75rem', marginTop: '0.25rem',
+    }}>
+      <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color }}>{title}</h3>
+      <span style={{ fontSize: '0.8125rem', color: '#9ca3af' }}>
+        {completedCount}/{totalCount} 완료
+      </span>
+    </div>
+  );
+}
 
 function HistoryTab({
   matches,
@@ -1631,124 +2130,219 @@ function HistoryTab({
 }) {
   const [page, setPage] = useState(1);
 
-  const completedMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.status === 'completed')
-        .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)),
-    [matches]
-  );
+  // Classify matches into stages
+  const stageGroups = useMemo(() => {
+    const qualifying: Match[] = [];
+    const finals: Match[] = [];
+    const ranking: Match[] = [];
+    const other: Match[] = [];
 
-  const inProgressCount = useMemo(() => matches.filter(m => m.status === 'in_progress').length, [matches]);
-  const pendingCount = useMemo(() => matches.filter(m => m.status === 'pending').length, [matches]);
-
-  const totalPages = Math.ceil(completedMatches.length / HISTORY_ITEMS_PER_PAGE);
-  const pagedCompleted = completedMatches.slice((page - 1) * HISTORY_ITEMS_PER_PAGE, page * HISTORY_ITEMS_PER_PAGE);
-
-  const groups = useMemo(() => {
-    const map = new Map<string, Match[]>();
-    pagedCompleted.forEach(m => {
-      let key: string;
-      if (m.groupId) {
-        key = m.groupId;
+    matches.forEach(m => {
+      if (m.groupId || m.stageId?.includes('qualifying')) {
+        qualifying.push(m);
       } else if (m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')) {
-        key = '순위결정전';
+        ranking.push(m);
       } else if (m.stageId?.includes('finals') || m.roundLabel) {
-        key = '본선';
+        finals.push(m);
       } else {
-        key = '기타';
+        other.push(m);
       }
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(m);
     });
-    // Sort: groups first (alphabetical), then 본선, 순위결정전, 기타
-    const order = ['본선', '순위결정전', '기타'];
-    return Array.from(map.entries()).sort(([a], [b]) => {
-      const aIdx = order.indexOf(a);
-      const bIdx = order.indexOf(b);
-      if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
-      if (aIdx === -1) return -1;
-      if (bIdx === -1) return 1;
-      return aIdx - bIdx;
-    });
-  }, [pagedCompleted]);
 
-  if (completedMatches.length === 0) {
+    return { qualifying, finals, ranking, other };
+  }, [matches]);
+
+  // Sub-group qualifying by groupId
+  const qualifyingGroups = useMemo(() => {
+    const map = new Map<string, Match[]>();
+    stageGroups.qualifying.forEach(m => {
+      const gid = m.groupId || 'default';
+      if (!map.has(gid)) map.set(gid, []);
+      map.get(gid)!.push(m);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [stageGroups.qualifying]);
+
+  // Sub-group finals by roundLabel
+  const finalsRounds = useMemo(() => {
+    const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
+    const map = new Map<string, Match[]>();
+    stageGroups.finals.forEach(m => {
+      const label = m.roundLabel || `라운드 ${m.round || '?'}`;
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(m);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      const ai = roundOrder.indexOf(a);
+      const bi = roundOrder.indexOf(b);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [stageGroups.finals]);
+
+  // Sub-group ranking matches by roundLabel
+  const rankingRounds = useMemo(() => {
+    const map = new Map<string, Match[]>();
+    stageGroups.ranking.forEach(m => {
+      const label = m.roundLabel || '순위결정전';
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(m);
+    });
+    return Array.from(map.entries());
+  }, [stageGroups.ranking]);
+
+  const totalMatchCount = matches.length;
+  const totalPages = Math.ceil(totalMatchCount / HISTORY_ITEMS_PER_PAGE);
+  const safePage = Math.min(page, Math.max(totalPages, 1));
+
+  const completedCount = matches.filter(m => m.status === 'completed').length;
+  const inProgressCount = matches.filter(m => m.status === 'in_progress').length;
+  const pendingCount = matches.filter(m => m.status === 'pending').length;
+
+  if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>완료된 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>경기가 없습니다</p>
       </div>
     );
   }
 
+  const countCompleted = (ms: Match[]) => ms.filter(m => m.status === 'completed').length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-        전체 {matches.length}경기 | 완료 {completedMatches.length}경기 | 진행중 {inProgressCount}경기 | 대기 {pendingCount}경기
+        전체 {matches.length}경기 | 완료 {completedCount}경기 | 진행중 {inProgressCount}경기 | 대기 {pendingCount}경기
       </p>
 
-      {groups.map(([groupId, groupMatches]) => (
-        <div key={groupId}>
-          {groupId === '본선' && (
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.5rem' }}>
-              본선 경기 기록
-            </h3>
-          )}
-          {groupId === '순위결정전' && (
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.5rem' }}>
-              순위결정전 경기 기록
-            </h3>
-          )}
-          {groupId !== '기타' && groupId !== '본선' && groupId !== '순위결정전' && (
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
-              {groupId}조 경기 기록
-            </h3>
-          )}
-          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {groupMatches.map((match) => {
-              const isIndividual = match.type === 'individual';
-              const setWins = isIndividual && match.sets ? countSetWins(match.sets) : null;
-              const label = isIndividual
-                ? `${match.player1Name} vs ${match.player2Name}`
-                : `${match.team1Name} vs ${match.team2Name}`;
-
-              return (
-                <li key={match.id}>
-                  <button
-                    className="card"
-                    onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
-                    style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: '2px solid #14532d' }}
-                    aria-label={`${label}, 완료`}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <p style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>{label}</p>
-                        {isIndividual && setWins && (
-                          <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                            세트 {setWins.player1} - {setWins.player2}
-                          </p>
-                        )}
-                        {!isIndividual && match.sets && match.sets.length > 0 && (
-                          <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                            {match.sets[0].player1Score} - {match.sets[0].player2Score}
-                          </p>
-                        )}
-                      </div>
-                      <span style={{ color: '#16a34a', fontWeight: 'bold' }}>완료 →</span>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+      {/* Qualifying (Group stage) */}
+      {stageGroups.qualifying.length > 0 && (
+        <div>
+          <HistoryStageSectionHeader
+            title="예선 (조별리그)"
+            color="#60a5fa"
+            completedCount={countCompleted(stageGroups.qualifying)}
+            totalCount={stageGroups.qualifying.length}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {qualifyingGroups.map(([groupId, gMatches]) => (
+              <div key={groupId}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: '0.5rem', paddingLeft: '0.25rem',
+                }}>
+                  <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
+                    {groupId === 'default' ? '경기' : `${groupId}조`}
+                  </h4>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    {countCompleted(gMatches)}/{gMatches.length}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {gMatches.map(m => (
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* Finals (Tournament bracket) */}
+      {stageGroups.finals.length > 0 && (
+        <div>
+          <HistoryStageSectionHeader
+            title="본선 (토너먼트)"
+            color="#4ade80"
+            completedCount={countCompleted(stageGroups.finals)}
+            totalCount={stageGroups.finals.length}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {finalsRounds.map(([roundLabel, rMatches]) => (
+              <div key={roundLabel}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: '0.5rem', paddingLeft: '0.25rem',
+                }}>
+                  <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
+                    {roundLabel}
+                  </h4>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    {countCompleted(rMatches)}/{rMatches.length}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {rMatches.map(m => (
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ranking matches */}
+      {stageGroups.ranking.length > 0 && (
+        <div>
+          <HistoryStageSectionHeader
+            title="순위결정전"
+            color="#c084fc"
+            completedCount={countCompleted(stageGroups.ranking)}
+            totalCount={stageGroups.ranking.length}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {rankingRounds.map(([roundLabel, rMatches]) => (
+              <div key={roundLabel}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: '0.5rem', paddingLeft: '0.25rem',
+                }}>
+                  <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
+                    {roundLabel}
+                  </h4>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    {countCompleted(rMatches)}/{rMatches.length}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {rMatches.map(m => (
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Other (unclassified) */}
+      {stageGroups.other.length > 0 && (
+        <div>
+          {(stageGroups.qualifying.length > 0 || stageGroups.finals.length > 0 || stageGroups.ranking.length > 0) && (
+            <HistoryStageSectionHeader
+              title="기타"
+              color="#9ca3af"
+              completedCount={countCompleted(stageGroups.other)}
+              totalCount={stageGroups.other.length}
+            />
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {stageGroups.other.map(m => (
+              <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-          <button className="btn btn-sm btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>이전</button>
-          <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{page} / {totalPages}</span>
-          <button className="btn btn-sm btn-secondary" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>다음</button>
+          <button className="btn btn-sm btn-secondary" disabled={safePage === 1} onClick={() => setPage(p => p - 1)}>이전</button>
+          <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{safePage} / {totalPages}</span>
+          <button className="btn btn-sm btn-secondary" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}>다음</button>
         </div>
       )}
     </div>
