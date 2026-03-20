@@ -13,6 +13,8 @@ function getTournamentTypeLabel(type: Tournament['type']): string {
 
 function getStatusLabel(status: Tournament['status']): string {
   switch (status) {
+    case 'draft': return '준비중';
+    case 'registration': return '모집중';
     case 'in_progress': return '진행중';
     case 'completed': return '완료';
     case 'paused': return '일시정지';
@@ -27,7 +29,7 @@ export default function SpectatorHome() {
 
   const visibleTournaments = tournaments.filter((t) => {
     if (filter === 'in_progress') {
-      return t.status !== 'completed';
+      return t.status === 'registration' || t.status === 'in_progress' || t.status === 'paused';
     }
     return t.status === 'completed';
   });

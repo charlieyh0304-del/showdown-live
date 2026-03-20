@@ -103,6 +103,7 @@ export default function AdminHome() {
 
       {deleteTarget && (
         <DeleteConfirmModal
+          tournamentName={tournaments.find(t => t.id === deleteTarget)?.name || ''}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           deleting={deleting}
@@ -113,7 +114,7 @@ export default function AdminHome() {
 }
 
 // ===== 삭제 확인 모달 (포커스 트랩 포함) =====
-function DeleteConfirmModal({ onConfirm, onCancel, deleting }: { onConfirm: () => void; onCancel: () => void; deleting: boolean }) {
+function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: { tournamentName: string; onConfirm: () => void; onCancel: () => void; deleting: boolean }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -174,7 +175,9 @@ function DeleteConfirmModal({ onConfirm, onCancel, deleting }: { onConfirm: () =
         aria-labelledby="delete-modal-title"
       >
         <h2 id="delete-modal-title" className="text-2xl font-bold text-red-500 mb-4">대회 삭제</h2>
-        <p className="text-lg mb-4">이 대회를 정말 삭제하시겠습니까? 관련된 모든 데이터가 삭제됩니다.</p>
+        <p className="text-lg mb-4">
+          <strong className="text-yellow-400">{tournamentName}</strong> 대회를 정말 삭제하시겠습니까? 관련된 모든 데이터가 삭제됩니다.
+        </p>
         <div className="mb-4">
           <label htmlFor="admin-password" className="block text-sm text-gray-400 mb-1">관리자 암호 입력</label>
           <input

@@ -193,9 +193,11 @@ function ScoreHistorySection({
                 backgroundColor: i % 2 === 0 ? 'transparent' : '#111827',
               }}
             >
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '2px' }}>
+                서브: {h.server} {h.serveNumber}회차 | {h.time}
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <span style={{ color: '#6b7280', marginRight: '0.5rem' }}>{h.time}</span>
                   <span style={{ marginRight: '0.5rem' }}>{icon}</span>
                   {isGoal ? (
                     <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
@@ -210,9 +212,6 @@ function ScoreHistorySection({
                 <div style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
                   {h.scoreAfter.player1} - {h.scoreAfter.player2}
                 </div>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>
-                서브: {h.server} {h.serveNumber}회차
               </div>
             </div>
           );

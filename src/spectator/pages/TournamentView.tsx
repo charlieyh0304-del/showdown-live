@@ -385,7 +385,7 @@ export default function TournamentView() {
           <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} />
         )}
         {activeTab === 'ranking' && (
-          <RankingTab matches={filteredMatches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
+          <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
         )}
         {activeTab === 'players' && (
           <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} />

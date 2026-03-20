@@ -8,7 +8,7 @@ interface SetGroupedHistoryProps {
 }
 
 export default function SetGroupedHistory({ history, sets, showAll = false }: SetGroupedHistoryProps) {
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('oldest');
 
   if (history.length === 0) return null;
 

@@ -59,6 +59,9 @@ export default function TournamentDetail() {
   const [simProgress, setSimProgress] = useState('');
   const [simCount, setSimCount] = useState(8);
   const [simCountInitialized, setSimCountInitialized] = useState(false);
+  const [simAutoBracket, setSimAutoBracket] = useState(true);
+  const [simAutoReferee, setSimAutoReferee] = useState(true);
+  const [simAutoCourt, setSimAutoCourt] = useState(true);
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
   const { matches, loading: mLoading, setMatchesBulk, updateMatch, addMatch, deleteMatch } = useMatches(id ?? null);
@@ -117,9 +120,14 @@ export default function TournamentDetail() {
       hasExistingPlayers
         ? `• 등록된 선수 ${playerCount}명으로 진행`
         : `• 가상 참가자 ${playerCount}명 생성`,
-      hasExistingReferees
-        ? `• 등록된 심판 ${referees.length}명 배정`
-        : `• 가상 심판 3명 생성`,
+      simAutoReferee
+        ? (hasExistingReferees
+          ? `• 등록된 심판 ${referees.length}명 배정`
+          : `• 가상 심판 3명 생성`)
+        : `• 심판 자동 배정: OFF`,
+      simAutoCourt
+        ? `• 경기장 자동 배정: ON`
+        : `• 경기장 자동 배정: OFF`,
       `• 기존 경기 데이터가 초기화됩니다`,
       `• 대회 규칙 설정은 유지됩니다`,
       `\n계속하시겠습니까?`,
@@ -162,7 +170,7 @@ export default function TournamentDetail() {
 
       // === 가상 코트 생성 (기존 코트가 없을 때, 경기 저장 전) ===
       const courtIdMap = new Map<string, string>();
-      if (courts.length === 0) {
+      if (simAutoCourt && courts.length === 0) {
         setSimProgress('가상 코트 생성 중...');
         for (const simCourt of [{ simId: 'sim_court_1', name: '1코트' }, { simId: 'sim_court_2', name: '2코트' }]) {
           const newId = await addCourt({ name: simCourt.name, assignedReferees: [] });
@@ -172,7 +180,7 @@ export default function TournamentDetail() {
 
       // === 가상 심판 생성 (기존 심판이 없을 때, 경기 저장 전) ===
       const refIdMap = new Map<string, string>();
-      if (referees.length === 0 && result.referees && result.referees.length > 0) {
+      if (simAutoReferee && referees.length === 0 && result.referees && result.referees.length > 0) {
         setSimProgress(`가상 심판 ${result.referees.length}명 생성 중...`);
         for (const simRef of result.referees) {
           const newId = await addReferee({ name: simRef.name, role: 'main', assignedMatchIds: [] });
@@ -191,8 +199,8 @@ export default function TournamentDetail() {
         player1Id: remapId(m.player1Id),
         player2Id: remapId(m.player2Id),
         winnerId: remapId(m.winnerId),
-        courtId: courtIdMap.get(m.courtId || '') || m.courtId,
-        refereeId: refIdMap.get(m.refereeId || '') || m.refereeId,
+        courtId: simAutoCourt ? (courtIdMap.get(m.courtId || '') || m.courtId) : undefined,
+        refereeId: simAutoReferee ? (refIdMap.get(m.refereeId || '') || m.refereeId) : undefined,
       }));
       const actualMatchIds = await setMatchesBulk(remappedMatches);
 
@@ -208,31 +216,33 @@ export default function TournamentDetail() {
         const remappedSchedule = result.schedule.map(slot => ({
           ...slot,
           matchId: matchIdMap.get(slot.matchId) || slot.matchId,
-          courtId: courtIdMap.get(slot.courtId) || slot.courtId,
+          courtId: simAutoCourt ? (courtIdMap.get(slot.courtId) || slot.courtId) : slot.courtId,
         }));
         await setScheduleBulk(remappedSchedule);
       }
 
       // === 심판 배정 업데이트 (실제 match ID로) ===
-      if (referees.length > 0) {
-        // 기존 심판에게 경기 라운드로빈 배정
-        const refAssignments = referees.map(r => ({ id: r.id, assignedMatchIds: [] as string[] }));
-        actualMatchIds.forEach((matchId, idx) => {
-          const refIdx = idx % refAssignments.length;
-          refAssignments[refIdx].assignedMatchIds.push(matchId);
-        });
-        setSimProgress(`심판 ${referees.length}명 배정 정보 저장 중...`);
-        for (const ra of refAssignments) {
-          await updateReferee(ra.id, { assignedMatchIds: ra.assignedMatchIds });
-        }
-      } else if (result.referees && result.referees.length > 0) {
-        // 가상 심판에 실제 match ID 배정
-        setSimProgress(`심판 배정 정보 저장 중...`);
-        for (const simRef of result.referees) {
-          const realRefId = refIdMap.get(simRef.id);
-          if (realRefId) {
-            const remappedIds = simRef.assignedMatchIds.map(id => matchIdMap.get(id) || id);
-            await updateReferee(realRefId, { assignedMatchIds: remappedIds });
+      if (simAutoReferee) {
+        if (referees.length > 0) {
+          // 기존 심판에게 경기 라운드로빈 배정
+          const refAssignments = referees.map(r => ({ id: r.id, assignedMatchIds: [] as string[] }));
+          actualMatchIds.forEach((matchId, idx) => {
+            const refIdx = idx % refAssignments.length;
+            refAssignments[refIdx].assignedMatchIds.push(matchId);
+          });
+          setSimProgress(`심판 ${referees.length}명 배정 정보 저장 중...`);
+          for (const ra of refAssignments) {
+            await updateReferee(ra.id, { assignedMatchIds: ra.assignedMatchIds });
+          }
+        } else if (result.referees && result.referees.length > 0) {
+          // 가상 심판에 실제 match ID 배정
+          setSimProgress(`심판 배정 정보 저장 중...`);
+          for (const simRef of result.referees) {
+            const realRefId = refIdMap.get(simRef.id);
+            if (realRefId) {
+              const remappedIds = simRef.assignedMatchIds.map(id => matchIdMap.get(id) || id);
+              await updateReferee(realRefId, { assignedMatchIds: remappedIds });
+            }
           }
         }
       }
@@ -268,8 +278,8 @@ export default function TournamentDetail() {
       {tournament.status === 'draft' && (
         <div className="card bg-purple-900/30 border-purple-500 p-4">
           <h3 className="text-lg font-bold text-purple-400 mb-2">테스트 시뮬레이션</h3>
-          <p className="text-gray-400 text-sm mb-3">가상 참가자, 경기 결과, 순위를 자동으로 생성합니다.</p>
-          <div className="mb-3">
+          <p className="text-gray-400 text-sm mb-4">가상 참가자, 경기 결과, 순위를 자동으로 생성합니다.</p>
+          <div className="mb-4">
             <NumberStepper
               label="시뮬레이션 참가자 수"
               value={simCount}
@@ -278,6 +288,44 @@ export default function TournamentDetail() {
               onChange={setSimCount}
               ariaLabel="시뮬레이션 참가자 수"
             />
+          </div>
+          <div className="space-y-3 mb-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={simAutoBracket}
+                onChange={e => setSimAutoBracket(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-purple-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-200">대진표 자동 배정</span>
+                <p className="text-xs text-gray-500">조별 라운드로빈 대진을 자동으로 생성합니다.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={simAutoReferee}
+                onChange={e => setSimAutoReferee(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-purple-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-200">심판 자동 배정</span>
+                <p className="text-xs text-gray-500">가상 심판을 생성하고 경기에 배정합니다.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={simAutoCourt}
+                onChange={e => setSimAutoCourt(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-purple-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-200">경기장 자동 배정</span>
+                <p className="text-xs text-gray-500">가상 경기장을 생성하고 스케줄에 배정합니다.</p>
+              </div>
+            </label>
           </div>
           {simProgress && <p className="text-cyan-400 text-sm mb-2">{simProgress}</p>}
           <button
