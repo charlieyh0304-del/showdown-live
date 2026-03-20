@@ -44,6 +44,25 @@ function simulateScoreHistory(
     const targetP2 = set.player2Score;
     let entryIndex = 0;
 
+    // 세트 시작 시 첫 서브 기록 (서브 시작 이벤트)
+    const setStartTime = new Date(baseTime + setIdx * 10 * 60 * 1000);
+    const firstServerName = server === 'player1' ? p1Name : p2Name;
+    const setStartIdx = history.length; // 이 세트의 시작 인덱스 기억
+    history.push({
+      time: setStartTime.toLocaleTimeString('ko-KR'),
+      scoringPlayer: firstServerName,
+      actionPlayer: firstServerName,
+      actionType: 'resume' as ScoreActionType,
+      actionLabel: setIdx === 0 ? `${firstServerName} 첫 서브` : `세트 ${setIdx + 1} 시작 - ${firstServerName} 서브`,
+      points: 0,
+      set: setIdx + 1,
+      server: firstServerName,
+      serveNumber: 1,
+      scoreBefore: { player1: 0, player2: 0 },
+      scoreAfter: { player1: 0, player2: 0 },
+    });
+    entryIndex++;
+
     while (p1 < targetP1 || p2 < targetP2) {
       const remainP1 = targetP1 - p1;
       const remainP2 = targetP2 - p2;
@@ -121,12 +140,13 @@ function simulateScoreHistory(
       }
     }
 
-    // 세트당 랜덤으로 타임아웃 1회 삽입 (50% 확률)
+    // 세트당 랜덤으로 타임아웃 1회 삽입 (50% 확률, 이 세트 범위 내에서만)
     if (Math.random() < 0.5) {
       const timeoutCaller: 'player1' | 'player2' = Math.random() < 0.5 ? 'player1' : 'player2';
       const callerName = timeoutCaller === 'player1' ? p1Name : p2Name;
-      // 세트 중간 정도에 삽입
-      const insertIdx = Math.floor(history.length / 2);
+      // 이 세트 엔트리 중간에 삽입 (세트 시작 이후, 세트 끝 이전)
+      const setEntryCount = history.length - setStartIdx;
+      const insertIdx = setStartIdx + Math.max(1, Math.floor(setEntryCount / 2));
       const refEntry = history[insertIdx] || history[history.length - 1];
       const timeoutTime = refEntry
         ? new Date(baseTime + setIdx * 10 * 60 * 1000 + Math.floor(entryIndex / 2) * 30000)

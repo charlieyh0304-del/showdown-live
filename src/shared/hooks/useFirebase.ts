@@ -273,15 +273,18 @@ export function useMatches(tournamentId: string | null) {
     await remove(ref(database, `matches/${tournamentId}/${matchId}`));
   }, [tournamentId]);
 
-  const setMatchesBulk = useCallback(async (newMatches: Omit<Match, 'id'>[]) => {
-    if (!tournamentId) return;
+  const setMatchesBulk = useCallback(async (newMatches: Omit<Match, 'id'>[]): Promise<string[]> => {
+    if (!tournamentId) return [];
     await remove(ref(database, `matches/${tournamentId}`));
+    const ids: string[] = [];
     for (const match of newMatches) {
       // undefined 값 제거 (Firebase는 undefined를 거부)
       const clean = JSON.parse(JSON.stringify(match));
       const newRef = push(ref(database, `matches/${tournamentId}`));
       await set(newRef, clean);
+      ids.push(newRef.key!);
     }
+    return ids;
   }, [tournamentId]);
 
   return { matches, loading, addMatch, updateMatch, deleteMatch, setMatchesBulk };

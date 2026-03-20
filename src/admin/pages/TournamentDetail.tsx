@@ -65,8 +65,8 @@ export default function TournamentDetail() {
   const { players: globalPlayers, loading: gpLoading } = usePlayers();
   const { players: tournamentPlayers, loading: tpLoading, addPlayer: addTournamentPlayer, deletePlayer: deleteTournamentPlayer, addPlayersFromGlobal } = useTournamentLocalPlayers(id ?? null);
   const { teams, setTeamsBulk } = useTeams(id ?? null);
-  const { referees, updateReferee } = useReferees();
-  const { courts } = useCourts();
+  const { referees, addReferee, updateReferee } = useReferees();
+  const { courts, addCourt } = useCourts();
   const { schedule, setScheduleBulk } = useSchedule(id ?? null);
 
   // 대회 설정에서 기본 참가자 수 추론 (tournament 로드 후 1회)
@@ -137,44 +137,103 @@ export default function TournamentDetail() {
         sampleRefereeNames: sampleNames.referees.length > 0 ? sampleNames.referees : undefined,
       });
 
-      // 기존 선수가 없을 때만 새로 등록
+      // 기존 선수가 없을 때만 새로 등록 + ID 매핑 구축
+      const playerIdMap = new Map<string, string>();
       if (!hasExistingPlayers) {
         setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
         for (const player of result.players) {
-          await addTournamentPlayer({ name: player.name });
+          const newId = await addTournamentPlayer({ name: player.name });
+          if (newId) playerIdMap.set(player.id, newId);
         }
       }
 
       if (result.teams && result.teams.length > 0) {
         setSimProgress(`팀 ${result.teams.length}개 생성 중...`);
-        await setTeamsBulk(result.teams);
+        // 팀의 memberIds를 실제 Firebase ID로 교체
+        const remappedTeams = playerIdMap.size > 0
+          ? result.teams.map(t => ({
+              ...t,
+              id: `sim_team_${t.id.replace('sim_team_', '')}`,
+              memberIds: t.memberIds.map(id => playerIdMap.get(id) || id),
+            }))
+          : result.teams;
+        await setTeamsBulk(remappedTeams);
       }
 
-      setSimProgress(`경기 ${result.matches.length}건 생성 중...`);
-      await setMatchesBulk(result.matches);
+      // === 가상 코트 생성 (기존 코트가 없을 때, 경기 저장 전) ===
+      const courtIdMap = new Map<string, string>();
+      if (courts.length === 0) {
+        setSimProgress('가상 코트 생성 중...');
+        for (const simCourt of [{ simId: 'sim_court_1', name: '1코트' }, { simId: 'sim_court_2', name: '2코트' }]) {
+          const newId = await addCourt({ name: simCourt.name, assignedReferees: [] });
+          if (newId) courtIdMap.set(simCourt.simId, newId);
+        }
+      }
 
+      // === 가상 심판 생성 (기존 심판이 없을 때, 경기 저장 전) ===
+      const refIdMap = new Map<string, string>();
+      if (referees.length === 0 && result.referees && result.referees.length > 0) {
+        setSimProgress(`가상 심판 ${result.referees.length}명 생성 중...`);
+        for (const simRef of result.referees) {
+          const newId = await addReferee({ name: simRef.name, role: 'main', assignedMatchIds: [] });
+          if (newId) refIdMap.set(simRef.id, newId);
+        }
+      }
+
+      // === 경기 데이터에서 sim_ ID를 실제 Firebase ID로 교체 후 저장 ===
+      setSimProgress(`경기 ${result.matches.length}건 생성 중...`);
+      const remapId = (id: string | undefined) => {
+        if (!id) return id;
+        return playerIdMap.get(id) || id;
+      };
+      const remappedMatches = result.matches.map(m => ({
+        ...m,
+        player1Id: remapId(m.player1Id),
+        player2Id: remapId(m.player2Id),
+        winnerId: remapId(m.winnerId),
+        courtId: courtIdMap.get(m.courtId || '') || m.courtId,
+        refereeId: refIdMap.get(m.refereeId || '') || m.refereeId,
+      }));
+      const actualMatchIds = await setMatchesBulk(remappedMatches);
+
+      // sim_match_X → 실제 Firebase ID 매핑
+      const matchIdMap = new Map<string, string>();
+      result.matches.forEach((_, idx) => {
+        matchIdMap.set(`sim_match_${idx}`, actualMatchIds[idx]);
+      });
+
+      // === 스케줄 저장 (matchId/courtId를 실제 Firebase ID로 교체) ===
       if (result.schedule && result.schedule.length > 0) {
         setSimProgress(`스케줄 ${result.schedule.length}건 저장 중...`);
-        await setScheduleBulk(result.schedule);
+        const remappedSchedule = result.schedule.map(slot => ({
+          ...slot,
+          matchId: matchIdMap.get(slot.matchId) || slot.matchId,
+          courtId: courtIdMap.get(slot.courtId) || slot.courtId,
+        }));
+        await setScheduleBulk(remappedSchedule);
       }
 
-      // 심판 자동 배정: 기존 등록된 심판이 있으면 사용, 없으면 가상 심판 사용
-      const existingReferees = referees;
-      const simReferees = existingReferees.length > 0
-        ? existingReferees.map(r => ({ id: r.id, name: r.name, assignedMatchIds: [] as string[] }))
-        : result.referees;
-
-      if (simReferees && simReferees.length > 0) {
-        // 기존 심판에게 경기 배정
-        if (existingReferees.length > 0) {
-          result.matches.forEach((_, idx) => {
-            const refIdx = idx % simReferees.length;
-            simReferees[refIdx].assignedMatchIds.push(`sim_match_${idx}`);
-          });
+      // === 심판 배정 업데이트 (실제 match ID로) ===
+      if (referees.length > 0) {
+        // 기존 심판에게 경기 라운드로빈 배정
+        const refAssignments = referees.map(r => ({ id: r.id, assignedMatchIds: [] as string[] }));
+        actualMatchIds.forEach((matchId, idx) => {
+          const refIdx = idx % refAssignments.length;
+          refAssignments[refIdx].assignedMatchIds.push(matchId);
+        });
+        setSimProgress(`심판 ${referees.length}명 배정 정보 저장 중...`);
+        for (const ra of refAssignments) {
+          await updateReferee(ra.id, { assignedMatchIds: ra.assignedMatchIds });
         }
-        setSimProgress(`심판 ${simReferees.length}명 배정 정보 저장 중...`);
-        for (const ref of simReferees) {
-          await updateReferee(ref.id, { assignedMatchIds: ref.assignedMatchIds });
+      } else if (result.referees && result.referees.length > 0) {
+        // 가상 심판에 실제 match ID 배정
+        setSimProgress(`심판 배정 정보 저장 중...`);
+        for (const simRef of result.referees) {
+          const realRefId = refIdMap.get(simRef.id);
+          if (realRefId) {
+            const remappedIds = simRef.assignedMatchIds.map(id => matchIdMap.get(id) || id);
+            await updateReferee(realRefId, { assignedMatchIds: remappedIds });
+          }
         }
       }
 
