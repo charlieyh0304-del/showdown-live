@@ -1312,11 +1312,12 @@ function TournamentResultsSummary({
         const label = isTeam
           ? `${m.team1Name || '?'} vs ${m.team2Name || '?'}`
           : `${m.player1Name || '?'} vs ${m.player2Name || '?'}`;
-        highestMatch = { name: label, totalPoints: total };
+        const entry: { name: string; totalPoints: number } = { name: label, totalPoints: total };
+        highestMatch = entry;
       }
     });
 
-    return { top3, totalMatches, completedCount, totalSets, highestMatch: highestMatch as { name: string; totalPoints: number } | null, isFinished };
+    return { top3, totalMatches, completedCount, totalSets, highestMatch, isFinished };
   }, [matches, tournamentType]);
 
   if (summary.top3.length === 0) return null;

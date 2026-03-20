@@ -369,24 +369,6 @@ export default function IndividualScoring() {
     await updateMatch(timeoutUpdate);
   }, [match, updateMatch]);
 
-  // Debug: log match data to help diagnose rendering errors
-  useEffect(() => {
-    if (match) {
-      console.log('[IndividualScoring] match loaded:', {
-        id: match.id,
-        status: match.status,
-        setsType: typeof match.sets,
-        setsIsArray: Array.isArray(match.sets),
-        sets: match.sets,
-        currentSet: match.currentSet,
-        player1Name: match.player1Name,
-        player2Name: match.player2Name,
-      });
-    }
-  }, [match]);
-
-  console.log('[DEBUG-1] matchLoading:', matchLoading, 'match:', !!match, 'match?.status:', match?.status);
-
   if (matchLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -404,16 +386,11 @@ export default function IndividualScoring() {
     );
   }
 
-  console.log('[DEBUG-2] match.sets:', JSON.stringify(match.sets), 'type:', typeof match.sets, 'isArray:', Array.isArray(match.sets));
-  console.log('[DEBUG-3] match keys:', Object.keys(match).join(', '));
-
   const player1Name = match.player1Name ?? '선수1';
   const player2Name = match.player2Name ?? '선수2';
 
-  console.log('[DEBUG-4] before pending check, status:', match.status);
   // ===== PENDING: serve selection =====
   if (match.status === 'pending') {
-    console.log('[DEBUG-5] rendering pending UI');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
         <h1 className="text-3xl font-bold text-yellow-400">경기 준비</h1>
@@ -441,7 +418,6 @@ export default function IndividualScoring() {
     );
   }
 
-  console.log('[DEBUG-6] before completed check');
   // ===== COMPLETED =====
   if (match.status === 'completed') {
     const winnerName = match.winnerId === match.player1Id ? player1Name : player2Name;
@@ -473,7 +449,6 @@ export default function IndividualScoring() {
     );
   }
 
-  console.log('[DEBUG-7] in_progress section reached');
   // ===== IN_PROGRESS =====
   const sets = Array.isArray(match.sets) && match.sets.length > 0 ? match.sets : [createEmptySet()];
   const currentSetIndex = match.currentSet ?? 0;
@@ -500,41 +475,14 @@ export default function IndividualScoring() {
   const p1TimeoutsUsed = match.player1Timeouts ?? 0;
   const p2TimeoutsUsed = match.player2Timeouts ?? 0;
 
-  console.log('[DEBUG-8] computed values:', {
-    leftScore, rightScore, leftName, rightName, serverName,
-    p1TimeoutsUsed, p2TimeoutsUsed,
-    setsLen: sets.length, currentSetIndex, setWins,
-    currentServe, serveCountVal, maxServes,
-    foulActionsLen: foulActions.length, penaltyActionsLen: penaltyActions.length,
-    historyLen: history.length,
-    activeTimeout: match.activeTimeout,
-    isPaused: match.isPaused,
-    announcement: typeof announcement, lastAction: typeof lastAction,
-  });
+  // Keyboard shortcuts
+  const shortcuts = useMemo(() => ({
+    'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`),
+    'ArrowRight': () => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`),
+    'KeyZ': () => handleUndo(),
+  }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
+  useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
 
-  // Keyboard shortcuts (temporarily disabled for debugging)
-  // const shortcuts = useMemo(() => ({
-  //   'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`),
-  //   'ArrowRight': () => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`),
-  //   'KeyZ': () => handleUndo(),
-  // }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
-  // useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
-  console.log('[DEBUG-9] about to return MINIMAL JSX');
-
-  // TEMPORARY: minimal render to isolate crash
-  return (
-    <div style={{ padding: '2rem', color: 'white' }}>
-      <h1>DEBUG: 최소 렌더 테스트</h1>
-      <p>상태: {String(match.status)}</p>
-      <p>선수: {String(player1Name)} vs {String(player2Name)}</p>
-      <p>점수: {String(leftScore)} - {String(rightScore)}</p>
-      <p>세트: {String(setWins.player1)} - {String(setWins.player2)}</p>
-      <p>서브: {String(serverName)}</p>
-      <button className="btn btn-primary mt-4" onClick={() => navigate('/referee/games')}>목록으로</button>
-    </div>
-  );
-
-  /* ORIGINAL JSX - temporarily disabled
   return (
     <div className="min-h-screen flex flex-col">
       <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
@@ -803,5 +751,4 @@ export default function IndividualScoring() {
       )}
     </div>
   );
-  ORIGINAL JSX END */
 }
