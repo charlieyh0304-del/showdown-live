@@ -27,7 +27,7 @@ export default function SpectatorHome() {
 
   const visibleTournaments = tournaments.filter((t) => {
     if (filter === 'in_progress') {
-      return t.status === 'in_progress' || t.status === 'paused';
+      return t.status !== 'completed';
     }
     return t.status === 'completed';
   });
