@@ -150,9 +150,25 @@ export default function IndividualScoring() {
       set: (match.currentSet ?? 0) + 1,
     };
     const prevPauseHistory = match.pauseHistory ?? [];
+    const currentSetData = match.sets?.[match.currentSet ?? 0];
+    const pauseHistoryEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      set: (match.currentSet ?? 0) + 1,
+      scoringPlayer: '',
+      actionPlayer: reason || '사유 없음',
+      actionType: 'pause' as ScoreActionType,
+      actionLabel: '일시정지',
+      points: 0,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
+      serveNumber: (match.serveCount ?? 0) + 1,
+    };
+    const prevScoreHistory = match.scoreHistory ?? [];
     await updateMatch({
       isPaused: true, pauseReason: reason || '사유 없음', pauseStartTime: Date.now(),
       pauseHistory: [...prevPauseHistory, pauseEntry],
+      scoreHistory: [pauseHistoryEntry, ...prevScoreHistory],
     });
   }, [match, updateMatch, isPausedLocal]);
 
@@ -164,9 +180,24 @@ export default function IndividualScoring() {
     if (updated.length > 0) {
       updated[updated.length - 1] = { ...updated[updated.length - 1], duration: pauseElapsed };
     }
+    const currentSetData = match.sets?.[match.currentSet ?? 0];
+    const resumeHistoryEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      set: (match.currentSet ?? 0) + 1,
+      scoringPlayer: '',
+      actionPlayer: `${Math.floor(pauseElapsed / 60)}분 ${pauseElapsed % 60}초`,
+      actionType: 'resume' as ScoreActionType,
+      actionLabel: '재개',
+      points: 0,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
+      serveNumber: (match.serveCount ?? 0) + 1,
+    };
+    const prevScoreHistory = match.scoreHistory ?? [];
     setPauseElapsed(0);
     setPauseReason('');
-    await updateMatch({ isPaused: false, pauseReason: '', pauseStartTime: undefined, pauseHistory: updated });
+    await updateMatch({ isPaused: false, pauseReason: '', pauseStartTime: undefined, pauseHistory: updated, scoreHistory: [resumeHistoryEntry, ...prevScoreHistory] });
   }, [match, updateMatch, pauseElapsed]);
 
   // IBSA score
@@ -360,8 +391,25 @@ export default function IndividualScoring() {
     const usedTimeouts = player === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
     if (usedTimeouts >= 1) return;
     const playerId = player === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
+    const playerName = player === 1 ? (match.player1Name ?? '선수1') : (match.player2Name ?? '선수2');
+    const currentSetData = match.sets?.[match.currentSet ?? 0];
+    const timeoutEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      set: (match.currentSet ?? 0) + 1,
+      scoringPlayer: '',
+      actionPlayer: playerName,
+      actionType: 'timeout' as ScoreActionType,
+      actionLabel: '타임아웃',
+      points: 0,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
+      serveNumber: (match.serveCount ?? 0) + 1,
+    };
+    const prevHistory = match.scoreHistory ?? [];
     const timeoutUpdate: Record<string, unknown> = {
       activeTimeout: { playerId, startTime: Date.now() },
+      scoreHistory: [timeoutEntry, ...prevHistory],
     };
     if (player === 1) timeoutUpdate.player1Timeouts = (match.player1Timeouts ?? 0) + 1;
     else timeoutUpdate.player2Timeouts = (match.player2Timeouts ?? 0) + 1;

@@ -53,6 +53,11 @@ export default function TeamMatchScoring() {
   const [isPausedLocal, setIsPausedLocal] = useState(false);
   const [pauseElapsed, setPauseElapsed] = useState(0);
   const [pauseReason, setPauseReason] = useState('');
+  // Substitution (선수 교체)
+  const [showSubstitution, setShowSubstitution] = useState(false);
+  const [subTeam, setSubTeam] = useState<1 | 2 | null>(null);
+  const [subOutIndex, setSubOutIndex] = useState<number | null>(null);
+  const [subInIndex, setSubInIndex] = useState<number | null>(null);
 
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
@@ -155,11 +160,27 @@ export default function TeamMatchScoring() {
       reason: reasonText,
       set: (match.currentSet ?? 0) + 1,
     };
+    const currentSetData = match.sets?.[0];
+    const pauseHistoryEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      set: (match.currentSet ?? 0) + 1,
+      scoringPlayer: '',
+      actionPlayer: reasonText,
+      actionType: 'pause' as ScoreActionType,
+      actionLabel: '일시정지',
+      points: 0,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      server: match.currentServe === 'player1' ? (match.team1Name ?? '') : (match.team2Name ?? ''),
+      serveNumber: (match.serveCount ?? 0) + 1,
+    };
+    const prevScoreHistory = match.scoreHistory ?? [];
     await updateMatch({
       isPaused: true,
       pauseReason: reasonText,
       pauseStartTime: Date.now(),
       pauseHistory: [...prevHistory, newEntry],
+      scoreHistory: [pauseHistoryEntry, ...prevScoreHistory],
     });
   }, [match, updateMatch, isPausedLocal]);
 
@@ -172,6 +193,21 @@ export default function TeamMatchScoring() {
       last.duration = pauseElapsed;
       updatedHistory[updatedHistory.length - 1] = last;
     }
+    const currentSetData = match.sets?.[0];
+    const resumeHistoryEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      set: (match.currentSet ?? 0) + 1,
+      scoringPlayer: '',
+      actionPlayer: `${Math.floor(pauseElapsed / 60)}분 ${pauseElapsed % 60}초`,
+      actionType: 'resume' as ScoreActionType,
+      actionLabel: '재개',
+      points: 0,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      server: match.currentServe === 'player1' ? (match.team1Name ?? '') : (match.team2Name ?? ''),
+      serveNumber: (match.serveCount ?? 0) + 1,
+    };
+    const prevScoreHistory = match.scoreHistory ?? [];
     setIsPausedLocal(false);
     setPauseElapsed(0);
     setPauseReason('');
@@ -180,6 +216,7 @@ export default function TeamMatchScoring() {
       pauseReason: '',
       pauseStartTime: undefined,
       pauseHistory: updatedHistory,
+      scoreHistory: [resumeHistoryEntry, ...prevScoreHistory],
     });
   }, [match, updateMatch, pauseElapsed]);
 
@@ -328,11 +365,151 @@ export default function TeamMatchScoring() {
     const usedTimeouts = team === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
     if (usedTimeouts >= 1) return;
     const teamId = team === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
-    const up: Record<string, unknown> = { activeTimeout: { playerId: teamId, startTime: Date.now() } };
+    const tName = team === 1 ? (match.team1Name ?? '팀1') : (match.team2Name ?? '팀2');
+    const currentSetData = match.sets?.[0];
+    const timeoutEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      set: 1,
+      scoringPlayer: '',
+      actionPlayer: tName,
+      actionType: 'timeout' as ScoreActionType,
+      actionLabel: '타임아웃',
+      points: 0,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      server: match.currentServe === 'player1' ? (match.team1Name ?? '') : (match.team2Name ?? ''),
+      serveNumber: (match.serveCount ?? 0) + 1,
+    };
+    const prevHistory = match.scoreHistory ?? [];
+    const up: Record<string, unknown> = {
+      activeTimeout: { playerId: teamId, startTime: Date.now() },
+      scoreHistory: [timeoutEntry, ...prevHistory],
+    };
     if (team === 1) up.player1Timeouts = (match.player1Timeouts ?? 0) + 1;
     else up.player2Timeouts = (match.player2Timeouts ?? 0) + 1;
     await updateMatch(up);
   }, [match, updateMatch]);
+
+  // Substitution helpers
+  const teamSize = tournament?.teamRules?.teamSize ?? 3;
+
+  const getTeamActivePlayers = useCallback((teamNum: 1 | 2) => {
+    if (!match) return { ids: [] as string[], names: [] as string[] };
+    const team = teamNum === 1 ? match.team1 : match.team2;
+    const activeIds = teamNum === 1 ? match.team1ActivePlayerIds : match.team2ActivePlayerIds;
+    const activeNames = teamNum === 1 ? match.team1ActivePlayerNames : match.team2ActivePlayerNames;
+    if (activeIds && activeNames) {
+      return { ids: activeIds, names: activeNames };
+    }
+    const allIds = team?.memberIds ?? [];
+    const allNames = team?.memberNames ?? [];
+    return {
+      ids: allIds.slice(0, teamSize),
+      names: allNames.slice(0, teamSize),
+    };
+  }, [match, teamSize]);
+
+  const getTeamReservePlayers = useCallback((teamNum: 1 | 2) => {
+    if (!match) return { ids: [] as string[], names: [] as string[] };
+    const team = teamNum === 1 ? match.team1 : match.team2;
+    const activeIds = teamNum === 1 ? match.team1ActivePlayerIds : match.team2ActivePlayerIds;
+    const allIds = team?.memberIds ?? [];
+    const allNames = team?.memberNames ?? [];
+    if (activeIds) {
+      const reserveIds: string[] = [];
+      const reserveNames: string[] = [];
+      allIds.forEach((id, i) => {
+        if (!activeIds.includes(id)) {
+          reserveIds.push(id);
+          reserveNames.push(allNames[i] ?? id);
+        }
+      });
+      return { ids: reserveIds, names: reserveNames };
+    }
+    return {
+      ids: allIds.slice(teamSize),
+      names: allNames.slice(teamSize),
+    };
+  }, [match, teamSize]);
+
+  const hasReserves = useCallback((teamNum: 1 | 2) => {
+    return getTeamReservePlayers(teamNum).ids.length > 0;
+  }, [getTeamReservePlayers]);
+
+  const openSubstitution = useCallback((teamNum: 1 | 2) => {
+    setSubTeam(teamNum);
+    setSubOutIndex(null);
+    setSubInIndex(null);
+    setShowSubstitution(true);
+  }, []);
+
+  const handleSubstitution = useCallback(async () => {
+    if (!match || subTeam === null || subOutIndex === null || subInIndex === null) return;
+
+    const active = getTeamActivePlayers(subTeam);
+    const reserves = getTeamReservePlayers(subTeam);
+
+    const outId = active.ids[subOutIndex];
+    const outName = active.names[subOutIndex] ?? outId;
+    const inId = reserves.ids[subInIndex];
+    const inName = reserves.names[subInIndex] ?? inId;
+
+    const newActiveIds = [...active.ids];
+    const newActiveNames = [...active.names];
+    newActiveIds[subOutIndex] = inId;
+    newActiveNames[subOutIndex] = inName;
+
+    const t1Name = match.team1Name ?? '팀1';
+    const t2Name = match.team2Name ?? '팀2';
+    const currentServeVal = match.currentServe ?? 'player1';
+    const serveCountVal = match.serveCount ?? 0;
+    const serverNameVal = currentServeVal === 'player1' ? t1Name : t2Name;
+    const cs = match.sets?.[0];
+    const scoreBefore = {
+      player1: cs?.player1Score ?? 0,
+      player2: cs?.player2Score ?? 0,
+    };
+
+    const historyEntry = createScoreHistoryEntry({
+      scoringPlayer: subTeam === 1 ? t1Name : t2Name,
+      actionPlayer: subTeam === 1 ? t1Name : t2Name,
+      actionType: 'substitution',
+      actionLabel: `선수 교체: ${outName} → ${inName}`,
+      points: 0,
+      set: 1,
+      server: serverNameVal,
+      serveNumber: serveCountVal + 1,
+      scoreBefore,
+      scoreAfter: scoreBefore,
+    });
+
+    const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
+    const newHistory = [historyEntry, ...prevHistory];
+
+    const update: Record<string, unknown> = {
+      scoreHistory: newHistory,
+    };
+
+    if (subTeam === 1) {
+      update.team1SubUsed = true;
+      update.team1ActivePlayerIds = newActiveIds;
+      update.team1ActivePlayerNames = newActiveNames;
+    } else {
+      update.team2SubUsed = true;
+      update.team2ActivePlayerIds = newActiveIds;
+      update.team2ActivePlayerNames = newActiveNames;
+    }
+
+    await updateMatch(update);
+
+    const teamLabel = subTeam === 1 ? t1Name : t2Name;
+    setLastAction(`🔄 ${teamLabel} 선수 교체: ${outName} → ${inName}`);
+    setAnnouncement(`${teamLabel} 선수 교체. ${outName} 퇴장, ${inName} 입장`);
+    setShowSubstitution(false);
+    setSubTeam(null);
+    setSubOutIndex(null);
+    setSubInIndex(null);
+  }, [match, subTeam, subOutIndex, subInIndex, updateMatch, getTeamActivePlayers, getTeamReservePlayers]);
 
   // Keyboard shortcuts (GAP-12)
   const team1Name = match?.team1Name ?? '팀1';
@@ -478,6 +655,79 @@ export default function TeamMatchScoring() {
         />
       )}
 
+      {/* Substitution Modal (선수 교체) */}
+      {showSubstitution && subTeam !== null && (() => {
+        const active = getTeamActivePlayers(subTeam);
+        const reserves = getTeamReservePlayers(subTeam);
+        const subTeamName = subTeam === 1 ? team1Name : team2Name;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md space-y-4">
+              <h2 className="text-xl font-bold text-indigo-300 text-center">
+                🔄 {subTeamName} 선수 교체
+              </h2>
+
+              {/* Select player to remove */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-400 mb-2">교체할 선수 (퇴장)</h3>
+                <div className="space-y-1">
+                  {active.names.map((name, i) => (
+                    <button
+                      key={active.ids[i] ?? i}
+                      className={`w-full text-left px-3 py-2 rounded text-sm ${
+                        subOutIndex === i
+                          ? 'bg-red-700 text-white'
+                          : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                      }`}
+                      onClick={() => setSubOutIndex(i)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Select reserve to bring in */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-400 mb-2">투입할 예비 선수 (입장)</h3>
+                <div className="space-y-1">
+                  {reserves.names.map((name, i) => (
+                    <button
+                      key={reserves.ids[i] ?? i}
+                      className={`w-full text-left px-3 py-2 rounded text-sm ${
+                        subInIndex === i
+                          ? 'bg-green-700 text-white'
+                          : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                      }`}
+                      onClick={() => setSubInIndex(i)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Confirm / Cancel */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white"
+                  onClick={() => { setShowSubstitution(false); setSubTeam(null); }}
+                >
+                  취소
+                </button>
+                <button
+                  className="btn flex-1 bg-indigo-600 hover:bg-indigo-500 text-white"
+                  disabled={subOutIndex === null || subInIndex === null}
+                  onClick={handleSubstitution}
+                >
+                  교체 확인
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Pause Banner */}
       {isPausedLocal && (
         <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between">
@@ -610,6 +860,36 @@ export default function TeamMatchScoring() {
             <span className="block text-xs opacity-75">남은 횟수: {1 - t2TimeoutsUsed}</span>
           </button>
         </div>
+
+        {/* Substitution (선수 교체) */}
+        {(hasReserves(1) || hasReserves(2)) && (
+          <div className="flex gap-3">
+            {hasReserves(1) && (
+              <button
+                className="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-3"
+                disabled={!!match.team1SubUsed}
+                onClick={() => openSubstitution(1)}
+              >
+                🔄 {team1Name} 선수 교체
+                <span className="block text-xs opacity-75">
+                  {match.team1SubUsed ? '교체 완료' : '1회 가능'}
+                </span>
+              </button>
+            )}
+            {hasReserves(2) && (
+              <button
+                className="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-3"
+                disabled={!!match.team2SubUsed}
+                onClick={() => openSubstitution(2)}
+              >
+                🔄 {team2Name} 선수 교체
+                <span className="block text-xs opacity-75">
+                  {match.team2SubUsed ? '교체 완료' : '1회 가능'}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Warmup + Pause */}
         <div className="flex gap-3">

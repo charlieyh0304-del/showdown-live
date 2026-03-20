@@ -248,7 +248,11 @@ export type ScoreActionType =
   | 'ball_holding'      // 볼홀딩/2초룰 (+1점, 상대에게)
   | 'mask_touch'        // 마스크/고글 터치 (+2점, 상대에게)
   | 'penalty'           // 기타 벌점 (+2점, 상대에게)
-  | 'manual';           // 수동 득점/감점
+  | 'manual'            // 수동 득점/감점
+  | 'timeout'           // 타임아웃
+  | 'pause'             // 일시정지
+  | 'resume'            // 재개
+  | 'substitution';     // 선수 교체
 
 export interface ScoreAction {
   type: ScoreActionType;
@@ -325,6 +329,14 @@ export interface Match {
   pauseHistory?: { time: string; reason: string; set: number; duration?: number }[];
   // 워밍업
   warmupUsed?: boolean;
+  // 선수 교체 사용 여부
+  team1SubUsed?: boolean;
+  team2SubUsed?: boolean;
+  // 현재 출전 선수 (교체 반영)
+  team1ActivePlayerIds?: string[];
+  team1ActivePlayerNames?: string[];
+  team2ActivePlayerIds?: string[];
+  team2ActivePlayerNames?: string[];
   // 팀전 필드
   team1Id?: string;
   team2Id?: string;
