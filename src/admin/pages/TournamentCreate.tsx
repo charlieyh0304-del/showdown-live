@@ -182,6 +182,12 @@ function reducer(state: WizardState, action: Action): WizardState {
       }
       if (action.field === 'finalsFormat') {
         next.formatType = action.value as BracketFormatType;
+        // round_robin without group stage = simple full league, no finals stage needed
+        if (action.value === 'round_robin' && !next.hasGroupStage) {
+          next.hasFinalsStage = false;
+        } else {
+          next.hasFinalsStage = true;
+        }
       }
       if (action.field === 'finalsStartRound') {
         next.startingRound = action.value as number;
@@ -245,10 +251,6 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'NEXT_STEP': {
       const nextStep = getNextStep(state.step, state.hasGroupStage);
       const next = { ...state, step: nextStep };
-      // When skipping to Step 4 without group stage, enable finals stage
-      if (state.step === 2 && nextStep === 3 && !state.hasGroupStage) {
-        next.hasFinalsStage = true;
-      }
       return next;
     }
     case 'PREV_STEP':

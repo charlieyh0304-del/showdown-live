@@ -178,7 +178,22 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
         </div>
       )}
 
+      {/* 전체 풀리그 안내 (라운드 로빈 + 조별예선 없음) */}
+      {state.finalsFormat === 'round_robin' && !state.hasGroupStage && (() => {
+        const n = state.participantCount || state.advanceCount || 8;
+        return (
+          <div className="card p-4 bg-blue-900/20 border border-blue-500/30">
+            <p className="text-blue-300 font-semibold">전체 풀리그</p>
+            <p className="text-gray-400 text-sm mt-1">
+              모든 참가자가 서로 한 번씩 경기합니다.
+              총 {n * (n - 1) / 2}경기가 진행됩니다.
+            </p>
+          </div>
+        );
+      })()}
+
       {/* 3/4위 결정전 */}
+      {state.finalsFormat !== 'round_robin' && (
       <div className="card">
         <label className="flex items-center justify-between cursor-pointer">
           <span className="text-lg font-semibold">3/4위 결정전</span>
@@ -193,8 +208,10 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
           </button>
         </label>
       </div>
+      )}
 
       {/* 순위결정전 */}
+      {state.finalsFormat !== 'round_robin' && (
       <div className="card space-y-4">
         <h2 className="text-xl font-bold">순위결정전</h2>
         <label className="flex items-center justify-between cursor-pointer">
@@ -318,6 +335,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

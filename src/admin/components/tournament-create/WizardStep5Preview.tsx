@@ -142,6 +142,9 @@ function SummaryRow({ label, value }: { label: string; value: string | number })
 }
 
 export default function WizardStep5Preview({ state, dispatch, onSubmit }: WizardStep5Props) {
+  // 풀리그 단독 형식: 조별 예선 없이 라운드로빈만 진행
+  const isRoundRobinOnly = state.formatType === 'round_robin' && !state.hasGroupStage;
+
   const matchCounts = calculateMatchCount(
     state.participantCount,
     state.hasGroupStage,
@@ -202,7 +205,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             </>
           )}
 
-          {state.hasFinalsStage && (
+          {state.hasFinalsStage && !isRoundRobinOnly && (
             <>
               <div
                 className="flex-shrink-0 rounded-lg border-2 border-yellow-500 bg-gray-800 p-3 text-center min-w-[140px]"
@@ -241,7 +244,18 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             </>
           )}
 
-          {!state.hasGroupStage && !state.hasFinalsStage && (
+          {isRoundRobinOnly && (
+            <div
+              className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
+              role="listitem"
+            >
+              <div className="text-sm text-cyan-400 font-semibold">풀리그</div>
+              <div className="text-white font-bold mt-1">라운드로빈</div>
+              <div className="text-gray-400 text-sm mt-1">{state.participantCount}명</div>
+            </div>
+          )}
+
+          {!state.hasGroupStage && !state.hasFinalsStage && !isRoundRobinOnly && (
             <div
               className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
               role="listitem"
@@ -275,7 +289,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       )}
 
       {/* 4. 본선 설정 요약 */}
-      {state.hasFinalsStage && (
+      {state.hasFinalsStage && !isRoundRobinOnly && (
         <section className="card p-5" aria-label="본선 설정">
           <SectionHeader title="본선 설정" step={3} dispatch={dispatch} />
           <dl>
@@ -293,8 +307,22 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
         </section>
       )}
 
+      {/* 4-1. 풀리그 설정 요약 (라운드로빈 단독) */}
+      {isRoundRobinOnly && (
+        <section className="card p-5" aria-label="대회 형식">
+          <SectionHeader title="대회 형식" step={3} dispatch={dispatch} />
+          <dl>
+            <SummaryRow label="형식" value="풀리그 (라운드로빈)" />
+            <SummaryRow label="참가자 수" value={`${state.participantCount}명`} />
+            <SummaryRow label="경기 규칙" value={formatScoringRules(state.finalsScoringRules)} />
+            <SummaryRow label="타임아웃" value={formatMatchRules(state.finalsMatchRules)} />
+            <SummaryRow label="예상 경기 수" value={`${matchCounts.total}경기`} />
+          </dl>
+        </section>
+      )}
+
       {/* 5. 순위결정전 요약 */}
-      {state.hasFinalsStage && state.rankingMatch.enabled && (
+      {state.hasFinalsStage && !isRoundRobinOnly && state.rankingMatch.enabled && (
         <section className="card p-5" aria-label="순위결정전 설정">
           <SectionHeader title="순위결정전" step={3} dispatch={dispatch} />
           <dl>
@@ -330,7 +358,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
           <h3 className="text-xl font-bold text-yellow-400">총 예상 경기 수</h3>
           <span className="text-3xl font-bold text-white">{matchCounts.total}경기</span>
         </div>
-        {(state.hasGroupStage || state.hasFinalsStage) && (
+        {(state.hasGroupStage || state.hasFinalsStage) && !isRoundRobinOnly && (
           <div className="flex gap-4 mt-2 text-sm text-gray-400">
             {state.hasGroupStage && <span>예선: {matchCounts.qualifying}</span>}
             {state.hasFinalsStage && <span>본선: {matchCounts.finals}</span>}
