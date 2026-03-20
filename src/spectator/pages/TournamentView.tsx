@@ -1309,20 +1309,15 @@ function TournamentResultsSummary({
     });
 
     // Highest scoring match
-    let highestMatch: { name: string; totalPoints: number } | null = null;
-    completedMatches.forEach(m => {
-      let total = 0;
-      (m.sets || []).forEach(s => {
-        total += s.player1Score + s.player2Score;
-      });
-      if (total > 0 && (!highestMatch || total > highestMatch.totalPoints)) {
-        const label = isTeam
-          ? `${m.team1Name || '?'} vs ${m.team2Name || '?'}`
-          : `${m.player1Name || '?'} vs ${m.player2Name || '?'}`;
-        const entry: { name: string; totalPoints: number } = { name: label, totalPoints: total };
-        highestMatch = entry;
-      }
-    });
+    const highestMatch = completedMatches.reduce<{ name: string; totalPoints: number } | null>((best, m) => {
+      const total = (m.sets || []).reduce((sum, s) => sum + s.player1Score + s.player2Score, 0);
+      if (total <= 0) return best;
+      if (best && total <= best.totalPoints) return best;
+      const label = isTeam
+        ? `${m.team1Name || '?'} vs ${m.team2Name || '?'}`
+        : `${m.player1Name || '?'} vs ${m.player2Name || '?'}`;
+      return { name: label, totalPoints: total };
+    }, null);
 
     return { top3, totalMatches, completedCount, totalSets, highestMatch, isFinished };
   }, [matches, tournamentType]);
