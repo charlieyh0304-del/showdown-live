@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, set, push, remove, update } from 'firebase/database';
 import { database } from '../config/firebase';
+import { queueUpdate } from '../utils/offlineQueue';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
 
 // ===== Firebase array normalization helper =====
@@ -257,7 +258,14 @@ export function useMatches(tournamentId: string | null) {
 
   const updateMatch = useCallback(async (matchId: string, data: Partial<Match>) => {
     if (!tournamentId) return;
-    await update(ref(database, `matches/${tournamentId}/${matchId}`), { ...data, updatedAt: Date.now() });
+    const path = `matches/${tournamentId}/${matchId}`;
+    const payload = { ...data, updatedAt: Date.now() };
+    try {
+      await update(ref(database, path), payload);
+    } catch {
+      // Offline or network error - queue for later sync
+      queueUpdate(path, payload as Record<string, unknown>);
+    }
   }, [tournamentId]);
 
   const deleteMatch = useCallback(async (matchId: string) => {
@@ -302,7 +310,14 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
 
   const updateMatch = useCallback(async (data: Partial<Match>) => {
     if (!tournamentId || !matchId) return;
-    await update(ref(database, `matches/${tournamentId}/${matchId}`), { ...data, updatedAt: Date.now() });
+    const path = `matches/${tournamentId}/${matchId}`;
+    const payload = { ...data, updatedAt: Date.now() };
+    try {
+      await update(ref(database, path), payload);
+    } catch {
+      // Offline or network error - queue for later sync
+      queueUpdate(path, payload as Record<string, unknown>);
+    }
   }, [tournamentId, matchId]);
 
   return { match, loading, updateMatch };

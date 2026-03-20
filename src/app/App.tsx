@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ModeSelector from './ModeSelector';
+import OfflineIndicator from '@shared/components/OfflineIndicator';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
 import LoadingSpinner from '@shared/components/LoadingSpinner';
 import AccessibilityMenu from '@shared/components/AccessibilityMenu';
@@ -14,6 +15,7 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-black text-white">
+        <OfflineIndicator />
         <ConnectionStatus />
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
           <Routes>

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase } from 'firebase/database';
+import { getDatabase, enableLogging } from 'firebase/database';
 
 // Firebase 설정 - 실제 프로젝트에서는 환경변수 사용 권장
 const firebaseConfig = {
@@ -14,4 +14,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const database = getDatabase(app);
+
+// Firebase Realtime Database has built-in offline caching.
+// Data is automatically cached locally and synced when reconnected.
+// Enable logging in development for debugging offline behavior.
+if (import.meta.env.DEV) {
+  try {
+    enableLogging(false);
+  } catch {
+    // Logging may already be enabled
+  }
+}
+
 export default app;
