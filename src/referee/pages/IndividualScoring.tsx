@@ -512,14 +512,14 @@ export default function IndividualScoring() {
     announcement: typeof announcement, lastAction: typeof lastAction,
   });
 
-  // Keyboard shortcuts
-  const shortcuts = useMemo(() => ({
-    'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`),
-    'ArrowRight': () => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`),
-    'KeyZ': () => handleUndo(),
-  }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
-  useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
-  console.log('[DEBUG-9] after useMemo/shortcuts, about to return JSX');
+  // Keyboard shortcuts (temporarily disabled for debugging)
+  // const shortcuts = useMemo(() => ({
+  //   'ArrowLeft': () => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`),
+  //   'ArrowRight': () => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`),
+  //   'KeyZ': () => handleUndo(),
+  // }), [handleIBSAScore, handleUndo, player1Name, player2Name]);
+  // useKeyboardShortcuts(shortcuts, match.status === 'in_progress');
+  console.log('[DEBUG-9] after shortcuts disabled, about to return JSX');
 
   return (
     <div className="min-h-screen flex flex-col">
