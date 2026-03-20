@@ -1278,7 +1278,14 @@ function TournamentResultsSummary({
   matches: Match[];
   tournamentType: string;
 }) {
-  const summary = useMemo(() => {
+  const summary = useMemo((): {
+    top3: { name: string; rank: number }[];
+    totalMatches: number;
+    completedCount: number;
+    totalSets: number;
+    highestMatch: { name: string; totalPoints: number } | null;
+    isFinished: boolean;
+  } => {
     const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
     const completedMatches = matches.filter(m => m.status === 'completed');
     const totalMatches = matches.length;
