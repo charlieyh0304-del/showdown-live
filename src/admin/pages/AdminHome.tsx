@@ -115,13 +115,18 @@ export default function AdminHome() {
 // ===== 삭제 확인 모달 (포커스 트랩 포함) =====
 function DeleteConfirmModal({ onConfirm, onCancel, deleting }: { onConfirm: () => void; onCancel: () => void; deleting: boolean }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // 관리자 암호 (설정에서 변경 가능하도록 localStorage 사용)
+  const adminPassword = localStorage.getItem('showdown_admin_password') || '1234';
 
   // 모달 열릴 때 포커스 저장 및 이동
   useEffect(() => {
     previousFocus.current = document.activeElement as HTMLElement;
-    confirmBtnRef.current?.focus();
+    passwordRef.current?.focus();
     return () => {
       previousFocus.current?.focus();
     };
@@ -148,6 +153,16 @@ function DeleteConfirmModal({ onConfirm, onCancel, deleting }: { onConfirm: () =
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onCancel]);
 
+  const handleConfirmWithPassword = () => {
+    if (password !== adminPassword) {
+      setPasswordError('관리자 암호가 일치하지 않습니다.');
+      setPassword('');
+      passwordRef.current?.focus();
+      return;
+    }
+    onConfirm();
+  };
+
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div
@@ -159,13 +174,28 @@ function DeleteConfirmModal({ onConfirm, onCancel, deleting }: { onConfirm: () =
         aria-labelledby="delete-modal-title"
       >
         <h2 id="delete-modal-title" className="text-2xl font-bold text-red-500 mb-4">대회 삭제</h2>
-        <p className="text-lg mb-6">이 대회를 정말 삭제하시겠습니까? 관련된 모든 데이터가 삭제됩니다.</p>
+        <p className="text-lg mb-4">이 대회를 정말 삭제하시겠습니까? 관련된 모든 데이터가 삭제됩니다.</p>
+        <div className="mb-4">
+          <label htmlFor="admin-password" className="block text-sm text-gray-400 mb-1">관리자 암호 입력</label>
+          <input
+            ref={passwordRef}
+            id="admin-password"
+            type="password"
+            className="input w-full"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setPasswordError(''); }}
+            onKeyDown={e => { if (e.key === 'Enter' && password) handleConfirmWithPassword(); }}
+            placeholder="관리자 암호"
+            aria-label="관리자 암호"
+          />
+          {passwordError && <p className="text-red-500 text-sm mt-1" role="alert">{passwordError}</p>}
+          <p className="text-gray-500 text-xs mt-1">기본 암호: 1234 (관리자 설정에서 변경 가능)</p>
+        </div>
         <div className="flex gap-4">
           <button
-            ref={confirmBtnRef}
             className="btn btn-danger flex-1"
-            onClick={onConfirm}
-            disabled={deleting}
+            onClick={handleConfirmWithPassword}
+            disabled={deleting || !password}
             aria-label="삭제 확인"
           >
             {deleting ? '삭제 중...' : '삭제'}

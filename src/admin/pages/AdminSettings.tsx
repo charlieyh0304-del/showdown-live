@@ -274,6 +274,42 @@ export default function AdminSettings() {
         )}
       </div>
 
+      {/* 대회 삭제용 관리자 암호 */}
+      <div className="card">
+        <h2 className="text-xl font-bold mb-3">대회 삭제 암호</h2>
+        <p className="text-gray-400 text-sm mb-3">대회 삭제 시 2차 인증에 사용되는 암호입니다.</p>
+        {(() => {
+          const [deletePassword, setDeletePassword] = useState(localStorage.getItem('showdown_admin_password') || '1234');
+          const [saved, setSaved] = useState(false);
+          return (
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label htmlFor="delete-password" className="block mb-1 text-sm text-gray-400">암호</label>
+                <input
+                  id="delete-password"
+                  type="password"
+                  className="input"
+                  value={deletePassword}
+                  onChange={e => { setDeletePassword(e.target.value); setSaved(false); }}
+                  placeholder="대회 삭제 암호"
+                />
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (deletePassword.length < 4) { alert('4자리 이상 입력해주세요.'); return; }
+                  localStorage.setItem('showdown_admin_password', deletePassword);
+                  setSaved(true);
+                  setTimeout(() => setSaved(false), 2000);
+                }}
+              >
+                {saved ? '저장됨' : '저장'}
+              </button>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* 관리자 목록 */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
