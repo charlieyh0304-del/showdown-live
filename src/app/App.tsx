@@ -27,7 +27,7 @@ function App() {
           </Routes>
         </Suspense>
         <AccessibilityMenu />
-        <div style={{ position: 'fixed', bottom: 2, right: 8, fontSize: '0.625rem', color: '#4b5563', pointerEvents: 'none', zIndex: 9999 }}>v5</div>
+        <div style={{ position: 'fixed', bottom: 2, right: 8, fontSize: '0.625rem', color: '#4b5563', pointerEvents: 'none', zIndex: 9999 }}>v6</div>
       </div>
     </ErrorBoundary>
   );

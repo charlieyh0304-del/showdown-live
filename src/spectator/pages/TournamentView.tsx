@@ -2432,7 +2432,24 @@ function HistoryMatchCard({
       className="card"
       onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
       style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${borderColor}`, padding: '0.75rem 1rem' }}
-      aria-label={`${p1} 대 ${p2}, ${isCompleted ? '완료' : match.status === 'in_progress' ? '진행중' : '예정'}`}
+      aria-label={(() => {
+        const status = isCompleted ? '완료' : match.status === 'in_progress' ? '진행중' : '예정';
+        const winner = isP1Winner ? `${p1} 승리` : isP2Winner ? `${p2} 승리` : '';
+        const score = isIndividual && setWins
+          ? `세트 ${setWins.player1} 대 ${setWins.player2}`
+          : !isIndividual && sets.length > 0 ? `${sets[0].player1Score} 대 ${sets[0].player2Score}` : '';
+        const setScores = isIndividual && sets.length > 0
+          ? sets.map((s, i) => `${i + 1}세트 ${s.player1Score} 대 ${s.player2Score}`).join(', ')
+          : '';
+        return [
+          `${p1} 대 ${p2}`,
+          status,
+          score,
+          winner,
+          setScores,
+          match.courtName,
+        ].filter(Boolean).join(', ');
+      })()}
     >
       {/* Top row: badges */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
