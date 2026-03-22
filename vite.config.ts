@@ -8,15 +8,17 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
       devOptions: {
         enabled: false,
       },
       workbox: {
+        skipWaiting: true,
         clientsClaim: true,
-        navigateFallback: 'index.html',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: null,
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        navigateFallbackDenylist: [/.*/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*firebaseio\.com/,
