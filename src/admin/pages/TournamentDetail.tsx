@@ -141,6 +141,7 @@ export default function TournamentDetail() {
       const result = simulateTournament(tournament, playerCount, {
         existingPlayers: hasExistingPlayers ? tournamentPlayers.map(p => ({ id: p.id, name: p.name })) : undefined,
         existingReferees: hasExistingReferees ? referees.map(r => ({ id: r.id, name: r.name })) : undefined,
+        existingCourts: simAutoCourt && courts.length > 0 ? courts.map(c => ({ id: c.id, name: c.name })) : undefined,
         samplePlayerNames: sampleNames.players.length > 0 ? sampleNames.players : undefined,
         sampleRefereeNames: sampleNames.referees.length > 0 ? sampleNames.referees : undefined,
       });
@@ -168,13 +169,20 @@ export default function TournamentDetail() {
         await setTeamsBulk(remappedTeams);
       }
 
-      // === 가상 코트 생성 (기존 코트가 없을 때, 경기 저장 전) ===
+      // === 코트 ID 매핑 (기존 코트가 있으면 매핑, 없으면 가상 코트 생성) ===
       const courtIdMap = new Map<string, string>();
-      if (simAutoCourt && courts.length === 0) {
-        setSimProgress('가상 코트 생성 중...');
-        for (const simCourt of [{ simId: 'sim_court_1', name: '1코트' }, { simId: 'sim_court_2', name: '2코트' }]) {
-          const newId = await addCourt({ name: simCourt.name, assignedReferees: [] });
-          if (newId) courtIdMap.set(simCourt.simId, newId);
+      if (simAutoCourt) {
+        if (courts.length > 0) {
+          // 기존 코트가 있으면 sim_court_* → 실제 코트 ID로 매핑
+          courts.forEach((court, idx) => {
+            courtIdMap.set(`sim_court_${idx + 1}`, court.id);
+          });
+        } else {
+          setSimProgress('가상 코트 생성 중...');
+          for (const simCourt of [{ simId: 'sim_court_1', name: '1코트' }, { simId: 'sim_court_2', name: '2코트' }]) {
+            const newId = await addCourt({ name: simCourt.name, assignedReferees: [] });
+            if (newId) courtIdMap.set(simCourt.simId, newId);
+          }
         }
       }
 
@@ -194,14 +202,46 @@ export default function TournamentDetail() {
         if (!id) return undefined;
         return playerIdMap.get(id) || id;
       };
-      const remappedMatches = result.matches.map(m => ({
-        ...m,
-        player1Id: remapId(m.player1Id),
-        player2Id: remapId(m.player2Id),
-        winnerId: remapId(m.winnerId),
-        courtId: simAutoCourt ? (courtIdMap.get(m.courtId || '') || m.courtId) : undefined,
-        refereeId: simAutoReferee ? (refIdMap.get(m.refereeId || '') || m.refereeId) : undefined,
-      }));
+      // courtIdMap에서 sim_court_* → 실제 Firebase ID로 변환
+      const courtNameMap = new Map<string, string>();
+      if (simAutoCourt && courts.length > 0) {
+        courts.forEach((court, idx) => {
+          courtNameMap.set(`sim_court_${idx + 1}`, court.name);
+        });
+      }
+      const remapCourtId = (id: string | undefined): string | undefined => {
+        if (!simAutoCourt || !id) return undefined;
+        return courtIdMap.get(id) || id;
+      };
+      const remapCourtName = (m: Omit<Match, 'id'>): string | undefined => {
+        if (!simAutoCourt) return undefined;
+        return courtNameMap.get(m.courtId || '') || m.courtName;
+      };
+      // Build matchId → schedule time mapping for match objects
+      const matchScheduleMap = new Map<string, { scheduledTime?: string; scheduledDate?: string }>();
+      if (result.schedule) {
+        result.schedule.forEach(slot => {
+          matchScheduleMap.set(slot.matchId, {
+            scheduledTime: slot.scheduledTime,
+            scheduledDate: slot.scheduledDate,
+          });
+        });
+      }
+      const remappedMatches = result.matches.map((m, idx) => {
+        const schedInfo = matchScheduleMap.get(`sim_match_${idx}`);
+        return {
+          ...m,
+          player1Id: remapId(m.player1Id),
+          player2Id: remapId(m.player2Id),
+          winnerId: remapId(m.winnerId),
+          courtId: remapCourtId(m.courtId),
+          courtName: remapCourtName(m),
+          refereeId: simAutoReferee ? (refIdMap.get(m.refereeId || '') || m.refereeId) : undefined,
+          refereeName: simAutoReferee ? m.refereeName : undefined,
+          scheduledTime: schedInfo?.scheduledTime,
+          scheduledDate: schedInfo?.scheduledDate,
+        };
+      });
       const actualMatchIds = await setMatchesBulk(remappedMatches);
 
       // sim_match_X → 실제 Firebase ID 매핑
@@ -216,7 +256,8 @@ export default function TournamentDetail() {
         const remappedSchedule = result.schedule.map(slot => ({
           ...slot,
           matchId: matchIdMap.get(slot.matchId) || slot.matchId,
-          courtId: simAutoCourt ? (courtIdMap.get(slot.courtId) || slot.courtId) : slot.courtId,
+          courtId: simAutoCourt ? (courtIdMap.get(slot.courtId) || slot.courtId) : '',
+          courtName: simAutoCourt ? (courtNameMap.get(slot.courtId) || slot.courtName) : '',
         }));
         await setScheduleBulk(remappedSchedule);
       }

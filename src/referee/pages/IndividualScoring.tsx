@@ -6,6 +6,7 @@ import {
   checkMatchWinner,
   createEmptySet,
   getEffectiveGameConfig,
+  getEffectiveScoringRules,
   countSetWins,
   advanceServe,
   revertServe,
@@ -39,6 +40,7 @@ export default function IndividualScoring() {
   const [showHistory, setShowHistory] = useState(false);
   const [showSetEndConfirm, setShowSetEndConfirm] = useState(false);
   const [setEndMessage, setSetEndMessage] = useState('');
+  const [isMatchEnd, setIsMatchEnd] = useState(false);
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
   // Pause
@@ -46,7 +48,9 @@ export default function IndividualScoring() {
   const [pauseElapsed, setPauseElapsed] = useState(0);
   const [pauseReason, setPauseReason] = useState('');
 
-  const gameConfig = getEffectiveGameConfig(tournament?.scoringRules || tournament?.gameConfig);
+  const gameConfig = match && tournament
+    ? getEffectiveScoringRules(match, tournament)
+    : getEffectiveGameConfig(tournament?.scoringRules || tournament?.gameConfig);
   useNavigationGuard(match?.status === 'in_progress');
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
 
@@ -264,10 +268,14 @@ export default function IndividualScoring() {
     if (!match?.sets || match.currentSet === undefined) return;
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout) return;
+    if (showSetEndConfirm) return;
 
     const sets = [...match.sets.map(s => ({ ...s }))];
     const ci = match.currentSet;
     const cs = { ...sets[ci] };
+
+    // Guard: prevent scoring if current set already has a winner
+    if (cs.winnerId || checkSetWinner(cs.player1Score, cs.player2Score, gameConfig)) return;
 
     const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
     const scoringPlayer = toOpponent ? (actingPlayer === 1 ? 2 : 1) : actingPlayer;
@@ -339,9 +347,11 @@ export default function IndividualScoring() {
           const winnerName = matchWinner === 1 ? p1Name : p2Name;
           const setWinsCalc = countSetWins(sets, gameConfig);
           setSetEndMessage(`경기 종료!\n\n${winnerName} 승리! (세트 ${setWinsCalc.player1}:${setWinsCalc.player2})\n현재 점수: ${cs.player1Score} - ${cs.player2Score}`);
+          setIsMatchEnd(true);
         } else {
           const setWinsCalc = countSetWins(sets, gameConfig);
           setSetEndMessage(`세트 ${ci + 1}을(를) 종료하시겠습니까?\n\n현재 점수: ${cs.player1Score} - ${cs.player2Score}\n세트 스코어: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
+          setIsMatchEnd(false);
         }
         setShowSetEndConfirm(true);
       }, 500);
@@ -364,7 +374,7 @@ export default function IndividualScoring() {
       scoreHistory: newHistory,
     });
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId]);
+  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId, showSetEndConfirm]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(async () => {
@@ -675,7 +685,9 @@ export default function IndividualScoring() {
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
               <button className="btn btn-success btn-large flex-1" onClick={handleConfirmSetEnd}>확인</button>
-              <button className="btn btn-secondary btn-large flex-1" onClick={handleCancelSetEnd}>취소</button>
+              {!isMatchEnd && (
+                <button className="btn btn-secondary btn-large flex-1" onClick={handleCancelSetEnd}>취소</button>
+              )}
             </div>
           </div>
         </div>

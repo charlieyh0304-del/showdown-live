@@ -476,6 +476,7 @@ function generateFinalsMatches(
         courtId: courts[courtIndex].id,
         courtName: courts[courtIndex].name,
         scheduledTime: timeStr,
+        scheduledDate: scheduleBaseTime.toISOString().split('T')[0],
         label: `${p1Name} vs ${p2Name}`,
         status: 'completed',
       });
@@ -567,6 +568,7 @@ function createRankingMatch(
     courtId: courts[courtIndex].id,
     courtName: courts[courtIndex].name,
     scheduledTime: timeStr,
+    scheduledDate: scheduleBaseTime.toISOString().split('T')[0],
     label: `${p1Name} vs ${p2Name}`,
     status: 'completed',
   };
@@ -588,6 +590,7 @@ export interface SimulationOptions {
   existingPlayers?: { id: string; name: string }[];
   existingTeams?: { id: string; name: string; memberIds: string[]; memberNames: string[] }[];
   existingReferees?: { id: string; name: string }[];
+  existingCourts?: { id: string; name: string }[];
   samplePlayerNames?: string[];
   sampleRefereeNames?: string[];
 }
@@ -674,11 +677,13 @@ export function simulateTournament(tournament: Tournament, participantCount: num
       ? options.existingReferees.map(r => ({ id: r.id, name: r.name, assignedMatchIds: [] }))
       : defaultRefNames.map((name, i) => ({ id: `sim_ref_${i + 1}`, name, assignedMatchIds: [] }));
 
-  // 4. 코트 생성 (2개)
-  const courts = [
-    { id: 'sim_court_1', name: '1코트' },
-    { id: 'sim_court_2', name: '2코트' },
-  ];
+  // 4. 코트: 기존 등록 코트 → 가상 코트 순으로 사용
+  const courts = (options?.existingCourts && options.existingCourts.length > 0)
+    ? options.existingCourts
+    : [
+        { id: 'sim_court_1', name: '1코트' },
+        { id: 'sim_court_2', name: '2코트' },
+      ];
 
   // 5. 조별 편성 (대회 설정의 groupCount 사용)
   const participants = isTeam ? teams! : players;
@@ -720,6 +725,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
   const matchCounter = { value: 0 };
   const scheduleBaseTime = new Date();
   scheduleBaseTime.setHours(9, 0, 0, 0); // 오전 9시 시작
+  const scheduleDateStr = scheduleBaseTime.toISOString().split('T')[0]; // YYYY-MM-DD
 
   for (const group of groups) {
     for (let i = 0; i < group.members.length; i++) {
@@ -803,6 +809,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
           courtId: courts[courtIndex].id,
           courtName: courts[courtIndex].name,
           scheduledTime: timeStr,
+          scheduledDate: scheduleDateStr,
           label,
           status: 'completed',
         });

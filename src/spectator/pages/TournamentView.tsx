@@ -1072,38 +1072,53 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           ))}
                         </div>
 
-                        {/* Status badge */}
-                        {isInProgress && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            fontSize: '0.6875rem',
-                            fontWeight: 'bold',
-                            color: '#eab308',
-                            backgroundColor: 'rgba(234, 179, 8, 0.15)',
-                            padding: '0.125rem 0.5rem',
-                            borderRadius: '9999px',
-                          }}>
+                        {/* Court name & Status badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {m.courtName && (
                             <span style={{
-                              display: 'inline-block',
-                              width: '5px',
-                              height: '5px',
-                              borderRadius: '50%',
-                              backgroundColor: '#eab308',
-                              animation: 'pulse 2s infinite',
-                            }} />
-                            진행중
-                          </span>
-                        )}
-                        {!isCompleted && !isInProgress && (
-                          <span style={{
-                            fontSize: '0.6875rem',
-                            color: '#4b5563',
-                          }}>
-                            대기
-                          </span>
-                        )}
+                              fontSize: '0.6875rem',
+                              fontWeight: 600,
+                              color: '#60a5fa',
+                              backgroundColor: 'rgba(96, 165, 250, 0.15)',
+                              padding: '0.0625rem 0.375rem',
+                              borderRadius: '0.25rem',
+                              border: '1px solid rgba(96, 165, 250, 0.3)',
+                            }}>
+                              {m.courtName}
+                            </span>
+                          )}
+                          {isInProgress && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontSize: '0.6875rem',
+                              fontWeight: 'bold',
+                              color: '#eab308',
+                              backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                              padding: '0.125rem 0.5rem',
+                              borderRadius: '9999px',
+                            }}>
+                              <span style={{
+                                display: 'inline-block',
+                                width: '5px',
+                                height: '5px',
+                                borderRadius: '50%',
+                                backgroundColor: '#eab308',
+                                animation: 'pulse 2s infinite',
+                              }} />
+                              진행중
+                            </span>
+                          )}
+                          {!isCompleted && !isInProgress && (
+                            <span style={{
+                              fontSize: '0.6875rem',
+                              color: '#4b5563',
+                            }}>
+                              대기
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2171,10 +2186,10 @@ function PlayerMatchRow({
           </div>
         </div>
 
-        {/* Set score pills */}
+        {/* Set score pills - chronological order (Set 1 first) */}
         {Array.isArray(m.sets) && m.sets.length > 0 && (
           <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            {m.sets.map((s, i) => {
+            {[...m.sets].sort((a, b) => (a.player1Score + a.player2Score === 0 ? 1 : 0) - (b.player1Score + b.player2Score === 0 ? 1 : 0)).map((s, i) => {
               const myScore = isP1 ? s.player1Score : s.player2Score;
               const oppScore = isP1 ? s.player2Score : s.player1Score;
               const setWon = myScore > oppScore;
@@ -2189,7 +2204,7 @@ function PlayerMatchRow({
                   borderRadius: '9999px',
                   fontVariantNumeric: 'tabular-nums',
                 }}>
-                  {myScore}-{oppScore}
+                  {i + 1}세트 {myScore}-{oppScore}
                 </span>
               );
             })}
@@ -2204,45 +2219,104 @@ function PlayerMatchRow({
         )}
       </div>
 
-      {/* Expandable detail: score history timeline */}
-      {isExpanded && Array.isArray(m.scoreHistory) && m.scoreHistory.length > 0 && (
-        <div style={{
-          borderTop: '1px solid #374151',
-          padding: '0.5rem 0.75rem',
-          backgroundColor: '#111827',
-          maxHeight: '12rem',
-          overflowY: 'auto',
-        }}>
-          <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.375rem' }}>득점 타임라인</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-            {m.scoreHistory.map((entry, i) => {
-              const isMine = entry.scoringPlayer === selectedPlayer;
-              const timeStr = entry.time ? new Date(entry.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
-              return (
-                <div key={i} style={{
-                  display: 'flex',
-                  gap: '0.5rem',
-                  fontSize: '0.6875rem',
-                  color: isMine ? '#bbf7d0' : '#fecaca',
-                  alignItems: 'center',
-                }}>
-                  <span style={{ color: '#6b7280', minWidth: '4rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
-                  <span style={{ fontWeight: 'bold', minWidth: '1rem' }}>S{entry.set}</span>
-                  <span style={{
-                    backgroundColor: isMine ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                    padding: '0 0.25rem',
-                    borderRadius: '0.125rem',
+      {/* Expandable detail: score history timeline - sorted chronologically (oldest first) */}
+      {isExpanded && Array.isArray(m.scoreHistory) && m.scoreHistory.length > 0 && (() => {
+        // Sort chronologically: by set ascending, then by time ascending
+        const sorted = m.scoreHistory
+          .filter(entry => entry.points > 0 || entry.actionType === 'walkover')
+          .sort((a, b) => {
+            if (a.set !== b.set) return a.set - b.set;
+            if (a.time && b.time) return new Date(a.time).getTime() - new Date(b.time).getTime();
+            return 0;
+          });
+
+        if (sorted.length === 0) return null;
+
+        // Group by set for clean display
+        const setGroups = new Map<number, typeof sorted>();
+        sorted.forEach(entry => {
+          const s = entry.set || 1;
+          if (!setGroups.has(s)) setGroups.set(s, []);
+          setGroups.get(s)!.push(entry);
+        });
+
+        return (
+          <div style={{
+            borderTop: '1px solid #374151',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: '#111827',
+            maxHeight: '14rem',
+            overflowY: 'auto',
+          }}>
+            <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.375rem' }}>득점 타임라인</p>
+            {/* Set score summary line */}
+            {Array.isArray(m.sets) && m.sets.length > 0 && (
+              <p style={{ fontSize: '0.6875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+                {m.sets.map((s, i) => `${i + 1}세트: ${isP1 ? s.player1Score : s.player2Score}-${isP1 ? s.player2Score : s.player1Score}`).join(', ')}
+              </p>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+              {Array.from(setGroups.entries()).map(([setNum, entries]) => (
+                <div key={setNum}>
+                  <div style={{
+                    fontSize: '0.6875rem', fontWeight: 'bold', color: '#60a5fa',
+                    padding: '0.25rem 0', marginTop: setNum > 1 ? '0.25rem' : 0,
+                    borderTop: setNum > 1 ? '1px solid #1f2937' : 'none',
                   }}>
-                    {entry.scoreBefore?.player1 ?? 0}-{entry.scoreBefore?.player2 ?? 0}
-                  </span>
-                  <span style={{ color: '#9ca3af' }}>{entry.actionLabel}</span>
-                  <span style={{ color: '#6b7280' }}>({entry.actionPlayer})</span>
+                    제{setNum}세트
+                  </div>
+                  {entries.map((entry, i) => {
+                    const isMine = entry.scoringPlayer === selectedPlayer;
+                    const timeStr = entry.time ? new Date(entry.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+                    const ACTION_LABELS: Record<string, string> = {
+                      goal: '골 득점',
+                      irregular_serve: '부정 서브',
+                      centerboard: '센터보드 터치',
+                      body_touch: '바디 터치',
+                      illegal_defense: '일리걸 디펜스',
+                      out: '아웃',
+                      ball_holding: '볼 홀딩',
+                      mask_touch: '마스크/고글 터치',
+                      penalty: '기타 벌점',
+                      walkover: '부전승',
+                    };
+
+                    const icon = entry.actionType === 'goal' ? '⚽' : entry.actionType === 'walkover' ? '⚪' : entry.points >= 2 ? '🔴' : '🟡';
+                    const label = ACTION_LABELS[entry.actionType || ''] || entry.actionType || '';
+                    const desc = entry.actionType === 'goal'
+                      ? `${entry.scoringPlayer} 골 +${entry.points}`
+                      : entry.actionType === 'walkover'
+                      ? `${entry.scoringPlayer || '?'} 부전승`
+                      : `${entry.actionPlayer} ${label} → ${entry.scoringPlayer} +${entry.points}`;
+
+                    return (
+                      <div key={i} style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        fontSize: '0.6875rem',
+                        color: isMine ? '#bbf7d0' : '#fecaca',
+                        alignItems: 'center',
+                      }}>
+                        <span style={{ color: '#6b7280', minWidth: '3rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
+                        <span style={{
+                          backgroundColor: isMine ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                          padding: '0 0.25rem',
+                          borderRadius: '0.125rem',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {entry.scoreAfter?.player1 ?? 0}-{entry.scoreAfter?.player2 ?? 0}
+                        </span>
+                        <span>{icon} {desc}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* If expanded but no scoreHistory */}
       {isExpanded && (!Array.isArray(m.scoreHistory) || m.scoreHistory.length === 0) && (
@@ -2427,23 +2501,63 @@ function HistoryMatchCard({
 
   const borderColor = match.status === 'in_progress' ? '#eab308' : isCompleted ? '#374151' : '#1f2937';
 
+  // Build formatted score string for readable display
+  const scoreText = (() => {
+    if (sets.length === 0 || match.status === 'pending') return null;
+    if (isIndividual && setWins) {
+      const setScoreDetails = sets.map((s, i) => `${i + 1}세트: ${s.player1Score}-${s.player2Score}`).join(', ');
+      return { p1Score: String(setWins.player1), p2Score: String(setWins.player2), label: '세트', detail: setScoreDetails };
+    }
+    if (!isIndividual && sets.length > 0) {
+      return { p1Score: String(sets[0].player1Score), p2Score: String(sets[0].player2Score), label: '점수', detail: null };
+    }
+    return null;
+  })();
+
   return (
     <button
       className="card"
       onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
       style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${borderColor}`, padding: '0.75rem 1rem' }}
-      aria-label={(() => {
-        const status = isCompleted ? '경기 완료' : match.status === 'in_progress' ? '경기 진행중' : '경기 예정';
-        const referee = match.refereeName ? `심판 ${match.refereeName}` : '';
-        return [
-          `${p1} vs ${p2}`,
-          status,
-          referee,
-        ].filter(Boolean).join(', ');
-      })()}
     >
-      {/* Top row: badges */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+      {/* Row 1: Player/Team names with "vs" */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
+        <span style={{
+          fontWeight: 'bold', fontSize: '1.05rem',
+          color: isP1Winner ? '#22c55e' : isCompleted && isP2Winner ? '#9ca3af' : '#d1d5db',
+        }}>
+          {p1}
+        </span>
+        <span style={{ color: '#6b7280', fontSize: '0.875rem', flexShrink: 0 }}>vs</span>
+        <span style={{
+          fontWeight: 'bold', fontSize: '1.05rem',
+          color: isP2Winner ? '#22c55e' : isCompleted && isP1Winner ? '#9ca3af' : '#d1d5db',
+        }}>
+          {p2}
+        </span>
+      </div>
+
+      {/* Row 2: Score - e.g. "세트 2 - 1" + "1세트: 11-7, 2세트: 7-11, 3세트: 11-5" */}
+      {scoreText && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', marginBottom: '0.375rem' }}>
+          <span style={{
+            fontSize: '1rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', color: '#d1d5db',
+          }}>
+            {scoreText.label}{' '}
+            <span style={{ color: isP1Winner ? '#22c55e' : '#d1d5db' }}>{scoreText.p1Score}</span>
+            <span style={{ color: '#6b7280' }}> - </span>
+            <span style={{ color: isP2Winner ? '#22c55e' : '#d1d5db' }}>{scoreText.p2Score}</span>
+          </span>
+          {scoreText.detail && (
+            <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>
+              {scoreText.detail}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Row 3: Status badges + meta info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
         <HistoryMatchStatusBadge status={match.status} />
         {match.courtName && (
           <span style={{
@@ -2458,67 +2572,6 @@ function HistoryMatchCard({
             심판: {match.refereeName}
           </span>
         )}
-      </div>
-
-      {/* Players / teams row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-        <span style={{
-          flex: 1, fontWeight: 'bold', fontSize: '1.05rem',
-          color: isP1Winner ? '#22c55e' : isCompleted && isP2Winner ? '#9ca3af' : '#d1d5db',
-        }}>
-          {p1}
-        </span>
-
-        {/* Score area */}
-        <div style={{ textAlign: 'center', flexShrink: 0 }}>
-          {sets.length > 0 && match.status !== 'pending' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.125rem' }}>
-              {/* Set wins for individual, or total score for team */}
-              {isIndividual && setWins ? (
-                <span style={{ fontSize: '1.125rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ color: isP1Winner ? '#22c55e' : '#d1d5db' }}>{setWins.player1}</span>
-                  <span style={{ color: '#6b7280', margin: '0 0.125rem' }}>-</span>
-                  <span style={{ color: isP2Winner ? '#22c55e' : '#d1d5db' }}>{setWins.player2}</span>
-                </span>
-              ) : !isIndividual && sets.length > 0 ? (
-                <span style={{ fontSize: '1.125rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ color: isP1Winner ? '#22c55e' : '#d1d5db' }}>{sets[0].player1Score}</span>
-                  <span style={{ color: '#6b7280', margin: '0 0.125rem' }}>-</span>
-                  <span style={{ color: isP2Winner ? '#22c55e' : '#d1d5db' }}>{sets[0].player2Score}</span>
-                </span>
-              ) : null}
-              {/* Inline set scores for individual */}
-              {isIndividual && sets.length > 0 && (
-                <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {sets.map((s, i) => {
-                    const p1Won = s.player1Score > s.player2Score;
-                    return (
-                      <span key={i} style={{
-                        fontSize: '0.6875rem', fontVariantNumeric: 'tabular-nums',
-                        color: '#9ca3af', backgroundColor: '#374151',
-                        padding: '0.0625rem 0.375rem', borderRadius: '0.25rem',
-                        border: match.status === 'in_progress' && i === sets.length - 1 ? '1px solid #eab308' : 'none',
-                      }}>
-                        <span style={{ color: p1Won ? '#4ade80' : undefined }}>{s.player1Score}</span>
-                        -
-                        <span style={{ color: !p1Won && s.player2Score > s.player1Score ? '#4ade80' : undefined }}>{s.player2Score}</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            <span style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '0.875rem' }}>vs</span>
-          )}
-        </div>
-
-        <span style={{
-          flex: 1, fontWeight: 'bold', fontSize: '1.05rem', textAlign: 'right',
-          color: isP2Winner ? '#22c55e' : isCompleted && isP1Winner ? '#9ca3af' : '#d1d5db',
-        }}>
-          {p2}
-        </span>
       </div>
     </button>
   );

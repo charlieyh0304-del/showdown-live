@@ -10,7 +10,7 @@ export default function LiveMatchView() {
   const { match, loading: mLoading } = useMatch(tournamentId || null, matchId || null);
   const { tournament, loading: tLoading } = useTournament(tournamentId || null);
   const [announcement, setAnnouncement] = useState('');
-  const [historyOrder, setHistoryOrder] = useState<'newest' | 'oldest'>('newest');
+  const [historyOrder, setHistoryOrder] = useState<'newest' | 'oldest'>('oldest');
   const prevScoreRef = useRef('');
 
   const loading = mLoading || tLoading;
@@ -130,12 +130,18 @@ function ScoreHistorySection({
   onToggle: () => void;
   player1Name?: string;
 }) {
-  const sortedHistory = useMemo(() => {
-    if (order === 'newest') return history;
-    return [...history].reverse();
-  }, [history, order]);
+  // Filter out non-scoring meta entries (0-point serve, pause, resume, timeout, dead_ball, substitution)
+  // Keep only entries that actually changed the score (points > 0) or walkover
+  const meaningfulHistory = useMemo(() => {
+    return history.filter(h => h.points > 0 || h.actionType === 'walkover');
+  }, [history]);
 
-  if (history.length === 0) {
+  const sortedHistory = useMemo(() => {
+    if (order === 'newest') return meaningfulHistory;
+    return [...meaningfulHistory].reverse();
+  }, [meaningfulHistory, order]);
+
+  if (meaningfulHistory.length === 0) {
     return (
       <div className="card" style={{ marginTop: '1.5rem', padding: '1rem' }}>
         <p style={{ color: '#9ca3af', textAlign: 'center' }}>상세 경기 기록이 없습니다.</p>
@@ -158,7 +164,7 @@ function ScoreHistorySection({
     <div className="card" style={{ marginTop: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', margin: 0 }}>
-          경기 기록 ({history.length})
+          경기 기록 ({meaningfulHistory.length})
         </h3>
         <button
           className="btn"
@@ -182,8 +188,34 @@ function ScoreHistorySection({
 
       <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
         {sortedHistory.map((h, i) => {
-          const icon = h.actionType === 'goal' ? '⚽' : h.points >= 2 ? '🔴' : '🟡';
+          const icon = h.actionType === 'goal' ? '⚽' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
           const isGoal = h.actionType === 'goal';
+          const isWalkover = h.actionType === 'walkover';
+
+          const ACTION_LABELS: Record<string, string> = {
+            goal: '골 득점',
+            irregular_serve: '부정 서브',
+            centerboard: '센터보드 터치',
+            body_touch: '바디 터치',
+            illegal_defense: '일리걸 디펜스',
+            out: '아웃',
+            ball_holding: '볼 홀딩',
+            mask_touch: '마스크/고글 터치',
+            penalty: '기타 벌점',
+            walkover: '부전승',
+          };
+
+          let actionDesc: string;
+          if (isWalkover) {
+            actionDesc = `${h.scoringPlayer || '?'} 부전승`;
+          } else if (isGoal) {
+            actionDesc = `${h.scoringPlayer} 골 득점 +${h.points}점`;
+          } else {
+            const label = ACTION_LABELS[h.actionType || ''] || h.actionType || '';
+            actionDesc = `${h.actionPlayer} ${label} → ${h.scoringPlayer} +${h.points}점`;
+          }
+
+          const timeStr = h.time ? new Date(h.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
 
           return (
             <div
@@ -195,30 +227,22 @@ function ScoreHistorySection({
                 backgroundColor: i % 2 === 0 ? 'transparent' : '#111827',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>
-                <span>🎾 서브: {h.server} {h.serveNumber}회차</span>
-                <span>{h.time}</span>
-              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <span style={{ marginRight: '0.5rem' }}>{icon}</span>
                   {isGoal ? (
-                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
-                      {h.scoringPlayer} 골 득점 +{h.points}점
-                    </span>
+                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{actionDesc}</span>
+                  ) : isWalkover ? (
+                    <span style={{ color: '#d1d5db', fontWeight: 'bold' }}>{actionDesc}</span>
                   ) : (
-                    <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>
-                      {h.actionPlayer} {h.actionLabel?.split(' ').pop() ?? h.actionLabel} → {h.scoringPlayer} +{h.points}점
-                    </span>
+                    <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>{actionDesc}</span>
                   )}
                 </div>
-                <div style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
-                  {(() => {
-                    const isServerP1 = h.server === player1Name;
-                    const serverScore = isServerP1 ? h.scoreAfter.player1 : h.scoreAfter.player2;
-                    const receiverScore = isServerP1 ? h.scoreAfter.player2 : h.scoreAfter.player1;
-                    return `${serverScore} : ${receiverScore}`;
-                  })()}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
+                    {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}
+                  </span>
+                  {timeStr && <span style={{ fontSize: '0.7rem', color: '#6b7280', whiteSpace: 'nowrap' }}>{timeStr}</span>}
                 </div>
               </div>
             </div>
