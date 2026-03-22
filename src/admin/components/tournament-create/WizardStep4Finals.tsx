@@ -19,6 +19,8 @@ interface WizardStep4FinalsProps {
     hasGroupStage?: boolean;
     advanceCount?: number;
     participantCount?: number;
+    type?: string;
+    teamSize?: number;
   };
   dispatch: (action: { type: 'SET_FIELD'; field: string; value: unknown }) => void;
 }
@@ -45,7 +47,7 @@ const FORMAT_CARDS: {
     value: 'round_robin',
     label: '라운드 로빈',
     icon: '🔁',
-    description: '모든 참가자가 서로 경기. 가장 공정한 방식.',
+    description: '모든 참가자(팀)가 서로 경기. 가장 공정한 방식.',
   },
 ];
 
@@ -61,6 +63,8 @@ const ARRANGEMENT_OPTIONS: {
 
 export default function WizardStep4Finals({ state, dispatch }: WizardStep4FinalsProps) {
   const advanceCount = state.advanceCount || 8;
+  const isTeamType = state.type === 'team' || state.type === 'randomTeamLeague';
+  const unitLabel = isTeamType ? '팀' : '명';
 
   const setField = (field: string, value: unknown) => {
     dispatch({ type: 'SET_FIELD', field, value });
@@ -127,7 +131,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
           {/* BYE 안내 */}
           {advanceCount < state.finalsStartRound && (
             <p className="text-yellow-500 text-sm mt-2">
-              진출 {advanceCount}명 / {state.finalsStartRound}강 → {state.finalsStartRound - advanceCount}명은 부전승(BYE) 처리됩니다
+              진출 {advanceCount}{unitLabel} / {state.finalsStartRound}강 → {state.finalsStartRound - advanceCount}{unitLabel}은 부전승(BYE) 처리됩니다
             </p>
           )}
         </div>
@@ -180,12 +184,15 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
 
       {/* 전체 풀리그 안내 (라운드 로빈 + 조별예선 없음) */}
       {state.finalsFormat === 'round_robin' && !state.hasGroupStage && (() => {
-        const n = state.participantCount || state.advanceCount || 8;
+        const rawCount = state.participantCount || state.advanceCount || 8;
+        const n = state.type === 'randomTeamLeague'
+          ? Math.floor(rawCount / (state.teamSize || 3))
+          : rawCount;
         return (
           <div className="card p-4 bg-blue-900/20 border border-blue-500/30">
             <p className="text-blue-300 font-semibold">전체 풀리그</p>
             <p className="text-gray-400 text-sm mt-1">
-              모든 참가자가 서로 한 번씩 경기합니다.
+              {isTeamType ? '모든 팀이' : '모든 참가자가'} 서로 한 번씩 경기합니다.
               총 {n * (n - 1) / 2}경기가 진행됩니다.
             </p>
           </div>

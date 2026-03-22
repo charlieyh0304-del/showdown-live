@@ -610,7 +610,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               onChange={e => setNewPlayerName(e.target.value)}
               placeholder="선수 이름"
               aria-label="선수 이름"
-              onKeyDown={e => { if (e.key === 'Enter' && newPlayerName.trim()) handleAddPlayer(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && newPlayerName.trim()) handleAddPlayer(); }}
             />
             <select
               className="input w-24"
@@ -679,14 +679,16 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         <div className="card space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-xl font-bold">팀 구성</h2>
-            <button
-              className="btn btn-accent"
-              onClick={generateRandomTeams}
-              disabled={generating || tournamentPlayers.length < 3}
-              aria-label="랜덤 팀 생성"
-            >
-              {generating ? '생성 중...' : '랜덤 팀 생성'}
-            </button>
+            {tournament.type === 'randomTeamLeague' && (
+              <button
+                className="btn btn-accent"
+                onClick={generateRandomTeams}
+                disabled={generating || tournamentPlayers.length < 3}
+                aria-label="랜덤 팀 생성"
+              >
+                {generating ? '생성 중...' : '랜덤 팀 생성'}
+              </button>
+            )}
           </div>
           {teams.length === 0 ? (
             <p className="text-gray-400">팀이 아직 생성되지 않았습니다.</p>

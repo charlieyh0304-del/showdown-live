@@ -526,14 +526,16 @@ export default function TournamentCreate() {
       {state.step === 2 && (
         <div className="space-y-6">
           <div className="card space-y-6">
-            <h2 className="text-xl font-bold">참가자 수</h2>
+            <h2 className="text-xl font-bold">
+              {state.type === 'team' ? '팀 수' : state.type === 'randomTeamLeague' ? '선수 수 (자동 팀 편성)' : '참가자 수'}
+            </h2>
             <NumberStepper
-              label="참가자 수"
+              label={state.type === 'team' ? '팀 수' : state.type === 'randomTeamLeague' ? '선수 수' : '참가자 수'}
               value={state.participantCount}
               min={4}
               max={128}
               onChange={v => dispatch({ type: 'SET_FIELD', field: 'participantCount', value: v })}
-              ariaLabel="참가자 수"
+              ariaLabel={state.type === 'team' ? '팀 수' : state.type === 'randomTeamLeague' ? '선수 수' : '참가자 수'}
             />
             <div className="flex gap-2 flex-wrap">
               {[4, 8, 16, 32, 64].map(v => (
@@ -542,7 +544,7 @@ export default function TournamentCreate() {
                   className={`btn flex-1 min-w-[60px] ${state.participantCount === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                   onClick={() => dispatch({ type: 'SET_FIELD', field: 'participantCount', value: v })}
                 >
-                  {v}명
+                  {v}{state.type === 'team' ? '팀' : '명'}
                 </button>
               ))}
             </div>
@@ -580,19 +582,25 @@ export default function TournamentCreate() {
               </button>
             </div>
 
-            {state.tournamentMode === 'full_league_all' && (
-              <div className="bg-cyan-900/30 rounded-lg p-4 mt-2">
-                <p className="text-cyan-300 font-semibold">
-                  모든 참가자가 서로 경기합니다.
-                </p>
-                <p className="text-cyan-200/70 text-lg font-bold mt-1">
-                  총 {state.participantCount * (state.participantCount - 1) / 2}경기
-                </p>
-                <p className="text-gray-400 text-sm mt-1">
-                  {state.participantCount}명 × {state.participantCount - 1} ÷ 2
-                </p>
-              </div>
-            )}
+            {state.tournamentMode === 'full_league_all' && (() => {
+              const effectiveCount = state.type === 'randomTeamLeague'
+                ? Math.floor(state.participantCount / state.teamSize)
+                : state.participantCount;
+              const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+              return (
+                <div className="bg-cyan-900/30 rounded-lg p-4 mt-2">
+                  <p className="text-cyan-300 font-semibold">
+                    {state.type === 'team' ? '모든 팀이 서로 경기합니다.' : '모든 참가자가 서로 경기합니다.'}
+                  </p>
+                  <p className="text-cyan-200/70 text-lg font-bold mt-1">
+                    총 {effectiveCount * (effectiveCount - 1) / 2}경기
+                  </p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {effectiveCount}{unitLabel} × {effectiveCount - 1} ÷ 2
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           {state.tournamentMode === 'group_tournament' && (
@@ -610,19 +618,23 @@ export default function TournamentCreate() {
                 />
 
                 {(() => {
-                  const perGroup = Math.floor(state.participantCount / state.groupCount);
-                  const remainder = state.participantCount % state.groupCount;
+                  const effectiveCount = state.type === 'randomTeamLeague'
+                    ? Math.floor(state.participantCount / state.teamSize)
+                    : state.participantCount;
+                  const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+                  const perGroup = Math.floor(effectiveCount / state.groupCount);
+                  const remainder = effectiveCount % state.groupCount;
                   return (
                     <div className="space-y-2">
                       {remainder === 0 ? (
                         <p className="text-cyan-400 font-semibold text-lg">
-                          조당 {perGroup}명 (균등 배분)
+                          조당 {perGroup}{unitLabel} (균등 배분)
                         </p>
                       ) : (
                         <div className="bg-gray-800 rounded p-3 text-sm space-y-1">
                           <p className="text-yellow-400 font-semibold">불균등 배분 안내</p>
                           <p className="text-gray-300">
-                            {remainder}개 조는 {perGroup + 1}명, 나머지 {state.groupCount - remainder}개 조는 {perGroup}명
+                            {remainder}개 조는 {perGroup + 1}{unitLabel}, 나머지 {state.groupCount - remainder}개 조는 {perGroup}{unitLabel}
                           </p>
                           <p className="text-gray-400 text-xs">
                             Snake draft 방식으로 공정하게 배분됩니다
@@ -631,7 +643,7 @@ export default function TournamentCreate() {
                       )}
                       {perGroup < 2 && (
                         <p className="text-red-500 text-sm font-bold">
-                          조당 인원이 너무 적습니다. 조 수를 줄이거나 참가자 수를 늘려주세요.
+                          조당 {unitLabel === '팀' ? '팀 수가' : '인원이'} 너무 적습니다. 조 수를 줄이거나 {unitLabel === '팀' ? '팀 수를' : '참가자 수를'} 늘려주세요.
                         </p>
                       )}
                     </div>
@@ -663,16 +675,20 @@ export default function TournamentCreate() {
                 )}
 
                 {(() => {
-                  const perGroup = Math.floor(state.participantCount / state.groupCount);
+                  const effectiveCount = state.type === 'randomTeamLeague'
+                    ? Math.floor(state.participantCount / state.teamSize)
+                    : state.participantCount;
+                  const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+                  const perGroup = Math.floor(effectiveCount / state.groupCount);
                   return (
                     <>
                       <NumberStepper
-                        label="조당 진출 인원"
+                        label={`조당 진출 ${unitLabel === '팀' ? '팀 수' : '인원'}`}
                         value={state.advancePerGroup}
                         min={1}
                         max={perGroup}
                         onChange={v => dispatch({ type: 'SET_FIELD', field: 'advancePerGroup', value: v })}
-                        ariaLabel="각 조에서 본선에 진출하는 인원 수"
+                        ariaLabel={`각 조에서 본선에 진출하는 ${unitLabel === '팀' ? '팀 수' : '인원 수'}`}
                       />
 
                       {(() => {
@@ -684,20 +700,20 @@ export default function TournamentCreate() {
                           <>
                             <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
                               <p className="text-blue-300 font-semibold text-lg">
-                                조별 진출: {state.groupCount}조 × {state.advancePerGroup}명 = {directAdvance}명
+                                조별 진출: {state.groupCount}조 × {state.advancePerGroup}{unitLabel} = {directAdvance}{unitLabel}
                               </p>
                               {wildcardCount > 0 && (
                                 <div className="bg-yellow-900/30 rounded p-3 mt-2">
                                   <p className="text-yellow-300 font-semibold">
-                                    와일드카드 {wildcardCount}명 추가 진출
+                                    와일드카드 {wildcardCount}{unitLabel} 추가 진출
                                   </p>
                                   <p className="text-yellow-200/70 text-sm">
-                                    각 조 {state.advancePerGroup + 1}위 중 성적이 가장 좋은 {wildcardCount}명이 본선에 진출합니다
+                                    각 조 {state.advancePerGroup + 1}위 중 성적이 가장 좋은 {wildcardCount}{unitLabel}{unitLabel === '팀' ? '이' : '이'} 본선에 진출합니다
                                   </p>
                                 </div>
                               )}
                               <p className="text-white font-bold text-lg">
-                                본선 총 진출: {directAdvance + wildcardCount}명
+                                본선 총 진출: {directAdvance + wildcardCount}{unitLabel}
                               </p>
                               <p className="text-gray-400 text-sm">
                                 본선 {nearestBracketRound(directAdvance + wildcardCount)} 시작

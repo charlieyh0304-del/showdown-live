@@ -146,8 +146,15 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
   // 풀리그 단독 형식: 조별 예선 없이 라운드로빈만 진행
   const isRoundRobinOnly = state.tournamentMode === 'full_league_all' || (state.formatType === 'round_robin' && !state.hasGroupStage);
 
+  // 팀전에서 실제 경기 참여 단위 수 계산
+  const isTeamType = state.type === 'team' || state.type === 'randomTeamLeague';
+  const effectiveCount = state.type === 'randomTeamLeague'
+    ? Math.floor(state.participantCount / (state.teamRules?.teamSize ?? 3))
+    : state.participantCount;
+  const unitLabel = isTeamType ? '팀' : '명';
+
   const matchCounts = calculateMatchCount(
-    state.participantCount,
+    effectiveCount,
     state.hasGroupStage,
     state.groupCount,
     state.hasFinalsStage,
@@ -157,8 +164,8 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
   );
 
   const perGroup = state.groupCount > 0
-    ? Math.ceil(state.participantCount / state.groupCount)
-    : state.participantCount;
+    ? Math.ceil(effectiveCount / state.groupCount)
+    : effectiveCount;
 
   return (
     <div className="space-y-6">
@@ -171,7 +178,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
           <SummaryRow label="대회명" value={state.name || '(미입력)'} />
           <SummaryRow label="날짜" value={state.date} />
           <SummaryRow label="유형" value={getTypeLabel(state.type)} />
-          <SummaryRow label="참가자 수" value={`${state.participantCount}명`} />
+          <SummaryRow label={isTeamType ? '팀 수' : '참가자 수'} value={`${effectiveCount}${unitLabel}`} />
         </dl>
       </section>
 
@@ -192,11 +199,11 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                     : '풀리그'}
                 </div>
                 <div className="text-gray-400 text-sm mt-1">
-                  {state.participantCount}명
+                  {effectiveCount}{unitLabel}
                 </div>
                 {state.groupCount > 1 && (
                   <div className="text-gray-500 text-xs mt-0.5">
-                    조당 ~{perGroup}명
+                    조당 ~{perGroup}{unitLabel}
                   </div>
                 )}
               </div>
@@ -217,7 +224,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                   {getStartingRoundLabel(state.startingRound)} 토너먼트
                 </div>
                 <div className="text-gray-400 text-sm mt-1">
-                  {state.advanceCount}명 진출
+                  {state.advanceCount}{unitLabel} 진출
                 </div>
               </div>
 
@@ -237,7 +244,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                           : '순위전'}
                     </div>
                     <div className="text-gray-400 text-sm mt-1">
-                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthToEighth ? 4 : 0)}명
+                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthToEighth ? 4 : 0)}{unitLabel}
                     </div>
                   </div>
                 </>
@@ -252,7 +259,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             >
               <div className="text-sm text-cyan-400 font-semibold">풀리그</div>
               <div className="text-white font-bold mt-1">라운드로빈</div>
-              <div className="text-gray-400 text-sm mt-1">{state.participantCount}명</div>
+              <div className="text-gray-400 text-sm mt-1">{effectiveCount}{unitLabel}</div>
             </div>
           )}
 
@@ -263,7 +270,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             >
               <div className="text-sm text-cyan-400 font-semibold">단일 스테이지</div>
               <div className="text-white font-bold mt-1">{getFormatLabel(state.formatType)}</div>
-              <div className="text-gray-400 text-sm mt-1">{state.participantCount}명</div>
+              <div className="text-gray-400 text-sm mt-1">{effectiveCount}{unitLabel}</div>
             </div>
           )}
         </div>
@@ -278,8 +285,8 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             {state.groupCount > 1 && (
               <>
                 <SummaryRow label="조 수" value={`${state.groupCount}조`} />
-                <SummaryRow label="조당 인원" value={`~${perGroup}명`} />
-                <SummaryRow label="조별 진출 수" value={`${state.advancePerGroup}명`} />
+                <SummaryRow label={isTeamType ? '조당 팀 수' : '조당 인원'} value={`~${perGroup}${unitLabel}`} />
+                <SummaryRow label={isTeamType ? '조별 진출 수' : '조별 진출 수'} value={`${state.advancePerGroup}${unitLabel}`} />
               </>
             )}
             <SummaryRow label="경기 규칙" value={formatScoringRules(state.qualifyingScoringRules)} />
@@ -314,7 +321,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
           <SectionHeader title="대회 형식" step={3} dispatch={dispatch} />
           <dl>
             <SummaryRow label="형식" value="풀리그 (라운드로빈)" />
-            <SummaryRow label="참가자 수" value={`${state.participantCount}명`} />
+            <SummaryRow label={isTeamType ? '팀 수' : '참가자 수'} value={`${effectiveCount}${unitLabel}`} />
             <SummaryRow label="경기 규칙" value={formatScoringRules(state.finalsScoringRules)} />
             <SummaryRow label="타임아웃" value={formatMatchRules(state.finalsMatchRules)} />
             <SummaryRow label="예상 경기 수" value={`${matchCounts.total}경기`} />
@@ -346,7 +353,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                 : '미진행'
             } />
             {state.rankingMatch.classificationGroups && (
-              <SummaryRow label="하위 순위 그룹" value={`${state.rankingMatch.classificationGroupSize}명씩 풀리그`} />
+              <SummaryRow label="하위 순위 그룹" value={`${state.rankingMatch.classificationGroupSize}${unitLabel}씩 풀리그`} />
             )}
             <SummaryRow label="예상 경기 수" value={`${matchCounts.ranking}경기`} />
           </dl>
