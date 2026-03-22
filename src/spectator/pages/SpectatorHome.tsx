@@ -13,7 +13,7 @@ function getTournamentTypeLabel(type: Tournament['type']): string {
 
 function getStatusLabel(status: Tournament['status']): string {
   switch (status) {
-    case 'draft': return '준비중';
+    case 'draft': return '진행중';
     case 'registration': return '모집중';
     case 'in_progress': return '진행중';
     case 'completed': return '완료';
@@ -29,7 +29,7 @@ export default function SpectatorHome() {
 
   const visibleTournaments = tournaments.filter((t) => {
     if (filter === 'in_progress') {
-      return t.status === 'registration' || t.status === 'in_progress' || t.status === 'paused';
+      return t.status === 'draft' || t.status === 'registration' || t.status === 'in_progress' || t.status === 'paused';
     }
     return t.status === 'completed';
   });
@@ -109,12 +109,12 @@ export default function SpectatorHome() {
                         borderRadius: '9999px',
                         fontSize: '0.875rem',
                         fontWeight: 'bold',
-                        backgroundColor: t.status === 'in_progress' ? '#16a34a' : t.status === 'registration' ? '#3b82f6' : t.status === 'paused' ? '#d97706' : '#6b7280',
+                        backgroundColor: (t.status === 'in_progress' || t.status === 'draft') ? '#16a34a' : t.status === 'registration' ? '#3b82f6' : t.status === 'paused' ? '#d97706' : '#6b7280',
                         color: '#ffffff',
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {(t.status === 'in_progress' || t.status === 'paused') && '● '}
+                      {(t.status === 'in_progress' || t.status === 'draft' || t.status === 'paused') && '● '}
                       {getStatusLabel(t.status)}
                     </span>
                   </div>
