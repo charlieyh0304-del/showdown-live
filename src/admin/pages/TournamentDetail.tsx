@@ -482,6 +482,64 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [newTeamName, setNewTeamName] = useState('');
+
+  const assignedPlayerIds = useMemo(() => {
+    const ids = new Set<string>();
+    teams.forEach(t => (t.memberIds || []).forEach(id => ids.add(id)));
+    return ids;
+  }, [teams]);
+
+  const unassignedPlayers = useMemo(() =>
+    tournamentPlayers.filter(p => !assignedPlayerIds.has(p.id)),
+    [tournamentPlayers, assignedPlayerIds]
+  );
+
+  const handleAddTeam = useCallback(async () => {
+    const nextIdx = teams.length + 1;
+    const name = newTeamName.trim() || `${nextIdx}팀`;
+    const newTeam: Team = {
+      id: `team_${Date.now()}`,
+      name,
+      memberIds: [],
+      memberNames: [],
+    };
+    await setTeamsBulk([...teams, newTeam]);
+    setNewTeamName('');
+  }, [teams, newTeamName, setTeamsBulk]);
+
+  const handleDeleteTeam = useCallback(async (teamId: string) => {
+    if (!confirm('이 팀을 삭제하시겠습니까?')) return;
+    await setTeamsBulk(teams.filter(t => t.id !== teamId));
+  }, [teams, setTeamsBulk]);
+
+  const handleAssignPlayer = useCallback(async (playerId: string, teamId: string) => {
+    const player = tournamentPlayers.find(p => p.id === playerId);
+    if (!player) return;
+    const updated = teams.map(t => {
+      if (t.id !== teamId) return t;
+      return {
+        ...t,
+        memberIds: [...(t.memberIds || []), playerId],
+        memberNames: [...(t.memberNames || []), player.name],
+      };
+    });
+    await setTeamsBulk(updated);
+  }, [teams, tournamentPlayers, setTeamsBulk]);
+
+  const handleRemovePlayerFromTeam = useCallback(async (playerId: string, teamId: string) => {
+    const updated = teams.map(t => {
+      if (t.id !== teamId) return t;
+      const idx = (t.memberIds || []).indexOf(playerId);
+      if (idx === -1) return t;
+      return {
+        ...t,
+        memberIds: (t.memberIds || []).filter((_, i) => i !== idx),
+        memberNames: (t.memberNames || []).filter((_, i) => i !== idx),
+      };
+    });
+    await setTeamsBulk(updated);
+  }, [teams, setTeamsBulk]);
 
   const toggleSeed = (playerId: string, name: string) => {
     const existing = seeds.findIndex(s => s.playerId === playerId);
@@ -690,6 +748,59 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               </button>
             )}
           </div>
+
+          {/* 새 팀 추가 */}
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <h3 className="text-sm font-bold text-gray-300 mb-2">새 팀 추가</h3>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1"
+                value={newTeamName}
+                onChange={e => setNewTeamName(e.target.value)}
+                placeholder="팀 이름 (비우면 자동 생성)"
+                aria-label="새 팀 이름"
+                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddTeam(); }}
+              />
+              <button className="btn btn-success" onClick={handleAddTeam}>
+                추가
+              </button>
+            </div>
+          </div>
+
+          {/* 미배정 선수 */}
+          {unassignedPlayers.length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-4 border border-yellow-600">
+              <h3 className="text-sm font-bold text-yellow-400 mb-3">미배정 선수 ({unassignedPlayers.length}명)</h3>
+              <div className="space-y-2">
+                {unassignedPlayers.map(p => (
+                  <div key={p.id} className="flex items-center gap-2 bg-gray-700 rounded px-3 py-2">
+                    <span className="font-bold flex-1">
+                      {p.name}
+                      {p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
+                      {p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                    </span>
+                    {teams.length > 0 && (
+                      <select
+                        className="input w-32 text-sm"
+                        value=""
+                        onChange={e => {
+                          if (e.target.value) handleAssignPlayer(p.id, e.target.value);
+                        }}
+                        aria-label={`${p.name} 팀 선택`}
+                      >
+                        <option value="">팀 선택</option>
+                        {teams.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 팀 카드 목록 */}
           {teams.length === 0 ? (
             <p className="text-gray-400">팀이 아직 생성되지 않았습니다.</p>
           ) : (
@@ -698,23 +809,54 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 const isEditing = editingTeamId === team.id;
                 const globalMaxReserves = tournament.teamRules?.maxReserves;
                 const globalGenderRatio = tournament.teamRules?.genderRatio;
+                const memberCount = (team.memberIds || []).length;
                 return (
                   <div key={team.id} className="bg-gray-800 rounded-lg p-4 border border-gray-600">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-cyan-400">{team.name}</h3>
-                      <button
-                        className="text-sm text-blue-400 hover:text-blue-300"
-                        onClick={() => setEditingTeamId(isEditing ? null : team.id)}
-                        aria-label={`${team.name} 설정 ${isEditing ? '닫기' : '편집'}`}
-                      >
-                        {isEditing ? '닫기' : '팀 설정'}
-                      </button>
+                      <h3 className="text-lg font-bold text-cyan-400">{team.name} ({memberCount}명)</h3>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="text-sm text-blue-400 hover:text-blue-300"
+                          onClick={() => setEditingTeamId(isEditing ? null : team.id)}
+                          aria-label={`${team.name} 설정 ${isEditing ? '닫기' : '편집'}`}
+                        >
+                          {isEditing ? '닫기' : '팀 설정'}
+                        </button>
+                        <button
+                          className="text-sm text-red-400 hover:text-red-300"
+                          onClick={() => handleDeleteTeam(team.id)}
+                          aria-label={`${team.name} 삭제`}
+                        >
+                          팀 삭제
+                        </button>
+                      </div>
                     </div>
+                    {/* Member list with remove buttons */}
                     <ul className="mt-2 space-y-1">
-                      {(team.memberNames ?? []).map((name, i) => (
-                        <li key={i} className="text-gray-300">{name}</li>
-                      ))}
+                      {(team.memberIds ?? []).map((memberId, i) => {
+                        const memberName = (team.memberNames ?? [])[i] ?? memberId;
+                        const player = tournamentPlayers.find(p => p.id === memberId);
+                        return (
+                          <li key={memberId} className="flex items-center justify-between bg-gray-700 rounded px-3 py-1.5">
+                            <span className="text-gray-200">
+                              {memberName}
+                              {player?.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
+                              {player?.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                            </span>
+                            <button
+                              className="text-red-400 hover:text-red-300 font-bold text-sm"
+                              onClick={() => handleRemovePlayerFromTeam(memberId, team.id)}
+                              aria-label={`${memberName} 팀에서 제거`}
+                            >
+                              x
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
+                    {memberCount === 0 && (
+                      <p className="text-gray-500 text-sm mt-2">배정된 선수가 없습니다.</p>
+                    )}
                     {/* Coach & per-team override info (when not editing) */}
                     {!isEditing && (team.coachName || team.maxReserves != null || team.genderRatio) && (
                       <div className="mt-2 text-xs text-gray-400 space-y-0.5">

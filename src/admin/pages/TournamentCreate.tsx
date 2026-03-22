@@ -750,13 +750,14 @@ export default function TournamentCreate() {
             <div className="card space-y-4">
               <h2 className="text-xl font-bold">팀 설정</h2>
               <NumberStepper
-                label="팀 인원"
+                label="기본 팀 인원"
                 value={state.teamSize}
                 min={2}
                 max={6}
                 onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamSize', value: v })}
-                ariaLabel="팀 인원"
+                ariaLabel="기본 팀 인원"
               />
+              <p className="text-gray-400 text-sm">대회 상세에서 팀별로 인원을 다르게 구성할 수 있습니다</p>
               <NumberStepper
                 label="예비 선수"
                 value={state.teamRules.maxReserves ?? 1}
