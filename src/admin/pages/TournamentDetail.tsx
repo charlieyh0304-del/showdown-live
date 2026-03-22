@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useTournament,
@@ -459,9 +459,11 @@ export default function TournamentDetail() {
 
 // ========================
 // 한글 IME 안전 입력 컴포넌트 (React 19 호환)
-// 부모 리렌더링과 완전 격리 - state 없이 ref만 사용
+// 부모 리렌더링 시에도 input DOM을 절대 건드리지 않음
+// - onSubmit을 ref에 저장 → deps 없는 안정적 핸들러
+// - React.memo로 props 변경 시에도 리렌더 차단
 // ========================
-function KoreanNameInput({ onSubmit, placeholder, ariaLabel, showGender }: {
+const KoreanNameInput = React.memo(function KoreanNameInput({ onSubmit, placeholder, ariaLabel, showGender }: {
   onSubmit: (name: string, gender: string) => void;
   placeholder?: string;
   ariaLabel?: string;
@@ -470,14 +472,16 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel, showGender }: {
   const inputRef = useRef<HTMLInputElement>(null);
   const genderRef = useRef<HTMLSelectElement>(null);
   const composing = useRef(false);
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
 
   const handleSubmit = useCallback(() => {
     const name = inputRef.current?.value.trim();
     if (!name) return;
-    onSubmit(name, genderRef.current?.value || '');
+    onSubmitRef.current(name, genderRef.current?.value || '');
     inputRef.current!.value = '';
     if (genderRef.current) genderRef.current.value = '';
-  }, [onSubmit]);
+  }, []); // deps 없음 - onSubmitRef 통해 항상 최신 콜백 참조
 
   return (
     <div className="flex gap-1">
@@ -500,7 +504,7 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel, showGender }: {
       <button className="btn btn-success text-sm px-3" onClick={handleSubmit} type="button">+</button>
     </div>
   );
-}
+}, () => true); // 항상 false 반환 = 절대 리렌더 안 함
 
 // ========================
 // Players Tab
