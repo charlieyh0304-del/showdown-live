@@ -13,6 +13,32 @@
     <meta http-equiv="Expires" content="0">
     <title>쇼다운 대회 관리</title>
     <script>
+      // 앱 버전 — 이 값을 올리면 모든 사용자의 SW 캐시가 강제 초기화됩니다
+      (function() {
+        var APP_VERSION = '2';
+        var key = 'showdown_app_version';
+        var saved = localStorage.getItem(key);
+        if (saved !== APP_VERSION) {
+          localStorage.setItem(key, APP_VERSION);
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              var promises = regs.map(function(r) { return r.unregister(); });
+              Promise.all(promises).then(function() {
+                return caches.keys().then(function(keys) {
+                  return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+                });
+              }).then(function() {
+                location.reload();
+              });
+            });
+          } else {
+            location.reload();
+          }
+          return;
+        }
+      })();
+    </script>
+    <script>
       // 경로에 따라 모드별 manifest 동적 교체
       (function() {
         var path = location.pathname;
