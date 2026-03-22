@@ -485,18 +485,19 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamMembers, setNewTeamMembers] = useState<{ name: string; gender: '' | 'male' | 'female' }[]>([]);
-  const [newTeamMemberInput, setNewTeamMemberInput] = useState('');
   const [newTeamMemberGender, setNewTeamMemberGender] = useState<'' | 'male' | 'female'>('');
-  const [teamMemberInputs, setTeamMemberInputs] = useState<Record<string, { name: string; gender: '' | 'male' | 'female' }>>({});
   const composingRef = useRef(false);
+  const modalMemberRef = useRef<HTMLInputElement>(null);
+  const teamInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const teamGenderInputs = useRef<Map<string, '' | 'male' | 'female'>>(new Map());
   const isManualTeam = tournament.type === 'team';
 
   const openAddTeamModal = useCallback(() => {
     setNewTeamName('');
     setNewTeamMembers([]);
-    setNewTeamMemberInput('');
     setNewTeamMemberGender('');
     setShowAddTeamModal(true);
+    // ref는 모달 렌더 후 자동 초기화
   }, []);
 
   const handleAddTeamFromModal = useCallback(async () => {
@@ -528,22 +529,24 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   }, [teams, setTeamsBulk]);
 
   const handleAddMemberToTeam = useCallback(async (teamId: string) => {
-    const input = teamMemberInputs[teamId];
-    if (!input?.name.trim()) return;
-    const newPlayer = await addTournamentPlayer({ name: input.name.trim(), gender: input.gender || undefined });
+    const el = teamInputRefs.current.get(teamId);
+    const name = el?.value.trim();
+    if (!name) return;
+    const gender = teamGenderInputs.current.get(teamId) || undefined;
+    const newPlayer = await addTournamentPlayer({ name, gender });
     if (!newPlayer) return;
-    const player = { id: newPlayer, name: input.name.trim() };
     const updated = teams.map(t => {
       if (t.id !== teamId) return t;
       return {
         ...t,
-        memberIds: [...(t.memberIds || []), player.id],
-        memberNames: [...(t.memberNames || []), player.name],
+        memberIds: [...(t.memberIds || []), newPlayer],
+        memberNames: [...(t.memberNames || []), name],
       };
     });
     await setTeamsBulk(updated);
-    setTeamMemberInputs(prev => ({ ...prev, [teamId]: { name: '', gender: '' } }));
-  }, [teams, teamMemberInputs, addTournamentPlayer, setTeamsBulk]);
+    if (el) el.value = '';
+    teamGenderInputs.current.set(teamId, '');
+  }, [teams, addTournamentPlayer, setTeamsBulk]);
 
   const handleRemoveMemberFromTeam = useCallback(async (memberId: string, teamId: string) => {
     const updated = teams.map(t => {
@@ -690,7 +693,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               onCompositionEnd={() => { composingRef.current = false; }}
               placeholder="선수 이름"
               aria-label="선수 이름"
-              onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current && newPlayerName.trim()) handleAddPlayer(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && newPlayerName.trim()) handleAddPlayer(); }}
             />
             <select
               className="input w-24"
@@ -834,22 +837,22 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     {memberCount === 0 && (
                       <p className="text-gray-500 text-sm mt-2">선수를 추가해주세요.</p>
                     )}
-                    {/* 팀 내 선수 추가 */}
+                    {/* 팀 내 선수 추가 (uncontrolled - React 19 IME 호환) */}
                     <div className="mt-3 flex gap-1">
                       <input
+                        ref={el => { if (el) teamInputRefs.current.set(team.id, el); }}
                         className="input flex-1 text-sm"
-                        value={teamMemberInputs[team.id]?.name ?? ''}
-                        onChange={e => setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: e.target.value, gender: prev[team.id]?.gender ?? '' } }))}
-                        onCompositionStart={() => { composingRef.current = true; }}
-                        onCompositionEnd={() => { composingRef.current = false; }}
+                        defaultValue=""
                         placeholder="선수 이름"
                         aria-label={`${team.name} 선수 추가`}
-                        onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current && teamMemberInputs[team.id]?.name?.trim()) handleAddMemberToTeam(team.id); }}
+                        onCompositionStart={() => { composingRef.current = true; }}
+                        onCompositionEnd={() => { composingRef.current = false; }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current) handleAddMemberToTeam(team.id); }}
                       />
                       <select
                         className="input w-16 text-sm"
-                        value={teamMemberInputs[team.id]?.gender ?? ''}
-                        onChange={e => setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: prev[team.id]?.name ?? '', gender: e.target.value as '' | 'male' | 'female' } }))}
+                        defaultValue=""
+                        onChange={e => teamGenderInputs.current.set(team.id, e.target.value as '' | 'male' | 'female')}
                         aria-label="성별"
                       >
                         <option value="">성별</option>
@@ -859,7 +862,6 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       <button
                         className="btn btn-success text-sm px-3"
                         onClick={() => handleAddMemberToTeam(team.id)}
-                        disabled={!teamMemberInputs[team.id]?.name?.trim()}
                       >
                         +
                       </button>
@@ -1021,18 +1023,21 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <label className="block text-sm text-gray-400 mb-2">선수 등록</label>
               <div className="flex gap-1 mb-3">
                 <input
+                  ref={modalMemberRef}
                   className="input flex-1 text-sm"
-                  value={newTeamMemberInput}
-                  onChange={e => setNewTeamMemberInput(e.target.value)}
-                  onCompositionStart={() => { composingRef.current = true; }}
-                  onCompositionEnd={() => { composingRef.current = false; }}
+                  defaultValue=""
                   placeholder="선수 이름"
                   aria-label="선수 이름"
+                  onCompositionStart={() => { composingRef.current = true; }}
+                  onCompositionEnd={() => { composingRef.current = false; }}
                   onKeyDown={e => {
-                    if (e.key === 'Enter' && !composingRef.current && newTeamMemberInput.trim()) {
-                      setNewTeamMembers(prev => [...prev, { name: newTeamMemberInput.trim(), gender: newTeamMemberGender }]);
-                      setNewTeamMemberInput('');
-                      setNewTeamMemberGender('');
+                    if (e.key === 'Enter' && !composingRef.current) {
+                      const val = modalMemberRef.current?.value.trim();
+                      if (val) {
+                        setNewTeamMembers(prev => [...prev, { name: val, gender: newTeamMemberGender }]);
+                        modalMemberRef.current!.value = '';
+                        setNewTeamMemberGender('');
+                      }
                     }
                   }}
                 />
@@ -1049,12 +1054,12 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 <button
                   className="btn btn-success text-sm px-3"
                   onClick={() => {
-                    if (!newTeamMemberInput.trim()) return;
-                    setNewTeamMembers(prev => [...prev, { name: newTeamMemberInput.trim(), gender: newTeamMemberGender }]);
-                    setNewTeamMemberInput('');
+                    const val = modalMemberRef.current?.value.trim();
+                    if (!val) return;
+                    setNewTeamMembers(prev => [...prev, { name: val, gender: newTeamMemberGender }]);
+                    modalMemberRef.current!.value = '';
                     setNewTeamMemberGender('');
                   }}
-                  disabled={!newTeamMemberInput.trim()}
                 >
                   +
                 </button>
