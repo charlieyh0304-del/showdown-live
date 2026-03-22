@@ -483,17 +483,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [newTeamName, setNewTeamName] = useState('');
-
-  const assignedPlayerIds = useMemo(() => {
-    const ids = new Set<string>();
-    teams.forEach(t => (t.memberIds || []).forEach(id => ids.add(id)));
-    return ids;
-  }, [teams]);
-
-  const unassignedPlayers = useMemo(() =>
-    tournamentPlayers.filter(p => !assignedPlayerIds.has(p.id)),
-    [tournamentPlayers, assignedPlayerIds]
-  );
+  const [teamMemberInputs, setTeamMemberInputs] = useState<Record<string, { name: string; gender: '' | 'male' | 'female' }>>({});
 
   const handleAddTeam = useCallback(async () => {
     const nextIdx = teams.length + 1;
@@ -513,24 +503,28 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
     await setTeamsBulk(teams.filter(t => t.id !== teamId));
   }, [teams, setTeamsBulk]);
 
-  const handleAssignPlayer = useCallback(async (playerId: string, teamId: string) => {
-    const player = tournamentPlayers.find(p => p.id === playerId);
-    if (!player) return;
+  const handleAddMemberToTeam = useCallback(async (teamId: string) => {
+    const input = teamMemberInputs[teamId];
+    if (!input?.name.trim()) return;
+    const newPlayer = await addTournamentPlayer({ name: input.name.trim(), gender: input.gender || undefined });
+    if (!newPlayer) return;
+    const player = { id: newPlayer, name: input.name.trim() };
     const updated = teams.map(t => {
       if (t.id !== teamId) return t;
       return {
         ...t,
-        memberIds: [...(t.memberIds || []), playerId],
+        memberIds: [...(t.memberIds || []), player.id],
         memberNames: [...(t.memberNames || []), player.name],
       };
     });
     await setTeamsBulk(updated);
-  }, [teams, tournamentPlayers, setTeamsBulk]);
+    setTeamMemberInputs(prev => ({ ...prev, [teamId]: { name: '', gender: '' } }));
+  }, [teams, teamMemberInputs, addTournamentPlayer, setTeamsBulk]);
 
-  const handleRemovePlayerFromTeam = useCallback(async (playerId: string, teamId: string) => {
+  const handleRemoveMemberFromTeam = useCallback(async (memberId: string, teamId: string) => {
     const updated = teams.map(t => {
       if (t.id !== teamId) return t;
-      const idx = (t.memberIds || []).indexOf(playerId);
+      const idx = (t.memberIds || []).indexOf(memberId);
       if (idx === -1) return t;
       return {
         ...t,
@@ -767,39 +761,6 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             </div>
           </div>
 
-          {/* 미배정 선수 */}
-          {unassignedPlayers.length > 0 && (
-            <div className="bg-gray-800 rounded-lg p-4 border border-yellow-600">
-              <h3 className="text-sm font-bold text-yellow-400 mb-3">미배정 선수 ({unassignedPlayers.length}명)</h3>
-              <div className="space-y-2">
-                {unassignedPlayers.map(p => (
-                  <div key={p.id} className="flex items-center gap-2 bg-gray-700 rounded px-3 py-2">
-                    <span className="font-bold flex-1">
-                      {p.name}
-                      {p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
-                      {p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
-                    </span>
-                    {teams.length > 0 && (
-                      <select
-                        className="input w-32 text-sm"
-                        value=""
-                        onChange={e => {
-                          if (e.target.value) handleAssignPlayer(p.id, e.target.value);
-                        }}
-                        aria-label={`${p.name} 팀 선택`}
-                      >
-                        <option value="">팀 선택</option>
-                        {teams.map(t => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* 팀 카드 목록 */}
           {teams.length === 0 ? (
             <p className="text-gray-400">팀이 아직 생성되지 않았습니다.</p>
@@ -831,7 +792,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         </button>
                       </div>
                     </div>
-                    {/* Member list with remove buttons */}
+                    {/* 팀 내 선수 목록 */}
                     <ul className="mt-2 space-y-1">
                       {(team.memberIds ?? []).map((memberId, i) => {
                         const memberName = (team.memberNames ?? [])[i] ?? memberId;
@@ -845,8 +806,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                             </span>
                             <button
                               className="text-red-400 hover:text-red-300 font-bold text-sm"
-                              onClick={() => handleRemovePlayerFromTeam(memberId, team.id)}
-                              aria-label={`${memberName} 팀에서 제거`}
+                              onClick={() => handleRemoveMemberFromTeam(memberId, team.id)}
+                              aria-label={`${memberName} 제거`}
                             >
                               x
                             </button>
@@ -855,8 +816,36 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       })}
                     </ul>
                     {memberCount === 0 && (
-                      <p className="text-gray-500 text-sm mt-2">배정된 선수가 없습니다.</p>
+                      <p className="text-gray-500 text-sm mt-2">선수를 추가해주세요.</p>
                     )}
+                    {/* 팀 내 선수 추가 */}
+                    <div className="mt-3 flex gap-1">
+                      <input
+                        className="input flex-1 text-sm"
+                        value={teamMemberInputs[team.id]?.name ?? ''}
+                        onChange={e => setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: e.target.value, gender: prev[team.id]?.gender ?? '' } }))}
+                        placeholder="선수 이름"
+                        aria-label={`${team.name} 선수 추가`}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && teamMemberInputs[team.id]?.name?.trim()) handleAddMemberToTeam(team.id); }}
+                      />
+                      <select
+                        className="input w-16 text-sm"
+                        value={teamMemberInputs[team.id]?.gender ?? ''}
+                        onChange={e => setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: prev[team.id]?.name ?? '', gender: e.target.value as '' | 'male' | 'female' } }))}
+                        aria-label="성별"
+                      >
+                        <option value="">성별</option>
+                        <option value="male">남</option>
+                        <option value="female">여</option>
+                      </select>
+                      <button
+                        className="btn btn-success text-sm px-3"
+                        onClick={() => handleAddMemberToTeam(team.id)}
+                        disabled={!teamMemberInputs[team.id]?.name?.trim()}
+                      >
+                        +
+                      </button>
+                    </div>
                     {/* Coach & per-team override info (when not editing) */}
                     {!isEditing && (team.coachName || team.maxReserves != null || team.genderRatio) && (
                       <div className="mt-2 text-xs text-gray-400 space-y-0.5">
