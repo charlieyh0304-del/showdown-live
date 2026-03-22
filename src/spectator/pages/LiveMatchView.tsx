@@ -95,7 +95,6 @@ export default function LiveMatchView() {
         sets={Array.isArray(match.sets) ? match.sets : undefined}
         order={historyOrder}
         onToggle={() => setHistoryOrder(o => o === 'newest' ? 'oldest' : 'newest')}
-        player1Name={match.player1Name || match.team1Name || ''}
       />
     </div>
   );
@@ -122,13 +121,12 @@ function ServeIndicator({ match }: { match: NonNullable<ReturnType<typeof useMat
 
 // ===== 경기 기록 (최신순/시간순) =====
 function ScoreHistorySection({
-  history, sets, order, onToggle, player1Name,
+  history, sets, order, onToggle,
 }: {
   history: ScoreHistoryEntry[];
   sets?: { player1Score: number; player2Score: number; winnerId?: string | null }[];
   order: 'newest' | 'oldest';
   onToggle: () => void;
-  player1Name?: string;
 }) {
   // Filter out non-scoring meta entries (0-point serve, pause, resume, timeout, dead_ball, substitution)
   // Keep only entries that actually changed the score (points > 0) or walkover
