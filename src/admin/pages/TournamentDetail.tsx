@@ -458,6 +458,51 @@ export default function TournamentDetail() {
 }
 
 // ========================
+// 한글 IME 안전 입력 컴포넌트 (React 19 호환)
+// 부모 리렌더링과 완전 격리 - state 없이 ref만 사용
+// ========================
+function KoreanNameInput({ onSubmit, placeholder, ariaLabel, showGender }: {
+  onSubmit: (name: string, gender: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+  showGender?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const genderRef = useRef<HTMLSelectElement>(null);
+  const composing = useRef(false);
+
+  const handleSubmit = useCallback(() => {
+    const name = inputRef.current?.value.trim();
+    if (!name) return;
+    onSubmit(name, genderRef.current?.value || '');
+    inputRef.current!.value = '';
+    if (genderRef.current) genderRef.current.value = '';
+  }, [onSubmit]);
+
+  return (
+    <div className="flex gap-1">
+      <input
+        ref={inputRef}
+        className="input flex-1 text-sm"
+        placeholder={placeholder || '선수 이름'}
+        aria-label={ariaLabel || '선수 이름'}
+        onCompositionStart={() => { composing.current = true; }}
+        onCompositionEnd={() => { composing.current = false; }}
+        onKeyDown={e => { if (e.key === 'Enter' && !composing.current) handleSubmit(); }}
+      />
+      {showGender !== false && (
+        <select ref={genderRef} className="input w-16 text-sm" defaultValue="" aria-label="성별">
+          <option value="">성별</option>
+          <option value="male">남</option>
+          <option value="female">여</option>
+        </select>
+      )}
+      <button className="btn btn-success text-sm px-3" onClick={handleSubmit} type="button">+</button>
+    </div>
+  );
+}
+
+// ========================
 // Players Tab
 // ========================
 interface PlayersTabProps {
@@ -485,19 +530,13 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamMembers, setNewTeamMembers] = useState<{ name: string; gender: '' | 'male' | 'female' }[]>([]);
-  const [newTeamMemberGender, setNewTeamMemberGender] = useState<'' | 'male' | 'female'>('');
   const composingRef = useRef(false);
-  const modalMemberRef = useRef<HTMLInputElement>(null);
-  const teamInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
-  const teamGenderInputs = useRef<Map<string, '' | 'male' | 'female'>>(new Map());
   const isManualTeam = tournament.type === 'team';
 
   const openAddTeamModal = useCallback(() => {
     setNewTeamName('');
     setNewTeamMembers([]);
-    setNewTeamMemberGender('');
     setShowAddTeamModal(true);
-    // ref는 모달 렌더 후 자동 초기화
   }, []);
 
   const handleAddTeamFromModal = useCallback(async () => {
@@ -528,25 +567,6 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
     await setTeamsBulk(teams.filter(t => t.id !== teamId));
   }, [teams, setTeamsBulk]);
 
-  const handleAddMemberToTeam = useCallback(async (teamId: string) => {
-    const el = teamInputRefs.current.get(teamId);
-    const name = el?.value.trim();
-    if (!name) return;
-    const gender = teamGenderInputs.current.get(teamId) || undefined;
-    const newPlayer = await addTournamentPlayer({ name, gender });
-    if (!newPlayer) return;
-    const updated = teams.map(t => {
-      if (t.id !== teamId) return t;
-      return {
-        ...t,
-        memberIds: [...(t.memberIds || []), newPlayer],
-        memberNames: [...(t.memberNames || []), name],
-      };
-    });
-    await setTeamsBulk(updated);
-    if (el) el.value = '';
-    teamGenderInputs.current.set(teamId, '');
-  }, [teams, addTournamentPlayer, setTeamsBulk]);
 
   const handleRemoveMemberFromTeam = useCallback(async (memberId: string, teamId: string) => {
     const updated = teams.map(t => {
@@ -837,34 +857,22 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     {memberCount === 0 && (
                       <p className="text-gray-500 text-sm mt-2">선수를 추가해주세요.</p>
                     )}
-                    {/* 팀 내 선수 추가 (uncontrolled - React 19 IME 호환) */}
-                    <div className="mt-3 flex gap-1">
-                      <input
-                        ref={el => { if (el) teamInputRefs.current.set(team.id, el); }}
-                        className="input flex-1 text-sm"
-                        defaultValue=""
+                    {/* 팀 내 선수 추가 */}
+                    <div className="mt-3">
+                      <KoreanNameInput
                         placeholder="선수 이름"
-                        aria-label={`${team.name} 선수 추가`}
-                        onCompositionStart={() => { composingRef.current = true; }}
-                        onCompositionEnd={() => { composingRef.current = false; }}
-                        onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current) handleAddMemberToTeam(team.id); }}
+                        ariaLabel={`${team.name} 선수 추가`}
+                        onSubmit={async (name, gender) => {
+                          const id = await addTournamentPlayer({ name, gender: (gender as 'male' | 'female') || undefined });
+                          if (!id) return;
+                          const updated = teams.map(t => t.id !== team.id ? t : {
+                            ...t,
+                            memberIds: [...(t.memberIds || []), id],
+                            memberNames: [...(t.memberNames || []), name],
+                          });
+                          await setTeamsBulk(updated);
+                        }}
                       />
-                      <select
-                        className="input w-16 text-sm"
-                        defaultValue=""
-                        onChange={e => teamGenderInputs.current.set(team.id, e.target.value as '' | 'male' | 'female')}
-                        aria-label="성별"
-                      >
-                        <option value="">성별</option>
-                        <option value="male">남</option>
-                        <option value="female">여</option>
-                      </select>
-                      <button
-                        className="btn btn-success text-sm px-3"
-                        onClick={() => handleAddMemberToTeam(team.id)}
-                      >
-                        +
-                      </button>
                     </div>
                     {/* Coach & per-team override info (when not editing) */}
                     {!isEditing && (team.coachName || team.maxReserves != null || team.genderRatio) && (
@@ -1021,48 +1029,14 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
             <div>
               <label className="block text-sm text-gray-400 mb-2">선수 등록</label>
-              <div className="flex gap-1 mb-3">
-                <input
-                  ref={modalMemberRef}
-                  className="input flex-1 text-sm"
-                  defaultValue=""
+              <div className="mb-3">
+                <KoreanNameInput
                   placeholder="선수 이름"
-                  aria-label="선수 이름"
-                  onCompositionStart={() => { composingRef.current = true; }}
-                  onCompositionEnd={() => { composingRef.current = false; }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !composingRef.current) {
-                      const val = modalMemberRef.current?.value.trim();
-                      if (val) {
-                        setNewTeamMembers(prev => [...prev, { name: val, gender: newTeamMemberGender }]);
-                        modalMemberRef.current!.value = '';
-                        setNewTeamMemberGender('');
-                      }
-                    }
+                  ariaLabel="선수 이름"
+                  onSubmit={(name, gender) => {
+                    setNewTeamMembers(prev => [...prev, { name, gender: gender as '' | 'male' | 'female' }]);
                   }}
                 />
-                <select
-                  className="input w-16 text-sm"
-                  value={newTeamMemberGender}
-                  onChange={e => setNewTeamMemberGender(e.target.value as '' | 'male' | 'female')}
-                  aria-label="성별"
-                >
-                  <option value="">성별</option>
-                  <option value="male">남</option>
-                  <option value="female">여</option>
-                </select>
-                <button
-                  className="btn btn-success text-sm px-3"
-                  onClick={() => {
-                    const val = modalMemberRef.current?.value.trim();
-                    if (!val) return;
-                    setNewTeamMembers(prev => [...prev, { name: val, gender: newTeamMemberGender }]);
-                    modalMemberRef.current!.value = '';
-                    setNewTeamMemberGender('');
-                  }}
-                >
-                  +
-                </button>
               </div>
 
               {newTeamMembers.length > 0 && (
