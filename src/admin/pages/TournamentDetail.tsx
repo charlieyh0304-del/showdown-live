@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useTournament,
@@ -458,53 +458,79 @@ export default function TournamentDetail() {
 }
 
 // ========================
-// 한글 IME 안전 입력 컴포넌트 (React 19 호환)
-// 부모 리렌더링 시에도 input DOM을 절대 건드리지 않음
-// - onSubmit을 ref에 저장 → deps 없는 안정적 핸들러
-// - React.memo로 props 변경 시에도 리렌더 차단
+// 한글 IME 안전 입력 컴포넌트
+// React DOM 트리 완전 우회 - 순수 native DOM으로 input 생성
+// React의 이벤트 위임/값 추적이 input에 전혀 개입하지 않음
 // ========================
-const KoreanNameInput = React.memo(function KoreanNameInput({ onSubmit, placeholder, ariaLabel, showGender }: {
+function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
   onSubmit: (name: string, gender: string) => void;
   placeholder?: string;
   ariaLabel?: string;
-  showGender?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const genderRef = useRef<HTMLSelectElement>(null);
-  const composing = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
 
-  const handleSubmit = useCallback(() => {
-    const name = inputRef.current?.value.trim();
-    if (!name) return;
-    onSubmitRef.current(name, genderRef.current?.value || '');
-    inputRef.current!.value = '';
-    if (genderRef.current) genderRef.current.value = '';
-  }, []); // deps 없음 - onSubmitRef 통해 항상 최신 콜백 참조
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  return (
-    <div className="flex gap-1">
-      <input
-        ref={inputRef}
-        className="input flex-1 text-sm"
-        placeholder={placeholder || '선수 이름'}
-        aria-label={ariaLabel || '선수 이름'}
-        onCompositionStart={() => { composing.current = true; }}
-        onCompositionEnd={() => { composing.current = false; }}
-        onKeyDown={e => { if (e.key === 'Enter' && !composing.current) handleSubmit(); }}
-      />
-      {showGender !== false && (
-        <select ref={genderRef} className="input w-16 text-sm" defaultValue="" aria-label="성별">
-          <option value="">성별</option>
-          <option value="male">남</option>
-          <option value="female">여</option>
-        </select>
-      )}
-      <button className="btn btn-success text-sm px-3" onClick={handleSubmit} type="button">+</button>
-    </div>
-  );
-}, () => true); // 항상 false 반환 = 절대 리렌더 안 함
+    // 순수 DOM 생성 - React가 전혀 모르는 요소들
+    container.innerHTML = '';
+
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.gap = '4px';
+
+    const input = document.createElement('input');
+    input.className = 'input';
+    input.style.flex = '1';
+    input.style.fontSize = '0.875rem';
+    input.placeholder = placeholder || '선수 이름';
+    if (ariaLabel) input.setAttribute('aria-label', ariaLabel);
+
+    const select = document.createElement('select');
+    select.className = 'input';
+    select.style.width = '64px';
+    select.style.fontSize = '0.875rem';
+    select.setAttribute('aria-label', '성별');
+    select.innerHTML = '<option value="">성별</option><option value="male">남</option><option value="female">여</option>';
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-success';
+    btn.style.fontSize = '0.875rem';
+    btn.style.padding = '0.5rem 0.75rem';
+    btn.textContent = '+';
+    btn.type = 'button';
+
+    let composing = false;
+
+    const submit = () => {
+      const name = input.value.trim();
+      if (!name) return;
+      onSubmitRef.current(name, select.value || '');
+      input.value = '';
+      select.value = '';
+      input.focus();
+    };
+
+    input.addEventListener('compositionstart', () => { composing = true; });
+    input.addEventListener('compositionend', () => { composing = false; });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !composing) submit();
+    });
+    btn.addEventListener('click', submit);
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(select);
+    wrapper.appendChild(btn);
+    container.appendChild(wrapper);
+
+    return () => { container.innerHTML = ''; };
+  }, []); // 마운트 1회만
+
+  return <div ref={containerRef} />;
+}
 
 // ========================
 // Players Tab
