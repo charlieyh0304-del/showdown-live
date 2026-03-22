@@ -269,6 +269,8 @@ export default function IndividualScoring() {
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout) return;
     if (showSetEndConfirm) return;
+    if (showSideChange) return;
+    if (showWarmup && warmupTimer.isRunning) return;
 
     const sets = [...match.sets.map(s => ({ ...s }))];
     const ci = match.currentSet;
@@ -374,7 +376,7 @@ export default function IndividualScoring() {
       scoreHistory: newHistory,
     });
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId, showSetEndConfirm]);
+  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId, showSetEndConfirm, showSideChange, showWarmup, warmupTimer]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(async () => {
@@ -761,14 +763,14 @@ export default function IndividualScoring() {
           <div className="grid grid-cols-2 gap-3">
             <button
               className="btn btn-success text-lg py-4 font-bold"
-              disabled={!!match.activeTimeout || isPausedLocal}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
               onClick={() => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`)}
             >
               {player1Name}<br/>골 +2점
             </button>
             <button
               className="btn btn-success text-lg py-4 font-bold"
-              disabled={!!match.activeTimeout || isPausedLocal}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
               onClick={() => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`)}
             >
               {player2Name}<br/>골 +2점
@@ -785,7 +787,7 @@ export default function IndividualScoring() {
                 {(action.type !== 'irregular_serve' || currentServe === 'player1') ? (
                   <button
                     className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                    disabled={!!match.activeTimeout || isPausedLocal}
+                    disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                     onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
                   >
                     {player1Name} {action.label}<br/>
@@ -795,7 +797,7 @@ export default function IndividualScoring() {
                 {(action.type !== 'irregular_serve' || currentServe === 'player2') ? (
                   <button
                     className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                    disabled={!!match.activeTimeout || isPausedLocal}
+                    disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                     onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
                   >
                     {player2Name} {action.label}<br/>
@@ -815,7 +817,7 @@ export default function IndividualScoring() {
               <div key={action.type} className="grid grid-cols-2 gap-2">
                 <button
                   className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
-                  disabled={!!match.activeTimeout || isPausedLocal}
+                  disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                   onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
                 >
                   {player1Name} {action.label}<br/>
@@ -823,7 +825,7 @@ export default function IndividualScoring() {
                 </button>
                 <button
                   className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
-                  disabled={!!match.activeTimeout || isPausedLocal}
+                  disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                   onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
                 >
                   {player2Name} {action.label}<br/>
@@ -863,7 +865,7 @@ export default function IndividualScoring() {
         <div className="flex gap-3">
           <button
             className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
-            disabled={!!match.activeTimeout || isPausedLocal || match.status !== 'in_progress'}
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
             onClick={handleDeadBall}
           >
             🔵 데드볼

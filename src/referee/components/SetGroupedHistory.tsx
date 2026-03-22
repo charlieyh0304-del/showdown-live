@@ -64,7 +64,19 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
               {entries.map((h, i) => {
                 const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
 
-                const timeStr = h.time ? new Date(h.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                // h.time is stored as locale string (e.g. "오후 8:19:26") - use directly, don't re-parse
+                const timeStr = (() => {
+                  if (!h.time) return '--:--';
+                  // If already a short locale time string, use as-is
+                  if (h.time.includes('오전') || h.time.includes('오후') || h.time.match(/^\d{1,2}:\d{2}/)) {
+                    // Strip seconds if present (오후 8:19:26 → 오후 8:19)
+                    return h.time.replace(/:\d{2}$/, '');
+                  }
+                  // Try parsing as Date (ISO format)
+                  const d = new Date(h.time);
+                  if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                  return h.time;
+                })();
 
                 // Non-scoring entries (pause, resume, timeout, substitution, dead_ball, walkover)
                 if (h.points === 0) {
@@ -98,7 +110,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 return (
                   <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-1.5">
                     <div className="flex justify-between items-center text-gray-500 mb-0.5" style={{ fontSize: '0.6875rem' }}>
-                      <span>서브: {h.server || '?'}</span>
+                      <span>🎾 {h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
                       <span>{timeStr}</span>
                     </div>
                     <div className="flex justify-between items-center">

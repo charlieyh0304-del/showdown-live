@@ -2222,13 +2222,13 @@ function PlayerMatchRow({
       {/* Expandable detail: score history timeline - sorted chronologically (oldest first) */}
       {isExpanded && Array.isArray(m.scoreHistory) && m.scoreHistory.length > 0 && (() => {
         // Sort chronologically: by set ascending, then by time ascending
-        const sorted = m.scoreHistory
-          .filter(entry => entry.points > 0 || entry.actionType === 'walkover')
-          .sort((a, b) => {
-            if (a.set !== b.set) return a.set - b.set;
-            if (a.time && b.time) return new Date(a.time).getTime() - new Date(b.time).getTime();
-            return 0;
-          });
+        const META_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover']);
+        // History entries are stored newest-first; reverse to get chronological, then group by set
+        const filtered = m.scoreHistory.filter(entry => entry.points > 0 || META_TYPES.has(entry.actionType));
+        const sorted = [...filtered].reverse().sort((a, b) => {
+          if (a.set !== b.set) return a.set - b.set;
+          return 0; // preserve chronological order within same set
+        });
 
         if (sorted.length === 0) return null;
 
@@ -2267,7 +2267,15 @@ function PlayerMatchRow({
                   </div>
                   {entries.map((entry, i) => {
                     const isMine = entry.scoringPlayer === selectedPlayer;
-                    const timeStr = entry.time ? new Date(entry.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+                    const timeStr = (() => {
+                      if (!entry.time) return '';
+                      if (entry.time.includes('오전') || entry.time.includes('오후') || entry.time.match(/^\d{1,2}:\d{2}/)) {
+                        return entry.time.replace(/:\d{2}$/, '');
+                      }
+                      const d = new Date(entry.time);
+                      if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                      return entry.time;
+                    })();
 
                     const ACTION_LABELS: Record<string, string> = {
                       goal: '골 득점',

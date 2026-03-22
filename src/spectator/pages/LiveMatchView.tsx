@@ -128,10 +128,11 @@ function ScoreHistorySection({
   order: 'newest' | 'oldest';
   onToggle: () => void;
 }) {
-  // Filter out non-scoring meta entries (0-point serve, pause, resume, timeout, dead_ball, substitution)
-  // Keep only entries that actually changed the score (points > 0) or walkover
+  // Known meta-event types that are meaningful even with 0 points
+  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover']);
+  // Keep scoring entries AND meaningful meta events, filter out only serve-start 0-point entries
   const meaningfulHistory = useMemo(() => {
-    return history.filter(h => h.points > 0 || h.actionType === 'walkover');
+    return history.filter(h => h.points > 0 || META_ACTION_TYPES.has(h.actionType));
   }, [history]);
 
   const sortedHistory = useMemo(() => {
@@ -186,7 +187,8 @@ function ScoreHistorySection({
 
       <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
         {sortedHistory.map((h, i) => {
-          const icon = h.actionType === 'goal' ? '⚽' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
+          const isMeta = h.points === 0;
+          const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
           const isGoal = h.actionType === 'goal';
           const isWalkover = h.actionType === 'walkover';
 
@@ -204,8 +206,15 @@ function ScoreHistorySection({
           };
 
           let actionDesc: string;
-          if (isWalkover) {
-            actionDesc = `${h.scoringPlayer || '?'} 부전승`;
+          if (isMeta) {
+            // Meta events (0 points): dead_ball, timeout, pause, resume, etc.
+            actionDesc = h.actionType === 'dead_ball' ? `${h.server || '?'} 데드볼 → 재서브`
+              : h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃`
+              : h.actionType === 'pause' ? `일시정지 (${h.actionPlayer || ''})`
+              : h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})`
+              : h.actionType === 'substitution' ? (h.actionLabel || '선수 교체')
+              : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} 부전승`
+              : (h.actionLabel || '');
           } else if (isGoal) {
             actionDesc = `${h.scoringPlayer} 골 득점 +${h.points}점`;
           } else {
@@ -213,7 +222,15 @@ function ScoreHistorySection({
             actionDesc = `${h.actionPlayer} ${label} → ${h.scoringPlayer} +${h.points}점`;
           }
 
-          const timeStr = h.time ? new Date(h.time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+          const timeStr = (() => {
+            if (!h.time) return '';
+            if (h.time.includes('오전') || h.time.includes('오후') || h.time.match(/^\d{1,2}:\d{2}/)) {
+              return h.time.replace(/:\d{2}$/, '');
+            }
+            const d = new Date(h.time);
+            if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            return h.time;
+          })();
 
           return (
             <div
@@ -225,24 +242,38 @@ function ScoreHistorySection({
                 backgroundColor: i % 2 === 0 ? 'transparent' : '#111827',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ marginRight: '0.5rem' }}>{icon}</span>
-                  {isGoal ? (
-                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{actionDesc}</span>
-                  ) : isWalkover ? (
-                    <span style={{ color: '#d1d5db', fontWeight: 'bold' }}>{actionDesc}</span>
-                  ) : (
-                    <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>{actionDesc}</span>
-                  )}
+              {isMeta ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#6b7280' }}>
+                  <span>{icon} {actionDesc}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>{h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}</span>
+                    {timeStr && <span style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{timeStr}</span>}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
-                    {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}
-                  </span>
-                  {timeStr && <span style={{ fontSize: '0.7rem', color: '#6b7280', whiteSpace: 'nowrap' }}>{timeStr}</span>}
-                </div>
-              </div>
+              ) : (
+                <>
+                  {/* Serve info line */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.125rem' }}>
+                    <span>🎾 {h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
+                    {timeStr && <span>{timeStr}</span>}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ marginRight: '0.5rem' }}>{icon}</span>
+                      {isGoal ? (
+                        <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{actionDesc}</span>
+                      ) : isWalkover ? (
+                        <span style={{ color: '#d1d5db', fontWeight: 'bold' }}>{actionDesc}</span>
+                      ) : (
+                        <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>{actionDesc}</span>
+                      )}
+                    </div>
+                    <span style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
+                      {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
