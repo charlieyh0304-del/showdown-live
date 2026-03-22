@@ -15,7 +15,7 @@
     <script>
       // 앱 버전 — 이 값을 올리면 모든 사용자의 SW 캐시가 강제 초기화됩니다
       (function() {
-        var APP_VERSION = '2';
+        var APP_VERSION = '3';
         var key = 'showdown_app_version';
         var saved = localStorage.getItem(key);
         if (saved !== APP_VERSION) {
@@ -28,11 +28,11 @@
                   return Promise.all(keys.map(function(k) { return caches.delete(k); }));
                 });
               }).then(function() {
-                location.reload();
+                location.href = location.pathname + '?_v=' + Date.now();
               });
             });
           } else {
-            location.reload();
+            location.href = location.pathname + '?_v=' + Date.now();
           }
           return;
         }
