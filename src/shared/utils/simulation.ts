@@ -663,37 +663,40 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     }
   }
 
-  // 2. 팀: 기존 팀이 있으면 사용, 없으면 가상 생성
+  // 2. 팀: 기존 팀이 있으면 그대로 사용 (이름/구성 유지), 없으면 가상 생성
   let teams: SimulationResult['teams'];
   const teamsMap = new Map<string, { id: string; name: string; memberIds: string[]; memberNames: string[] }>();
   if (isTeam) {
-    const teamSize = tournament.teamRules?.teamSize || 3;
-    const teamCount = Math.floor(participantCount / teamSize);
-    const genderRatio = tournament.teamRules?.genderRatio;
-
-    if (genderRatio && (genderRatio.male > 0 || genderRatio.female > 0) && !(options?.existingTeams && options.existingTeams.length > 0)) {
-      const males = players.filter(p => p.gender === 'male');
-      const females = players.filter(p => p.gender === 'female');
-      teams = Array.from({ length: teamCount }, (_, i) => {
-        const maleMembers = males.slice(i * genderRatio.male, (i + 1) * genderRatio.male);
-        const femaleMembers = females.slice(i * genderRatio.female, (i + 1) * genderRatio.female);
-        const members = [...maleMembers, ...femaleMembers];
-        return {
-          id: `sim_team_${i}`,
-          name: `${i + 1}팀`,
-          memberIds: members.map(p => p.id),
-          memberNames: members.map(p => p.name),
-        };
-      });
+    if (options?.existingTeams && options.existingTeams.length > 0) {
+      // 기존 팀 그대로 사용 (사용자가 만든 팀명/멤버 유지)
+      teams = options.existingTeams;
     } else {
-      teams = (options?.existingTeams && options.existingTeams.length > 0)
-        ? options.existingTeams.slice(0, teamCount)
-        : Array.from({ length: teamCount }, (_, i) => ({
+      const teamSize = tournament.teamRules?.teamSize || 3;
+      const teamCount = Math.floor(participantCount / teamSize);
+      const genderRatio = tournament.teamRules?.genderRatio;
+
+      if (genderRatio && (genderRatio.male > 0 || genderRatio.female > 0)) {
+        const males = players.filter(p => p.gender === 'male');
+        const females = players.filter(p => p.gender === 'female');
+        teams = Array.from({ length: teamCount }, (_, i) => {
+          const maleMembers = males.slice(i * genderRatio.male, (i + 1) * genderRatio.male);
+          const femaleMembers = females.slice(i * genderRatio.female, (i + 1) * genderRatio.female);
+          const members = [...maleMembers, ...femaleMembers];
+          return {
             id: `sim_team_${i}`,
             name: `${i + 1}팀`,
-            memberIds: players.slice(i * teamSize, (i + 1) * teamSize).map(p => p.id),
-            memberNames: players.slice(i * teamSize, (i + 1) * teamSize).map(p => p.name),
-          }));
+            memberIds: members.map(p => p.id),
+            memberNames: members.map(p => p.name),
+          };
+        });
+      } else {
+        teams = Array.from({ length: teamCount }, (_, i) => ({
+          id: `sim_team_${i}`,
+          name: `${i + 1}팀`,
+          memberIds: players.slice(i * teamSize, (i + 1) * teamSize).map(p => p.id),
+          memberNames: players.slice(i * teamSize, (i + 1) * teamSize).map(p => p.name),
+        }));
+      }
     }
     for (const t of teams) {
       teamsMap.set(t.id, t);

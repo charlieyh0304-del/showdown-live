@@ -113,7 +113,11 @@ export default function TournamentDetail() {
     if (!tournament) return;
     const hasExistingPlayers = tournamentPlayers.length > 0;
     const hasExistingReferees = referees.length > 0;
-    const playerCount = hasExistingPlayers ? tournamentPlayers.length : simCount;
+    const hasExistingTeams = isTeamType && teams.length > 0;
+    // 팀전: 기존 팀이 있으면 팀 수 × 팀 인원을 participantCount로 전달
+    const playerCount = hasExistingTeams
+      ? teams.reduce((sum, t) => sum + (t.memberIds?.length || 0), 0)
+      : (hasExistingPlayers ? tournamentPlayers.length : simCount);
 
     const msgParts = [
       `시뮬레이션을 실행합니다.\n`,
@@ -140,6 +144,7 @@ export default function TournamentDetail() {
       const sampleNames = getSampleNames();
       const result = simulateTournament(tournament, playerCount, {
         existingPlayers: hasExistingPlayers ? tournamentPlayers.map(p => ({ id: p.id, name: p.name })) : undefined,
+        existingTeams: hasExistingTeams ? teams.map(t => ({ id: t.id, name: t.name, memberIds: t.memberIds || [], memberNames: t.memberNames || [] })) : undefined,
         existingReferees: hasExistingReferees ? referees.map(r => ({ id: r.id, name: r.name })) : undefined,
         existingCourts: simAutoCourt && courts.length > 0 ? courts.map(c => ({ id: c.id, name: c.name })) : undefined,
         samplePlayerNames: sampleNames.players.length > 0 ? sampleNames.players : undefined,
@@ -156,7 +161,7 @@ export default function TournamentDetail() {
         }
       }
 
-      if (result.teams && result.teams.length > 0) {
+      if (result.teams && result.teams.length > 0 && !hasExistingTeams) {
         setSimProgress(`팀 ${result.teams.length}개 생성 중...`);
         // 팀의 memberIds를 실제 Firebase ID로 교체
         const remappedTeams = playerIdMap.size > 0
