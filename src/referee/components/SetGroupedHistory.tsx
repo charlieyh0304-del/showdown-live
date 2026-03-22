@@ -76,7 +76,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                   );
                 }
 
-                // Scoring entries: concise single-line format with descriptive labels
+                // Scoring entries: two-line format with serve info
                 let actionDesc: string;
                 const descriptiveLabel = DESCRIPTIVE_ACTION_LABELS[h.actionType || ''];
                 if (h.actionType === 'goal') {
@@ -89,11 +89,17 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 }
 
                 return (
-                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-1.5 flex justify-between items-center">
-                    <span>{h.time || '--:--'} {icon} {actionDesc}</span>
-                    <span className="font-bold text-green-400 ml-2 whitespace-nowrap">
-                      {h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}
-                    </span>
+                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-1.5">
+                    <div className="flex justify-between items-center text-gray-500 mb-0.5" style={{ fontSize: '0.6875rem' }}>
+                      <span>서브: {h.server || '?'} {h.serveNumber || 1}회차</span>
+                      <span>{h.time || '--:--'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>{icon} {actionDesc}</span>
+                      <span className="font-bold text-green-400 ml-2 whitespace-nowrap">
+                        {h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}
+                      </span>
+                    </div>
                   </div>
                 );
               })}

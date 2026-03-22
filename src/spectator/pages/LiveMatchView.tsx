@@ -95,6 +95,7 @@ export default function LiveMatchView() {
         sets={Array.isArray(match.sets) ? match.sets : undefined}
         order={historyOrder}
         onToggle={() => setHistoryOrder(o => o === 'newest' ? 'oldest' : 'newest')}
+        player1Name={match.player1Name || match.team1Name || ''}
       />
     </div>
   );
@@ -121,12 +122,13 @@ function ServeIndicator({ match }: { match: NonNullable<ReturnType<typeof useMat
 
 // ===== 경기 기록 (최신순/시간순) =====
 function ScoreHistorySection({
-  history, sets, order, onToggle,
+  history, sets, order, onToggle, player1Name,
 }: {
   history: ScoreHistoryEntry[];
   sets?: { player1Score: number; player2Score: number; winnerId?: string | null }[];
   order: 'newest' | 'oldest';
   onToggle: () => void;
+  player1Name?: string;
 }) {
   const sortedHistory = useMemo(() => {
     if (order === 'newest') return history;
@@ -193,24 +195,30 @@ function ScoreHistorySection({
                 backgroundColor: i % 2 === 0 ? 'transparent' : '#111827',
               }}
             >
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '2px' }}>
-                서브: {h.server} {h.serveNumber}회차 | {h.time}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>
+                <span>🎾 서브: {h.server} {h.serveNumber}회차</span>
+                <span>{h.time}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <span style={{ marginRight: '0.5rem' }}>{icon}</span>
                   {isGoal ? (
                     <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
-                      {h.actionPlayer} 골 → {h.scoringPlayer} +{h.points}
+                      {h.scoringPlayer} 골 득점 +{h.points}점
                     </span>
                   ) : (
                     <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>
-                      {h.actionPlayer} {h.actionLabel?.split(' ').pop() ?? h.actionLabel} → {h.scoringPlayer} +{h.points}
+                      {h.actionPlayer} {h.actionLabel?.split(' ').pop() ?? h.actionLabel} → {h.scoringPlayer} +{h.points}점
                     </span>
                   )}
                 </div>
-                <div style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
-                  {h.scoreAfter.player1} - {h.scoreAfter.player2}
+                <div style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
+                  {(() => {
+                    const isServerP1 = h.server === player1Name;
+                    const serverScore = isServerP1 ? h.scoreAfter.player1 : h.scoreAfter.player2;
+                    const receiverScore = isServerP1 ? h.scoreAfter.player2 : h.scoreAfter.player1;
+                    return `${serverScore} : ${receiverScore}`;
+                  })()}
                 </div>
               </div>
             </div>
@@ -246,10 +254,10 @@ function IndividualMatchDetail({
       {/* 선수 이름 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1 }}>
-          {match.currentServe === 'player1' && match.serveSelected ? '🎾 ' : ''}{match.player1Name || '선수1'}
+          {match.status === 'in_progress' && match.currentServe === 'player1' && match.serveSelected ? '🎾 ' : ''}{match.player1Name || '선수1'}
         </span>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-          {match.currentServe === 'player2' && match.serveSelected ? '🎾 ' : ''}{match.player2Name || '선수2'}
+          {match.status === 'in_progress' && match.currentServe === 'player2' && match.serveSelected ? '🎾 ' : ''}{match.player2Name || '선수2'}
         </span>
       </div>
 
@@ -311,10 +319,10 @@ function TeamMatchDetail({ match }: { match: NonNullable<ReturnType<typeof useMa
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1 }}>
-          {match.currentServe === 'player1' && match.serveSelected ? '🎾 ' : ''}{match.team1Name || '팀1'}
+          {match.status === 'in_progress' && match.currentServe === 'player1' && match.serveSelected ? '🎾 ' : ''}{match.team1Name || '팀1'}
         </span>
         <span style={{ fontSize: '1.75rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-          {match.currentServe === 'player2' && match.serveSelected ? '🎾 ' : ''}{match.team2Name || '팀2'}
+          {match.status === 'in_progress' && match.currentServe === 'player2' && match.serveSelected ? '🎾 ' : ''}{match.team2Name || '팀2'}
         </span>
       </div>
 

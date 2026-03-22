@@ -18,14 +18,44 @@ if (savedAccessibility) {
   document.documentElement.classList.add('mode-dark', 'font-normal');
 }
 
-// SW 업데이트 시 자동 새로고침 + 적극적 업데이트 체크
+// SW 업데이트 시 확인 후 새로고침 + 적극적 업데이트 체크
 if ('serviceWorker' in navigator) {
+  let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
   });
 
   navigator.serviceWorker.getRegistration().then(reg => {
     if (reg) {
+      // 새 SW가 대기 중일 때 사용자에게 알림
+      const promptUpdate = () => {
+        if (reg.waiting) {
+          if (window.confirm('새로운 업데이트가 있습니다. 지금 적용하시겠습니까?')) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      };
+
+      // 이미 대기 중인 SW가 있으면 즉시 알림
+      if (reg.waiting) {
+        promptUpdate();
+      }
+
+      // 새 SW 설치 완료 시 알림
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              promptUpdate();
+            }
+          });
+        }
+      });
+
       // 즉시 업데이트 체크
       reg.update();
       // 30초마다 업데이트 체크

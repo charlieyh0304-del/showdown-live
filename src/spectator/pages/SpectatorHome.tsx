@@ -109,12 +109,12 @@ export default function SpectatorHome() {
                         borderRadius: '9999px',
                         fontSize: '0.875rem',
                         fontWeight: 'bold',
-                        backgroundColor: t.status === 'in_progress' ? '#16a34a' : '#6b7280',
+                        backgroundColor: t.status === 'in_progress' ? '#16a34a' : t.status === 'registration' ? '#3b82f6' : t.status === 'paused' ? '#d97706' : '#6b7280',
                         color: '#ffffff',
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {t.status === 'in_progress' && '● '}
+                      {(t.status === 'in_progress' || t.status === 'paused') && '● '}
                       {getStatusLabel(t.status)}
                     </span>
                   </div>

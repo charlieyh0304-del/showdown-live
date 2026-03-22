@@ -2463,7 +2463,7 @@ function HistoryMatchCard({
 
         {/* Score area */}
         <div style={{ textAlign: 'center', flexShrink: 0 }}>
-          {sets.length > 0 ? (
+          {sets.length > 0 && match.status !== 'pending' ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.125rem' }}>
               {/* Set wins for individual, or total score for team */}
               {isIndividual && setWins ? (
