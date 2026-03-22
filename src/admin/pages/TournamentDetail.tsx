@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useTournament,
@@ -482,21 +482,45 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamMembers, setNewTeamMembers] = useState<{ name: string; gender: '' | 'male' | 'female' }[]>([]);
+  const [newTeamMemberInput, setNewTeamMemberInput] = useState('');
+  const [newTeamMemberGender, setNewTeamMemberGender] = useState<'' | 'male' | 'female'>('');
   const [teamMemberInputs, setTeamMemberInputs] = useState<Record<string, { name: string; gender: '' | 'male' | 'female' }>>({});
+  const composingRef = useRef(false);
+  const isManualTeam = tournament.type === 'team';
 
-  const handleAddTeam = useCallback(async () => {
+  const openAddTeamModal = useCallback(() => {
+    setNewTeamName('');
+    setNewTeamMembers([]);
+    setNewTeamMemberInput('');
+    setNewTeamMemberGender('');
+    setShowAddTeamModal(true);
+  }, []);
+
+  const handleAddTeamFromModal = useCallback(async () => {
     const nextIdx = teams.length + 1;
     const name = newTeamName.trim() || `${nextIdx}팀`;
+    // 모달에서 입력한 멤버들을 선수로 등록하면서 팀에 추가
+    const memberIds: string[] = [];
+    const memberNames: string[] = [];
+    for (const m of newTeamMembers) {
+      const id = await addTournamentPlayer({ name: m.name, gender: m.gender || undefined });
+      if (id) {
+        memberIds.push(id);
+        memberNames.push(m.name);
+      }
+    }
     const newTeam: Team = {
       id: `team_${Date.now()}`,
       name,
-      memberIds: [],
-      memberNames: [],
+      memberIds,
+      memberNames,
     };
     await setTeamsBulk([...teams, newTeam]);
-    setNewTeamName('');
-  }, [teams, newTeamName, setTeamsBulk]);
+    setShowAddTeamModal(false);
+  }, [teams, newTeamName, newTeamMembers, addTournamentPlayer, setTeamsBulk]);
 
   const handleDeleteTeam = useCallback(async (teamId: string) => {
     if (!confirm('이 팀을 삭제하시겠습니까?')) return;
@@ -638,6 +662,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
   return (
     <div className="space-y-6">
+      {/* 개인전 또는 랜덤 팀리그: 전역 선수 등록 */}
+      {!isManualTeam && (
       <div className="card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <h2 className="text-xl font-bold">대회 참가 선수 ({tournamentPlayers.length}명)</h2>
@@ -659,10 +685,12 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             <input
               className="input flex-1"
               value={newPlayerName}
-              onChange={e => setNewPlayerName(e.target.value)}
+              onChange={e => { if (!composingRef.current) setNewPlayerName(e.target.value); }}
+              onCompositionStart={() => { composingRef.current = true; }}
+              onCompositionEnd={e => { composingRef.current = false; setNewPlayerName((e.target as HTMLInputElement).value); }}
               placeholder="선수 이름"
               aria-label="선수 이름"
-              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && newPlayerName.trim()) handleAddPlayer(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current && newPlayerName.trim()) handleAddPlayer(); }}
             />
             <select
               className="input w-24"
@@ -726,37 +754,25 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
           </div>
         )}
       </div>
+      )}
 
       {isTeamType && (
         <div className="card space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <h2 className="text-xl font-bold">팀 구성</h2>
-            {tournament.type === 'randomTeamLeague' && (
-              <button
-                className="btn btn-accent"
-                onClick={generateRandomTeams}
-                disabled={generating || tournamentPlayers.length < 3}
-                aria-label="랜덤 팀 생성"
-              >
-                {generating ? '생성 중...' : '랜덤 팀 생성'}
-              </button>
-            )}
-          </div>
-
-          {/* 새 팀 추가 */}
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
-            <h3 className="text-sm font-bold text-gray-300 mb-2">새 팀 추가</h3>
+            <h2 className="text-xl font-bold">팀 구성 ({teams.length}팀)</h2>
             <div className="flex gap-2">
-              <input
-                className="input flex-1"
-                value={newTeamName}
-                onChange={e => setNewTeamName(e.target.value)}
-                placeholder="팀 이름 (비우면 자동 생성)"
-                aria-label="새 팀 이름"
-                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddTeam(); }}
-              />
-              <button className="btn btn-success" onClick={handleAddTeam}>
-                추가
+              {tournament.type === 'randomTeamLeague' && (
+                <button
+                  className="btn btn-accent"
+                  onClick={generateRandomTeams}
+                  disabled={generating || tournamentPlayers.length < 3}
+                  aria-label="랜덤 팀 생성"
+                >
+                  {generating ? '생성 중...' : '랜덤 팀 생성'}
+                </button>
+              )}
+              <button className="btn btn-success" onClick={openAddTeamModal} aria-label="새 팀 추가">
+                + 새 팀 추가
               </button>
             </div>
           </div>
@@ -823,10 +839,12 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       <input
                         className="input flex-1 text-sm"
                         value={teamMemberInputs[team.id]?.name ?? ''}
-                        onChange={e => setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: e.target.value, gender: prev[team.id]?.gender ?? '' } }))}
+                        onChange={e => { if (!composingRef.current) setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: e.target.value, gender: prev[team.id]?.gender ?? '' } })); }}
+                        onCompositionStart={() => { composingRef.current = true; }}
+                        onCompositionEnd={e => { composingRef.current = false; setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: (e.target as HTMLInputElement).value, gender: prev[team.id]?.gender ?? '' } })); }}
                         placeholder="선수 이름"
                         aria-label={`${team.name} 선수 추가`}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && teamMemberInputs[team.id]?.name?.trim()) handleAddMemberToTeam(team.id); }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current && teamMemberInputs[team.id]?.name?.trim()) handleAddMemberToTeam(team.id); }}
                       />
                       <select
                         className="input w-16 text-sm"
@@ -971,6 +989,117 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             })}
           </div>
           <button className="btn btn-primary w-full" onClick={saveSeeds}>시드 저장</button>
+        </div>
+      )}
+
+      {/* 새 팀 추가 모달 */}
+      {showAddTeamModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowAddTeamModal(false)}>
+          <div
+            className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4 border border-gray-700 max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-label="새 팀 추가"
+          >
+            <h3 className="text-xl font-bold text-yellow-400">새 팀 추가</h3>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">팀 이름</label>
+              <input
+                className="input w-full"
+                value={newTeamName}
+                onChange={e => { if (!composingRef.current) setNewTeamName(e.target.value); }}
+                onCompositionStart={() => { composingRef.current = true; }}
+                onCompositionEnd={e => { composingRef.current = false; setNewTeamName((e.target as HTMLInputElement).value); }}
+                placeholder={`${teams.length + 1}팀`}
+                aria-label="팀 이름"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">선수 등록</label>
+              <div className="flex gap-1 mb-3">
+                <input
+                  className="input flex-1 text-sm"
+                  value={newTeamMemberInput}
+                  onChange={e => { if (!composingRef.current) setNewTeamMemberInput(e.target.value); }}
+                  onCompositionStart={() => { composingRef.current = true; }}
+                  onCompositionEnd={e => { composingRef.current = false; setNewTeamMemberInput((e.target as HTMLInputElement).value); }}
+                  placeholder="선수 이름"
+                  aria-label="선수 이름"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !composingRef.current && newTeamMemberInput.trim()) {
+                      setNewTeamMembers(prev => [...prev, { name: newTeamMemberInput.trim(), gender: newTeamMemberGender }]);
+                      setNewTeamMemberInput('');
+                      setNewTeamMemberGender('');
+                    }
+                  }}
+                />
+                <select
+                  className="input w-16 text-sm"
+                  value={newTeamMemberGender}
+                  onChange={e => setNewTeamMemberGender(e.target.value as '' | 'male' | 'female')}
+                  aria-label="성별"
+                >
+                  <option value="">성별</option>
+                  <option value="male">남</option>
+                  <option value="female">여</option>
+                </select>
+                <button
+                  className="btn btn-success text-sm px-3"
+                  onClick={() => {
+                    if (!newTeamMemberInput.trim()) return;
+                    setNewTeamMembers(prev => [...prev, { name: newTeamMemberInput.trim(), gender: newTeamMemberGender }]);
+                    setNewTeamMemberInput('');
+                    setNewTeamMemberGender('');
+                  }}
+                  disabled={!newTeamMemberInput.trim()}
+                >
+                  +
+                </button>
+              </div>
+
+              {newTeamMembers.length > 0 && (
+                <ul className="space-y-1">
+                  {newTeamMembers.map((m, i) => (
+                    <li key={i} className="flex items-center justify-between bg-gray-800 rounded px-3 py-2">
+                      <span className="text-gray-200">
+                        {m.name}
+                        {m.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
+                        {m.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                      </span>
+                      <button
+                        className="text-red-400 hover:text-red-300 font-bold text-sm"
+                        onClick={() => setNewTeamMembers(prev => prev.filter((_, j) => j !== i))}
+                        aria-label={`${m.name} 제거`}
+                      >
+                        x
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {newTeamMembers.length === 0 && (
+                <p className="text-gray-500 text-sm">선수를 추가해주세요.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                className="btn btn-success flex-1"
+                onClick={handleAddTeamFromModal}
+              >
+                팀 생성 ({newTeamMembers.length}명)
+              </button>
+              <button
+                className="btn btn-secondary flex-1"
+                onClick={() => setShowAddTeamModal(false)}
+              >
+                취소
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
