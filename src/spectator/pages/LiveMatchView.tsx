@@ -174,6 +174,49 @@ function ScoreHistorySection({
         </button>
       </div>
 
+      <HistoryBySet history={sortedHistory} sets={sets} order={order} />
+    </div>
+  );
+}
+
+// ===== 세트별 그룹 히스토리 (관람용) =====
+const ACTION_LABELS: Record<string, string> = {
+  goal: '골 득점', irregular_serve: '부정 서브', centerboard: '센터보드 터치',
+  body_touch: '바디 터치', illegal_defense: '일리걸 디펜스', out: '아웃',
+  ball_holding: '볼 홀딩', mask_touch: '마스크/고글 터치', penalty: '기타 벌점', walkover: '부전승',
+};
+
+function parseTimeStr(time: string | undefined): string {
+  if (!time) return '';
+  if (time.includes('오전') || time.includes('오후') || time.match(/^\d{1,2}:\d{2}/)) {
+    return time.replace(/:\d{2}$/, '');
+  }
+  const d = new Date(time);
+  if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  return time;
+}
+
+function HistoryBySet({ history, sets, order }: {
+  history: ScoreHistoryEntry[];
+  sets?: { player1Score: number; player2Score: number }[];
+  order: 'newest' | 'oldest';
+}) {
+  // Group by set
+  const setGroups = useMemo(() => {
+    const groups = new Map<number, ScoreHistoryEntry[]>();
+    history.forEach(h => {
+      const s = h.set || 1;
+      if (!groups.has(s)) groups.set(s, []);
+      groups.get(s)!.push(h);
+    });
+    const entries = Array.from(groups.entries());
+    return order === 'newest' ? entries.sort((a, b) => b[0] - a[0]) : entries.sort((a, b) => a[0] - b[0]);
+  }, [history, order]);
+
+  if (history.length === 0) return null;
+
+  return (
+    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
       {/* 시간순일 때 경기 시작 마커 */}
       {order === 'oldest' && (
         <div style={{
@@ -184,100 +227,68 @@ function ScoreHistorySection({
           🎾 경기 시작
         </div>
       )}
+      {setGroups.map(([setNum, entries]) => {
+        const setData = sets?.[setNum - 1];
+        return (
+          <div key={setNum}>
+            {/* 세트 헤딩 */}
+            <div style={{
+              padding: '0.5rem 0.75rem', fontWeight: 'bold', fontSize: '0.875rem',
+              color: '#60a5fa', borderBottom: '2px solid rgba(96,165,250,0.3)',
+              backgroundColor: '#111827', position: 'sticky', top: 0, zIndex: 1,
+            }}>
+              제{setNum}세트 {setData ? `(${setData.player1Score} : ${setData.player2Score})` : ''}
+            </div>
+            {entries.map((h, i) => {
+              const isMeta = h.points === 0;
+              const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
+              const timeStr = parseTimeStr(h.time);
 
-      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-        {sortedHistory.map((h, i) => {
-          const isMeta = h.points === 0;
-          const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
-          const isGoal = h.actionType === 'goal';
-          const isWalkover = h.actionType === 'walkover';
+              if (isMeta) {
+                const desc = h.actionType === 'dead_ball' ? `${h.server || '?'} 데드볼 → 재서브`
+                  : h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃`
+                  : h.actionType === 'pause' ? `일시정지 (${h.actionPlayer || ''})`
+                  : h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})`
+                  : h.actionType === 'substitution' ? (h.actionLabel || '선수 교체')
+                  : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} 부전승`
+                  : (h.actionLabel || '');
+                return (
+                  <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#6b7280', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
+                    <div>{timeStr} {icon} {desc}</div>
+                    <div style={{ fontSize: '0.75rem' }}>점수: {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}</div>
+                  </div>
+                );
+              }
 
-          const ACTION_LABELS: Record<string, string> = {
-            goal: '골 득점',
-            irregular_serve: '부정 서브',
-            centerboard: '센터보드 터치',
-            body_touch: '바디 터치',
-            illegal_defense: '일리걸 디펜스',
-            out: '아웃',
-            ball_holding: '볼 홀딩',
-            mask_touch: '마스크/고글 터치',
-            penalty: '기타 벌점',
-            walkover: '부전승',
-          };
+              const isGoal = h.actionType === 'goal';
+              const label = ACTION_LABELS[h.actionType || ''] || h.actionType || '';
+              const actionDesc = isGoal
+                ? `${h.scoringPlayer} 골 득점 +${h.points}점`
+                : h.actionType === 'walkover'
+                ? `${h.scoringPlayer || '?'} 부전승`
+                : `${h.actionPlayer} ${label} → ${h.scoringPlayer} +${h.points}점`;
+              const actionColor = isGoal ? '#22c55e' : h.points >= 2 ? '#ef4444' : '#eab308';
 
-          let actionDesc: string;
-          if (isMeta) {
-            // Meta events (0 points): dead_ball, timeout, pause, resume, etc.
-            actionDesc = h.actionType === 'dead_ball' ? `${h.server || '?'} 데드볼 → 재서브`
-              : h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃`
-              : h.actionType === 'pause' ? `일시정지 (${h.actionPlayer || ''})`
-              : h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})`
-              : h.actionType === 'substitution' ? (h.actionLabel || '선수 교체')
-              : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} 부전승`
-              : (h.actionLabel || '');
-          } else if (isGoal) {
-            actionDesc = `${h.scoringPlayer} 골 득점 +${h.points}점`;
-          } else {
-            const label = ACTION_LABELS[h.actionType || ''] || h.actionType || '';
-            actionDesc = `${h.actionPlayer} ${label} → ${h.scoringPlayer} +${h.points}점`;
-          }
-
-          const timeStr = (() => {
-            if (!h.time) return '';
-            if (h.time.includes('오전') || h.time.includes('오후') || h.time.match(/^\d{1,2}:\d{2}/)) {
-              return h.time.replace(/:\d{2}$/, '');
-            }
-            const d = new Date(h.time);
-            if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-            return h.time;
-          })();
-
-          return (
-            <div
-              key={i}
-              style={{
-                padding: '0.5rem 0.75rem',
-                borderBottom: '1px solid #1f2937',
-                fontSize: '0.875rem',
-                backgroundColor: i % 2 === 0 ? 'transparent' : '#111827',
-              }}
-            >
-              {isMeta ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#6b7280' }}>
-                  <span>{icon} {actionDesc}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ whiteSpace: 'nowrap' }}>{h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}</span>
-                    {timeStr && <span style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{timeStr}</span>}
+              return (
+                <div key={`${setNum}-${i}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem' }}>
+                  {/* Line 1: 서브권 */}
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    🎾 {h.server || '?'} 서브 {h.serveNumber ? `${h.serveNumber}회차` : ''} {timeStr && `· ${timeStr}`}
+                  </div>
+                  {/* Line 2: 득점 기록 */}
+                  <div style={{ color: actionColor, fontWeight: 'bold' }}>
+                    {icon} {actionDesc}
+                  </div>
+                  {/* Line 3: 점수 */}
+                  <div style={{ fontSize: '0.8125rem', color: '#d1d5db' }}>
+                    점수: {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}
                   </div>
                 </div>
-              ) : (
-                <>
-                  {/* Serve info line */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.125rem' }}>
-                    <span>🎾 {h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
-                    {timeStr && <span>{timeStr}</span>}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ marginRight: '0.5rem' }}>{icon}</span>
-                      {isGoal ? (
-                        <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{actionDesc}</span>
-                      ) : isWalkover ? (
-                        <span style={{ color: '#d1d5db', fontWeight: 'bold' }}>{actionDesc}</span>
-                      ) : (
-                        <span style={{ color: h.points >= 2 ? '#ef4444' : '#eab308' }}>{actionDesc}</span>
-                      )}
-                    </div>
-                    <span style={{ fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>
-                      {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }

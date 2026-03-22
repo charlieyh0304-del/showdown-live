@@ -337,13 +337,16 @@ export default function IndividualScoring() {
 
       const matchWinner = checkMatchWinner(sets, gameConfig);
 
+      // Block scoring IMMEDIATELY to prevent race condition during 500ms delay
+      setShowSetEndConfirm(true);
+
       // Save state first
       await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
       });
 
-      // Show confirmation after 500ms delay
+      // Show dialog message after 500ms delay (dialog already blocks via showSetEndConfirm)
       setTimeout(() => {
         if (matchWinner) {
           const winnerName = matchWinner === 1 ? p1Name : p2Name;
@@ -355,7 +358,6 @@ export default function IndividualScoring() {
           setSetEndMessage(`세트 ${ci + 1}을(를) 종료하시겠습니까?\n\n현재 점수: ${cs.player1Score} - ${cs.player2Score}\n세트 스코어: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
           setIsMatchEnd(false);
         }
-        setShowSetEndConfirm(true);
       }, 500);
       return;
     }
