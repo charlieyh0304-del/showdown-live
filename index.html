@@ -13,9 +13,22 @@
     <meta http-equiv="Expires" content="0">
     <title>쇼다운 대회 관리</title>
     <script>
-      // 앱 버전 — 이 값을 올리면 모든 사용자의 SW 캐시가 강제 초기화됩니다
+      // 1) 이전 커스텀 service-worker.js 강제 해제 (showdown-v* 캐시 사용하던 SW)
       (function() {
-        var APP_VERSION = '6';
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) {
+            // VitePWA가 생성한 sw.js가 아닌 다른 SW는 해제
+            if (reg.active && reg.active.scriptURL && reg.active.scriptURL.indexOf('/sw.js') === -1) {
+              reg.unregister();
+            }
+          });
+        });
+      })();
+
+      // 2) 앱 버전 — 빌드 시마다 자동 변경되어 캐시를 초기화합니다
+      (function() {
+        var APP_VERSION = '__APP_VERSION__';
         var key = 'showdown_app_version';
         var saved = localStorage.getItem(key);
         if (saved !== APP_VERSION) {

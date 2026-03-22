@@ -2433,21 +2433,12 @@ function HistoryMatchCard({
       onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
       style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${borderColor}`, padding: '0.75rem 1rem' }}
       aria-label={(() => {
-        const status = isCompleted ? '완료' : match.status === 'in_progress' ? '진행중' : '예정';
-        const winner = isP1Winner ? `${p1} 승리` : isP2Winner ? `${p2} 승리` : '';
-        const score = isIndividual && setWins
-          ? `세트 ${setWins.player1} 대 ${setWins.player2}`
-          : !isIndividual && sets.length > 0 ? `${sets[0].player1Score} 대 ${sets[0].player2Score}` : '';
-        const setScores = isIndividual && sets.length > 0
-          ? sets.map((s, i) => `${i + 1}세트 ${s.player1Score} 대 ${s.player2Score}`).join(', ')
-          : '';
+        const status = isCompleted ? '경기 완료' : match.status === 'in_progress' ? '경기 진행중' : '경기 예정';
+        const referee = match.refereeName ? `심판 ${match.refereeName}` : '';
         return [
-          `${p1} 대 ${p2}`,
+          `${p1} vs ${p2}`,
           status,
-          score,
-          winner,
-          setScores,
-          match.courtName,
+          referee,
         ].filter(Boolean).join(', ');
       })()}
     >
