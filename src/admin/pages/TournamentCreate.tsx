@@ -489,11 +489,13 @@ export default function TournamentCreate() {
 
           <div className="card space-y-4">
             <h2 className="text-xl font-bold">설정 방식</h2>
-            <p className="text-gray-400 text-sm">
-              프리셋을 선택하면 바로 확인 화면으로 이동합니다. 직접 설정하면 세부 옵션을 조정할 수 있습니다.
-            </p>
+            {state.type !== 'individual' && (
+              <p className="text-gray-400 text-sm">
+                프리셋을 선택하면 바로 확인 화면으로 이동합니다. 직접 설정하면 세부 옵션을 조정할 수 있습니다.
+              </p>
+            )}
             <div className="space-y-3" role="radiogroup" aria-label="설정 방식 선택">
-              {filteredPresets.map(preset => (
+              {state.type !== 'individual' && filteredPresets.map(preset => (
                 <button
                   key={preset.id}
                   role="radio"

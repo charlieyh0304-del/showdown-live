@@ -253,15 +253,16 @@ export default function TournamentView() {
           {playerStats && (() => {
             const completedCount = playerStats.wins + playerStats.losses;
             const winRate = completedCount > 0 ? Math.round((playerStats.wins / completedCount) * 100) : 0;
+            const isTeamTournament = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', textAlign: 'center', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isTeamTournament ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)', gap: '0.75rem', textAlign: 'center', marginBottom: '1rem' }}>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.total}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 경기</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p></div>
                 <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승률</p></div>
-                <div>{(() => { const diff = playerStats.setsWon - playerStats.setsLost; return <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#9ca3af' }}>{diff > 0 ? '+' : ''}{diff}</p>; })()}<p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p></div>
+                {!isTeamTournament && <div>{(() => { const diff = playerStats.setsWon - playerStats.setsLost; return <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#9ca3af' }}>{diff > 0 ? '+' : ''}{diff}</p>; })()}<p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p></div>}
                 <div>{(() => { const diff = playerStats.pointsFor - playerStats.pointsAgainst; return <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#9ca3af' }}>{diff > 0 ? '+' : ''}{diff}</p>; })()}<p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>골 득실</p></div>
-                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#22d3ee' }}>{playerStats.setsWon}승 {playerStats.setsLost}패</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 ({completedCount}경기)</p></div>
+                {!isTeamTournament && <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#22d3ee' }}>{playerStats.setsWon}승 {playerStats.setsLost}패</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 ({completedCount}경기)</p></div>}
                 <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{playerStats.pointsFor}<span style={{ color: '#9ca3af' }}>:</span><span style={{ color: '#ef4444' }}>{playerStats.pointsAgainst}</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>골 (득:실)</p></div>
               </div>
             );
@@ -382,13 +383,13 @@ export default function TournamentView() {
           <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
         )}
         {activeTab === 'groups' && (
-          <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} />
+          <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} />
         )}
         {activeTab === 'ranking' && (
           <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
         )}
         {activeTab === 'players' && (
-          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} />
+          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} />
         )}
         {activeTab === 'history' && (
           <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
@@ -776,7 +777,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <GroupStageView matches={groupMatches} onSelectPlayer={onSelectPlayer} />
+        <GroupStageView matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
         {finalsMatches.length > 0 && (
           <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '1rem', borderBottom: '2px solid rgba(74, 222, 128, 0.3)', paddingBottom: '0.5rem' }}>
@@ -1169,6 +1170,11 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ flex: 1 }}>
           {nameButton(p1, isP1Winner, 'left')}
+          {match.team1 && (match.team1 as any).memberNames && (
+            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem' }}>
+              {(match.team1 as any).memberNames.join(', ')}
+            </div>
+          )}
         </div>
         <div style={{ textAlign: 'center', padding: '0 1rem' }}>
           {isCompleted && sets.length > 0 ? (
@@ -1193,6 +1199,11 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
         </div>
         <div style={{ flex: 1, textAlign: 'right' }}>
           {nameButton(p2, !isP1Winner && isCompleted, 'right')}
+          {match.team2 && (match.team2 as any).memberNames && (
+            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', textAlign: 'right' }}>
+              {(match.team2 as any).memberNames.join(', ')}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1245,7 +1256,7 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
 }
 
 // ===== Group Stage View =====
-function GroupStageView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
@@ -1265,7 +1276,7 @@ function GroupStageView({ matches, onSelectPlayer }: { matches: Match[]; onSelec
           </h3>
 
           {/* 조별 순위표 */}
-          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} />
+          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
 
           {/* 조별 경기 결과 */}
           <div style={{ marginTop: '1rem' }}>
@@ -1283,7 +1294,7 @@ function GroupStageView({ matches, onSelectPlayer }: { matches: Match[]; onSelec
 }
 
 // ===== Groups Tab =====
-function GroupsTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+function GroupsTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const groupMatches = useMemo(() => matches.filter(m => m.groupId), [matches]);
 
   const groups = useMemo(() => {
@@ -1328,7 +1339,7 @@ function GroupsTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlay
                 )}
               </span>
             </div>
-            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} />
+            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
           </div>
         );
       })}
@@ -1336,7 +1347,7 @@ function GroupsTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlay
   );
 }
 
-function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const rankings = useMemo(() => {
     const stats = new Map<string, {
       name: string; played: number; wins: number; losses: number;
@@ -1398,8 +1409,8 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>경기</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>승</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>패</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트 승패</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>
+            {!isTeam && <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트 승패</th>}
+            {!isTeam && <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>}
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>점수득실</th>
             <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>득실차</th>
           </tr>
@@ -1438,8 +1449,8 @@ function GroupRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSe
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.played}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}>{r.wins}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{r.losses}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.setsWon}승 {r.setsLost}패</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>
+              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.setsWon}승 {r.setsLost}패</td>}
+              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>}
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
             </tr>
@@ -1660,6 +1671,11 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 >
                   {match.team1Name || '팀1'}
                 </button>
+                {match.team1 && (match.team1 as any).memberNames && (
+                  <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {(match.team1 as any).memberNames.join(', ')}
+                  </div>
+                )}
               </span>
               <div style={{ textAlign: 'center', minWidth: '120px' }}>
                 {match.status !== 'pending' && setData ? (
@@ -1680,6 +1696,11 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 >
                   {match.team2Name || '팀2'}
                 </button>
+                {match.team2 && (match.team2 as any).memberNames && (
+                  <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', textAlign: 'right' }}>
+                    {(match.team2 as any).memberNames.join(', ')}
+                  </div>
+                )}
               </span>
               <span style={{
                 padding: '0.25rem 0.5rem',
@@ -1872,7 +1893,7 @@ function RankingTab({
     return (
       <div>
         <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
-        <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} />
+        <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} isTeam={tournamentType === 'team' || tournamentType === 'randomTeamLeague'} />
       </div>
     );
   }
@@ -1896,7 +1917,7 @@ function RankingTab({
   );
 }
 
-function GroupRankingView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
@@ -1922,7 +1943,7 @@ function GroupRankingView({ matches, onSelectPlayer }: { matches: Match[]; onSel
           <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem' }}>
             {groupId === 'default' ? '순위' : `${groupId}조 순위`}
           </h3>
-          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} />
+          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
         </div>
       ))}
     </div>
@@ -2341,7 +2362,7 @@ function PlayerMatchRow({
 }
 
 // ===== Players Tab =====
-function PlayersTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const [playerSearch, setPlayerSearch] = useState('');
 
   const playerList = useMemo(() => {
@@ -2436,7 +2457,7 @@ function PlayersTab({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                   {' '}
                   <span style={{ color: '#ef4444' }}>{p.losses}패</span>
                 </span>
-                <span style={{ color: '#9ca3af' }}>{p.setsWon}승 {p.setsLost}패</span>
+                {!isTeam && <span style={{ color: '#9ca3af' }}>{p.setsWon}승 {p.setsLost}패</span>}
               </div>
             </div>
           </button>

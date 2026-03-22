@@ -477,6 +477,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [generating, setGenerating] = useState(false);
   const [showGlobalModal, setShowGlobalModal] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [newPlayerGender, setNewPlayerGender] = useState<'' | 'male' | 'female'>('');
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
@@ -497,9 +498,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
   const handleAddPlayer = useCallback(async () => {
     if (!newPlayerName.trim()) return;
-    await addTournamentPlayer({ name: newPlayerName.trim() });
+    await addTournamentPlayer({ name: newPlayerName.trim(), gender: newPlayerGender || undefined });
     setNewPlayerName('');
-  }, [newPlayerName, addTournamentPlayer]);
+    setNewPlayerGender('');
+  }, [newPlayerName, newPlayerGender, addTournamentPlayer]);
 
   const handleBulkAdd = useCallback(async () => {
     const names = bulkNames.split('\n').map(n => n.trim()).filter(n => n);
@@ -527,29 +529,60 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
     if (tournamentPlayers.length < 3) return;
     setGenerating(true);
     try {
-      const shuffled = [...tournamentPlayers];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      const teamSize = tournament.teamRules?.teamSize || 3;
+      const genderRatio = tournament.teamRules?.genderRatio;
+
+      if (genderRatio && (genderRatio.male > 0 || genderRatio.female > 0)) {
+        const males = tournamentPlayers.filter(p => p.gender === 'male');
+        const females = tournamentPlayers.filter(p => p.gender === 'female');
+        const teamCount = Math.floor(tournamentPlayers.length / teamSize);
+        const requiredMales = genderRatio.male * teamCount;
+        const requiredFemales = genderRatio.female * teamCount;
+
+        if (males.length < requiredMales || females.length < requiredFemales) {
+          alert(`성별 비율에 맞는 선수가 부족합니다.\n필요: 남자 ${requiredMales}명, 여자 ${requiredFemales}명\n현재: 남자 ${males.length}명, 여자 ${females.length}명`);
+          setGenerating(false);
+          return;
+        }
+
+        const shuffledMales = [...males].sort(() => Math.random() - 0.5);
+        const shuffledFemales = [...females].sort(() => Math.random() - 0.5);
+
+        const newTeams: Team[] = [];
+        for (let i = 0; i < teamCount; i++) {
+          const members = [
+            ...shuffledMales.splice(0, genderRatio.male),
+            ...shuffledFemales.splice(0, genderRatio.female),
+          ];
+          newTeams.push({
+            id: `team_${i + 1}`,
+            name: `${i + 1}팀`,
+            memberIds: members.map(m => m.id),
+            memberNames: members.map(m => m.name),
+          });
+        }
+        await setTeamsBulk(newTeams);
+      } else {
+        const shuffled = [...tournamentPlayers].sort(() => Math.random() - 0.5);
+        const newTeams: Team[] = [];
+        let teamIdx = 1;
+        for (let i = 0; i < shuffled.length; i += teamSize) {
+          const members = shuffled.slice(i, i + teamSize);
+          if (members.length === 0) continue;
+          newTeams.push({
+            id: `team_${teamIdx}`,
+            name: `${teamIdx}팀`,
+            memberIds: members.map(m => m.id),
+            memberNames: members.map(m => m.name),
+          });
+          teamIdx++;
+        }
+        await setTeamsBulk(newTeams);
       }
-      const newTeams: Team[] = [];
-      let teamIdx = 1;
-      for (let i = 0; i < shuffled.length; i += 3) {
-        const members = shuffled.slice(i, i + 3);
-        if (members.length === 0) continue;
-        newTeams.push({
-          id: `team_${teamIdx}`,
-          name: `${teamIdx}팀`,
-          memberIds: members.map(m => m.id),
-          memberNames: members.map(m => m.name),
-        });
-        teamIdx++;
-      }
-      await setTeamsBulk(newTeams);
     } finally {
       setGenerating(false);
     }
-  }, [tournamentPlayers, setTeamsBulk]);
+  }, [tournamentPlayers, tournament.teamRules, setTeamsBulk]);
 
   return (
     <div className="space-y-6">
@@ -579,6 +612,16 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               aria-label="선수 이름"
               onKeyDown={e => { if (e.key === 'Enter' && newPlayerName.trim()) handleAddPlayer(); }}
             />
+            <select
+              className="input w-24"
+              value={newPlayerGender}
+              onChange={e => setNewPlayerGender(e.target.value as '' | 'male' | 'female')}
+              aria-label="성별"
+            >
+              <option value="">성별</option>
+              <option value="male">남</option>
+              <option value="female">여</option>
+            </select>
             <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()}>
               추가
             </button>
@@ -614,6 +657,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-600">
                 <div>
                   <span className="font-bold">{p.name}</span>
+                  {p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
+                  {p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
                   {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
                   {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
                 </div>
@@ -1541,9 +1586,16 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   </div>
                   <span className="text-gray-400 text-sm">R{match.round}</span>
                   <span className="font-bold text-lg">
-                    {match.type === 'individual'
-                      ? `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`
-                      : `${match.team1Name ?? '?'} vs ${match.team2Name ?? '?'}`}
+                    {match.type === 'team' ? (
+                      <div>
+                        <span>{match.team1Name ?? '?'} vs {match.team2Name ?? '?'}</span>
+                        <div className="text-xs text-gray-400 mt-1 font-normal">
+                          {match.team1Name}: {(match.team1 as any)?.memberNames?.join(', ') || ''}
+                          {' | '}
+                          {match.team2Name}: {(match.team2 as any)?.memberNames?.join(', ') || ''}
+                        </div>
+                      </div>
+                    ) : `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
