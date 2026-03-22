@@ -20,6 +20,7 @@ interface WizardState {
   type: TournamentType;
   presetId: string | null;
   // Step 2
+  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament';
   participantCount: number;
   participantNames: string[];
   hasGroupStage: boolean;
@@ -100,6 +101,7 @@ const defaultState: WizardState = {
   endDate: '',
   type: 'individual',
   presetId: null,
+  tournamentMode: 'direct_tournament',
   participantCount: 8,
   participantNames: [],
   hasGroupStage: false,
@@ -153,7 +155,23 @@ function reducer(state: WizardState, action: Action): WizardState {
   switch (action.type) {
     case 'SET_FIELD': {
       const next = { ...state, [action.field]: action.value };
-      // Sync derived fields
+      // Sync derived fields for tournamentMode
+      if (action.field === 'tournamentMode') {
+        const mode = action.value as WizardState['tournamentMode'];
+        if (mode === 'full_league_all') {
+          next.hasGroupStage = false;
+          next.hasFinalsStage = false;
+          next.formatType = 'round_robin';
+          next.finalsFormat = 'round_robin';
+        } else if (mode === 'group_tournament') {
+          next.hasGroupStage = true;
+          next.hasFinalsStage = true;
+          next.qualifyingFormat = next.groupCount > 1 ? 'group_round_robin' : 'round_robin';
+        } else if (mode === 'direct_tournament') {
+          next.hasGroupStage = false;
+          next.hasFinalsStage = true;
+        }
+      }
       if (action.field === 'hasGroupStage') {
         next.hasFinalsStage = action.value as boolean;
         next.qualifyingFormat = next.groupCount > 1 ? 'group_round_robin' : 'round_robin';
@@ -251,8 +269,8 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'NEXT_STEP': {
       const nextStep = getNextStep(state.step, state.hasGroupStage);
       const next = { ...state, step: nextStep };
-      // Skip step 3 for pure round-robin (no format selection needed)
-      if (state.step === 2 && nextStep === 3 && state.formatType === 'round_robin' && !state.hasGroupStage && !state.hasFinalsStage) {
+      // Skip step 3 for full league all mode (no format selection needed)
+      if (state.step === 2 && nextStep === 3 && state.tournamentMode === 'full_league_all') {
         next.step = 4;
       }
       return next;
@@ -260,7 +278,7 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'PREV_STEP': {
       const prevStep = getPrevStep(state.step, state.hasGroupStage);
       const next = { ...state, step: prevStep };
-      if (state.step === 4 && prevStep === 3 && state.formatType === 'round_robin' && !state.hasGroupStage && !state.hasFinalsStage) {
+      if (state.step === 4 && prevStep === 3 && state.tournamentMode === 'full_league_all') {
         next.step = 2;
       }
       return next;
@@ -529,21 +547,57 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-lg font-semibold">조별 예선 진행</span>
+            <h2 className="text-xl font-bold">대회 방식</h2>
+            <div className="space-y-2" role="radiogroup" aria-label="대회 방식 선택">
               <button
-                role="switch"
-                aria-checked={state.hasGroupStage}
-                aria-label="조별 예선 진행"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasGroupStage ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasGroupStage', value: !state.hasGroupStage })}
+                role="radio"
+                aria-checked={state.tournamentMode === 'full_league_all'}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'full_league_all' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'full_league_all' })}
               >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.hasGroupStage ? 'translate-x-7' : 'translate-x-1'}`} />
+                <h3 className="text-lg font-bold">풀리그 (전체 라운드로빈)</h3>
+                <p className="text-gray-400 text-sm mt-1">모든 참가자가 서로 한 번씩 경기합니다. 조 편성 없음.</p>
               </button>
-            </label>
+              <button
+                role="radio"
+                aria-checked={state.tournamentMode === 'group_tournament'}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'group_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'group_tournament' })}
+              >
+                <h3 className="text-lg font-bold">조별 예선 + 토너먼트</h3>
+                <p className="text-gray-400 text-sm mt-1">조별 라운드로빈 후 본선 토너먼트를 진행합니다.</p>
+              </button>
+              <button
+                role="radio"
+                aria-checked={state.tournamentMode === 'direct_tournament'}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'direct_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'direct_tournament' })}
+              >
+                <h3 className="text-lg font-bold">토너먼트 (직접 대진)</h3>
+                <p className="text-gray-400 text-sm mt-1">싱글/더블 엘리미네이션 토너먼트만 진행합니다.</p>
+              </button>
+            </div>
 
-            {state.hasGroupStage && (
-              <div className="space-y-4 mt-4 pl-4 border-l-2 border-yellow-400">
+            {state.tournamentMode === 'full_league_all' && (
+              <div className="bg-cyan-900/30 rounded-lg p-4 mt-2">
+                <p className="text-cyan-300 font-semibold">
+                  모든 참가자가 서로 경기합니다.
+                </p>
+                <p className="text-cyan-200/70 text-lg font-bold mt-1">
+                  총 {state.participantCount * (state.participantCount - 1) / 2}경기
+                </p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {state.participantCount}명 × {state.participantCount - 1} ÷ 2
+                </p>
+              </div>
+            )}
+          </div>
+
+          {state.tournamentMode === 'group_tournament' && (
+          <div className="card space-y-4">
+            <h2 className="text-xl font-bold">조별 예선 설정</h2>
+
+            <div className="space-y-4 mt-4 pl-4 border-l-2 border-yellow-400">
                 <NumberStepper
                   label="조 수"
                   value={state.groupCount}
@@ -670,9 +724,9 @@ export default function TournamentCreate() {
                     </>
                   );
                 })()}
-              </div>
-            )}
+            </div>
           </div>
+          )}
 
           {(state.type === 'team' || state.type === 'randomTeamLeague') && (
             <div className="card space-y-4">

@@ -18,6 +18,7 @@ export interface TournamentWizardState {
   type: TournamentType;
   presetId: string | null;
   // Step 2: 참가자
+  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament';
   participantCount: number;
   participantNames: string[];
   hasGroupStage: boolean;
@@ -143,7 +144,7 @@ function SummaryRow({ label, value }: { label: string; value: string | number })
 
 export default function WizardStep5Preview({ state, dispatch, onSubmit }: WizardStep5Props) {
   // 풀리그 단독 형식: 조별 예선 없이 라운드로빈만 진행
-  const isRoundRobinOnly = state.formatType === 'round_robin' && !state.hasGroupStage;
+  const isRoundRobinOnly = state.tournamentMode === 'full_league_all' || (state.formatType === 'round_robin' && !state.hasGroupStage);
 
   const matchCounts = calculateMatchCount(
     state.participantCount,

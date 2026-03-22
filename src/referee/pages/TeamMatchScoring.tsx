@@ -80,11 +80,21 @@ export default function TeamMatchScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 15초 안내 (워밍업)
+  // 워밍업 시간 안내 (60초, 30초, 15초)
   useEffect(() => {
-    if (warmupTimer.seconds === 15 && warmupTimer.isRunning) {
-      setLastAction('⚠️ 워밍업 15초 남았습니다');
-      setAnnouncement('15초 남았습니다');
+    if (warmupTimer.isRunning) {
+      if (warmupTimer.seconds === 60) {
+        setLastAction('⚠️ 워밍업 60초 남았습니다');
+        setAnnouncement('워밍업 60초 남았습니다');
+      }
+      if (warmupTimer.seconds === 30) {
+        setLastAction('⚠️ 워밍업 30초 남았습니다');
+        setAnnouncement('워밍업 30초 남았습니다');
+      }
+      if (warmupTimer.seconds === 15) {
+        setLastAction('⚠️ 워밍업 15초 남았습니다');
+        setAnnouncement('워밍업 15초 남았습니다');
+      }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
@@ -214,6 +224,54 @@ export default function TeamMatchScoring() {
       scoreHistory: [resumeHistoryEntry, ...prevScoreHistory],
     });
   }, [match, updateMatch, pauseElapsed]);
+
+  // Walkover (부전승)
+  const handleWalkover = useCallback(async (winnerTeam: 1 | 2) => {
+    if (!match) return;
+    const t1Name = match.team1Name ?? '팀1';
+    const t2Name = match.team2Name ?? '팀2';
+    const winnerName = winnerTeam === 1 ? t1Name : t2Name;
+    const loserName = winnerTeam === 1 ? t2Name : t1Name;
+
+    if (!window.confirm(`${loserName} 기권으로 ${winnerName} 부전승 처리하시겠습니까?`)) return;
+
+    const reason = prompt('부전승 사유를 입력하세요:\n(예: 부상, 기권, 미출석)') || '기권';
+
+    const winnerId = winnerTeam === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
+
+    const historyEntry = createScoreHistoryEntry({
+      scoringPlayer: winnerName,
+      actionPlayer: loserName,
+      actionType: 'walkover',
+      actionLabel: `부전승 (${reason})`,
+      points: 0,
+      set: (match.currentSet ?? 0) + 1,
+      server: (match.currentServe ?? 'player1') === 'player1' ? t1Name : t2Name,
+      serveNumber: (match.serveCount ?? 0) + 1,
+      scoreBefore: { player1: match.sets?.[0]?.player1Score ?? 0, player2: match.sets?.[0]?.player2Score ?? 0 },
+      scoreAfter: { player1: match.sets?.[0]?.player1Score ?? 0, player2: match.sets?.[0]?.player2Score ?? 0 },
+    });
+
+    const prevHistory = match.scoreHistory ?? [];
+    const updateData: Record<string, unknown> = {
+      status: 'completed',
+      winnerId,
+      walkover: true,
+      walkoverReason: reason,
+      scoreHistory: [historyEntry, ...prevHistory],
+    };
+
+    // If match is pending, create initial sets
+    if (match.status === 'pending') {
+      updateData.sets = [createEmptySet()];
+      updateData.currentSet = 0;
+    }
+
+    await updateMatch(updateData);
+
+    setLastAction(`부전승: ${winnerName} 승리 (${reason})`);
+    setAnnouncement(`${loserName} ${reason}. ${winnerName} 부전승`);
+  }, [match, updateMatch]);
 
   // IBSA score
   const handleIBSAScore = useCallback(async (
@@ -347,6 +405,42 @@ export default function TeamMatchScoring() {
       currentServe: (match.currentServe ?? 'player1') === 'player1' ? 'player2' : 'player1',
       serveCount: 0,
     });
+  }, [match, updateMatch]);
+
+  // Dead Ball
+  const handleDeadBall = useCallback(async () => {
+    if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress' || match.isPaused) return;
+    if (match.activeTimeout) return;
+
+    const currentSetData = match.sets?.[0];
+    const t1Name = match.team1Name ?? '팀1';
+    const t2Name = match.team2Name ?? '팀2';
+    const currentServe = match.currentServe ?? 'player1';
+    const serveCount = match.serveCount ?? 0;
+    const sName = currentServe === 'player1' ? t1Name : t2Name;
+    const scoreBefore = { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 };
+
+    const historyEntry = createScoreHistoryEntry({
+      scoringPlayer: '',
+      actionPlayer: sName,
+      actionType: 'dead_ball',
+      actionLabel: '데드볼',
+      points: 0,
+      set: 1,
+      server: sName,
+      serveNumber: serveCount + 1,
+      scoreBefore,
+      scoreAfter: scoreBefore,
+    });
+
+    const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
+    await updateMatch({
+      scoreHistory: [historyEntry, ...prevHistory],
+    });
+
+    setLastAction(`데드볼 - ${sName} 재서브`);
+    setAnnouncement(`데드볼. ${sName} 재서브`);
   }, [match, updateMatch]);
 
   const handleTimeout = useCallback(async (team: 1 | 2) => {
@@ -536,9 +630,15 @@ export default function TeamMatchScoring() {
       <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
         <h1 className="text-3xl font-bold text-yellow-400">팀전 경기 준비</h1>
         <div className="flex items-center gap-8 text-2xl">
-          <span className="text-yellow-400 font-bold">{team1Name}</span>
+          <div className="text-center">
+            <span className="text-yellow-400 font-bold">{team1Name}</span>
+            {match.team1?.coachName && <div className="text-sm text-gray-400">코치: {match.team1.coachName}</div>}
+          </div>
           <span className="text-gray-500">vs</span>
-          <span className="text-cyan-400 font-bold">{team2Name}</span>
+          <div className="text-center">
+            <span className="text-cyan-400 font-bold">{team2Name}</span>
+            {match.team2?.coachName && <div className="text-sm text-gray-400">코치: {match.team2.coachName}</div>}
+          </div>
         </div>
         <p className="text-lg text-gray-400">31점 단판 승부 | 서브 3회 교대</p>
         {match.courtName && <p className="text-gray-400">코트: {match.courtName}</p>}
@@ -554,6 +654,26 @@ export default function TeamMatchScoring() {
             </button>
           </div>
         </div>
+        <div className="card w-full max-w-md space-y-4">
+          <div className="border-t border-gray-700 pt-3">
+            <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
+                onClick={() => handleWalkover(1)}
+              >
+                {team1Name} 부전승
+              </button>
+              <button
+                className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
+                onClick={() => handleWalkover(2)}
+              >
+                {team2Name} 부전승
+              </button>
+            </div>
+          </div>
+        </div>
+
         <button className="btn btn-accent" onClick={() => navigate('/referee/games')}>목록으로</button>
       </div>
     );
@@ -886,6 +1006,17 @@ export default function TeamMatchScoring() {
           </div>
         )}
 
+        {/* Dead Ball */}
+        <div className="flex gap-3">
+          <button
+            className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
+            disabled={scoringDisabled || match.status !== 'in_progress'}
+            onClick={handleDeadBall}
+          >
+            🔵 데드볼
+          </button>
+        </div>
+
         {/* Warmup + Pause */}
         <div className="flex gap-3">
           {!match.warmupUsed && (
@@ -898,6 +1029,27 @@ export default function TeamMatchScoring() {
               ⏸️ 일시정지
             </button>
           )}
+        </div>
+
+        {/* Walkover (부전승) */}
+        <div className="border-t border-gray-700 pt-3 mt-3">
+          <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
+              onClick={() => handleWalkover(1)}
+              disabled={match.status !== 'in_progress' && match.status !== 'pending'}
+            >
+              {team1Name} 부전승
+            </button>
+            <button
+              className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
+              onClick={() => handleWalkover(2)}
+              disabled={match.status !== 'in_progress' && match.status !== 'pending'}
+            >
+              {team2Name} 부전승
+            </button>
+          </div>
         </div>
 
         {/* History (set-grouped) */}

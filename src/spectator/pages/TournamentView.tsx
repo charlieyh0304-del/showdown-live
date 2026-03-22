@@ -701,7 +701,10 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team1Name || '팀1'}</span>
+        <div style={{ textAlign: 'center' }}>
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team1Name || '팀1'}</span>
+          {match.team1?.coachName && <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>코치: {match.team1.coachName}</div>}
+        </div>
         <div
           key={scoreKey}
           className={justChanged ? 'live-score-pulse' : ''}
@@ -716,7 +719,10 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
             31점 경기
           </div>
         </div>
-        <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team2Name || '팀2'}</span>
+        <div style={{ textAlign: 'center' }}>
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team2Name || '팀2'}</span>
+          {match.team2?.coachName && <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>코치: {match.team2.coachName}</div>}
+        </div>
       </div>
     </div>
   );

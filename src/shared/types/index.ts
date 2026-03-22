@@ -254,7 +254,8 @@ export type ScoreActionType =
   | 'resume'            // 재개
   | 'substitution'      // 선수 교체
   | 'correction'        // 점수 수정 (관리자)
-  | 'walkover';         // 부전승
+  | 'walkover'          // 부전승
+  | 'dead_ball';        // 데드볼 (재서브)
 
 export interface ScoreAction {
   type: ScoreActionType;
@@ -372,6 +373,8 @@ export interface Team {
   name: string;
   memberIds: string[];
   memberNames?: string[];
+  coachName?: string;
+  coachId?: string;
   maxReserves?: number;
   genderRatio?: { male: number; female: number };
 }

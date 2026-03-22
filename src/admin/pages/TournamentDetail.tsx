@@ -627,9 +627,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         <li key={i} className="text-gray-300">{name}</li>
                       ))}
                     </ul>
-                    {/* Per-team override info (when not editing) */}
-                    {!isEditing && (team.maxReserves != null || team.genderRatio) && (
+                    {/* Coach & per-team override info (when not editing) */}
+                    {!isEditing && (team.coachName || team.maxReserves != null || team.genderRatio) && (
                       <div className="mt-2 text-xs text-gray-400 space-y-0.5">
+                        {team.coachName && <p>코치: {team.coachName}</p>}
                         {team.maxReserves != null && <p>예비 선수: {team.maxReserves}명</p>}
                         {team.genderRatio && <p>성별 비율: 남 {team.genderRatio.male} / 여 {team.genderRatio.female}</p>}
                       </div>
@@ -640,6 +641,21 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         <p className="text-xs text-gray-500">
                           팀별 설정 (비워두면 대회 기본값 적용{globalMaxReserves != null || globalGenderRatio ? `: 예비 ${globalMaxReserves ?? '-'}명, 남 ${globalGenderRatio?.male ?? '-'} / 여 ${globalGenderRatio?.female ?? '-'}` : ''})
                         </p>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">코치</label>
+                          <input
+                            type="text"
+                            className="input w-full"
+                            value={team.coachName ?? ''}
+                            placeholder="코치 이름"
+                            onChange={e => {
+                              const val = e.target.value || undefined;
+                              const updated = teams.map(t => t.id === team.id ? { ...t, coachName: val } : t);
+                              setTeamsBulk(updated);
+                            }}
+                            aria-label={`${team.name} 코치`}
+                          />
+                        </div>
                         <div>
                           <label className="block text-sm text-gray-400 mb-1">예비 선수 수</label>
                           <input

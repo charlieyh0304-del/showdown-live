@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth, useAdminPinExists } from '@shared/hooks/useAuth';
-import { hashPin } from '@shared/utils/crypto';
+import { hashPin, createRateLimiter } from '@shared/utils/crypto';
 import { ref, set } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
@@ -169,11 +169,26 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 레이트 리미터 (5회 실패 시 30초 잠금)
+  const rateLimiter = useMemo(() => createRateLimiter(5, 30000), []);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // 잠금 타이머 업데이트
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = rateLimiter.remainingLockout();
+      setLockoutSeconds(Math.ceil(remaining / 1000));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [rateLimiter]);
+
+  const isLocked = lockoutSeconds > 0;
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,20 +197,32 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
       setError('PIN을 입력해주세요.');
       return;
     }
+    if (!rateLimiter.canAttempt()) {
+      setError(`너무 많은 시도가 있었습니다. ${Math.ceil(rateLimiter.remainingLockout() / 1000)}초 후 다시 시도해주세요.`);
+      return;
+    }
     setLoading(true);
     try {
       const success = await onLogin(pin);
       if (!success) {
-        setError('PIN이 올바르지 않습니다.');
+        rateLimiter.recordFailure();
+        const remaining = rateLimiter.remainingLockout();
+        if (remaining > 0) {
+          setError(`PIN이 올바르지 않습니다. 너무 많은 시도로 ${Math.ceil(remaining / 1000)}초간 잠금됩니다.`);
+        } else {
+          setError('PIN이 올바르지 않습니다.');
+        }
         setPin('');
         inputRef.current?.focus();
+      } else {
+        rateLimiter.recordSuccess();
       }
     } catch {
       setError('인증 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
-  }, [pin, onLogin]);
+  }, [pin, onLogin, rateLimiter]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -220,11 +247,17 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
             placeholder="PIN 입력"
             autoComplete="current-password"
             aria-label="관리자 PIN 입력"
+            disabled={isLocked}
           />
         </div>
         {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
-        <button type="submit" className="btn btn-primary w-full" disabled={loading} aria-label="로그인">
-          {loading ? '인증 중...' : '로그인'}
+        {isLocked && (
+          <p className="text-orange-400 font-semibold text-center" role="alert">
+            {lockoutSeconds}초 후 다시 시도할 수 있습니다.
+          </p>
+        )}
+        <button type="submit" className="btn btn-primary w-full" disabled={loading || isLocked} aria-label="로그인">
+          {loading ? '인증 중...' : isLocked ? '잠금됨' : '로그인'}
         </button>
       </form>
     </div>

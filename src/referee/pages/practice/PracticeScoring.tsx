@@ -15,6 +15,20 @@ import {
 } from '@shared/utils/scoring';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType } from '@shared/types';
+
+// Practice mode descriptive labels for learning referees
+const PRACTICE_DESCRIPTIVE_LABELS: Record<string, string> = {
+  goal: '골 득점 (공이 상대 골라인 통과)',
+  irregular_serve: '부정 서브 (서브 규칙 위반)',
+  centerboard: '센터보드 터치 (공이 센터보드 접촉)',
+  body_touch: '바디 터치 (선수 몸에 공 접촉)',
+  illegal_defense: '일리걸 디펜스 (수비 규칙 위반)',
+  out: '아웃 (공이 경기장 밖으로)',
+  ball_holding: '볼 홀딩 (2초 이상 공 보유)',
+  mask_touch: '마스크/고글 터치 (경기 중 장비 접촉)',
+  penalty: '기타 벌점 (규정 위반)',
+};
+
 import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -78,11 +92,21 @@ export default function PracticeScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 15초 안내 (워밍업)
+  // 워밍업 시간 안내 (60초, 30초, 15초 - 팀전은 90초, 개인전은 60초)
   useEffect(() => {
-    if (warmupTimer.seconds === 15 && warmupTimer.isRunning) {
-      setLastAction('⚠️ 워밍업 15초 남았습니다');
-      setAnnouncement('15초 남았습니다');
+    if (warmupTimer.isRunning) {
+      if (warmupTimer.seconds === 60) {
+        setLastAction('⚠️ 워밍업 60초 남았습니다');
+        setAnnouncement('워밍업 60초 남았습니다');
+      }
+      if (warmupTimer.seconds === 30) {
+        setLastAction('⚠️ 워밍업 30초 남았습니다');
+        setAnnouncement('워밍업 30초 남았습니다');
+      }
+      if (warmupTimer.seconds === 15) {
+        setLastAction('⚠️ 워밍업 15초 남았습니다');
+        setAnnouncement('워밍업 15초 남았습니다');
+      }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
@@ -556,15 +580,19 @@ export default function PracticeScoring() {
             className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
             disabled={!!match.activeTimeout || isPausedLocal}
             onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} 골`)}
+            aria-label={`${p1Name} 골 득점. ${p1Name}에게 2점 추가`}
           >
-            ⚽ 골 +2
+            ⚽ {p1Name} 골 득점<br/>
+            <span className="text-xs opacity-75">→ {p1Name} +2점</span>
           </button>
           <button
             className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
             disabled={!!match.activeTimeout || isPausedLocal}
             onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} 골`)}
+            aria-label={`${p2Name} 골 득점. ${p2Name}에게 2점 추가`}
           >
-            ⚽ 골 +2
+            ⚽ {p2Name} 골 득점<br/>
+            <span className="text-xs opacity-75">→ {p2Name} +2점</span>
           </button>
         </div>
 
@@ -577,7 +605,7 @@ export default function PracticeScoring() {
               disabled={!!match.activeTimeout || isPausedLocal}
               onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
             >
-              🟡 {p1Name} {action.label}<br/>
+              🟡 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p2Name} +1점</span>
             </button>
             <button
@@ -585,7 +613,7 @@ export default function PracticeScoring() {
               disabled={!!match.activeTimeout || isPausedLocal}
               onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
             >
-              🟡 {p2Name} {action.label}<br/>
+              🟡 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p1Name} +1점</span>
             </button>
           </div>
@@ -600,7 +628,7 @@ export default function PracticeScoring() {
               disabled={!!match.activeTimeout || isPausedLocal}
               onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
             >
-              🔴 {p1Name} {action.label}<br/>
+              🔴 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p2Name} +{action.points}점</span>
             </button>
             <button
@@ -608,7 +636,7 @@ export default function PracticeScoring() {
               disabled={!!match.activeTimeout || isPausedLocal}
               onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
             >
-              🔴 {p2Name} {action.label}<br/>
+              🔴 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p1Name} +{action.points}점</span>
             </button>
           </div>
