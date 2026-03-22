@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(./node_modules/.bin/tailwindcss:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run build:admin:*)",
+      "Bash(npm run:*)",
+      "Bash(git push:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(curl:*)",
+      "Bash(npx wait-on:*)",
+      "Bash(firebase use:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(firebase database:rules:get:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(./node_modules/.bin/tsc --noEmit 2>&1 | head -60)",
+      "WebFetch(domain:ibsasport.org)",
+      "WebSearch",
+      "Bash(git -C \".claude/worktrees/agent-a25b9be3\" diff -- src/admin/components/tournament-create/WizardSte1)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
