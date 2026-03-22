@@ -637,29 +637,40 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     return generateName(i);
   };
 
-  const players: { id: string; name: string; gender?: string }[] = (options?.existingPlayers && options.existingPlayers.length > 0)
-    ? options.existingPlayers.slice(0, participantCount).map(p => ({ ...p, gender: (p as any).gender }))
-    : Array.from({ length: participantCount }, (_, i) => ({
-        id: `sim_player_${i}`,
-        name: genPlayerName(i),
-      }));
-  // 부족분 보충 (샘플 → 가상)
-  while (players.length < participantCount) {
-    players.push({ id: `sim_player_${players.length}`, name: genPlayerName(players.length) });
-  }
+  // 기존 팀이 있으면 선수 생성 건너뜀 (팀에 이미 멤버 포함)
+  const hasExistingTeams = isTeam && options?.existingTeams && options.existingTeams.length > 0;
+  let players: { id: string; name: string; gender?: string }[];
 
-  // 성별 비율이 설정된 경우 자동 생성된 선수에게 성별 배정
-  if (isTeam && tournament.teamRules?.genderRatio) {
-    const ratio = tournament.teamRules.genderRatio;
-    const teamSize = tournament.teamRules?.teamSize || 3;
-    const teamCount = Math.floor(participantCount / teamSize);
-    const neededMale = ratio.male * teamCount;
-    const neededFemale = ratio.female * teamCount;
+  if (hasExistingTeams) {
+    // 기존 팀의 멤버를 players로 추출 (결과에 포함하기 위해)
+    players = options!.existingTeams!.flatMap(t =>
+      t.memberIds.map((id, i) => ({ id, name: t.memberNames[i] || id }))
+    );
+  } else {
+    players = (options?.existingPlayers && options.existingPlayers.length > 0)
+      ? options.existingPlayers.slice(0, participantCount).map(p => ({ ...p, gender: (p as any).gender }))
+      : Array.from({ length: participantCount }, (_, i) => ({
+          id: `sim_player_${i}`,
+          name: genPlayerName(i),
+        }));
+    // 부족분 보충 (샘플 → 가상)
+    while (players.length < participantCount) {
+      players.push({ id: `sim_player_${players.length}`, name: genPlayerName(players.length) });
+    }
 
-    if (!options?.existingPlayers) {
-      players.forEach((p, i) => {
-        p.gender = i < neededMale ? 'male' : (i < neededMale + neededFemale ? 'female' : undefined);
-      });
+    // 성별 비율이 설정된 경우 자동 생성된 선수에게 성별 배정
+    if (isTeam && tournament.teamRules?.genderRatio) {
+      const ratio = tournament.teamRules.genderRatio;
+      const teamSize = tournament.teamRules?.teamSize || 3;
+      const teamCount = Math.floor(participantCount / teamSize);
+      const neededMale = ratio.male * teamCount;
+      const neededFemale = ratio.female * teamCount;
+
+      if (!options?.existingPlayers) {
+        players.forEach((p, i) => {
+          p.gender = i < neededMale ? 'male' : (i < neededMale + neededFemale ? 'female' : undefined);
+        });
+      }
     }
   }
 

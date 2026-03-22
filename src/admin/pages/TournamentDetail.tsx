@@ -114,16 +114,18 @@ export default function TournamentDetail() {
     const hasExistingPlayers = tournamentPlayers.length > 0;
     const hasExistingReferees = referees.length > 0;
     const hasExistingTeams = isTeamType && teams.length > 0;
-    // 팀전: 기존 팀이 있으면 팀 수 × 팀 인원을 participantCount로 전달
+    // 팀전+기존팀: 팀 수가 곧 참가 단위. 선수 수는 시뮬레이션에 불필요.
     const playerCount = hasExistingTeams
-      ? teams.reduce((sum, t) => sum + (t.memberIds?.length || 0), 0)
+      ? teams.length
       : (hasExistingPlayers ? tournamentPlayers.length : simCount);
 
     const msgParts = [
       `시뮬레이션을 실행합니다.\n`,
-      hasExistingPlayers
-        ? `• 등록된 선수 ${playerCount}명으로 진행`
-        : `• 가상 참가자 ${playerCount}명 생성`,
+      hasExistingTeams
+        ? `• 등록된 ${teams.length}개 팀으로 진행`
+        : hasExistingPlayers
+          ? `• 등록된 선수 ${playerCount}명으로 진행`
+          : `• 가상 참가자 ${playerCount}명 생성`,
       simAutoReferee
         ? (hasExistingReferees
           ? `• 등록된 심판 ${referees.length}명 배정`
@@ -143,7 +145,8 @@ export default function TournamentDetail() {
       setSimProgress('시뮬레이션 데이터 생성 중...');
       const sampleNames = getSampleNames();
       const result = simulateTournament(tournament, playerCount, {
-        existingPlayers: hasExistingPlayers ? tournamentPlayers.map(p => ({ id: p.id, name: p.name })) : undefined,
+        // 팀전+기존팀: 선수 정보는 팀에 포함되어 있으므로 별도 전달 불필요
+        existingPlayers: (!hasExistingTeams && hasExistingPlayers) ? tournamentPlayers.map(p => ({ id: p.id, name: p.name })) : undefined,
         existingTeams: hasExistingTeams ? teams.map(t => ({ id: t.id, name: t.name, memberIds: t.memberIds || [], memberNames: t.memberNames || [] })) : undefined,
         existingReferees: hasExistingReferees ? referees.map(r => ({ id: r.id, name: r.name })) : undefined,
         existingCourts: simAutoCourt && courts.length > 0 ? courts.map(c => ({ id: c.id, name: c.name })) : undefined,
@@ -151,9 +154,9 @@ export default function TournamentDetail() {
         sampleRefereeNames: sampleNames.referees.length > 0 ? sampleNames.referees : undefined,
       });
 
-      // 기존 선수가 없을 때만 새로 등록 + ID 매핑 구축
+      // 기존 선수/팀이 없을 때만 새로 등록 + ID 매핑 구축
       const playerIdMap = new Map<string, string>();
-      if (!hasExistingPlayers) {
+      if (!hasExistingPlayers && !hasExistingTeams) {
         setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
         for (const player of result.players) {
           const newId = await addTournamentPlayer({ name: player.name });
@@ -507,6 +510,7 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
     btn.style.padding = '0.5rem 0.75rem';
     btn.textContent = '+';
     btn.type = 'button';
+    btn.setAttribute('aria-label', '선수 추가');
 
     let composing = false;
 
@@ -882,27 +886,29 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 const memberCount = (team.memberIds || []).length;
                 return (
                   <div key={team.id} className="bg-gray-800 rounded-lg p-4 border border-gray-600">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-cyan-400">{team.name} ({memberCount}명)</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-cyan-400">{team.name} ({memberCount}명){team.coachName ? ` / 코치: ${team.coachName}` : ''}</h3>
                       <div className="flex items-center gap-2">
                         <button
                           className="text-sm text-blue-400 hover:text-blue-300"
                           onClick={() => isEditing ? setEditingTeamId(null) : startEditing(team.id)}
-                          aria-label={`${team.name} 설정 ${isEditing ? '닫기' : '편집'}`}
+                          aria-label={`${team.name} ${isEditing ? '접기' : '편집'}`}
                         >
-                          {isEditing ? '닫기' : '팀 설정'}
+                          {isEditing ? '접기' : '편집'}
                         </button>
                         <button
                           className="text-sm text-red-400 hover:text-red-300"
                           onClick={() => handleDeleteTeam(team.id)}
                           aria-label={`${team.name} 삭제`}
                         >
-                          팀 삭제
+                          삭제
                         </button>
                       </div>
                     </div>
+                    {/* 편집 모드에서만 상세 표시 */}
+                    {isEditing && <>
                     {/* 팀 내 선수 목록 */}
-                    <ul className="mt-2 space-y-1">
+                    <ul className="mt-3 space-y-1">
                       {(team.memberIds ?? []).map((memberId, i) => {
                         const memberName = (team.memberNames ?? [])[i] ?? memberId;
                         const player = tournamentPlayers.find(p => p.id === memberId);
@@ -944,16 +950,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         }}
                       />
                     </div>
-                    {/* Coach & per-team override info (when not editing) */}
-                    {!isEditing && (team.coachName || team.maxReserves != null || team.genderRatio) && (
-                      <div className="mt-2 text-xs text-gray-400 space-y-0.5">
-                        {team.coachName && <p>코치: {team.coachName}</p>}
-                        {team.maxReserves != null && <p>예비 선수: {team.maxReserves}명</p>}
-                        {team.genderRatio && <p>성별 비율: 남 {team.genderRatio.male} / 여 {team.genderRatio.female}</p>}
-                      </div>
-                    )}
                     {/* Per-team settings editor (로컬 state로 편집, 저장 버튼으로 한번에 반영) */}
-                    {isEditing && (
                       <div className="mt-3 pt-3 border-t border-gray-700 space-y-3">
                         <p className="text-xs text-gray-500">
                           팀별 설정 (비워두면 대회 기본값 적용{globalMaxReserves != null || globalGenderRatio ? `: 예비 ${globalMaxReserves ?? '-'}명, 남 ${globalGenderRatio?.male ?? '-'} / 여 ${globalGenderRatio?.female ?? '-'}` : ''})
@@ -1020,7 +1017,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                           설정 저장
                         </button>
                       </div>
-                    )}
+                    </>}
                   </div>
                 );
               })}
