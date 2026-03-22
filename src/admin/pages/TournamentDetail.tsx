@@ -685,9 +685,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             <input
               className="input flex-1"
               value={newPlayerName}
-              onChange={e => { if (!composingRef.current) setNewPlayerName(e.target.value); }}
+              onChange={e => setNewPlayerName(e.target.value)}
               onCompositionStart={() => { composingRef.current = true; }}
-              onCompositionEnd={e => { composingRef.current = false; setNewPlayerName((e.target as HTMLInputElement).value); }}
+              onCompositionEnd={() => { composingRef.current = false; }}
               placeholder="선수 이름"
               aria-label="선수 이름"
               onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current && newPlayerName.trim()) handleAddPlayer(); }}
@@ -839,9 +839,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       <input
                         className="input flex-1 text-sm"
                         value={teamMemberInputs[team.id]?.name ?? ''}
-                        onChange={e => { if (!composingRef.current) setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: e.target.value, gender: prev[team.id]?.gender ?? '' } })); }}
+                        onChange={e => setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: e.target.value, gender: prev[team.id]?.gender ?? '' } }))}
                         onCompositionStart={() => { composingRef.current = true; }}
-                        onCompositionEnd={e => { composingRef.current = false; setTeamMemberInputs(prev => ({ ...prev, [team.id]: { ...prev[team.id], name: (e.target as HTMLInputElement).value, gender: prev[team.id]?.gender ?? '' } })); }}
+                        onCompositionEnd={() => { composingRef.current = false; }}
                         placeholder="선수 이름"
                         aria-label={`${team.name} 선수 추가`}
                         onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current && teamMemberInputs[team.id]?.name?.trim()) handleAddMemberToTeam(team.id); }}
@@ -1008,9 +1008,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <input
                 className="input w-full"
                 value={newTeamName}
-                onChange={e => { if (!composingRef.current) setNewTeamName(e.target.value); }}
+                onChange={e => setNewTeamName(e.target.value)}
                 onCompositionStart={() => { composingRef.current = true; }}
-                onCompositionEnd={e => { composingRef.current = false; setNewTeamName((e.target as HTMLInputElement).value); }}
+                onCompositionEnd={() => { composingRef.current = false; }}
                 placeholder={`${teams.length + 1}팀`}
                 aria-label="팀 이름"
                 autoFocus
@@ -1023,9 +1023,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 <input
                   className="input flex-1 text-sm"
                   value={newTeamMemberInput}
-                  onChange={e => { if (!composingRef.current) setNewTeamMemberInput(e.target.value); }}
+                  onChange={e => setNewTeamMemberInput(e.target.value)}
                   onCompositionStart={() => { composingRef.current = true; }}
-                  onCompositionEnd={e => { composingRef.current = false; setNewTeamMemberInput((e.target as HTMLInputElement).value); }}
+                  onCompositionEnd={() => { composingRef.current = false; }}
                   placeholder="선수 이름"
                   aria-label="선수 이름"
                   onKeyDown={e => {
