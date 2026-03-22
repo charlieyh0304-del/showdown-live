@@ -18,18 +18,24 @@ if (savedAccessibility) {
   document.documentElement.classList.add('mode-dark', 'font-normal');
 }
 
-// SW 업데이트 시 자동 새로고침 + 주기적 업데이트 체크
+// SW 업데이트 시 자동 새로고침 + 적극적 업데이트 체크
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     window.location.reload();
   });
 
-  // 기존 SW가 있으면 즉시 업데이트 체크
   navigator.serviceWorker.getRegistration().then(reg => {
     if (reg) {
+      // 즉시 업데이트 체크
       reg.update();
-      // 1분마다 업데이트 체크
-      setInterval(() => reg.update(), 60 * 1000);
+      // 30초마다 업데이트 체크
+      setInterval(() => reg.update(), 30 * 1000);
+      // 탭이 다시 활성화될 때 업데이트 체크
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
+      });
+      // 네트워크 복구 시 업데이트 체크
+      window.addEventListener('online', () => reg.update());
     }
   });
 }
