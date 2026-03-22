@@ -719,7 +719,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
       ];
 
   // 5. 조별 편성 (대회 설정의 groupCount 사용)
-  const participants = isTeam ? teams! : players;
+  const participants: { id: string; name: string; memberIds?: string[]; memberNames?: string[] }[] = isTeam ? teams! : players;
   const configGroupCount = tournament.qualifyingConfig?.groupCount
     || tournament.stages?.find(s => s.type === 'qualifying')?.groupCount
     || undefined;
