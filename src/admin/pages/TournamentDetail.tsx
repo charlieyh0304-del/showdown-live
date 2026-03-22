@@ -557,14 +557,48 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  // 팀별 설정 편집용 로컬 state (Firebase 즉시 쓰기 대신 로컬에서 편집 후 저장)
+  const [editCoachName, setEditCoachName] = useState('');
+  const [editMaxReserves, setEditMaxReserves] = useState<string>('');
+  const [editGenderMale, setEditGenderMale] = useState<string>('');
+  const [editGenderFemale, setEditGenderFemale] = useState<string>('');
+
+  // 편집 모드 진입 시 현재 값 로드
+  const startEditing = useCallback((teamId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    setEditCoachName(team.coachName ?? '');
+    setEditMaxReserves(team.maxReserves != null ? String(team.maxReserves) : '');
+    setEditGenderMale(team.genderRatio?.male != null ? String(team.genderRatio.male) : '');
+    setEditGenderFemale(team.genderRatio?.female != null ? String(team.genderRatio.female) : '');
+    setEditingTeamId(teamId);
+  }, [teams]);
+
+  // 편집 저장
+  const saveTeamSettings = useCallback(async () => {
+    if (!editingTeamId) return;
+    const male = editGenderMale === '' ? undefined : Number(editGenderMale);
+    const female = editGenderFemale === '' ? undefined : Number(editGenderFemale);
+    const newRatio = (male == null && female == null) ? undefined : { male: male ?? 0, female: female ?? 0 };
+    const updated = teams.map(t => t.id !== editingTeamId ? t : {
+      ...t,
+      coachName: editCoachName || undefined,
+      maxReserves: editMaxReserves === '' ? undefined : Number(editMaxReserves),
+      genderRatio: newRatio,
+    });
+    await setTeamsBulk(updated);
+    setEditingTeamId(null);
+  }, [editingTeamId, editCoachName, editMaxReserves, editGenderMale, editGenderFemale, teams, setTeamsBulk]);
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamCoach, setNewTeamCoach] = useState('');
   const [newTeamMembers, setNewTeamMembers] = useState<{ name: string; gender: '' | 'male' | 'female' }[]>([]);
   const composingRef = useRef(false);
   const isManualTeam = tournament.type === 'team';
 
   const openAddTeamModal = useCallback(() => {
     setNewTeamName('');
+    setNewTeamCoach('');
     setNewTeamMembers([]);
     setShowAddTeamModal(true);
   }, []);
@@ -587,6 +621,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       name,
       memberIds,
       memberNames,
+      ...(newTeamCoach.trim() ? { coachName: newTeamCoach.trim() } : {}),
     };
     await setTeamsBulk([...teams, newTeam]);
     setShowAddTeamModal(false);
@@ -847,7 +882,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       <div className="flex items-center gap-2">
                         <button
                           className="text-sm text-blue-400 hover:text-blue-300"
-                          onClick={() => setEditingTeamId(isEditing ? null : team.id)}
+                          onClick={() => isEditing ? setEditingTeamId(null) : startEditing(team.id)}
                           aria-label={`${team.name} 설정 ${isEditing ? '닫기' : '편집'}`}
                         >
                           {isEditing ? '닫기' : '팀 설정'}
@@ -912,7 +947,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         {team.genderRatio && <p>성별 비율: 남 {team.genderRatio.male} / 여 {team.genderRatio.female}</p>}
                       </div>
                     )}
-                    {/* Per-team settings editor */}
+                    {/* Per-team settings editor (로컬 state로 편집, 저장 버튼으로 한번에 반영) */}
                     {isEditing && (
                       <div className="mt-3 pt-3 border-t border-gray-700 space-y-3">
                         <p className="text-xs text-gray-500">
@@ -923,13 +958,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                           <input
                             type="text"
                             className="input w-full"
-                            value={team.coachName ?? ''}
+                            value={editCoachName}
                             placeholder="코치 이름"
-                            onChange={e => {
-                              const val = e.target.value || undefined;
-                              const updated = teams.map(t => t.id === team.id ? { ...t, coachName: val } : t);
-                              setTeamsBulk(updated);
-                            }}
+                            onChange={e => setEditCoachName(e.target.value)}
                             aria-label={`${team.name} 코치`}
                           />
                         </div>
@@ -940,13 +971,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                             className="input w-full"
                             min={0}
                             max={20}
-                            value={team.maxReserves ?? ''}
+                            value={editMaxReserves}
                             placeholder={globalMaxReserves != null ? `기본값: ${globalMaxReserves}` : '미설정'}
-                            onChange={e => {
-                              const val = e.target.value === '' ? undefined : Number(e.target.value);
-                              const updated = teams.map(t => t.id === team.id ? { ...t, maxReserves: val } : t);
-                              setTeamsBulk(updated);
-                            }}
+                            onChange={e => setEditMaxReserves(e.target.value)}
                             aria-label={`${team.name} 예비 선수 수`}
                           />
                         </div>
@@ -960,15 +987,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                                 className="input w-full"
                                 min={0}
                                 max={20}
-                                value={team.genderRatio?.male ?? ''}
+                                value={editGenderMale}
                                 placeholder={globalGenderRatio ? `기본: ${globalGenderRatio.male}` : '미설정'}
-                                onChange={e => {
-                                  const male = e.target.value === '' ? undefined : Number(e.target.value);
-                                  const currentFemale = team.genderRatio?.female;
-                                  const newRatio = (male == null && currentFemale == null) ? undefined : { male: male ?? 0, female: currentFemale ?? 0 };
-                                  const updated = teams.map(t => t.id === team.id ? { ...t, genderRatio: newRatio } : t);
-                                  setTeamsBulk(updated);
-                                }}
+                                onChange={e => setEditGenderMale(e.target.value)}
                                 aria-label={`${team.name} 남자 선수 수`}
                               />
                             </div>
@@ -979,20 +1000,20 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                                 className="input w-full"
                                 min={0}
                                 max={20}
-                                value={team.genderRatio?.female ?? ''}
+                                value={editGenderFemale}
                                 placeholder={globalGenderRatio ? `기본: ${globalGenderRatio.female}` : '미설정'}
-                                onChange={e => {
-                                  const female = e.target.value === '' ? undefined : Number(e.target.value);
-                                  const currentMale = team.genderRatio?.male;
-                                  const newRatio = (female == null && currentMale == null) ? undefined : { male: currentMale ?? 0, female: female ?? 0 };
-                                  const updated = teams.map(t => t.id === team.id ? { ...t, genderRatio: newRatio } : t);
-                                  setTeamsBulk(updated);
-                                }}
+                                onChange={e => setEditGenderFemale(e.target.value)}
                                 aria-label={`${team.name} 여자 선수 수`}
                               />
                             </div>
                           </div>
                         </div>
+                        <button
+                          className="btn btn-primary w-full"
+                          onClick={saveTeamSettings}
+                        >
+                          설정 저장
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1054,6 +1075,19 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 placeholder={`${teams.length + 1}팀`}
                 aria-label="팀 이름"
                 autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">코치 이름 (선택)</label>
+              <input
+                className="input w-full"
+                value={newTeamCoach}
+                onChange={e => setNewTeamCoach(e.target.value)}
+                onCompositionStart={() => { composingRef.current = true; }}
+                onCompositionEnd={() => { composingRef.current = false; }}
+                placeholder="코치 이름"
+                aria-label="코치 이름"
               />
             </div>
 
