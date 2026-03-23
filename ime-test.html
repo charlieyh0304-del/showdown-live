@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><title>IME Test</title></head>
+<body style="background:#111;color:#fff;padding:2rem;font-size:1.25rem">
+<h3>1. 순수 HTML input (React 없음)</h3>
+<div style="display:flex;gap:4px">
+  <input id="t1" style="flex:1;padding:0.75rem;font-size:0.875rem;background:#1f2937;border:2px solid #374151;color:#fff;border-radius:0.5rem" placeholder="선수 이름">
+  <select style="width:64px;padding:0.75rem;font-size:0.875rem;background:#1f2937;border:2px solid #374151;color:#fff;border-radius:0.5rem">
+    <option value="">성별</option><option value="male">남</option><option value="female">여</option>
+  </select>
+  <button onclick="document.getElementById('r1').textContent=document.getElementById('t1').value" style="padding:0.75rem 1rem;background:#16a34a;color:#fff;border:none;border-radius:0.5rem;cursor:pointer">+</button>
+</div>
+<p>결과: <span id="r1" style="color:#facc15"></span></p>
+
+<h3>2. 같은 구조 + width:100% + text-sm</h3>
+<div style="display:flex;gap:4px">
+  <input id="t2" style="width:100%;flex:1 1 0%;padding:0.75rem;font-size:0.875rem;background:#1f2937;border:2px solid #374151;color:#fff;border-radius:0.5rem" placeholder="선수 이름">
+  <select style="width:64px;padding:0.75rem;font-size:0.875rem;background:#1f2937;border:2px solid #374151;color:#fff;border-radius:0.5rem">
+    <option value="">성별</option><option value="male">남</option><option value="female">여</option>
+  </select>
+  <button onclick="document.getElementById('r2').textContent=document.getElementById('t2').value" style="padding:0.75rem 1rem;background:#16a34a;color:#fff;border:none;border-radius:0.5rem;cursor:pointer">+</button>
+</div>
+<p>결과: <span id="r2" style="color:#facc15"></span></p>
+
+<h3>3. 단독 input (flex 없음)</h3>
+<input id="t3" style="width:100%;padding:0.75rem;font-size:0.875rem;background:#1f2937;border:2px solid #374151;color:#fff;border-radius:0.5rem" placeholder="선수 이름">
+<p>결과: <span id="r3" style="color:#facc15"></span></p>
+<button onclick="document.getElementById('r3').textContent=document.getElementById('t3').value" style="padding:0.5rem 1rem;background:#16a34a;color:#fff;border:none;border-radius:0.5rem;cursor:pointer;margin-top:4px">확인</button>
+
+<h3 style="margin-top:2rem;color:#ef4444">위 3개 모두 한글 입력 테스트해보세요. 뒤집히는 게 있으면 CSS/브라우저 문제입니다.</h3>
+</body>
+</html>
