@@ -52,7 +52,7 @@ function simulateScoreHistory(
       time: setStartTime.toLocaleTimeString('ko-KR'),
       scoringPlayer: firstServerName,
       actionPlayer: firstServerName,
-      actionType: 'resume' as ScoreActionType,
+      actionType: 'match_start' as ScoreActionType,
       actionLabel: setIdx === 0 ? `${firstServerName} 첫 서브` : `세트 ${setIdx + 1} 시작 - ${firstServerName} 서브`,
       points: 0,
       set: setIdx + 1,
@@ -60,6 +60,7 @@ function simulateScoreHistory(
       serveNumber: 1,
       scoreBefore: { player1: 0, player2: 0 },
       scoreAfter: { player1: 0, player2: 0 },
+      serverSide: server,
     });
     entryIndex++;
 
@@ -128,6 +129,7 @@ function simulateScoreHistory(
         serveNumber: serveCount + 1,
         scoreBefore,
         scoreAfter,
+        serverSide: server,
       });
 
       entryIndex++;
@@ -164,6 +166,7 @@ function simulateScoreHistory(
         serveNumber: serveCount + 1,
         scoreBefore: refEntry ? refEntry.scoreAfter : { player1: 0, player2: 0 },
         scoreAfter: refEntry ? refEntry.scoreAfter : { player1: 0, player2: 0 },
+        serverSide: server,
       });
     }
   }
@@ -737,7 +740,8 @@ export function simulateTournament(tournament: Tournament, participantCount: num
   const configGroupCount = tournament.qualifyingConfig?.groupCount
     || tournament.stages?.find(s => s.type === 'qualifying')?.groupCount
     || undefined;
-  const hasGroupStage = configGroupCount ? configGroupCount > 1 : participants.length >= 4;
+  const hasQualifyingStage = !!(tournament.qualifyingConfig || tournament.stages?.some(s => s.type === 'qualifying'));
+  const hasGroupStage = hasQualifyingStage && (configGroupCount ? configGroupCount > 1 : participants.length >= 4);
   const groupCount = hasGroupStage ? (configGroupCount || Math.min(Math.ceil(participants.length / 4), 4)) : 1;
   const groups: { id: string; members: typeof participants }[] = [];
 

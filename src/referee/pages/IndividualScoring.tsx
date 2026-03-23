@@ -171,6 +171,7 @@ export default function IndividualScoring() {
       scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
       server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
       serveNumber: (match.serveCount ?? 0) + 1,
+      serverSide: match.currentServe ?? 'player1',
     };
     const prevScoreHistory = match.scoreHistory ?? [];
     await updateMatch({
@@ -201,6 +202,7 @@ export default function IndividualScoring() {
       scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
       server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
       serveNumber: (match.serveCount ?? 0) + 1,
+      serverSide: match.currentServe ?? 'player1',
     };
     const prevScoreHistory = match.scoreHistory ?? [];
     setPauseElapsed(0);
@@ -233,6 +235,7 @@ export default function IndividualScoring() {
       serveNumber: (match.serveCount ?? 0) + 1,
       scoreBefore: { player1: match.sets?.[match.currentSet ?? 0]?.player1Score ?? 0, player2: match.sets?.[match.currentSet ?? 0]?.player2Score ?? 0 },
       scoreAfter: { player1: match.sets?.[match.currentSet ?? 0]?.player1Score ?? 0, player2: match.sets?.[match.currentSet ?? 0]?.player2Score ?? 0 },
+      serverSide: match.currentServe ?? 'player1',
     });
 
     const prevHistory = match.scoreHistory ?? [];
@@ -302,6 +305,7 @@ export default function IndividualScoring() {
       set: ci + 1,
       server: serverName, serveNumber,
       scoreBefore, scoreAfter,
+      serverSide: currentServe,
     });
 
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
@@ -471,6 +475,7 @@ export default function IndividualScoring() {
       serveNumber: serveCount + 1,
       scoreBefore,
       scoreAfter: scoreBefore,
+      serverSide: currentServe,
     });
 
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
@@ -501,6 +506,7 @@ export default function IndividualScoring() {
       scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
       server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
       serveNumber: (match.serveCount ?? 0) + 1,
+      serverSide: match.currentServe ?? 'player1',
     };
     const prevHistory = match.scoreHistory ?? [];
     const timeoutUpdate: Record<string, unknown> = {

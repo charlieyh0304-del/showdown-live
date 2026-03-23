@@ -794,6 +794,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               aria-label="선수 이름"
               onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && newPlayerName.trim()) handleAddPlayer(); }}
             />
+            {isTeamType && (
             <select
               className="input w-24"
               value={newPlayerGender}
@@ -804,6 +805,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <option value="male">남</option>
               <option value="female">여</option>
             </select>
+            )}
             <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()}>
               추가
             </button>
@@ -839,8 +841,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-600">
                 <div>
                   <span className="font-bold">{p.name}</span>
-                  {p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
-                  {p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                  {isTeamType && p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
+                  {isTeamType && p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
                   {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
                   {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
                 </div>

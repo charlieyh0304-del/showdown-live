@@ -25,12 +25,14 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
   if (history.length === 0) return null;
 
   // Known meta-event types that are meaningful even with 0 points
-  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover']);
+  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation']);
 
   const groups: Record<number, ScoreHistoryEntry[]> = {};
   history.forEach(h => {
     // Filter out 0-point entries that are not meaningful meta-events
     if (h.points === 0 && !META_ACTION_TYPES.has(h.actionType)) return;
+    // 재개 정보 숨김 - 모든 resume 엔트리 제거
+    if (h.actionType === 'resume') return;
     const setNum = h.set || 1;
     if (!groups[setNum]) groups[setNum] = [];
     groups[setNum].push(h);
@@ -71,7 +73,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
             </h4>
             <div className="space-y-1">
               {entries.map((h, i) => {
-                const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
+                const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.points >= 2 ? '🔴' : '🟡';
 
                 // h.time is stored as locale string (e.g. "오후 8:19:26") - use directly, don't re-parse
                 const timeStr = (() => {
@@ -95,11 +97,15 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})` :
                     h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃` :
                     h.actionType === 'substitution' ? (h.actionLabel || '선수 교체') :
+                    h.actionType === 'coin_toss' ? (h.actionLabel || '동전던지기') :
+                    h.actionType === 'warmup_start' ? (h.actionLabel || '워밍업') :
+                    h.actionType === 'match_start' ? (h.actionLabel || '경기 시작') :
+                    h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체') :
                     (h.actionLabel || '');
                   return (
                     <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-500 bg-gray-800/50 rounded px-3 py-1.5 flex justify-between">
                       <span>{timeStr} {icon} {desc}</span>
-                      <span>{h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}</span>
+                      <span>{(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })()}</span>
                     </div>
                   );
                 }
@@ -125,7 +131,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     <div className="flex justify-between items-center">
                       <span>{icon} {actionDesc}</span>
                       <span className="font-bold text-green-400 ml-2 whitespace-nowrap">
-                        {h.scoreAfter?.player1 ?? 0}:{h.scoreAfter?.player2 ?? 0}
+                        {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })()}
                       </span>
                     </div>
                   </div>

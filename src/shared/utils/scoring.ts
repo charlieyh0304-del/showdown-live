@@ -170,6 +170,7 @@ export function createScoreHistoryEntry(opts: {
   serveNumber: number;
   scoreBefore: { player1: number; player2: number };
   scoreAfter: { player1: number; player2: number };
+  serverSide?: 'player1' | 'player2';
 }): ScoreHistoryEntry {
   return {
     time: new Date().toLocaleTimeString('ko-KR'),

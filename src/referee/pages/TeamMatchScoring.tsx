@@ -54,6 +54,10 @@ export default function TeamMatchScoring() {
   const [subOutIndex, setSubOutIndex] = useState<number | null>(null);
   const [subInIndex, setSubInIndex] = useState<number | null>(null);
 
+  // Coin toss flow
+  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
+  const [tossWinner, setTossWinner] = useState<'team1' | 'team2' | null>(null);
+
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
   const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
@@ -124,28 +128,101 @@ export default function TeamMatchScoring() {
     }
   }, [match?.isPaused]);
 
-  const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2') => {
+  const team1Name = match?.team1Name ?? '팀1';
+  const team2Name = match?.team2Name ?? '팀2';
+
+  const handleStartMatch = useCallback(async (tossWinnerVal: 'team1' | 'team2', choice: 'serve' | 'receive') => {
     if (!match) return;
+
+    // Determine who serves first
+    const firstServe = choice === 'serve'
+      ? (tossWinnerVal === 'team1' ? 'player1' : 'player2')  // Winner serves
+      : (tossWinnerVal === 'team1' ? 'player2' : 'player1'); // Winner receives = opponent serves
+
+    const t1n = match.team1Name ?? '팀1';
+    const t2n = match.team2Name ?? '팀2';
+    const servingTeamName = firstServe === 'player1' ? t1n : t2n;
+    const tossWinnerName = tossWinnerVal === 'team1' ? t1n : t2n;
+
+    // Build initial history entries
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ko-KR');
+    const initialHistory: ScoreHistoryEntry[] = [
+      {
+        time: timeStr,
+        scoringPlayer: tossWinnerName,
+        actionPlayer: tossWinnerName,
+        actionType: 'coin_toss' as ScoreActionType,
+        actionLabel: `동전던지기: ${tossWinnerName} 승리 → ${choice === 'serve' ? '서브' : '리시브'} 선택`,
+        points: 0,
+        set: 1,
+        server: servingTeamName,
+        serveNumber: 1,
+        scoreBefore: { player1: 0, player2: 0 },
+        scoreAfter: { player1: 0, player2: 0 },
+        serverSide: firstServe,
+      },
+      {
+        time: timeStr,
+        scoringPlayer: servingTeamName,
+        actionPlayer: servingTeamName,
+        actionType: 'match_start' as ScoreActionType,
+        actionLabel: `${servingTeamName} 첫 서브`,
+        points: 0,
+        set: 1,
+        server: servingTeamName,
+        serveNumber: 1,
+        scoreBefore: { player1: 0, player2: 0 },
+        scoreAfter: { player1: 0, player2: 0 },
+        serverSide: firstServe,
+      },
+    ];
+
+    // Set player order from team member arrays
+    const t1 = match.team1;
+    const t2 = match.team2;
+
     await updateMatch({
       status: 'in_progress',
       sets: [createEmptySet()],
       currentSet: 0,
       player1Timeouts: 0,
       player2Timeouts: 0,
-      activeTimeout: null,
       currentServe: firstServe,
       serveCount: 0,
       serveSelected: true,
-      sideChangeUsed: false,
-      scoreHistory: [],
+      scoreHistory: initialHistory,
       warmupUsed: false,
+      coinTossWinner: tossWinnerVal,
+      coinTossChoice: choice,
+      team1PlayerOrder: t1?.memberIds || [],
+      team2PlayerOrder: t2?.memberIds || [],
+      team1CurrentPlayerIndex: 0,
+      team2CurrentPlayerIndex: 0,
     });
   }, [match, updateMatch]);
 
   // Warmup (team: 90 seconds)
   const handleWarmup = useCallback(() => {
     if (!match || match.warmupUsed) return;
-    updateMatch({ warmupUsed: true });
+    const timeStr = new Date().toLocaleTimeString('ko-KR');
+    const warmupEntry: ScoreHistoryEntry = {
+      time: timeStr,
+      scoringPlayer: '',
+      actionPlayer: '',
+      actionType: 'warmup_start' as ScoreActionType,
+      actionLabel: '워밍업 시작 (90초)',
+      points: 0,
+      set: 1,
+      server: '',
+      serveNumber: 0,
+      scoreBefore: { player1: 0, player2: 0 },
+      scoreAfter: { player1: 0, player2: 0 },
+    };
+    updateMatch({
+      warmupUsed: true,
+      scoreHistory: [...(match.scoreHistory || []), warmupEntry],
+    });
     warmupTimer.start(90);
     setShowWarmup(true);
   }, [match, updateMatch, warmupTimer]);
@@ -312,14 +389,43 @@ export default function TeamMatchScoring() {
       set: 1,
       server: serverName, serveNumber,
       scoreBefore, scoreAfter,
+      serverSide: currentServe,
     });
 
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
-    const newHistory = [historyEntry, ...prevHistory];
+    let newHistory = [historyEntry, ...prevHistory];
 
     const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
       currentServe, serveCount, 'team',
     );
+
+    // Player rotation: when serve switches to other team, advance that team's player index
+    let rotationUpdate: Record<string, unknown> = {};
+    if (nextCount === 0 && nextServe !== currentServe) {
+      const teamKey = nextServe === 'player1' ? 'team1' : 'team2';
+      const orderKey = `${teamKey}PlayerOrder` as 'team1PlayerOrder' | 'team2PlayerOrder';
+      const indexKey = `${teamKey}CurrentPlayerIndex` as 'team1CurrentPlayerIndex' | 'team2CurrentPlayerIndex';
+      const currentIdx = (match[indexKey] as number | undefined) ?? 0;
+      const order = (match[orderKey] as string[] | undefined) ?? [];
+      const nextIdx = order.length > 0 ? (currentIdx + 1) % order.length : 0;
+
+      const rotationEntry: ScoreHistoryEntry = {
+        time: new Date().toLocaleTimeString('ko-KR'),
+        scoringPlayer: '',
+        actionPlayer: nextServe === 'player1' ? t1Name : t2Name,
+        actionType: 'player_rotation' as ScoreActionType,
+        actionLabel: `선수 로테이션 (${nextServe === 'player1' ? t1Name : t2Name})`,
+        points: 0,
+        set: 1,
+        server: nextServe === 'player1' ? t1Name : t2Name,
+        serveNumber: 1,
+        scoreBefore: scoreAfter,
+        scoreAfter: scoreAfter,
+        serverSide: nextServe,
+      };
+      newHistory = [rotationEntry, ...newHistory];
+      rotationUpdate = { [indexKey]: nextIdx };
+    }
 
     const tName = scoringTeam === 1 ? t1Name : t2Name;
     const actorName = actingTeam === 1 ? t1Name : t2Name;
@@ -349,6 +455,7 @@ export default function TeamMatchScoring() {
         sets, status: 'completed', winnerId,
         currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
+        ...rotationUpdate,
       });
       if (tournamentId) autoBackupToLocal(tournamentId);
       return;
@@ -359,6 +466,7 @@ export default function TeamMatchScoring() {
       await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
+        ...rotationUpdate,
       });
       sideChangeTimer.start(60);
       setShowSideChange(true);
@@ -368,6 +476,7 @@ export default function TeamMatchScoring() {
     await updateMatch({
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
+      ...rotationUpdate,
     });
     if (tournamentId) autoBackupDebounced(tournamentId);
   }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId]);
@@ -432,6 +541,7 @@ export default function TeamMatchScoring() {
       serveNumber: serveCount + 1,
       scoreBefore,
       scoreAfter: scoreBefore,
+      serverSide: currentServe,
     });
 
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
@@ -595,8 +705,6 @@ export default function TeamMatchScoring() {
   }, [match, subTeam, subOutIndex, subInIndex, updateMatch, getTeamActivePlayers, getTeamReservePlayers]);
 
   // Keyboard shortcuts (GAP-12)
-  const team1Name = match?.team1Name ?? '팀1';
-  const team2Name = match?.team2Name ?? '팀2';
 
   // Keyboard shortcuts - useEffect directly (useMemo + useKeyboardShortcuts causes React #310)
   useEffect(() => {
@@ -643,17 +751,38 @@ export default function TeamMatchScoring() {
         <p className="text-lg text-gray-400">31점 단판 승부 | 서브 3회 교대</p>
         {match.courtName && <p className="text-gray-400">코트: {match.courtName}</p>}
 
-        <div className="card w-full max-w-md space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-300">첫 서브 선택</h2>
-          <div className="flex gap-4">
-            <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch('player1')}>
-              🎾 {team1Name}
-            </button>
-            <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch('player2')}>
-              🎾 {team2Name}
+        {coinTossStep === 'toss' && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">동전던지기 승자</h2>
+            <div className="flex gap-4">
+              <button className="btn btn-primary btn-large flex-1" onClick={() => { setTossWinner('team1'); setCoinTossStep('choice'); }}>
+                {team1Name}
+              </button>
+              <button className="btn btn-primary btn-large flex-1" onClick={() => { setTossWinner('team2'); setCoinTossStep('choice'); }}>
+                {team2Name}
+              </button>
+            </div>
+          </div>
+        )}
+        {coinTossStep === 'choice' && tossWinner && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">
+              {tossWinner === 'team1' ? team1Name : team2Name} 승리!
+            </h2>
+            <p className="text-gray-400 text-center">서브 또는 리시브를 선택하세요</p>
+            <div className="flex gap-4">
+              <button className="btn btn-success btn-large flex-1" onClick={() => handleStartMatch(tossWinner, 'serve')}>
+                🎾 서브
+              </button>
+              <button className="btn btn-accent btn-large flex-1" onClick={() => handleStartMatch(tossWinner, 'receive')}>
+                🏓 리시브
+              </button>
+            </div>
+            <button className="text-sm text-gray-500 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }}>
+              다시 선택
             </button>
           </div>
-        </div>
+        )}
         <div className="card w-full max-w-md space-y-4">
           <div className="border-t border-gray-700 pt-3">
             <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>

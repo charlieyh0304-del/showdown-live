@@ -255,7 +255,11 @@ export type ScoreActionType =
   | 'substitution'      // 선수 교체
   | 'correction'        // 점수 수정 (관리자)
   | 'walkover'          // 부전승
-  | 'dead_ball';        // 데드볼 (재서브)
+  | 'dead_ball'         // 데드볼 (재서브)
+  | 'coin_toss'         // 동전던지기
+  | 'warmup_start'      // 워밍업 시작
+  | 'match_start'       // 경기 시작
+  | 'player_rotation';  // 선수 교체/로테이션
 
 export interface ScoreAction {
   type: ScoreActionType;
@@ -289,6 +293,7 @@ export interface ScoreHistoryEntry {
   serveNumber: number;       // 몇 번째 서브
   scoreBefore: { player1: number; player2: number };
   scoreAfter: { player1: number; player2: number };
+  serverSide?: 'player1' | 'player2';  // 서브권 가진 쪽 (player1/player2)
 }
 
 // ===== 경기 (개인전/팀전 통합) =====
@@ -340,6 +345,13 @@ export interface Match {
   team1ActivePlayerNames?: string[];
   team2ActivePlayerIds?: string[];
   team2ActivePlayerNames?: string[];
+  // 팀전 서브 순서 및 로테이션
+  team1PlayerOrder?: string[];        // 팀1 선수 출전 순서 (ID)
+  team2PlayerOrder?: string[];        // 팀2 선수 출전 순서 (ID)
+  team1CurrentPlayerIndex?: number;   // 팀1 현재 서브 선수 인덱스
+  team2CurrentPlayerIndex?: number;   // 팀2 현재 서브 선수 인덱스
+  coinTossWinner?: 'team1' | 'team2'; // 동전던지기 승자
+  coinTossChoice?: 'serve' | 'receive'; // 승자의 선택
   // 팀전 필드
   team1Id?: string;
   team2Id?: string;
