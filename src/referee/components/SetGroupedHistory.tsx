@@ -36,6 +36,15 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
     groups[setNum].push(h);
   });
 
+  // 각 그룹 내 시간순 정렬 (히스토리 원본 순서에 의존하지 않고 명확하게 정렬)
+  for (const setNum of Object.keys(groups)) {
+    groups[Number(setNum)].sort((a, b) => {
+      const sa = a.scoreAfter ? (a.scoreAfter.player1 + a.scoreAfter.player2) : 0;
+      const sb = b.scoreAfter ? (b.scoreAfter.player1 + b.scoreAfter.player2) : 0;
+      return sa - sb; // 총 점수 오름차순 = 시간순
+    });
+  }
+
   const setNums = Object.keys(groups).map(Number).sort((a, b) =>
     sortOrder === 'newest' ? b - a : a - b
   );
