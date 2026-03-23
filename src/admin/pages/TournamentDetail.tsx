@@ -19,7 +19,7 @@ import { simulateTournament } from '@shared/utils/simulation';
 import { buildGroupAssignment } from '@shared/utils/tournament';
 import { getSampleNames } from './AdminSettings';
 import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup, SetScore, ScoreHistoryEntry }  from '@shared/types';
-import NumberStepper from '../components/tournament-create/NumberStepper';
+
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -57,7 +57,7 @@ export default function TournamentDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>('players');
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState('');
-  const [simCount, setSimCount] = useState(8);
+  const [simCount, setSimCount] = useState<number | ''>('');
   const [simCountInitialized, setSimCountInitialized] = useState(false);
   const [simAutoBracket, setSimAutoBracket] = useState(true);
   const [simAutoReferee, setSimAutoReferee] = useState(true);
@@ -72,19 +72,9 @@ export default function TournamentDetail() {
   const { courts, addCourt } = useCourts();
   const { schedule, setScheduleBulk } = useSchedule(id ?? null);
 
-  // 대회 설정에서 기본 참가자 수 추론 (tournament 로드 후 1회)
+  // 대회 설정에서 기본 참가자 수 추론 (tournament 로드 후 1회) - 빈 값 유지, 힌트만 제공
   useEffect(() => {
     if (!tournament || simCountInitialized) return;
-    const stages = toArray(tournament.stages);
-    const qualifying = stages.find(s => s.type === 'qualifying');
-    if (qualifying?.groupCount && qualifying.groupCount > 1) {
-      setSimCount(qualifying.groupCount * 4);
-    } else {
-      const gc = tournament.qualifyingConfig?.groupCount;
-      if (gc && gc > 1) {
-        setSimCount(gc * 4);
-      }
-    }
     setSimCountInitialized(true);
   }, [tournament, simCountInitialized]);
 
@@ -115,9 +105,15 @@ export default function TournamentDetail() {
     const hasExistingReferees = referees.length > 0;
     const hasExistingTeams = isTeamType && teams.length > 0;
     // 팀전+기존팀: 팀 수가 곧 참가 단위. 선수 수는 시뮬레이션에 불필요.
+    const effectiveSimCount = typeof simCount === 'number' ? simCount : 0;
     const playerCount = hasExistingTeams
       ? teams.length
-      : (hasExistingPlayers ? tournamentPlayers.length : simCount);
+      : (hasExistingPlayers ? tournamentPlayers.length : effectiveSimCount);
+
+    if (!hasExistingTeams && !hasExistingPlayers && (!effectiveSimCount || effectiveSimCount < 2)) {
+      alert(isTeamType ? '참가 팀 수를 입력해주세요.' : '참가 인원을 입력해주세요.');
+      return;
+    }
 
     const msgParts = [
       `시뮬레이션을 실행합니다.\n`,
@@ -329,14 +325,22 @@ export default function TournamentDetail() {
           <h3 className="text-lg font-bold text-purple-400 mb-2">테스트 시뮬레이션</h3>
           <p className="text-gray-400 text-sm mb-4">가상 참가자, 경기 결과, 순위를 자동으로 생성합니다.</p>
           <div className="mb-4">
-            <NumberStepper
-              label="시뮬레이션 참가자 수"
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              {isTeamType ? '참가 팀 수' : '참가 인원'}
+            </label>
+            <input
+              type="number"
+              className="input w-full"
               value={simCount}
-              min={4}
+              min={2}
               max={64}
-              onChange={setSimCount}
-              ariaLabel="시뮬레이션 참가자 수"
+              placeholder={isTeamType ? '팀 수 입력' : '인원 수 입력'}
+              onChange={e => setSimCount(e.target.value === '' ? '' : Number(e.target.value))}
+              aria-label={isTeamType ? '참가 팀 수' : '참가 인원'}
             />
+            {isTeamType && (
+              <p className="text-xs text-gray-500 mt-1">등록된 팀이 있으면 해당 팀으로 시뮬레이션됩니다.</p>
+            )}
           </div>
           <div className="space-y-3 mb-4">
             <label className="flex items-start gap-3 cursor-pointer">
@@ -634,6 +638,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
     };
     await setTeamsBulk([...teams, newTeam]);
     setShowAddTeamModal(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [teams, newTeamName, newTeamMembers, addTournamentPlayer, setTeamsBulk]);
 
   const handleDeleteTeam = useCallback(async (teamId: string) => {
