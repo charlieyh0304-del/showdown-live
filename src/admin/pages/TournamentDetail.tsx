@@ -1400,6 +1400,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   const [editPlayer1, setEditPlayer1] = useState('');
   const [editPlayer2, setEditPlayer2] = useState('');
 
+  const isManualMode = tournament.formatType === 'manual';
+
   // Load saved group assignments from tournament stages
   useEffect(() => {
     const stages = toArray(tournament.stages);
@@ -1706,14 +1708,16 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-xl font-bold">대진표</h2>
         <div className="flex gap-2 flex-wrap">
-          <button
-            className="btn btn-accent"
-            onClick={generateBracket}
-            disabled={generating || !canGenerate}
-            aria-label="대진표 자동 생성"
-          >
-            {generating ? '생성 중...' : (groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0) ? '조별 라운드로빈 대진 생성' : '대진표 자동 생성')}
-          </button>
+          {!isManualMode && (
+            <button
+              className="btn btn-accent"
+              onClick={generateBracket}
+              disabled={generating || !canGenerate}
+              aria-label="대진표 자동 생성"
+            >
+              {generating ? '생성 중...' : (groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0) ? '조별 라운드로빈 대진 생성' : '대진표 자동 생성')}
+            </button>
+          )}
           <button
             className="btn btn-success"
             onClick={() => setShowAddForm(v => !v)}
@@ -1770,9 +1774,13 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
         <div className="card space-y-4 mb-4">
           <h3 className="text-lg font-bold text-yellow-400">조 편성</h3>
-          <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment} aria-label="자동 편성 (Snake Draft)">
-            자동 편성 (Snake Draft)
-          </button>
+          {isManualMode ? (
+            <p className="text-gray-400 text-sm">각 선수를 원하는 조로 직접 배정하세요. 드롭다운에서 조를 선택하여 이동합니다.</p>
+          ) : (
+            <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment} aria-label="자동 편성 (Snake Draft)">
+              자동 편성 (Snake Draft)
+            </button>
+          )}
 
           {/* 편성 결과 표시 */}
           {groupAssignment.length > 0 && (() => {
@@ -2192,15 +2200,20 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           <div className="card space-y-4 border-yellow-600">
             <h3 className="text-lg font-bold text-yellow-400">본선 대진 편성</h3>
 
-            {/* Preset buttons */}
-            <div className="flex gap-2 flex-wrap">
-              <button className="btn btn-primary" onClick={() => applyArrangement('cross')} aria-label="교차 편성">
-                교차 편성
-              </button>
-              <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label="순차 편성">
-                순차 편성
-              </button>
-            </div>
+            {/* Preset buttons (자동 모드만) */}
+            {!isManualMode && (
+              <div className="flex gap-2 flex-wrap">
+                <button className="btn btn-primary" onClick={() => applyArrangement('cross')} aria-label="교차 편성">
+                  교차 편성
+                </button>
+                <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label="순차 편성">
+                  순차 편성
+                </button>
+              </div>
+            )}
+            {isManualMode && (
+              <p className="text-gray-400 text-sm">각 경기에서 조와 순위를 직접 선택하여 수동으로 대진을 편성하세요.</p>
+            )}
 
             {/* Manual arrangement: group+rank selectors per match */}
             <div className="space-y-2">
@@ -2322,6 +2335,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {matches.length === 0 ? (
         <div className="card text-center py-8">
           <p className="text-gray-400">생성된 대진표가 없습니다.</p>
+          {isManualMode && (
+            <p className="text-yellow-400 text-sm mt-2">상단 "경기 추가" 버튼으로 경기를 하나씩 등록하세요.</p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
