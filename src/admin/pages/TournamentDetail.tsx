@@ -1464,7 +1464,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     const playerIds = tournamentPlayers.map(p => p.id);
     const seedIds = toArray(tournament.seeds).map(s => s.playerId || s.teamId).filter(Boolean) as string[];
 
-    const groups = buildGroupAssignment(playerIds, groupCount, seedIds);
+    const groups = buildGroupAssignment(playerIds, groupCount, seedIds, isManualMode);
     const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
     if (qualifyingStage) {
       groups.forEach(g => { g.stageId = qualifyingStage.id; });
@@ -1797,7 +1797,12 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         <div className="card space-y-4 mb-4">
           <h3 className="text-lg font-bold text-yellow-400">조 편성</h3>
           {isManualMode ? (
-            <p className="text-gray-400 text-sm">각 선수를 원하는 조로 직접 배정하세요. 드롭다운에서 조를 선택하여 이동합니다.</p>
+            <div className="space-y-2">
+              <button className="btn btn-primary w-full" onClick={handleAutoGroupAssignment} aria-label="시드 배치 (시드만 해당 조에 배치)">
+                시드 배치 (시드 A→A조, B→B조)
+              </button>
+              <p className="text-gray-400 text-sm">시드 선수만 해당 조에 배치됩니다. 나머지 선수는 아래에서 직접 배정하세요.</p>
+            </div>
           ) : (
             <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment} aria-label="자동 편성 (Snake Draft)">
               자동 편성 (Snake Draft)

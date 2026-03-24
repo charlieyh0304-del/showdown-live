@@ -84,6 +84,7 @@ export function buildGroupAssignment(
   participantIds: string[],
   groupCount: number,
   seeds?: string[],
+  manualOnly?: boolean,
 ): StageGroup[] {
   const groups: StageGroup[] = [];
   for (let i = 0; i < groupCount; i++) {
@@ -105,13 +106,15 @@ export function buildGroupAssignment(
     }
   }
 
-  // 나머지 선수: Snake draft로 조에 분배
-  const remaining = participantIds.filter(id => !seedSet.has(id));
-  for (let i = 0; i < remaining.length; i++) {
-    const round = Math.floor(i / groupCount);
-    const pos = i % groupCount;
-    const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
-    groups[groupIndex].playerIds.push(remaining[i]);
+  // 나머지 선수: manualOnly가 아니면 Snake draft로 자동 분배
+  if (!manualOnly) {
+    const remaining = participantIds.filter(id => !seedSet.has(id));
+    for (let i = 0; i < remaining.length; i++) {
+      const round = Math.floor(i / groupCount);
+      const pos = i % groupCount;
+      const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
+      groups[groupIndex].playerIds.push(remaining[i]);
+    }
   }
 
   return groups;
