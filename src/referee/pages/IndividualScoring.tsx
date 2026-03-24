@@ -667,10 +667,18 @@ export default function IndividualScoring() {
   const handleTimeout = useCallback(async (player: 1 | 2, timeoutType: 'player' | 'medical' | 'referee') => {
     if (!match || match.status !== 'in_progress') return;
 
-    // Player timeout: limited to 1 per set per player
+    // Player timeout: limited to 1 per match per player
     if (timeoutType === 'player') {
       const usedTimeouts = player === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
       if (usedTimeouts >= 1) return;
+    }
+    // Medical timeout: limited to 1 per match per player
+    if (timeoutType === 'medical') {
+      const playerName = player === 1 ? (match.player1Name ?? '선수1') : (match.player2Name ?? '선수2');
+      const medicalUsed = (match.scoreHistory || []).filter(h =>
+        h.actionType === 'timeout_medical' && h.actionPlayer === playerName
+      ).length;
+      if (medicalUsed >= 1) return;
     }
 
     const playerId = player === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
@@ -1166,13 +1174,20 @@ export default function IndividualScoring() {
                         </span>
                       </button>
                       {/* 메디컬 타임아웃 */}
-                      <button
-                        className="w-full text-left px-4 py-3 hover:bg-green-900/50 text-sm border-b border-gray-700"
-                        onClick={() => handleTimeout(playerNum, 'medical')}
-                      >
-                        <span className="text-green-300 font-semibold">메디컬 타임아웃 (5분)</span>
-                        <span className="block text-xs text-gray-400 mt-0.5">무제한</span>
-                      </button>
+                      {(() => {
+                        const pName = playerNum === 1 ? (match.player1Name ?? '선수1') : (match.player2Name ?? '선수2');
+                        const medUsed = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === pName).length;
+                        return (
+                          <button
+                            className="w-full text-left px-4 py-3 hover:bg-green-900/50 text-sm border-b border-gray-700"
+                            onClick={() => handleTimeout(playerNum, 'medical')}
+                            disabled={medUsed >= 1}
+                          >
+                            <span className="text-green-300 font-semibold">메디컬 타임아웃 (5분)</span>
+                            <span className="block text-xs text-gray-400 mt-0.5">{medUsed >= 1 ? '이미 사용함' : `남은 횟수: 1회`}</span>
+                          </button>
+                        );
+                      })()}
                       {/* 레프리 타임아웃 */}
                       <button
                         className="w-full text-left px-4 py-3 hover:bg-yellow-900/50 text-sm"

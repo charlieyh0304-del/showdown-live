@@ -494,10 +494,16 @@ export default function PracticeScoring() {
 
   const handleTimeout = useCallback((player: 1 | 2, type: 'player' | 'medical' | 'referee' = 'player') => {
     if (match.status !== 'in_progress') return;
-    // player timeout: 1회 제한, medical/referee: 제한 없음
+    // player timeout: 1회 제한
     if (type === 'player') {
       const used = player === 1 ? match.player1Timeouts : match.player2Timeouts;
       if (used >= 1) return;
+    }
+    // medical timeout: 1회 제한
+    if (type === 'medical') {
+      const pName = player === 1 ? p1Name : p2Name;
+      const medUsed = match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === pName).length;
+      if (medUsed >= 1) return;
     }
     const actionType = type === 'player' ? 'timeout_player' : type === 'medical' ? 'timeout_medical' : 'timeout_referee';
     const actionLabel = type === 'player' ? '선수 타임아웃' : type === 'medical' ? '메디컬 타임아웃' : '레프리 타임아웃';
@@ -1084,27 +1090,33 @@ export default function PracticeScoring() {
               <span className="block text-xs opacity-75">1분 | 남은: {1 - match.player2Timeouts}</span>
             </button>
           </div>
-          {/* 메디컬 타임아웃 (5분) */}
-          <div className="flex gap-2">
-            <button
-              className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
-              onClick={() => handleTimeout(1, 'medical')}
-              disabled={!!match.activeTimeout}
-              aria-label={`${p1Name} 메디컬 타임아웃 (5분)`}
-            >
-              🏥 {p1Name} 메디컬
-              <span className="block text-xs opacity-75">5분</span>
-            </button>
-            <button
-              className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
-              onClick={() => handleTimeout(2, 'medical')}
-              disabled={!!match.activeTimeout}
-              aria-label={`${p2Name} 메디컬 타임아웃 (5분)`}
-            >
-              🏥 {p2Name} 메디컬
-              <span className="block text-xs opacity-75">5분</span>
-            </button>
-          </div>
+          {/* 메디컬 타임아웃 (5분, 1회) */}
+          {(() => {
+            const med1 = match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p1Name).length;
+            const med2 = match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p2Name).length;
+            return (
+              <div className="flex gap-2">
+                <button
+                  className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
+                  onClick={() => handleTimeout(1, 'medical')}
+                  disabled={!!match.activeTimeout || med1 >= 1}
+                  aria-label={`${p1Name} 메디컬 타임아웃 (5분)`}
+                >
+                  🏥 {p1Name} 메디컬
+                  <span className="block text-xs opacity-75">{med1 >= 1 ? '사용완료' : '5분 | 1회'}</span>
+                </button>
+                <button
+                  className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
+                  onClick={() => handleTimeout(2, 'medical')}
+                  disabled={!!match.activeTimeout || med2 >= 1}
+                  aria-label={`${p2Name} 메디컬 타임아웃 (5분)`}
+                >
+                  🏥 {p2Name} 메디컬
+                  <span className="block text-xs opacity-75">{med2 >= 1 ? '사용완료' : '5분 | 1회'}</span>
+                </button>
+              </div>
+            );
+          })()}
           {/* 레프리 타임아웃 (제한없음) */}
           <button
             className="btn bg-yellow-800 hover:bg-yellow-700 text-white py-2 text-sm w-full"
