@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, enableLogging } from 'firebase/database';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 // Firebase 설정 - 실제 프로젝트에서는 환경변수 사용 권장
 const firebaseConfig = {
@@ -14,6 +15,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const database = getDatabase(app);
+export const auth = getAuth(app);
+
+// 익명 인증 - 앱 시작 시 자동 로그인 (DB 쓰기 권한 확보)
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    signInAnonymously(auth).catch(() => {
+      // 오프라인 등 실패 시 무시 - 재연결 시 자동 재시도
+    });
+  }
+});
 
 // Firebase Realtime Database has built-in offline caching.
 // Data is automatically cached locally and synced when reconnected.

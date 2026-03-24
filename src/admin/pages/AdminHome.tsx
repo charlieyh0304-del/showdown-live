@@ -70,7 +70,7 @@ export default function AdminHome() {
       {tournaments.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-xl text-gray-400">등록된 대회가 없습니다.</p>
-          <p className="text-gray-500 mt-2">새 대회를 만들어 시작하세요.</p>
+          <p className="text-gray-400 mt-2">새 대회를 만들어 시작하세요.</p>
         </div>
       ) : (
         <div className="space-y-4" aria-label="대회 목록">

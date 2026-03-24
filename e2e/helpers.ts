@@ -1,16 +1,35 @@
 import { type Page } from '@playwright/test';
 
+/** Admin PIN for E2E tests (set via ADMIN_PIN env var, default '0000') */
+const ADMIN_PIN = process.env.ADMIN_PIN || '0000';
+
 /**
  * Navigate to the admin dashboard.
- * Waits for the page heading to confirm navigation succeeded.
+ * Handles PIN login if required.
  */
 export async function navigateToAdmin(page: Page) {
   await page.goto('/admin');
-  await waitForLoading(page);
-  // Admin home shows either the dashboard heading or the tournament list
-  await page.waitForSelector('h1, [aria-label="대회 목록"], text=대시보드', {
-    timeout: 10000,
-  });
+
+  // Firebase takes time - wait longer for initial load
+  await page.waitForTimeout(3000);
+
+  // Check if login is required
+  const loginHeading = page.locator('h1', { hasText: '관리자 로그인' });
+  const pinSetupHeading = page.locator('h1', { hasText: '관리자 PIN 설정' });
+  const dashboard = page.locator('h1', { hasText: '대시보드' });
+
+  // Wait for one of: login, pin setup, or dashboard
+  await loginHeading.or(pinSetupHeading).or(dashboard).waitFor({ timeout: 15000 });
+
+  if (await loginHeading.isVisible()) {
+    // Enter PIN and login
+    const pinInput = page.locator('[aria-label="관리자 PIN 입력"]');
+    await pinInput.fill(ADMIN_PIN);
+    await page.locator('button', { hasText: '로그인' }).click();
+    // Wait for dashboard to appear after login
+    await page.waitForTimeout(3000);
+    await waitForLoading(page);
+  }
 }
 
 /**
@@ -35,14 +54,9 @@ export async function navigateToSpectator(page: Page) {
 
 /**
  * Wait for all loading indicators to disappear.
- * Checks for common loading patterns used in the app:
- * - LoadingSpinner component (role="status" with animate-pulse)
- * - Inline loading text with animate-pulse class
- * - Any element with "로딩 중" text
  */
 export async function waitForLoading(page: Page) {
-  // Wait a tick for React to start rendering
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
 
   // Wait for animate-pulse loading indicators to disappear
   await page.waitForFunction(
@@ -52,13 +66,12 @@ export async function waitForLoading(page: Page) {
     },
     { timeout: 15000 },
   ).catch(() => {
-    // Loading indicators may not appear at all if data loads quickly; that's fine
+    // Loading indicators may not appear at all if data loads quickly
   });
 }
 
 /**
  * Collect console errors that occur during a callback.
- * Returns an array of error message strings.
  */
 export async function collectConsoleErrors(
   page: Page,

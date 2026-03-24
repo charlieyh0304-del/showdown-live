@@ -11,7 +11,8 @@ export type BracketFormatType =
   | 'single_elimination'
   | 'double_elimination'
   | 'swiss'
-  | 'group_knockout';
+  | 'group_knockout'
+  | 'manual';
 
 // ===== 커스텀 스코어링 규칙 =====
 export interface ScoringRules {
@@ -43,7 +44,20 @@ export interface TeamRules {
 
 // ===== 브라켓 라운드 =====
 export type BracketRound = '128강' | '64강' | '32강' | '16강' | '8강' | '4강' | '결승';
-export type BracketSeedingMethod = 'group_cross' | 'seed_order' | 'random';
+export type BracketSeedingMethod = 'group_cross' | 'seed_order' | 'custom' | 'manual';
+
+// ===== 라운드별 스코어링 오버라이드 =====
+export interface RoundScoringOverride {
+  fromRound: number;           // 4=4강, 2=결승 (숫자 기반, Firebase 안전)
+  scoringRules: ScoringRules;
+}
+
+// ===== 커스텀 대진 배정 =====
+export interface BracketPairing {
+  position: number;            // 대진표 위치 (1~N)
+  slot1: string;               // 'A1' (A조 1위)
+  slot2: string;               // 'B2' (B조 2위)
+}
 
 // ===== 스테이지 유형 =====
 export type StageType = 'qualifying' | 'finals' | 'ranking_match';
@@ -82,9 +96,11 @@ export interface FinalsStageConfig {
   format: 'single_elimination' | 'double_elimination';
   advanceCount: number;
   startingRound: number;
-  seedMethod: 'ranking' | 'manual' | 'random';
+  seedMethod: 'ranking' | 'manual' | 'custom';
   scoringRules?: ScoringRules;
   matchRules?: MatchRules;
+  roundScoringOverride?: RoundScoringOverride;
+  customBracketPairings?: BracketPairing[];
 }
 
 // ===== 순위결정전 설정 =====
@@ -134,6 +150,7 @@ export interface BracketConfig {
   seedingMethod: BracketSeedingMethod;
   hasThirdPlaceMatch?: boolean;
   hasFifthPlaceMatch?: boolean;
+  customBracketPairings?: BracketPairing[];
 }
 
 // ===== 스테이지 진출 설정 =====
@@ -259,7 +276,8 @@ export type ScoreActionType =
   | 'coin_toss'         // 동전던지기
   | 'warmup_start'      // 워밍업 시작
   | 'match_start'       // 경기 시작
-  | 'player_rotation';  // 선수 교체/로테이션
+  | 'player_rotation'   // 선수 교체/로테이션
+  | 'side_change';      // 사이드 체인지
 
 export interface ScoreAction {
   type: ScoreActionType;
@@ -525,6 +543,19 @@ export interface PracticeMatch {
   actionLog: PracticeAction[];
   startedAt: number;
   completedAt?: number;
+  // Team-specific fields (for team practice)
+  team1Name?: string;
+  team2Name?: string;
+  team1Members?: string[];       // team1 member names
+  team2Members?: string[];       // team2 member names
+  team1PlayerOrder?: string[];   // serve rotation order
+  team2PlayerOrder?: string[];
+  team1CurrentPlayerIndex?: number;
+  team2CurrentPlayerIndex?: number;
+  team1SubUsed?: boolean;
+  team2SubUsed?: boolean;
+  coinTossWinner?: 'team1' | 'team2';
+  coinTossChoice?: 'serve' | 'receive';
 }
 
 export interface PracticeAction {

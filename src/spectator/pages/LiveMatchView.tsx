@@ -15,6 +15,17 @@ export default function LiveMatchView() {
 
   const loading = mLoading || tLoading;
 
+  // Set document title for screen readers
+  useEffect(() => {
+    if (match) {
+      const p1 = match.type === 'team' ? (match.team1Name || '팀1') : (match.player1Name || '선수1');
+      const p2 = match.type === 'team' ? (match.team2Name || '팀2') : (match.player2Name || '선수2');
+      document.title = `${p1} vs ${p2} - 경기 관람`;
+    } else {
+      document.title = '경기 관람 - 쇼다운';
+    }
+  }, [match]);
+
   // 점수 변경 감지 → 음성 안내
   useEffect(() => {
     if (!match || !Array.isArray(match.sets) || match.sets.length === 0) return;
@@ -33,7 +44,7 @@ export default function LiveMatchView() {
   }, [match]);
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '3rem 1rem' }}><p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p></div>;
+    return <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite"><p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p></div>;
   }
 
   if (!match) {
@@ -58,19 +69,19 @@ export default function LiveMatchView() {
       </button>
 
       {/* 상태 표시 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }} role="status" aria-live="polite">
         {isLive && (
           <>
             <span className="animate-pulse" style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#ef4444' }} aria-hidden="true" />
-            <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '1.25rem' }}>실시간 진행중</span>
+            <h1 style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '1.25rem', margin: 0 }}>실시간 진행중</h1>
           </>
         )}
-        {isCompleted && <span style={{ color: '#16a34a', fontWeight: 'bold', fontSize: '1.25rem' }}>● 경기 완료</span>}
-        {match.status === 'pending' && <span style={{ color: '#9ca3af', fontWeight: 'bold', fontSize: '1.25rem' }}>대기중</span>}
-        {match.isPaused && <span style={{ color: '#f59e0b', fontWeight: 'bold', marginLeft: '0.5rem' }}>⏸ 일시정지 중</span>}
+        {isCompleted && <h1 style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '1.25rem', margin: 0 }}><span aria-hidden="true">{'● '}</span>경기 완료</h1>}
+        {match.status === 'pending' && <h1 style={{ color: '#d1d5db', fontWeight: 'bold', fontSize: '1.25rem', margin: 0 }}>대기중</h1>}
+        {match.isPaused && <span style={{ color: '#fbbf24', fontWeight: 'bold', marginLeft: '0.5rem' }}><span aria-hidden="true">{'⏸ '}</span>일시정지 중</span>}
       </div>
 
-      {tournament && <p style={{ color: '#6b7280', marginBottom: '1rem' }}>{tournament.name}</p>}
+      {tournament && <p style={{ color: '#d1d5db', marginBottom: '1rem' }}>{tournament.name}</p>}
 
       {match.type === 'individual' ? (
         <IndividualMatchDetail match={match} gameConfig={tournament?.gameConfig} />
@@ -84,7 +95,7 @@ export default function LiveMatchView() {
       )}
 
       {/* 경기장/심판 */}
-      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#9ca3af' }}>
+      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db' }}>
         {match.courtName && <span>경기장: {match.courtName}</span>}
         {match.refereeName && <span>심판: {match.refereeName}</span>}
       </div>
@@ -113,8 +124,8 @@ function ServeIndicator({ match }: { match: NonNullable<ReturnType<typeof useMat
     <div style={{
       backgroundColor: '#1e3a5f', padding: '0.75rem', borderRadius: '0.5rem',
       textAlign: 'center', marginTop: '1rem', fontSize: '1.1rem', color: '#93c5fd',
-    }}>
-      🎾 {serverName} 서브 {serveCount + 1}/{maxServes}회차
+    }} role="status" aria-live="polite">
+      <span aria-hidden="true">{'🎾 '}</span>{serverName} 서브 {serveCount + 1}/{maxServes}회차
     </div>
   );
 }
@@ -129,7 +140,7 @@ function ScoreHistorySection({
   onToggle: () => void;
 }) {
   // Known meta-event types that are meaningful even with 0 points
-  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover']);
+  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation']);
   // Keep scoring entries AND meaningful meta events, filter out only serve-start 0-point entries
   const meaningfulHistory = useMemo(() => {
     return history.filter(h => h.points > 0 || META_ACTION_TYPES.has(h.actionType));
@@ -143,10 +154,10 @@ function ScoreHistorySection({
   if (meaningfulHistory.length === 0) {
     return (
       <div className="card" style={{ marginTop: '1.5rem', padding: '1rem' }}>
-        <p style={{ color: '#9ca3af', textAlign: 'center' }}>상세 경기 기록이 없습니다.</p>
+        <p style={{ color: '#d1d5db', textAlign: 'center' }}>상세 경기 기록이 없습니다.</p>
         {Array.isArray(sets) && sets.length > 0 && (
           <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af' }}>세트 결과</h4>
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db' }}>세트 결과</h3>
             {sets.map((s, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem' }}>
                 <span>세트 {i + 1}</span>
@@ -162,15 +173,16 @@ function ScoreHistorySection({
   return (
     <div className="card" style={{ marginTop: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', margin: 0 }}>
+        <h2 style={{ fontWeight: 'bold', color: 'var(--color-primary)', margin: 0 }}>
           경기 기록 ({meaningfulHistory.length})
-        </h3>
+        </h2>
         <button
           className="btn"
           onClick={onToggle}
           style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#374151' }}
+          aria-label={order === 'newest' ? '시간순으로 정렬 변경' : '최신순으로 정렬 변경'}
         >
-          {order === 'newest' ? '🔽 최신순' : '🔼 시간순'}
+          <span aria-hidden="true">{order === 'newest' ? '🔽 ' : '🔼 '}</span>{order === 'newest' ? '최신순' : '시간순'}
         </button>
       </div>
 
@@ -216,7 +228,7 @@ function HistoryBySet({ history, sets, order }: {
   if (history.length === 0) return null;
 
   return (
-    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+    <div style={{ maxHeight: '400px', overflowY: 'auto' }} role="region" aria-label="세트별 경기 기록" tabIndex={0}>
       {/* 시간순일 때 경기 시작 마커 */}
       {order === 'oldest' && (
         <div style={{
@@ -241,7 +253,7 @@ function HistoryBySet({ history, sets, order }: {
             </div>
             {entries.map((h, i) => {
               const isMeta = h.points === 0;
-              const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.points >= 2 ? '🔴' : '🟡';
+              const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.points >= 2 ? '🔴' : '🟡';
               const timeStr = parseTimeStr(h.time);
 
               if (isMeta) {
@@ -251,11 +263,17 @@ function HistoryBySet({ history, sets, order }: {
                   : h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})`
                   : h.actionType === 'substitution' ? (h.actionLabel || '선수 교체')
                   : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} 부전승`
+                  : h.actionType === 'coin_toss' ? (h.actionLabel || '동전던지기')
+                  : h.actionType === 'warmup_start' ? (h.actionLabel || '워밍업')
+                  : h.actionType === 'match_start' ? (h.actionLabel || '경기 시작')
+                  : h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체')
+                  : h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지')
                   : (h.actionLabel || '');
+                const hideScore = h.actionType === 'timeout' || h.actionType === 'side_change' || h.actionType === 'pause' || h.actionType === 'warmup_start' || h.actionType === 'coin_toss';
                 return (
-                  <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#6b7280', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
+                  <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
                     <div>{timeStr} {icon} {desc}</div>
-                    <div style={{ fontSize: '0.75rem' }}>점수: {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}</div>
+                    {!hideScore && <div style={{ fontSize: '0.75rem' }}>점수: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}</div>}
                   </div>
                 );
               }
@@ -272,8 +290,8 @@ function HistoryBySet({ history, sets, order }: {
               return (
                 <div key={`${setNum}-${i}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem' }}>
                   {/* Line 1: 서브권 */}
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    🎾 {h.server || '?'} 서브 {h.serveNumber ? `${h.serveNumber}회차` : ''} {timeStr && `· ${timeStr}`}
+                  <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
+                    <span aria-hidden="true">🎾</span> {h.server || '?'} 서브 {h.serveNumber ? `${h.serveNumber}회차` : ''} {timeStr && `· ${timeStr}`}
                   </div>
                   {/* Line 2: 득점 기록 */}
                   <div style={{ color: actionColor, fontWeight: 'bold' }}>
@@ -281,7 +299,7 @@ function HistoryBySet({ history, sets, order }: {
                   </div>
                   {/* Line 3: 점수 */}
                   <div style={{ fontSize: '0.8125rem', color: '#d1d5db' }}>
-                    점수: {h.scoreAfter?.player1 ?? 0} : {h.scoreAfter?.player2 ?? 0}
+                    점수: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}
                   </div>
                 </div>
               );
@@ -326,11 +344,11 @@ function IndividualMatchDetail({
       </div>
 
       {/* 현재 세트 점수 */}
-      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }}>
-        <p style={{ color: '#9ca3af', marginBottom: '0.5rem', fontSize: '1rem' }}>제{currentSet}세트</p>
-        <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }} aria-live="polite" aria-atomic="true">
+        <p style={{ color: '#d1d5db', marginBottom: '0.5rem', fontSize: '1rem' }}>제{currentSet}세트</p>
+        <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }} aria-label={`${match.player1Name || '선수1'} ${currentSetData?.player1Score ?? 0}점 대 ${match.player2Name || '선수2'} ${currentSetData?.player2Score ?? 0}점`}>
           <span style={{ color: 'var(--color-primary)' }}>{currentSetData?.player1Score ?? 0}</span>
-          <span style={{ color: '#6b7280', fontSize: '3rem' }}>-</span>
+          <span style={{ color: '#9ca3af', fontSize: '3rem' }} aria-hidden="true">-</span>
           <span style={{ color: 'var(--color-secondary)' }}>{currentSetData?.player2Score ?? 0}</span>
         </div>
         <p style={{ color: '#d1d5db', marginTop: '0.5rem', fontSize: '1.25rem' }}>세트 {setWins.player1} - {setWins.player2}</p>
@@ -339,14 +357,14 @@ function IndividualMatchDetail({
       {/* 세트 기록 */}
       {sets.length > 0 && (
         <div className="card" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>세트 기록</h3>
+          <h2 style={{ fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: '0.75rem' }}>세트 기록</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <caption className="sr-only">세트별 점수 기록</caption>
             <thead>
               <tr>
-                <th style={thStyle}>세트</th>
-                <th style={thStyle}>{match.player1Name || '선수1'}</th>
-                <th style={thStyle}>{match.player2Name || '선수2'}</th>
+                <th scope="col" style={thStyle}>세트</th>
+                <th scope="col" style={thStyle}>{match.player1Name || '선수1'}</th>
+                <th scope="col" style={thStyle}>{match.player2Name || '선수2'}</th>
               </tr>
             </thead>
             <tbody>
@@ -390,11 +408,11 @@ function TeamMatchDetail({ match }: { match: NonNullable<ReturnType<typeof useMa
         </span>
       </div>
 
-      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }}>
-        <p style={{ color: '#9ca3af', marginBottom: '0.5rem' }}>31점 경기</p>
-        <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }} aria-live="polite" aria-atomic="true">
+        <p style={{ color: '#d1d5db', marginBottom: '0.5rem' }}>31점 경기</p>
+        <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }} aria-label={`${match.team1Name || '팀1'} ${team1Score}점 대 ${match.team2Name || '팀2'} ${team2Score}점`}>
           <span style={{ color: 'var(--color-primary)' }}>{team1Score}</span>
-          <span style={{ color: '#6b7280', fontSize: '3rem' }}>-</span>
+          <span style={{ color: '#9ca3af', fontSize: '3rem' }} aria-hidden="true">-</span>
           <span style={{ color: 'var(--color-secondary)' }}>{team2Score}</span>
         </div>
       </div>

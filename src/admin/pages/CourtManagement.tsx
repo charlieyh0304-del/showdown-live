@@ -170,12 +170,9 @@ export default function CourtManagement() {
           className="modal-backdrop"
           onClick={closeModal}
           onKeyDown={handleKeyDown}
-          role="dialog"
-          aria-modal="true"
-          aria-label={modalMode === 'add' ? '경기장 추가' : '경기장 수정'}
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-yellow-400 mb-4">
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="court-modal-title">
+            <h2 id="court-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
               {modalMode === 'add' ? '경기장 추가' : '경기장 수정'}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
@@ -245,12 +242,9 @@ export default function CourtManagement() {
           className="modal-backdrop"
           onClick={() => setDeleteTarget(null)}
           onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="경기장 삭제 확인"
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-red-500 mb-4">경기장 삭제</h2>
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="court-delete-title">
+            <h2 id="court-delete-title" className="text-2xl font-bold text-red-500 mb-4">경기장 삭제</h2>
             <p className="text-lg mb-6">{deleteTarget.name} 경기장을 삭제하시겠습니까?</p>
             <div className="flex gap-4">
               <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label="삭제 확인">

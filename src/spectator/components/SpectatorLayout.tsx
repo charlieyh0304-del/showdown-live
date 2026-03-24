@@ -11,19 +11,11 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      {/* Skip navigation */}
-      <a
-        href="#main-content"
-        className="sr-only"
-        style={{ position: 'absolute', left: '-9999px' }}
-        onFocus={(e) => { e.currentTarget.style.position = 'static'; e.currentTarget.style.left = 'auto'; }}
-        onBlur={(e) => { e.currentTarget.style.position = 'absolute'; e.currentTarget.style.left = '-9999px'; }}
-      >
-        본문으로 건너뛰기
-      </a>
+      {/* Skip navigation - handled by global skip-link in App.tsx */}
 
       {/* Header */}
       <header
+        aria-label="쇼다운 관람"
         style={{
           backgroundColor: '#111827',
           borderBottom: '2px solid #374151',
@@ -46,7 +38,8 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
         >
           ← 관람 홈
         </button>
-        <h1
+        <span
+          aria-hidden="true"
           style={{
             fontSize: '1.5rem',
             fontWeight: 'bold',
@@ -54,7 +47,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           }}
         >
           쇼다운 관람
-        </h1>
+        </span>
         <div style={{ width: '60px' }} aria-hidden="true" />
       </header>
 

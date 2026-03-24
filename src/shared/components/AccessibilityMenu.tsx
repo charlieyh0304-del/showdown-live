@@ -1,10 +1,42 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAccessibility, type ColorMode } from '../hooks/useAccessibility';
 
 export default function AccessibilityMenu() {
   const [open, setOpen] = useState(false);
   const { settings, setColorMode, setFontSize } = useAccessibility();
   const [announcement, setAnnouncement] = useState('');
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Escape key closes menu; focus trap inside panel
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    // Focus first button in panel
+    const timer = setTimeout(() => {
+      const firstBtn = panelRef.current?.querySelector<HTMLElement>('button');
+      firstBtn?.focus();
+    }, 0);
+    return () => { document.removeEventListener('keydown', handleKeyDown); clearTimeout(timer); };
+  }, [open]);
 
   const handleColorMode = (mode: ColorMode) => {
     setColorMode(mode);
@@ -23,6 +55,7 @@ export default function AccessibilityMenu() {
       <div aria-live="assertive" className="sr-only">{announcement}</div>
       <div className="fixed bottom-4 right-4 z-50">
         <button
+          ref={triggerRef}
           onClick={() => setOpen(!open)}
           className="w-14 h-14 rounded-full bg-yellow-500 text-black font-bold text-2xl shadow-lg hover:bg-yellow-400 focus:outline-none focus:ring-4 focus:ring-yellow-300"
           aria-label="접근성 설정 열기"
@@ -33,8 +66,10 @@ export default function AccessibilityMenu() {
 
         {open && (
           <div
+            ref={panelRef}
             className="absolute bottom-16 right-0 w-72 bg-gray-900 border-2 border-yellow-400 rounded-xl shadow-2xl p-4 space-y-4"
             role="dialog"
+            aria-modal="true"
             aria-label="접근성 설정"
           >
             <h3 className="text-lg font-bold text-yellow-400">접근성 설정</h3>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
@@ -9,6 +9,10 @@ export default function FavoritesView() {
   const { tournaments } = useTournaments();
   const navigate = useNavigate();
   const [notifPermission, setNotifPermission] = useState(() => getNotificationPermissionStatus());
+
+  useEffect(() => {
+    document.title = '즐겨찾기 - 쇼다운 관람';
+  }, []);
 
   // Find active tournaments to search for live matches
   const activeTournamentIds = useMemo(
@@ -29,7 +33,7 @@ export default function FavoritesView() {
 
   if (pLoading) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
         <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
       </div>
     );
@@ -37,16 +41,16 @@ export default function FavoritesView() {
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
         즐겨찾기
-      </h2>
+      </h1>
 
       {favoritePlayers.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-          <p style={{ fontSize: '1.25rem', color: '#9ca3af', marginBottom: '1rem' }}>
+          <p style={{ fontSize: '1.25rem', color: '#d1d5db', marginBottom: '1rem' }} role="status">
             즐겨찾기한 선수가 없습니다
           </p>
-          <p style={{ color: '#6b7280' }}>
+          <p style={{ color: '#d1d5db' }}>
             대회 관람 중 선수 이름 옆 ☆ 버튼을 눌러 추가하세요
           </p>
         </div>
@@ -68,11 +72,11 @@ export default function FavoritesView() {
 
           {/* Notification settings section */}
           <div className="card" style={{ marginTop: '1.5rem', border: '1px solid #374151' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
               알림 설정
-            </h3>
+            </h2>
             {notifPermission === 'unsupported' ? (
-              <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+              <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
                 이 브라우저는 알림을 지원하지 않습니다.
               </p>
             ) : notifPermission === 'granted' ? (
@@ -82,7 +86,7 @@ export default function FavoritesView() {
                   <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
                     알림이 활성화되어 있습니다
                   </p>
-                  <p style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  <p style={{ color: '#d1d5db', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                     즐겨찾기 선수의 경기 10분 전, 경기 결과를 알려드립니다.
                   </p>
                 </div>
@@ -95,14 +99,14 @@ export default function FavoritesView() {
                     알림이 차단되어 있습니다
                   </p>
                 </div>
-                <p style={{ color: '#6b7280', fontSize: '0.75rem' }}>
+                <p style={{ color: '#d1d5db', fontSize: '0.75rem' }}>
                   브라우저 설정에서 이 사이트의 알림 권한을 허용해주세요.
                   주소창 왼쪽의 자물쇠 아이콘 &gt; 알림 &gt; 허용
                 </p>
               </div>
             ) : (
               <div>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: '#d1d5db', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
                   알림을 활성화하면 즐겨찾기 선수의 경기 10분 전 알림과 경기 결과를 받을 수 있습니다.
                 </p>
                 <button
@@ -172,7 +176,7 @@ function FavoritePlayerCard({
             <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerName}</span>
           </div>
           {playerClub && (
-            <p style={{ color: '#9ca3af', marginTop: '0.25rem' }}>{playerClub}</p>
+            <p style={{ color: '#d1d5db', marginTop: '0.25rem' }}>{playerClub}</p>
           )}
         </div>
         <button

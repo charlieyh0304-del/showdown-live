@@ -25,7 +25,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
   if (history.length === 0) return null;
 
   // Known meta-event types that are meaningful even with 0 points
-  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation']);
+  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation', 'side_change']);
 
   const groups: Record<number, ScoreHistoryEntry[]> = {};
   history.forEach(h => {
@@ -57,6 +57,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
         className="text-xs text-blue-400 underline"
         onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
         aria-label={sortOrder === 'newest' ? '오래된순으로 정렬 변경' : '최신순으로 정렬 변경'}
+        style={{ minHeight: '44px', minWidth: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
       >
         {sortOrder === 'newest' ? '최신순 ↓' : '오래된순 ↑'}
       </button>
@@ -68,12 +69,12 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
 
         return (
           <div key={setNum}>
-            <h4 className="text-sm font-bold text-blue-400 border-b border-blue-400/30 pb-1 mb-2">
+            <h4 className="text-sm font-bold text-blue-400 border-b border-blue-400/30 pb-1 mb-2" aria-label={`세트 ${setNum} ${setScore ? `스코어 ${setScore.player1Score} 대 ${setScore.player2Score}` : ''}`}>
               세트 {setNum} {setScore ? `(${setScore.player1Score}:${setScore.player2Score})` : ''}
             </h4>
-            <div className="space-y-1">
+            <div className="space-y-2">
               {entries.map((h, i) => {
-                const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.points >= 2 ? '🔴' : '🟡';
+                const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.points >= 2 ? '🔴' : '🟡';
 
                 // h.time is stored as locale string (e.g. "오후 8:19:26") - use directly, don't re-parse
                 const timeStr = (() => {
@@ -101,11 +102,16 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     h.actionType === 'warmup_start' ? (h.actionLabel || '워밍업') :
                     h.actionType === 'match_start' ? (h.actionLabel || '경기 시작') :
                     h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체') :
+                    h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지') :
                     (h.actionLabel || '');
+                  // 타임아웃, 사이드 체인지 등은 점수 표시 없음
+                  const hideScore = h.actionType === 'timeout' || h.actionType === 'side_change' || h.actionType === 'pause' || h.actionType === 'warmup_start' || h.actionType === 'coin_toss';
                   return (
-                    <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-500 bg-gray-800/50 rounded px-3 py-1.5 flex justify-between">
-                      <span>{timeStr} {icon} {desc}</span>
-                      <span>{(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })()}</span>
+                    <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="break-words">{timeStr} {icon} {desc}</span>
+                        {!hideScore && <span className="whitespace-nowrap">{(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })()}</span>}
+                      </div>
                     </div>
                   );
                 }
@@ -123,8 +129,8 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 }
 
                 return (
-                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-1.5">
-                    <div className="flex justify-between items-center text-gray-500 mb-0.5" style={{ fontSize: '0.6875rem' }}>
+                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2">
+                    <div className="flex justify-between items-center text-gray-400 mb-1" style={{ fontSize: '0.6875rem' }}>
                       <span>🎾 {h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
                       <span>{timeStr}</span>
                     </div>
@@ -138,7 +144,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 );
               })}
               {!showAll && groups[setNum].length > 10 && (
-                <div className="text-xs text-gray-500 text-center">... 외 {groups[setNum].length - 10}개</div>
+                <div className="text-xs text-gray-400 text-center">... 외 {groups[setNum].length - 10}개</div>
               )}
             </div>
           </div>

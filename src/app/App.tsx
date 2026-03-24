@@ -6,18 +6,42 @@ import ConnectionStatus from '@shared/components/ConnectionStatus';
 import LoadingSpinner from '@shared/components/LoadingSpinner';
 import AccessibilityMenu from '@shared/components/AccessibilityMenu';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import { useRouteAnnouncer } from '@shared/hooks/useRouteAnnouncer';
 
 const AdminRoutes = lazy(() => import('../admin/AdminRoutes'));
 const RefereeRoutes = lazy(() => import('../referee/RefereeRoutes'));
 const SpectatorRoutes = lazy(() => import('../spectator/SpectatorRoutes'));
 
-function App() {
+function AppContent() {
+  const routeAnnouncement = useRouteAnnouncer();
+
   return (
-    <ErrorBoundary>
+    <>
+      {/* Skip navigation link - visible only on focus */}
+      <a href="#main-content" className="skip-link">
+        본문으로 건너뛰기
+      </a>
+
+      {/* Route change announcements for screen readers */}
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {routeAnnouncement}
+      </div>
+
       <div className="min-h-screen bg-black text-white">
         <OfflineIndicator />
         <ConnectionStatus />
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>}>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center min-h-screen">
+              <LoadingSpinner message="페이지 로딩 중..." />
+            </div>
+          }
+        >
           <Routes>
             <Route path="/" element={<ModeSelector />} />
             <Route path="/admin/*" element={<AdminRoutes />} />
@@ -27,8 +51,15 @@ function App() {
           </Routes>
         </Suspense>
         <AccessibilityMenu />
-        <div style={{ position: 'fixed', bottom: 2, right: 8, fontSize: '0.625rem', color: '#4b5563', pointerEvents: 'none', zIndex: 9999 }}>v{__BUILD_VERSION__}</div>
       </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
     </ErrorBoundary>
   );
 }

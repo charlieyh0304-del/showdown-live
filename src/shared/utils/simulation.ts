@@ -28,21 +28,72 @@ function simulateScoreHistory(
   _p2Id: string,
   sets: SetScore[],
   matchType: 'individual' | 'team',
+  teamServeOrders?: { team1: string[]; team2: string[] },
 ): ScoreHistoryEntry[] {
   const history: ScoreHistoryEntry[] = [];
   const maxServes = matchType === 'team' ? 3 : 2;
   // 경기 시작 기준 시각 (현재 시각에서 역산)
   const baseTime = Date.now() - sets.length * 10 * 60 * 1000;
 
+  // 코인토스 결정 (첫 서버 결정)
+  const coinTossWinner: 'player1' | 'player2' = Math.random() < 0.5 ? 'player1' : 'player2';
+  const coinTossChoice: 'serve' | 'receive' = Math.random() < 0.5 ? 'serve' : 'receive';
+  const firstServer: 'player1' | 'player2' = coinTossChoice === 'serve' ? coinTossWinner : (coinTossWinner === 'player1' ? 'player2' : 'player1');
+  const tossWinnerName = coinTossWinner === 'player1' ? p1Name : p2Name;
+
+  // 코인토스 이벤트
+  const coinTossTime = new Date(baseTime - 120000); // 경기 시작 2분 전
+  history.push({
+    time: coinTossTime.toLocaleTimeString('ko-KR'),
+    scoringPlayer: tossWinnerName,
+    actionPlayer: tossWinnerName,
+    actionType: 'coin_toss' as ScoreActionType,
+    actionLabel: `동전던지기: ${tossWinnerName} 승리 → ${coinTossChoice === 'serve' ? '서브' : '리시브'} 선택`,
+    points: 0,
+    set: 1,
+    server: firstServer === 'player1' ? p1Name : p2Name,
+    serveNumber: 0,
+    scoreBefore: { player1: 0, player2: 0 },
+    scoreAfter: { player1: 0, player2: 0 },
+    serverSide: firstServer,
+  });
+
+  // 워밍업 이벤트 (80% 확률)
+  if (Math.random() < 0.8) {
+    const warmupTime = new Date(baseTime - 90000); // 경기 시작 1분 30초 전
+    history.push({
+      time: warmupTime.toLocaleTimeString('ko-KR'),
+      scoringPlayer: '',
+      actionPlayer: '',
+      actionType: 'warmup_start' as ScoreActionType,
+      actionLabel: matchType === 'team' ? '워밍업 시작 (90초)' : '워밍업 시작 (60초)',
+      points: 0,
+      set: 1,
+      server: firstServer === 'player1' ? p1Name : p2Name,
+      serveNumber: 0,
+      scoreBefore: { player1: 0, player2: 0 },
+      scoreAfter: { player1: 0, player2: 0 },
+      serverSide: firstServer,
+    });
+  }
+
+  // 팀전 서브 순서 추적
+  let team1RotIdx = 0;
+  let team2RotIdx = 0;
+
   for (let setIdx = 0; setIdx < sets.length; setIdx++) {
     const set = sets[setIdx];
     let p1 = 0;
     let p2 = 0;
-    let server: 'player1' | 'player2' = Math.random() < 0.5 ? 'player1' : 'player2';
+    // 첫 세트는 코인토스 결과, 이후 세트는 교대
+    let server: 'player1' | 'player2' = setIdx === 0 ? firstServer : (setIdx % 2 === 0 ? firstServer : (firstServer === 'player1' ? 'player2' : 'player1'));
     let serveCount = 0;
+    let totalServeChanges = 0; // 서브 교대 횟수 (로테이션 추적용)
     const targetP1 = set.player1Score;
     const targetP2 = set.player2Score;
     let entryIndex = 0;
+    let sideChanged = false;
+    const isLastSet = setIdx === sets.length - 1;
 
     // 세트 시작 시 첫 서브 기록 (서브 시작 이벤트)
     const setStartTime = new Date(baseTime + setIdx * 10 * 60 * 1000);
@@ -64,17 +115,36 @@ function simulateScoreHistory(
     });
     entryIndex++;
 
+    // 승자 판별: 더 높은 목표 점수를 가진 쪽이 승자
+    const isP1SetWinner = targetP1 > targetP2;
+
     while (p1 < targetP1 || p2 < targetP2) {
       const remainP1 = targetP1 - p1;
       const remainP2 = targetP2 - p2;
       if (remainP1 <= 0 && remainP2 <= 0) break;
 
-      // 랜덤으로 누가 득점할지 결정 (남은 점수 비율 기반)
-      const scoringPlayer1 = remainP1 > 0 && (remainP2 <= 0 || Math.random() < remainP1 / (remainP1 + remainP2));
+      // 승자의 마지막 득점이 경기 종료점이 되도록:
+      // 승자가 2점 이내로 남고 패자도 아직 남은 점수가 있으면 패자 먼저 득점
+      const winnerRemain = isP1SetWinner ? remainP1 : remainP2;
+      const loserRemain = isP1SetWinner ? remainP2 : remainP1;
+      let scoringPlayer1: boolean;
+      if (winnerRemain > 0 && winnerRemain <= 2 && loserRemain > 0) {
+        // 패자를 먼저 득점시켜서 승자의 최종 득점이 마지막이 되도록
+        scoringPlayer1 = !isP1SetWinner;
+      } else if (remainP1 <= 0) {
+        scoringPlayer1 = false;
+      } else if (remainP2 <= 0) {
+        scoringPlayer1 = true;
+      } else {
+        scoringPlayer1 = Math.random() < remainP1 / (remainP1 + remainP2);
+      }
       const scoreBefore = { player1: p1, player2: p2 };
 
-      // 액션 타입 결정 (65% 골, 35% 파울)
-      const isGoal = Math.random() < 0.65;
+      // 득점 선수의 남은 점수에 따라 액션 결정
+      const scorerRemain = scoringPlayer1 ? remainP1 : remainP2;
+      // 남은 점수가 1이면 골(2점)은 불가 → 파울(1점)만 사용
+      const canGoal = scorerRemain >= 2;
+      const isGoal = canGoal && Math.random() < 0.65;
       let actionType: ScoreActionType;
       let points: number;
       let actingPlayer: string;
@@ -87,28 +157,45 @@ function simulateScoreHistory(
         if (scoringPlayer1) {
           actingPlayer = p1Name;
           scoringName = p1Name;
-          p1 = Math.min(p1 + 2, targetP1);
+          p1 += 2;
         } else {
           actingPlayer = p2Name;
           scoringName = p2Name;
-          p2 = Math.min(p2 + 2, targetP2);
+          p2 += 2;
         }
         label = `${actingPlayer} 골`;
       } else {
-        // 파울: 상대에게 점수
-        const foul = FOUL_ACTIONS[Math.floor(Math.random() * FOUL_ACTIONS.length)];
+        // 파울: 상대에게 1점
+        // 부정서브는 서버만 가능하므로 서버가 아닌 선수가 파울할 때는 부정서브 제외
+        let foulCandidates = FOUL_ACTIONS;
+
+        if (scoringPlayer1) {
+          if (server !== 'player2') {
+            foulCandidates = FOUL_ACTIONS.filter(f => f.type !== 'irregular_serve');
+          }
+        } else {
+          if (server !== 'player1') {
+            foulCandidates = FOUL_ACTIONS.filter(f => f.type !== 'irregular_serve');
+          }
+        }
+
+        // 남은 점수가 1이면 마스크터치(2점)도 제외
+        if (scorerRemain < 2) {
+          foulCandidates = foulCandidates.filter(f => f.points <= scorerRemain);
+        }
+
+        const foul = foulCandidates[Math.floor(Math.random() * foulCandidates.length)];
         actionType = foul.type;
         points = foul.points;
 
         if (scoringPlayer1) {
-          // p1이 점수를 받음 = p2가 파울
           actingPlayer = p2Name;
           scoringName = p1Name;
-          p1 = Math.min(p1 + points, targetP1);
+          p1 += points;
         } else {
           actingPlayer = p1Name;
           scoringName = p2Name;
-          p2 = Math.min(p2 + points, targetP2);
+          p2 += points;
         }
         label = `${actingPlayer} ${foul.label}`;
       }
@@ -134,11 +221,75 @@ function simulateScoreHistory(
 
       entryIndex++;
 
+      // 사이드 체인지 체크 (개인전: 마지막 세트에서 6점, 팀전: 매 세트 16점)
+      if (!sideChanged) {
+        const sideChangePoint = matchType === 'team' ? 16 : 6;
+        const maxScore = Math.max(p1, p2);
+        const shouldChange = matchType === 'individual'
+          ? (isLastSet && maxScore >= sideChangePoint)
+          : (maxScore >= sideChangePoint);
+        if (shouldChange) {
+          sideChanged = true;
+          const scTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + entryIndex * 30000);
+          history.push({
+            time: scTime.toLocaleTimeString('ko-KR'),
+            scoringPlayer: '',
+            actionPlayer: '',
+            actionType: 'side_change' as ScoreActionType,
+            actionLabel: '사이드 체인지 (1분 휴식)',
+            points: 0,
+            set: setIdx + 1,
+            server: server === 'player1' ? p1Name : p2Name,
+            serveNumber: serveCount + 1,
+            scoreBefore: scoreAfter,
+            scoreAfter: scoreAfter,
+            serverSide: server,
+          });
+          entryIndex++;
+        }
+      }
+
       // 서브 교대
       serveCount++;
       if (serveCount >= maxServes) {
         server = server === 'player1' ? 'player2' : 'player1';
         serveCount = 0;
+        totalServeChanges++;
+
+        // 팀전: 서브 교대 시 선수 로테이션 이벤트 (서브 순서가 있는 경우)
+        if (matchType === 'team' && teamServeOrders) {
+          const rotTeam = server === 'player1' ? 'team1' : 'team2';
+          const rotTeamName = server === 'player1' ? p1Name : p2Name;
+          const rotOrder = teamServeOrders[rotTeam];
+          if (rotOrder && rotOrder.length > 1) {
+            // 이전 서버가 해당 팀이면 로테이션 발생
+            const rotIdx = rotTeam === 'team1' ? team1RotIdx : team2RotIdx;
+            const nextIdx = (rotIdx + 1) % rotOrder.length;
+            const prevPlayerName = rotOrder[rotIdx];
+            const nextPlayerName = rotOrder[nextIdx];
+            if (rotTeam === 'team1') team1RotIdx = nextIdx;
+            else team2RotIdx = nextIdx;
+
+            if (prevPlayerName !== nextPlayerName) {
+              const rotTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + entryIndex * 30000);
+              history.push({
+                time: rotTime.toLocaleTimeString('ko-KR'),
+                scoringPlayer: '',
+                actionPlayer: rotTeamName,
+                actionType: 'player_rotation' as ScoreActionType,
+                actionLabel: `선수 교체: ${prevPlayerName} → ${nextPlayerName} (${rotTeamName})`,
+                points: 0,
+                set: setIdx + 1,
+                server: server === 'player1' ? p1Name : p2Name,
+                serveNumber: 1,
+                scoreBefore: scoreAfter,
+                scoreAfter: scoreAfter,
+                serverSide: server,
+              });
+              entryIndex++;
+            }
+          }
+        }
       }
     }
 
@@ -149,10 +300,10 @@ function simulateScoreHistory(
       // 이 세트 엔트리 중간에 삽입 (세트 시작 이후, 세트 끝 이전)
       const setEntryCount = history.length - setStartIdx;
       const insertIdx = setStartIdx + Math.max(1, Math.floor(setEntryCount / 2));
-      const refEntry = history[insertIdx] || history[history.length - 1];
-      const timeoutTime = refEntry
-        ? new Date(baseTime + setIdx * 10 * 60 * 1000 + Math.floor(entryIndex / 2) * 30000)
-        : new Date(baseTime + setIdx * 10 * 60 * 1000);
+      // 삽입 위치 바로 이전 엔트리의 점수를 참조 (타임아웃 시점의 실제 점수)
+      const prevEntry = history[insertIdx - 1];
+      const timeoutScore = prevEntry ? prevEntry.scoreAfter : { player1: 0, player2: 0 };
+      const timeoutTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + Math.floor(entryIndex / 2) * 30000);
 
       history.splice(insertIdx, 0, {
         time: timeoutTime.toLocaleTimeString('ko-KR'),
@@ -164,8 +315,8 @@ function simulateScoreHistory(
         set: setIdx + 1,
         server: server === 'player1' ? p1Name : p2Name,
         serveNumber: serveCount + 1,
-        scoreBefore: refEntry ? refEntry.scoreAfter : { player1: 0, player2: 0 },
-        scoreAfter: refEntry ? refEntry.scoreAfter : { player1: 0, player2: 0 },
+        scoreBefore: timeoutScore,
+        scoreAfter: timeoutScore,
         serverSide: server,
       });
     }
@@ -421,7 +572,16 @@ function generateFinalsMatches(
       const p1Name = getParticipantName(p1, nameMap);
       const p2Name = getParticipantName(p2, nameMap);
 
-      const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1, p2, result.sets, matchType);
+      // 팀전 서브 순서 생성
+      const teamServeOrders = isTeam && teamsMap ? (() => {
+        const t1 = teamsMap.get(p1);
+        const t2 = teamsMap.get(p2);
+        return {
+          team1: t1?.memberNames || [p1Name],
+          team2: t2?.memberNames || [p2Name],
+        };
+      })() : undefined;
+      const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1, p2, result.sets, matchType, teamServeOrders);
       const refIndex = matchCounter.value % referees.length;
       const courtIndex = matchCounter.value % courts.length;
       const matchId = `sim_match_${matchCounter.value}`;
@@ -519,7 +679,16 @@ function createRankingMatch(
   const p2Name = getParticipantName(p2Id, nameMap);
   const result = simulateMatchResult(setsToWin, winScore, minLead, p1Id, p2Id);
   const winnerId = result.winner === 1 ? p1Id : p2Id;
-  const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1Id, p2Id, result.sets, matchType);
+  // 팀전 서브 순서 생성
+  const teamServeOrders = isTeam && teamsMap ? (() => {
+    const t1 = teamsMap.get(p1Id);
+    const t2 = teamsMap.get(p2Id);
+    return {
+      team1: t1?.memberNames || [p1Name],
+      team2: t2?.memberNames || [p2Name],
+    };
+  })() : undefined;
+  const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1Id, p2Id, result.sets, matchType, teamServeOrders);
   const refIndex = matchCounter.value % referees.length;
   const courtIndex = matchCounter.value % courts.length;
   const matchId = `sim_match_${matchCounter.value}`;
@@ -802,10 +971,19 @@ export function simulateTournament(tournament: Tournament, participantCount: num
           ? (p2 as { id: string; name: string; memberIds: string[]; memberNames: string[] }).name
           : (p2 as { id: string; name: string }).name;
 
+        // 팀전 서브 순서 생성
+        const teamServeOrders = isTeam ? (() => {
+          const t1 = p1 as { id: string; name: string; memberIds: string[]; memberNames: string[] };
+          const t2 = p2 as { id: string; name: string; memberIds: string[]; memberNames: string[] };
+          return {
+            team1: t1.memberNames || [p1Name],
+            team2: t2.memberNames || [p2Name],
+          };
+        })() : undefined;
         // scoreHistory 생성
         const scoreHistory = simulateScoreHistory(
           p1Name, p2Name, p1Id, p2Id,
-          result.sets, matchType,
+          result.sets, matchType, teamServeOrders,
         );
 
         // 스케줄 시간 계산 (20분 간격)

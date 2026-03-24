@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export function useFocusTrap(isActive: boolean) {
+export function useFocusTrap(isActive: boolean, onEscape?: () => void) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -21,6 +21,10 @@ export function useFocusTrap(isActive: boolean) {
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onEscape) {
+        onEscape();
+        return;
+      }
       if (e.key !== 'Tab') return;
 
       const currentFocusables = container.querySelectorAll<HTMLElement>(focusableSelector);
@@ -51,7 +55,7 @@ export function useFocusTrap(isActive: boolean) {
         previousFocusRef.current.focus();
       }
     };
-  }, [isActive]);
+  }, [isActive, onEscape]);
 
   return containerRef;
 }

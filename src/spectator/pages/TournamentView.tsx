@@ -52,6 +52,15 @@ export default function TournamentView() {
   const [stageFilter, setStageFilter] = useState<'all' | 'qualifying' | 'finals' | 'ranking'>('all');
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
 
+  // Set document title for screen readers
+  useEffect(() => {
+    if (tournament) {
+      document.title = `${tournament.name} - 대회 관람`;
+    } else {
+      document.title = '대회 관람 - 쇼다운';
+    }
+  }, [tournament]);
+
   useEffect(() => {
     if (selectedPlayer && playerPanelRef.current) {
       playerPanelRef.current.focus();
@@ -85,12 +94,28 @@ export default function TournamentView() {
     return { qualifying, finals, ranking, other };
   }, [matches]);
 
+  // 개인전 풀리그: 예선/본선 구분 없이 모든 경기가 라운드로빈
+  const isFullLeagueOnly = useMemo(() => {
+    if (!tournament) return false;
+    // formatType이 round_robin이면 풀리그
+    if (tournament.formatType === 'round_robin') return true;
+    // stages에 finals가 없으면 풀리그 (예선만 있는 경우)
+    const hasFinalsStage = tournament.stages?.some(s => (s as { type?: string }).type === 'finals');
+    if (!hasFinalsStage && !tournament.finalsConfig) {
+      // 실제 본선 경기가 없으면 풀리그
+      const hasFinalsMatches = stageMap.finals.length > 0;
+      if (!hasFinalsMatches) return true;
+    }
+    return false;
+  }, [tournament, stageMap]);
+
   const hasGroupStage = useMemo(() => {
+    if (isFullLeagueOnly) return false; // 풀리그는 조 없음
     if (tournament?.formatType === 'group_knockout') return true;
     if (tournament?.qualifyingConfig) return true;
     if (tournament?.stages?.some(s => s.type === 'qualifying' || s.format === 'group_knockout' || s.format === 'round_robin')) return true;
     return matches.some(m => m.groupId);
-  }, [tournament, matches]);
+  }, [tournament, matches, isFullLeagueOnly]);
 
   const filteredMatches = useMemo(() => {
     if (stageFilter === 'all') return matches;
@@ -153,7 +178,7 @@ export default function TournamentView() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
         <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
       </div>
     );
@@ -161,7 +186,7 @@ export default function TournamentView() {
 
   if (!tournament) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="alert">
         <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>대회를 찾을 수 없습니다</p>
         <button className="btn btn-primary" onClick={() => navigate('/spectator')} style={{ marginTop: '1rem' }}>
           목록으로 돌아가기
@@ -174,9 +199,9 @@ export default function TournamentView() {
     <div>
       {/* Tournament header */}
       <div style={{ marginBottom: '1rem' }}>
-        <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
           {tournament.name}
-        </h2>
+        </h1>
         <p style={{ color: '#d1d5db' }}>
           {tournament.date} · {getTournamentTypeLabel(tournament.type)}
         </p>
@@ -196,9 +221,9 @@ export default function TournamentView() {
 
       {searchResults && (
         <div style={{ marginBottom: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
             검색 결과: {searchResults.length}건
-          </h3>
+          </h2>
           {searchResults.map(match => {
             const isIndividual = match.type === 'individual';
             const label = isIndividual
@@ -213,7 +238,7 @@ export default function TournamentView() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 'bold' }}>{label}</span>
-                  <span style={{ color: match.status === 'completed' ? '#22c55e' : match.status === 'in_progress' ? '#ef4444' : '#9ca3af', fontWeight: 'bold', fontSize: '0.875rem' }}>
+                  <span style={{ color: match.status === 'completed' ? '#22c55e' : match.status === 'in_progress' ? '#ef4444' : '#d1d5db', fontWeight: 'bold', fontSize: '0.875rem' }}>
                     {match.status === 'completed' ? '완료 →' : match.status === 'in_progress' ? '진행중 →' : '대기'}
                   </span>
                 </div>
@@ -238,7 +263,7 @@ export default function TournamentView() {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{selectedPlayer} 경기 기록</h3>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{selectedPlayer} 경기 기록</h2>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 className="btn btn-primary"
@@ -255,19 +280,44 @@ export default function TournamentView() {
             const winRate = completedCount > 0 ? Math.round((playerStats.wins / completedCount) * 100) : 0;
             const isTeamTournament = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: isTeamTournament ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)', gap: '0.75rem', textAlign: 'center', marginBottom: '1rem' }}>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerStats.total}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>총 경기</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{playerStats.wins}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{playerStats.losses}</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p></div>
-                <div><p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승률</p></div>
-                {!isTeamTournament && <div>{(() => { const diff = playerStats.setsWon - playerStats.setsLost; return <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#9ca3af' }}>{diff > 0 ? '+' : ''}{diff}</p>; })()}<p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p></div>}
-                <div>{(() => { const diff = playerStats.pointsFor - playerStats.pointsAgainst; return <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#9ca3af' }}>{diff > 0 ? '+' : ''}{diff}</p>; })()}<p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>골 득실</p></div>
-                {!isTeamTournament && <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#22d3ee' }}>{playerStats.setsWon}승 {playerStats.setsLost}패</p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 ({completedCount}경기)</p></div>}
-                <div><p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{playerStats.pointsFor}<span style={{ color: '#9ca3af' }}>:</span><span style={{ color: '#ef4444' }}>{playerStats.pointsAgainst}</span></p><p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>골 (득:실)</p></div>
-              </div>
+              <dl style={{ margin: '0 0 1rem 0', fontSize: '0.9375rem' }}>
+                {(() => {
+                  const setDiff = playerStats.setsWon - playerStats.setsLost;
+                  const goalDiff = playerStats.pointsFor - playerStats.pointsAgainst;
+                  const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '0.375rem 0', borderBottom: '1px solid #374151' } as const;
+                  return (<>
+                    <div style={rowStyle}>
+                      <dt style={{ color: '#d1d5db' }}>전적</dt>
+                      <dd style={{ margin: 0 }}><span style={{ color: '#22c55e', fontWeight: 'bold' }}>{playerStats.wins}승</span>{' '}<span style={{ color: '#ef4444', fontWeight: 'bold' }}>{playerStats.losses}패</span>{' '}<span style={{ color: '#9ca3af' }}>({completedCount}경기)</span></dd>
+                    </div>
+                    <div style={rowStyle}>
+                      <dt style={{ color: '#d1d5db' }}>승률</dt>
+                      <dd style={{ margin: 0, fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</dd>
+                    </div>
+                    {!isTeamTournament && (
+                      <div style={rowStyle}>
+                        <dt style={{ color: '#d1d5db' }}>세트 득실</dt>
+                        <dd style={{ margin: 0, fontWeight: 'bold', color: setDiff > 0 ? '#22c55e' : setDiff < 0 ? '#ef4444' : '#9ca3af' }}>{setDiff > 0 ? '+' : ''}{setDiff}</dd>
+                      </div>
+                    )}
+                    <div style={{ ...rowStyle, borderBottom: 'none' }}>
+                      <dt style={{ color: '#d1d5db' }}>골 득실</dt>
+                      <dd style={{ margin: 0, fontWeight: 'bold', color: goalDiff > 0 ? '#22c55e' : goalDiff < 0 ? '#ef4444' : '#9ca3af' }}>{goalDiff > 0 ? '+' : ''}{goalDiff} ({playerStats.pointsFor}득 {playerStats.pointsAgainst}실)</dd>
+                    </div>
+                  </>);
+                })()}
+              </dl>
             );
           })()}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '20rem', overflowY: 'auto' }}>
+            {isFullLeagueOnly ? (
+              /* 풀리그: 예선/본선 구분 없이 모든 경기 표시 */
+              <div>
+                {playerMatches.map(m => (
+                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
+                ))}
+              </div>
+            ) : (<>
             {/* 예선 경기 */}
             {playerMatches.filter(m => m.groupId).length > 0 && (
               <div>
@@ -299,20 +349,21 @@ export default function TournamentView() {
             {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).length > 0 && (
               <div>
                 {(playerMatches.some(m => m.groupId) || playerMatches.some(m => m.stageId?.includes('finals'))) && (
-                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af', marginBottom: '0.25rem', marginTop: '0.25rem' }}>기타</h4>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.25rem', marginTop: '0.25rem' }}>기타</h4>
                 )}
                 {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).map(m => (
                   <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
               </div>
             )}
+            </>)}
           </div>
         </div>
       )}
 
-      {/* Stage filter */}
-      {(stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto' }}>
+      {/* Stage filter - 풀리그 전용 대회에서는 예선/본선 구분 불필요 */}
+      {!isFullLeagueOnly && (stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto' }} role="group" aria-label="경기 단계 필터">
           {([
             { key: 'all' as const, label: '전체', count: matches.length },
             { key: 'qualifying' as const, label: '예선', count: stageMap.qualifying.length },
@@ -328,6 +379,7 @@ export default function TournamentView() {
                 backgroundColor: stageFilter === s.key ? undefined : '#374151',
               }}
               onClick={() => setStageFilter(s.key)}
+              aria-pressed={stageFilter === s.key}
             >
               {s.label} ({s.count})
             </button>
@@ -339,6 +391,7 @@ export default function TournamentView() {
       <div
         role="tablist"
         aria-label="대회 관람 탭"
+        onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const vt = (Object.keys(TAB_LABELS) as TabId[]).filter(t => t !== 'groups' || hasGroupStage); const ci = vt.indexOf(activeTab); const ni = e.key === 'ArrowRight' ? (ci + 1) % vt.length : (ci - 1 + vt.length) % vt.length; setActiveTab(vt[ni]); e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[ni]?.focus(); } }}
         style={{
           display: 'flex',
           gap: '0.25rem',
@@ -359,6 +412,7 @@ export default function TournamentView() {
             role="tab"
             aria-selected={activeTab === tab}
             aria-controls={`panel-${tab}`}
+            tabIndex={activeTab === tab ? 0 : -1}
             className={activeTab === tab ? 'btn btn-primary' : 'btn'}
             onClick={() => setActiveTab(tab)}
             style={{
@@ -383,7 +437,7 @@ export default function TournamentView() {
           <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
         )}
         {activeTab === 'groups' && (
-          <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} />
+          <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} />
         )}
         {activeTab === 'ranking' && (
           <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
@@ -514,7 +568,7 @@ function LiveTab({
   if (liveMatches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>현재 진행 중인 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">현재 진행 중인 경기가 없습니다</p>
       </div>
     );
   }
@@ -589,7 +643,7 @@ function LiveTab({
                 />
                 <span style={{ color: '#ef4444', fontWeight: 'bold' }}>진행중</span>
                 {match.courtName && (
-                  <span style={{ color: '#9ca3af', marginLeft: 'auto' }}>{match.courtName}</span>
+                  <span style={{ color: '#d1d5db', marginLeft: 'auto' }}>{match.courtName}</span>
                 )}
               </div>
 
@@ -605,7 +659,7 @@ function LiveTab({
               )}
 
               {match.refereeName && (
-                <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                <p style={{ color: '#d1d5db', marginTop: '0.5rem', fontSize: '0.875rem' }}>
                   심판: {match.refereeName}
                 </p>
               )}
@@ -663,10 +717,10 @@ function IndividualMatchCard({
         >
           <div style={{ fontSize: '3.5rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-primary)' }}>{currentSetData?.player1Score ?? 0}</span>
-            <span style={{ color: '#6b7280', margin: '0 0.25rem', fontSize: '2.5rem' }}>:</span>
+            <span style={{ color: '#9ca3af', margin: '0 0.25rem', fontSize: '2.5rem' }}>:</span>
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-secondary)' }}>{currentSetData?.player2Score ?? 0}</span>
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
             세트 {setWins.player1} - {setWins.player2}
             {match.currentSet && ` (제${match.currentSet}세트)`}
           </div>
@@ -704,7 +758,7 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team1Name || '팀1'}</span>
-          {match.team1?.coachName && <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>코치: {match.team1.coachName}</div>}
+          {match.team1?.coachName && <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>코치: {match.team1.coachName}</div>}
         </div>
         <div
           key={scoreKey}
@@ -713,16 +767,16 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
         >
           <div className="score-display" style={{ fontSize: '3.5rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-primary)' }}>{team1Score}</span>
-            <span style={{ color: '#6b7280', margin: '0 0.25rem', fontSize: '2.5rem' }}>:</span>
+            <span style={{ color: '#9ca3af', margin: '0 0.25rem', fontSize: '2.5rem' }}>:</span>
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-secondary)' }}>{team2Score}</span>
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
             31점 경기
           </div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team2Name || '팀2'}</span>
-          {match.team2?.coachName && <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>코치: {match.team2.coachName}</div>}
+          {match.team2?.coachName && <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>코치: {match.team2.coachName}</div>}
         </div>
       </div>
     </div>
@@ -744,7 +798,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>대진표 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>대진표 정보가 없습니다</p>
       </div>
     );
   }
@@ -829,7 +883,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>본선 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>본선 경기가 없습니다</p>
       </div>
     );
   }
@@ -847,7 +901,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
       {rounds.map(([roundLabel, roundMatches], roundIdx) => {
-        const color = roundColors[roundLabel] || '#6b7280';
+        const color = roundColors[roundLabel] || '#9ca3af';
         const isFinal = roundLabel === '결승';
 
         return (
@@ -869,7 +923,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
               }}>
                 {isFinal ? '🏆 ' : ''}{roundLabel}
               </span>
-              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                 {roundMatches.filter(m => m.status === 'completed').length}/{roundMatches.length}
               </span>
             </div>
@@ -953,7 +1007,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                                 cursor: 'pointer',
                                 padding: 0,
                                 fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
-                                color: p1 === 'TBD' ? '#4b5563' : isCompleted ? (isP1Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                                color: p1 === 'TBD' ? '#9ca3af' : isCompleted ? (isP1Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                                 fontSize: '0.9375rem',
                                 textAlign: 'left',
                                 overflow: 'hidden',
@@ -967,7 +1021,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           ) : (
                             <span style={{
                               fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
-                              color: p1 === 'TBD' ? '#4b5563' : isCompleted ? (isP1Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                              color: p1 === 'TBD' ? '#9ca3af' : isCompleted ? (isP1Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                               fontSize: '0.9375rem',
                             }}>
                               {p1}
@@ -978,7 +1032,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           <span style={{
                             fontWeight: 'bold',
                             fontSize: '0.9375rem',
-                            color: isP1Winner ? '#22c55e' : '#6b7280',
+                            color: isP1Winner ? '#22c55e' : '#9ca3af',
                             fontVariantNumeric: 'tabular-nums',
                             flexShrink: 0,
                           }}>
@@ -1014,7 +1068,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                                 cursor: 'pointer',
                                 padding: 0,
                                 fontWeight: isCompleted && isP2Winner ? 'bold' : 'normal',
-                                color: p2 === 'TBD' ? '#4b5563' : isCompleted ? (isP2Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                                color: p2 === 'TBD' ? '#9ca3af' : isCompleted ? (isP2Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                                 fontSize: '0.9375rem',
                                 textAlign: 'left',
                                 overflow: 'hidden',
@@ -1028,7 +1082,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           ) : (
                             <span style={{
                               fontWeight: isCompleted && isP2Winner ? 'bold' : 'normal',
-                              color: p2 === 'TBD' ? '#4b5563' : isCompleted ? (isP2Winner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+                              color: p2 === 'TBD' ? '#9ca3af' : isCompleted ? (isP2Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                               fontSize: '0.9375rem',
                             }}>
                               {p2}
@@ -1039,7 +1093,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           <span style={{
                             fontWeight: 'bold',
                             fontSize: '0.9375rem',
-                            color: isP2Winner ? '#22c55e' : '#6b7280',
+                            color: isP2Winner ? '#22c55e' : '#9ca3af',
                             fontVariantNumeric: 'tabular-nums',
                             flexShrink: 0,
                           }}>
@@ -1114,7 +1168,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           {!isCompleted && !isInProgress && (
                             <span style={{
                               fontSize: '0.6875rem',
-                              color: '#4b5563',
+                              color: '#9ca3af',
                             }}>
                               대기
                             </span>
@@ -1144,7 +1198,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
     const style: React.CSSProperties = {
       fontSize: '1.125rem',
       fontWeight: 'bold',
-      color: isCompleted ? (isWinner ? '#22c55e' : '#9ca3af') : '#d1d5db',
+      color: isCompleted ? (isWinner ? '#22c55e' : '#d1d5db') : '#d1d5db',
     };
     if (onSelectPlayer) {
       return (
@@ -1171,7 +1225,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
         <div style={{ flex: 1 }}>
           {nameButton(p1, isP1Winner, 'left')}
           {match.team1 && (match.team1 as any).memberNames && (
-            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem' }}>
               {(match.team1 as any).memberNames.join(', ')}
             </div>
           )}
@@ -1192,7 +1246,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
               ))}
             </div>
           ) : (
-            <span style={{ color: match.status === 'in_progress' ? '#ef4444' : '#6b7280', fontWeight: 'bold' }}>
+            <span style={{ color: match.status === 'in_progress' ? '#ef4444' : '#9ca3af', fontWeight: 'bold' }}>
               {match.status === 'in_progress' ? '진행중' : 'vs'}
             </span>
           )}
@@ -1200,7 +1254,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
         <div style={{ flex: 1, textAlign: 'right' }}>
           {nameButton(p2, !isP1Winner && isCompleted, 'right')}
           {match.team2 && (match.team2 as any).memberNames && (
-            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', textAlign: 'right' }}>
+            <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem', textAlign: 'right' }}>
               {(match.team2 as any).memberNames.join(', ')}
             </div>
           )}
@@ -1225,7 +1279,7 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>순위결정전 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>순위결정전 경기가 없습니다</p>
       </div>
     );
   }
@@ -1280,7 +1334,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
 
           {/* 조별 경기 결과 */}
           <div style={{ marginTop: '1rem' }}>
-            <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af', marginBottom: '0.5rem' }}>경기 결과</h4>
+            <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.5rem' }}>경기 결과</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {groupMatches.map(m => (
                 <MatchResultRow key={m.id} match={m} onSelectPlayer={onSelectPlayer} />
@@ -1294,7 +1348,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
 }
 
 // ===== Groups Tab =====
-function GroupsTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; isFullLeague?: boolean }) {
   const groupMatches = useMemo(() => matches.filter(m => m.groupId), [matches]);
 
   const groups = useMemo(() => {
@@ -1310,7 +1364,7 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match
   if (groups.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>조 편성 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>조 편성 정보가 없습니다</p>
       </div>
     );
   }
@@ -1321,7 +1375,7 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-        총 {groups.length}개 조 | 예선 경기 {totalCompleted}/{totalMatches} 완료
+        {isFullLeague ? `경기 ${totalCompleted}/${totalMatches} 완료` : `총 ${groups.length}개 조 | 예선 경기 ${totalCompleted}/${totalMatches} 완료`}
       </p>
       {groups.map(([groupId, gMatches]) => {
         const completed = gMatches.filter(m => m.status === 'completed').length;
@@ -1402,17 +1456,18 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.875rem' }}>
+        <caption className="sr-only">조별 순위표</caption>
         <thead>
           <tr style={{ borderBottom: '2px solid #374151' }}>
-            <th style={{ textAlign: 'left', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>순위</th>
-            <th style={{ textAlign: 'left', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>이름</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>경기</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>승</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>패</th>
-            {!isTeam && <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트 승패</th>}
-            {!isTeam && <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>}
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>점수득실</th>
-            <th style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>득실차</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>순위</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>이름</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>경기</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>승</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>패</th>
+            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트 승패</th>}
+            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>}
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>점수득실</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>득실차</th>
           </tr>
         </thead>
         <tbody>
@@ -1498,7 +1553,7 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
             <span key={i} style={{ color: '#9ca3af', margin: '0 0.25rem' }}>{s.player1Score}-{s.player2Score}</span>
           ))
         ) : (
-          <span style={{ color: '#6b7280' }}>
+          <span style={{ color: '#9ca3af' }}>
             {match.status === 'in_progress' ? '진행중' : 'vs'}
           </span>
         )}
@@ -1672,7 +1727,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                   {match.team1Name || '팀1'}
                 </button>
                 {match.team1 && (match.team1 as any).memberNames && (
-                  <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem' }}>
                     {(match.team1 as any).memberNames.join(', ')}
                   </div>
                 )}
@@ -1681,7 +1736,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 {match.status !== 'pending' && setData ? (
                   <span style={{ fontSize: '1.5rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
                     <span style={{ color: 'var(--color-primary)' }}>{setData.player1Score}</span>
-                    <span style={{ color: '#6b7280', margin: '0 0.25rem' }}>-</span>
+                    <span style={{ color: '#9ca3af', margin: '0 0.25rem' }}>-</span>
                     <span style={{ color: 'var(--color-secondary)' }}>{setData.player2Score}</span>
                   </span>
                 ) : (
@@ -1697,7 +1752,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                   {match.team2Name || '팀2'}
                 </button>
                 {match.team2 && (match.team2 as any).memberNames && (
-                  <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem', textAlign: 'right' }}>
                     {(match.team2 as any).memberNames.join(', ')}
                   </div>
                 )}
@@ -1707,7 +1762,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 borderRadius: '0.25rem',
                 fontSize: '0.75rem',
                 fontWeight: 'bold',
-                backgroundColor: match.status === 'completed' ? '#16a34a' : match.status === 'in_progress' ? '#dc2626' : '#6b7280',
+                backgroundColor: match.status === 'completed' ? '#16a34a' : match.status === 'in_progress' ? '#dc2626' : '#9ca3af',
                 color: '#fff',
                 marginLeft: '0.75rem',
               }}>
@@ -1867,7 +1922,7 @@ function TournamentResultsSummary({
 
       {/* Highest scoring match detail */}
       {summary.highestMatch && (
-        <p style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', marginTop: '0.375rem' }}>
+        <p style={{ fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center', marginTop: '0.375rem' }}>
           최고 득점 경기: {summary.highestMatch.name} ({summary.highestMatch.totalPoints}점)
         </p>
       )}
@@ -1931,7 +1986,7 @@ function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches
   if (groups.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>예선 순위 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>예선 순위 정보가 없습니다</p>
       </div>
     );
   }
@@ -1964,7 +2019,7 @@ function IndividualRankingTable({
   if (rankings.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>순위 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>순위 정보가 없습니다</p>
       </div>
     );
   }
@@ -2026,7 +2081,7 @@ function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSel
   if (rankings.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>순위 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>순위 정보가 없습니다</p>
       </div>
     );
   }
@@ -2072,7 +2127,7 @@ function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSel
 function formatDiff(value: number): { text: string; color: string } {
   if (value > 0) return { text: `+${value}`, color: '#22c55e' };
   if (value < 0) return { text: `${value}`, color: '#ef4444' };
-  return { text: '0', color: '#6b7280' };
+  return { text: '0', color: '#9ca3af' };
 }
 
 const thStyle: React.CSSProperties = {
@@ -2092,19 +2147,6 @@ const tdStyle: React.CSSProperties = {
   textAlign: 'center',
   whiteSpace: 'nowrap',
 };
-
-function getMatchStageBadge(m: Match): { label: string; color: string; bg: string } | null {
-  if (m.groupId || m.stageId?.includes('qualifying')) {
-    return { label: '예선', color: '#fff', bg: '#2563eb' };
-  }
-  if (m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')) {
-    return { label: '순위결정전', color: '#fff', bg: '#ea580c' };
-  }
-  if (m.stageId?.includes('finals') || m.roundLabel) {
-    return { label: m.roundLabel || '본선', color: '#000', bg: '#eab308' };
-  }
-  return null;
-}
 
 function PlayerMatchRow({
   match: m,
@@ -2140,9 +2182,6 @@ function PlayerMatchRow({
     });
   }
 
-  // Stage badge
-  const stageBadge = getMatchStageBadge(m);
-
   // Duration from scoreHistory timestamps
   const duration = useMemo(() => {
     if (!Array.isArray(m.scoreHistory) || m.scoreHistory.length < 2) return null;
@@ -2154,7 +2193,7 @@ function PlayerMatchRow({
   }, [m.scoreHistory]);
 
   return (
-    <div style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', marginBottom: '0.25rem', overflow: 'hidden' }}>
+    <div style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', marginBottom: '0.25rem', overflow: 'hidden' }} aria-label={`${selectedPlayer} vs ${opponentName}${isCompleted ? (isWin ? ' 승' : ' 패') : ''}`}>
       {/* Main row - clickable to expand/collapse */}
       <div
         style={{ padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer' }}
@@ -2163,44 +2202,30 @@ function PlayerMatchRow({
           onToggleExpand(isExpanded ? null : m.id);
         }}
       >
-        {/* Top line: win/loss, opponent, stage badge, navigate arrow */}
+        {/* Top line: player vs opponent, result indicator */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 'bold' }}>vs {opponentName}</span>
+            <span style={{ fontWeight: 'bold' }}>
+              {selectedPlayer} <span style={{ color: '#9ca3af' }}>vs</span> {opponentName}
+            </span>
             {isCompleted && (
               <span style={{
                 color: isWin ? '#22c55e' : '#ef4444',
                 fontWeight: 'bold',
                 fontSize: '0.75rem',
-                backgroundColor: isWin ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                padding: '0.125rem 0.5rem',
-                borderRadius: '0.25rem',
               }}>
-                {isWin ? '승리' : '패배'}
-              </span>
-            )}
-            {stageBadge && (
-              <span style={{
-                fontSize: '0.6875rem',
-                fontWeight: 'bold',
-                color: stageBadge.color,
-                backgroundColor: stageBadge.bg,
-                padding: '0.125rem 0.375rem',
-                borderRadius: '0.25rem',
-                lineHeight: 1.2,
-              }}>
-                {stageBadge.label}
+                {isWin ? '승' : '패'}
               </span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {duration && (
-              <span style={{ color: '#6b7280', fontSize: '0.6875rem' }}>{duration}분</span>
+              <span style={{ color: '#9ca3af', fontSize: '0.6875rem' }}>{duration}분</span>
             )}
             <button
               onClick={(e) => { e.stopPropagation(); navigate(`/spectator/match/${tournamentId}/${m.id}`); }}
               style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              aria-label={m.status === 'completed' ? `${opponentName} 경기 상세 보기` : `${opponentName} 경기 실시간 보기`}
+              aria-label={`${selectedPlayer} vs ${opponentName} 경기 상세 보기`}
             >
               {m.status === 'completed' ? '경기 상세 보기' : '실시간 보기'}
             </button>
@@ -2243,9 +2268,12 @@ function PlayerMatchRow({
       {/* Expandable detail: score history timeline - sorted chronologically (oldest first) */}
       {isExpanded && Array.isArray(m.scoreHistory) && m.scoreHistory.length > 0 && (() => {
         // Sort chronologically: by set ascending, then by time ascending
-        const META_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover']);
+        const META_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation', 'side_change']);
         // History entries are stored newest-first; reverse to get chronological, then group by set
-        const filtered = m.scoreHistory.filter(entry => entry.points > 0 || META_TYPES.has(entry.actionType));
+        const filtered = m.scoreHistory.filter(entry => {
+          if (entry.actionType === 'resume') return false; // 재개 숨김
+          return entry.points > 0 || META_TYPES.has(entry.actionType);
+        });
         const sorted = [...filtered].reverse().sort((a, b) => {
           if (a.set !== b.set) return a.set - b.set;
           return 0; // preserve chronological order within same set
@@ -2311,6 +2339,26 @@ function PlayerMatchRow({
                       walkover: '부전승',
                     };
 
+                    // Meta events (0 points)
+                    const isMetaEvent = entry.points === 0 && META_TYPES.has(entry.actionType);
+                    if (isMetaEvent) {
+                      const metaIcon = entry.actionType === 'coin_toss' ? '🪙' : entry.actionType === 'warmup_start' ? '🏃' : entry.actionType === 'match_start' ? '🎾' : entry.actionType === 'timeout' ? '⏱️' : entry.actionType === 'side_change' ? '🔄' : entry.actionType === 'player_rotation' ? '🔄' : entry.actionType === 'pause' ? '⏸️' : entry.actionType === 'substitution' ? '🔄' : entry.actionType === 'dead_ball' ? '🔵' : '⚪';
+                      const metaDesc = entry.actionLabel || entry.actionType || '';
+                      return (
+                        <div key={i} style={{
+                          display: 'flex',
+                          gap: '0.5rem',
+                          fontSize: '0.6875rem',
+                          color: '#9ca3af',
+                          alignItems: 'center',
+                          padding: '0.125rem 0',
+                        }}>
+                          <span style={{ color: '#9ca3af', minWidth: '3rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
+                          <span>{metaIcon} {metaDesc}</span>
+                        </div>
+                      );
+                    }
+
                     const icon = entry.actionType === 'goal' ? '⚽' : entry.actionType === 'walkover' ? '⚪' : entry.points >= 2 ? '🔴' : '🟡';
                     const label = ACTION_LABELS[entry.actionType || ''] || entry.actionType || '';
                     const desc = entry.actionType === 'goal'
@@ -2327,7 +2375,7 @@ function PlayerMatchRow({
                         color: isMine ? '#bbf7d0' : '#fecaca',
                         alignItems: 'center',
                       }}>
-                        <span style={{ color: '#6b7280', minWidth: '3rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
+                        <span style={{ color: '#9ca3af', minWidth: '3rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
                         <span style={{
                           backgroundColor: isMine ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
                           padding: '0 0.25rem',
@@ -2354,7 +2402,7 @@ function PlayerMatchRow({
           padding: '0.5rem 0.75rem',
           backgroundColor: '#111827',
         }}>
-          <p style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center' }}>상세 득점 기록이 없습니다</p>
+          <p style={{ fontSize: '0.75rem', color: '#d1d5db', textAlign: 'center' }}>상세 득점 기록이 없습니다</p>
         </div>
       )}
     </div>
@@ -2415,7 +2463,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
   if (playerList.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>등록된 선수가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>등록된 선수가 없습니다</p>
       </div>
     );
   }
@@ -2448,23 +2496,27 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
               padding: '0.75rem 1rem',
               border: '1px solid #374151',
             }}
+            aria-label={p.name}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#facc15' }}>{p.name}</span>
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem' }}>
-                <span>
-                  <span style={{ color: '#22c55e' }}>{p.wins}승</span>
-                  {' '}
-                  <span style={{ color: '#ef4444' }}>{p.losses}패</span>
+              <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem' }} aria-hidden="true">
+                <span style={{ color: (p.wins + p.losses) > 0 && p.wins / (p.wins + p.losses) >= 0.5 ? '#22c55e' : '#ef4444' }}>
+                  {(p.wins + p.losses) > 0 ? Math.round((p.wins / (p.wins + p.losses)) * 100) : 0}%
                 </span>
-                {!isTeam && <span style={{ color: '#9ca3af' }}>{p.setsWon}승 {p.setsLost}패</span>}
+                {!isTeam && <span style={{ color: p.setsWon - p.setsLost > 0 ? '#22c55e' : p.setsWon - p.setsLost < 0 ? '#ef4444' : '#9ca3af' }}>
+                  세트 {p.setsWon - p.setsLost > 0 ? '+' : ''}{p.setsWon - p.setsLost}
+                </span>}
+                <span style={{ color: p.pointsFor - p.pointsAgainst > 0 ? '#22c55e' : p.pointsFor - p.pointsAgainst < 0 ? '#ef4444' : '#9ca3af' }}>
+                  골 {p.pointsFor - p.pointsAgainst > 0 ? '+' : ''}{p.pointsFor - p.pointsAgainst}
+                </span>
               </div>
             </div>
           </button>
         ))}
         {filteredPlayers.length === 0 && playerSearch.trim() && (
           <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-            <p style={{ color: '#9ca3af' }}>"{playerSearch.trim()}"에 해당하는 선수가 없습니다</p>
+            <p style={{ color: '#d1d5db' }}>"{playerSearch.trim()}"에 해당하는 선수가 없습니다</p>
           </div>
         )}
       </div>
@@ -2557,7 +2609,7 @@ function HistoryMatchCard({
         }}>
           {p1}
         </span>
-        <span style={{ color: '#6b7280', fontSize: '0.875rem', flexShrink: 0 }}>vs</span>
+        <span style={{ color: '#9ca3af', fontSize: '0.875rem', flexShrink: 0 }}>vs</span>
         <span style={{
           fontWeight: 'bold', fontSize: '1.05rem',
           color: isP2Winner ? '#22c55e' : isCompleted && isP1Winner ? '#9ca3af' : '#d1d5db',
@@ -2574,7 +2626,7 @@ function HistoryMatchCard({
           }}>
             {scoreText.label}{' '}
             <span style={{ color: isP1Winner ? '#22c55e' : '#d1d5db' }}>{scoreText.p1Score}</span>
-            <span style={{ color: '#6b7280' }}> - </span>
+            <span style={{ color: '#9ca3af' }}> - </span>
             <span style={{ color: isP2Winner ? '#22c55e' : '#d1d5db' }}>{scoreText.p2Score}</span>
           </span>
           {scoreText.detail && (
@@ -2597,7 +2649,7 @@ function HistoryMatchCard({
           </span>
         )}
         {match.refereeName && (
-          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
             심판: {match.refereeName}
           </span>
         )}
@@ -2715,7 +2767,7 @@ function HistoryTab({
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#9ca3af' }}>경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>경기가 없습니다</p>
       </div>
     );
   }
@@ -2747,7 +2799,7 @@ function HistoryTab({
                   <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
                     {groupId === 'default' ? '경기' : `${groupId}조`}
                   </h4>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                     {countCompleted(gMatches)}/{gMatches.length}
                   </span>
                 </div>
@@ -2781,7 +2833,7 @@ function HistoryTab({
                   <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
                     {roundLabel}
                   </h4>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                     {countCompleted(rMatches)}/{rMatches.length}
                   </span>
                 </div>
@@ -2815,7 +2867,7 @@ function HistoryTab({
                   <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
                     {roundLabel}
                   </h4>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                     {countCompleted(rMatches)}/{rMatches.length}
                   </span>
                 </div>

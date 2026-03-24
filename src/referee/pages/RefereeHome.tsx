@@ -100,10 +100,10 @@ export default function RefereeHome() {
         <div className="card text-center py-12">
           <div className="space-y-3">
             <p className="text-xl text-gray-400">배정된 경기가 없습니다</p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-400">
               관리자가 대진표에서 경기별로 심판을 배정해야 이 화면에 표시됩니다.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-400">
               관리자에게 심판 배정을 요청해주세요.
             </p>
           </div>
@@ -178,7 +178,7 @@ export default function RefereeHome() {
                 if (statusMatches.length === 0) return null;
                 return (
                   <div key={status} className="mb-3">
-                    <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                    <h3 className="text-sm font-semibold text-gray-400 mb-1">
                       {STATUS_LABELS[status]} ({statusMatches.length})
                     </h3>
                     <div className="flex flex-col gap-3">

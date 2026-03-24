@@ -27,8 +27,8 @@ export default function PracticeHistory() {
           <p className="text-lg text-gray-300 mt-2">
             평균 정확도: <span className="text-green-400 font-bold">{stats.avgAccuracy}%</span>
             {stats.improvement !== 0 && (
-              <span className={stats.improvement > 0 ? 'text-green-400' : 'text-red-400'}>
-                {' '}({stats.improvement > 0 ? '+' : ''}{stats.improvement}%)
+              <span className={stats.improvement > 0 ? 'text-green-400' : 'text-red-400'} aria-label={`${stats.improvement > 0 ? '향상' : '하락'} ${Math.abs(stats.improvement)}%`}>
+                {' '}({stats.improvement > 0 ? '↑+' : '↓'}{stats.improvement}%)
               </span>
             )}
           </p>
@@ -38,9 +38,9 @@ export default function PracticeHistory() {
       {sessions.length === 0 ? (
         <p className="text-center text-gray-400 text-xl">아직 연습 기록이 없습니다.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" role="list" aria-label="연습 기록 목록">
           {sessions.map(session => (
-            <div key={session.id} className="card">
+            <div key={session.id} className="card" role="listitem">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-gray-400 text-sm">{formatDate(session.date)}</span>
                 <span className="text-sm" style={{
@@ -70,7 +70,7 @@ export default function PracticeHistory() {
       <div className="flex gap-4">
         <button className="btn btn-accent flex-1" onClick={() => navigate('/referee/practice')} aria-label="뒤로">뒤로</button>
         {sessions.length > 0 && (
-          <button className="btn btn-danger flex-1" onClick={clearHistory} aria-label="기록 전체 삭제">기록 삭제</button>
+          <button className="btn btn-danger flex-1" onClick={() => { clearHistory(); localStorage.removeItem('showdown_practice_completed'); }} aria-label="기록 전체 삭제">기록 삭제</button>
         )}
       </div>
     </div>

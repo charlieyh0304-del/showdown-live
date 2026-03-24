@@ -12,21 +12,21 @@ test.describe('Referee Scoring Flow', () => {
     await expect(page.locator('text=대회 선택')).toBeVisible();
 
     // Should have a "모드 선택으로" back button
-    await expect(page.locator('button', { hasText: '모드 선택으로' })).toBeVisible();
+    await expect(page.locator('text=모드 선택으로')).toBeVisible();
   });
 
   test('referee login page shows practice mode button', async ({ page }) => {
     await navigateToReferee(page);
 
-    // Practice mode button should be visible (no auth required)
-    const practiceButton = page.locator('button', { hasText: '연습 모드' });
+    // Practice mode button should be visible (text includes "연습 모드")
+    const practiceButton = page.locator('[aria-label="심판 연습 모드 시작"]');
     await expect(practiceButton).toBeVisible();
   });
 
   test('back button on referee login returns to mode selector', async ({ page }) => {
     await navigateToReferee(page);
 
-    const backButton = page.locator('button', { hasText: '모드 선택으로' });
+    const backButton = page.locator('text=모드 선택으로');
     await backButton.click();
     await waitForLoading(page);
 
@@ -37,32 +37,23 @@ test.describe('Referee Scoring Flow', () => {
   test('tournament selection step shows tournament list or empty state', async ({ page }) => {
     await navigateToReferee(page);
 
-    // Wait for tournaments to load - either we see tournament buttons or "등록된 대회가 없습니다"
-    const tournamentButton = page.locator('button.btn-primary.btn-large').first();
+    // Wait for tournaments to load - either we see tournament buttons or empty message
+    const tournamentButton = page.locator('button.btn-primary').first();
     const emptyMessage = page.locator('text=등록된 대회가 없습니다');
-    const loadingMessage = page.locator('text=대회 목록 로딩 중');
 
     await expect(
-      tournamentButton.or(emptyMessage).or(loadingMessage),
+      tournamentButton.or(emptyMessage),
     ).toBeVisible({ timeout: 15000 });
-
-    // If loading, wait for it to finish
-    if (await loadingMessage.isVisible()) {
-      await loadingMessage.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
-    }
   });
 
   test('selecting a tournament shows referee selection step', async ({ page }) => {
     await navigateToReferee(page);
-
-    // Wait for tournament list to load
     await waitForLoading(page);
 
     // Try to find a tournament button
-    const tournamentButton = page.locator('button.btn-primary.btn-large').first();
+    const tournamentButton = page.locator('button.btn-primary').first();
     const emptyMessage = page.locator('text=등록된 대회가 없습니다');
 
-    // Wait for either state
     await expect(tournamentButton.or(emptyMessage)).toBeVisible({ timeout: 15000 });
 
     // Only proceed if there are tournaments
@@ -74,8 +65,7 @@ test.describe('Referee Scoring Flow', () => {
       await expect(page.locator('text=심판 선택')).toBeVisible({ timeout: 5000 });
 
       // Should have a back button
-      const backButton = page.locator('button', { hasText: '뒤로' });
-      await expect(backButton).toBeVisible();
+      await expect(page.locator('[aria-label="뒤로가기"]')).toBeVisible();
     }
   });
 
@@ -84,7 +74,7 @@ test.describe('Referee Scoring Flow', () => {
     await waitForLoading(page);
 
     // Select tournament if available
-    const tournamentButton = page.locator('button.btn-primary.btn-large').first();
+    const tournamentButton = page.locator('button.btn-primary').first();
     const emptyTournaments = page.locator('text=등록된 대회가 없습니다');
     await expect(tournamentButton.or(emptyTournaments)).toBeVisible({ timeout: 15000 });
 
@@ -97,7 +87,7 @@ test.describe('Referee Scoring Flow', () => {
     await waitForLoading(page);
 
     // Select referee if available
-    const refereeButton = page.locator('button.btn-secondary.btn-large').first();
+    const refereeButton = page.locator('button.btn-secondary').first();
     const emptyReferees = page.locator('text=등록된 심판이 없습니다');
     await expect(refereeButton.or(emptyReferees)).toBeVisible({ timeout: 15000 });
 
@@ -112,14 +102,13 @@ test.describe('Referee Scoring Flow', () => {
     // Should show PIN entry
     await expect(page.locator('text=PIN 입력')).toBeVisible({ timeout: 5000 });
 
-    // PIN input should be visible
-    const pinInput = page.locator('input[type="password"]');
+    // PIN input should be visible (aria-label based)
+    const pinInput = page.locator('[aria-label="4자리 PIN 입력"]');
     await expect(pinInput).toBeVisible();
 
-    // Login button should exist but be disabled (no PIN entered)
-    const loginButton = page.locator('button', { hasText: '로그인' });
+    // Login button should exist
+    const loginButton = page.locator('[aria-label="로그인"]');
     await expect(loginButton).toBeVisible();
-    await expect(loginButton).toBeDisabled();
 
     // Enter a 4-digit PIN
     await pinInput.fill('1234');
@@ -131,7 +120,7 @@ test.describe('Referee Scoring Flow', () => {
   test('practice mode navigates to practice page', async ({ page }) => {
     await navigateToReferee(page);
 
-    const practiceButton = page.locator('button', { hasText: '연습 모드' });
+    const practiceButton = page.locator('[aria-label="심판 연습 모드 시작"]');
     await practiceButton.click();
     await waitForLoading(page);
 

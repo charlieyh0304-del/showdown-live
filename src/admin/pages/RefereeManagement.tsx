@@ -165,12 +165,9 @@ export default function RefereeManagement() {
           className="modal-backdrop"
           onClick={closeModal}
           onKeyDown={handleKeyDown}
-          role="dialog"
-          aria-modal="true"
-          aria-label={modalMode === 'add' ? '심판 추가' : '심판 수정'}
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-yellow-400 mb-4">
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="referee-modal-title">
+            <h2 id="referee-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
               {modalMode === 'add' ? '심판 추가' : '심판 수정'}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
@@ -233,12 +230,9 @@ export default function RefereeManagement() {
           className="modal-backdrop"
           onClick={() => setDeleteTarget(null)}
           onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="심판 삭제 확인"
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-red-500 mb-4">심판 삭제</h2>
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="referee-delete-title">
+            <h2 id="referee-delete-title" className="text-2xl font-bold text-red-500 mb-4">심판 삭제</h2>
             <p className="text-lg mb-6">{deleteTarget.name} 심판을 삭제하시겠습니까?</p>
             <div className="flex gap-4">
               <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label="삭제 확인">

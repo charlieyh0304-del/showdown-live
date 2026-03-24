@@ -20,7 +20,7 @@ interface WizardState {
   type: TournamentType;
   presetId: string | null;
   // Step 2
-  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament';
+  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament' | 'manual';
   participantCount: number;
   participantNames: string[];
   hasGroupStage: boolean;
@@ -42,7 +42,7 @@ interface WizardState {
   finalsScoringRules: ScoringRules;
   finalsMatchRules: MatchRules;
   sameRulesAsQualifying: boolean;
-  bracketArrangement: 'cross_group' | 'sequential' | 'random';
+  bracketArrangement: 'cross_group' | 'sequential' | 'custom';
   avoidSameGroup: boolean;
   thirdPlaceMatch: boolean;
   hasRankingMatch: boolean;
@@ -55,6 +55,13 @@ interface WizardState {
   fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
   classificationGroups: boolean;
   classificationGroupSize: number;
+  // 라운드별 세트 수 오버라이드
+  hasRoundScoringOverride: boolean;
+  roundOverrideFromRound: number;
+  roundOverrideSetsToWin: number;
+  roundOverrideMaxSets: number;
+  // 커스텀 대진
+  customPairings: Array<{ position: number; slot1: string; slot2: string }>;
   // Common
   scoringRules: ScoringRules;
   matchRules: MatchRules;
@@ -62,7 +69,7 @@ interface WizardState {
   formatType: BracketFormatType;
   useCustomRules: boolean;
   startingRound: number;
-  seedMethod: 'ranking' | 'manual' | 'random';
+  seedMethod: 'ranking' | 'manual' | 'custom';
   hasThirdPlaceMatch: boolean;
 }
 
@@ -133,6 +140,11 @@ const defaultState: WizardState = {
   fifthToEighthFormat: 'simple' as const,
   classificationGroups: false,
   classificationGroupSize: 4,
+  hasRoundScoringOverride: false,
+  roundOverrideFromRound: 4,
+  roundOverrideSetsToWin: 3,
+  roundOverrideMaxSets: 5,
+  customPairings: [],
   scoringRules: { ...DEFAULT_SCORING },
   matchRules: { ...DEFAULT_MATCH_RULES },
   teamRules: { ...DEFAULT_TEAM_RULES },
@@ -170,11 +182,20 @@ function reducer(state: WizardState, action: Action): WizardState {
         } else if (mode === 'direct_tournament') {
           next.hasGroupStage = false;
           next.hasFinalsStage = true;
+        } else if (mode === 'manual') {
+          next.hasGroupStage = false;
+          next.hasFinalsStage = false;
+          next.formatType = 'manual';
         }
       }
       if (action.field === 'hasGroupStage') {
-        next.hasFinalsStage = action.value as boolean;
+        if (next.tournamentMode !== 'manual') {
+          next.hasFinalsStage = action.value as boolean;
+        }
         next.qualifyingFormat = next.groupCount > 1 ? 'group_round_robin' : 'round_robin';
+        if (action.value && next.tournamentMode === 'manual') {
+          next.advanceCount = next.advancePerGroup * next.groupCount;
+        }
       }
       if (action.field === 'groupCount') {
         next.qualifyingFormat = (action.value as number) > 1 ? 'group_round_robin' : 'round_robin';
@@ -199,7 +220,9 @@ function reducer(state: WizardState, action: Action): WizardState {
         next.presetId = null;
       }
       if (action.field === 'finalsFormat') {
-        next.formatType = action.value as BracketFormatType;
+        if (next.tournamentMode !== 'manual') {
+          next.formatType = action.value as BracketFormatType;
+        }
         // round_robin without group stage = simple full league, no finals stage needed
         if (action.value === 'round_robin' && !next.hasGroupStage) {
           next.hasFinalsStage = false;
@@ -209,6 +232,13 @@ function reducer(state: WizardState, action: Action): WizardState {
       }
       if (action.field === 'finalsStartRound') {
         next.startingRound = action.value as number;
+      }
+      // manual 모드: 본선 시작 라운드 자동 계산
+      if (next.tournamentMode === 'manual' && next.hasFinalsStage && next.hasGroupStage) {
+        let sr = 4;
+        while (sr < next.advanceCount) sr *= 2;
+        next.finalsStartRound = sr;
+        next.startingRound = sr;
       }
       // rankingMatch 조립 (항상 실행)
       next.rankingMatch = {
@@ -245,7 +275,7 @@ function reducer(state: WizardState, action: Action): WizardState {
         finalsFormat: preset.formatType === 'round_robin' && !hasGroup ? 'round_robin' : (preset.hasFinalsStage ? (preset.finalsConfig?.format ?? 'single_elimination') : state.finalsFormat),
         finalsStartRound: startRound,
         startingRound: startRound,
-        seedMethod: (preset.finalsConfig?.seedMethod as 'ranking' | 'manual' | 'random') ?? 'ranking',
+        seedMethod: (preset.finalsConfig?.seedMethod as 'ranking' | 'manual' | 'custom') ?? 'ranking',
         thirdPlaceMatch: thirdPlace,
         hasThirdPlaceMatch: thirdPlace,
         hasRankingMatch: rankingEnabled,
@@ -270,7 +300,7 @@ function reducer(state: WizardState, action: Action): WizardState {
       const nextStep = getNextStep(state.step, state.hasGroupStage);
       const next = { ...state, step: nextStep };
       // Skip step 3 for full league all mode (no format selection needed)
-      if (state.step === 2 && nextStep === 3 && state.tournamentMode === 'full_league_all') {
+      if (state.step === 2 && nextStep === 3 && (state.tournamentMode === 'full_league_all' || state.tournamentMode === 'manual')) {
         next.step = 4;
       }
       return next;
@@ -278,7 +308,7 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'PREV_STEP': {
       const prevStep = getPrevStep(state.step, state.hasGroupStage);
       const next = { ...state, step: prevStep };
-      if (state.step === 4 && prevStep === 3 && state.tournamentMode === 'full_league_all') {
+      if (state.step === 4 && prevStep === 3 && (state.tournamentMode === 'full_league_all' || state.tournamentMode === 'manual')) {
         next.step = 2;
       }
       return next;
@@ -306,9 +336,33 @@ export default function TournamentCreate() {
   const [state, dispatch] = useReducer(reducer, defaultState);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const stepLabels = ['기본 정보', '참가자 설정', '대회 형식', '미리보기'];
   const stepRef = useRef<HTMLDivElement>(null);
+
+  const validateStep = useCallback((step: number): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    if (step === 1) {
+      if (!state.name.trim()) {
+        errors.name = '대회명을 입력해주세요.';
+      }
+    }
+    return errors;
+  }, [state]);
+
+  const tryAdvanceStep = useCallback((targetAction: Action) => {
+    const errors = validateStep(state.step);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstErrorField = Object.keys(errors)[0];
+      const el = document.getElementById(firstErrorField);
+      el?.focus();
+      return;
+    }
+    setFieldErrors({});
+    dispatch(targetAction);
+  }, [state.step, validateStep]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -324,6 +378,40 @@ export default function TournamentCreate() {
     setError('');
     try {
       const isTeam = state.type === 'team' || state.type === 'randomTeamLeague';
+
+      // 완전 수동 모드 (스테이지 없음): 참가자만 등록, 대진표/스케줄 없음
+      if (state.tournamentMode === 'manual' && !state.hasGroupStage && !state.hasFinalsStage) {
+        const id = await addTournament({
+          name: state.name.trim(),
+          date: state.date,
+          ...(state.endDate ? { endDate: state.endDate } : {}),
+          type: state.type,
+          format: 'full_league',
+          status: 'draft',
+          gameConfig: {
+            winScore: state.qualifyingScoringRules.winScore,
+            setsToWin: state.qualifyingScoringRules.setsToWin,
+          },
+          ...(isTeam ? {
+            teamMatchSettings: {
+              winScore: state.qualifyingScoringRules.winScore,
+              setsToWin: state.qualifyingScoringRules.setsToWin,
+              minLead: state.qualifyingScoringRules.minLead,
+            },
+            teamRules: {
+              teamSize: state.teamSize,
+              rotationEnabled: state.teamRules.rotationEnabled,
+              rotationInterval: state.teamRules.rotationInterval,
+            },
+          } : {}),
+          formatType: 'manual',
+          scoringRules: state.qualifyingScoringRules,
+          matchRules: state.qualifyingMatchRules,
+        });
+        if (id) navigate(`/admin/tournament/${id}`);
+        return;
+      }
+
       const hasFinalsStage = state.hasFinalsStage;
 
       const stages = buildStagesFromWizard({
@@ -364,7 +452,7 @@ export default function TournamentCreate() {
             rotationInterval: state.teamRules.rotationInterval,
           },
         } : {}),
-        formatType: state.hasGroupStage ? 'group_knockout' : state.formatType,
+        formatType: state.tournamentMode === 'manual' ? 'manual' : (state.hasGroupStage ? 'group_knockout' : state.formatType),
         scoringRules: state.qualifyingScoringRules,
         matchRules: state.qualifyingMatchRules,
         ...(stages.length > 0 ? { stages } : {}),
@@ -380,8 +468,21 @@ export default function TournamentCreate() {
             format: state.finalsFormat as 'single_elimination' | 'double_elimination',
             advanceCount: state.advanceCount,
             startingRound: state.finalsStartRound,
-            seedMethod: state.seedMethod,
+            seedMethod: state.tournamentMode === 'manual' ? 'manual' : (state.bracketArrangement === 'custom' ? 'custom' : state.seedMethod),
             scoringRules: state.sameRulesAsQualifying ? state.qualifyingScoringRules : state.finalsScoringRules,
+            ...(state.hasRoundScoringOverride && state.roundOverrideFromRound ? {
+              roundScoringOverride: {
+                fromRound: state.roundOverrideFromRound,
+                scoringRules: {
+                  ...state.finalsScoringRules,
+                  setsToWin: state.roundOverrideSetsToWin,
+                  maxSets: state.roundOverrideMaxSets,
+                },
+              },
+            } : {}),
+            ...(state.bracketArrangement === 'custom' && state.customPairings.length > 0 ? {
+              customBracketPairings: state.customPairings,
+            } : {}),
           },
         } : {}),
         ...(state.rankingMatch.enabled ? {
@@ -419,12 +520,20 @@ export default function TournamentCreate() {
               <label htmlFor="name" className="block mb-2 font-semibold text-lg">대회명</label>
               <input
                 id="name"
-                className="input"
+                className={`input ${fieldErrors.name ? 'border-red-500 border-2' : ''}`}
                 value={state.name}
-                onChange={e => dispatch({ type: 'SET_FIELD', field: 'name', value: e.target.value })}
+                onChange={e => {
+                  dispatch({ type: 'SET_FIELD', field: 'name', value: e.target.value });
+                  if (fieldErrors.name) setFieldErrors(prev => { const next = { ...prev }; delete next.name; return next; });
+                }}
                 placeholder="대회명을 입력하세요"
                 aria-label="대회명"
+                aria-invalid={!!fieldErrors.name}
+                aria-describedby={fieldErrors.name ? 'name-error' : undefined}
               />
+              {fieldErrors.name && (
+                <p id="name-error" className="text-red-500 text-sm mt-1" role="alert">{fieldErrors.name}</p>
+              )}
             </div>
             <div>
               <label htmlFor="date" className="block mb-2 font-semibold text-lg">대회 기간</label>
@@ -447,7 +556,7 @@ export default function TournamentCreate() {
                   aria-label="종료 날짜"
                 />
               </div>
-              <p className="text-gray-500 text-xs mt-1">1일 대회는 종료 날짜를 비워두세요</p>
+              <p className="text-gray-400 text-xs mt-1">1일 대회는 종료 날짜를 비워두세요</p>
             </div>
           </div>
 
@@ -502,6 +611,14 @@ export default function TournamentCreate() {
                   aria-checked={state.presetId === preset.id}
                   className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                   onClick={() => {
+                    const errors = validateStep(1);
+                    if (Object.keys(errors).length > 0) {
+                      setFieldErrors(errors);
+                      const el = document.getElementById(Object.keys(errors)[0]);
+                      el?.focus();
+                      return;
+                    }
+                    setFieldErrors({});
                     dispatch({ type: 'APPLY_PRESET', presetId: preset.id });
                     dispatch({ type: 'GO_TO_STEP', step: 2 });
                   }}
@@ -512,7 +629,7 @@ export default function TournamentCreate() {
               ))}
               <button
                 className="card w-full text-left p-6 border-2 border-dashed border-yellow-400 hover:bg-gray-800"
-                onClick={() => dispatch({ type: 'NEXT_STEP' })}
+                onClick={() => tryAdvanceStep({ type: 'NEXT_STEP' })}
               >
                 <h3 className="text-lg font-bold text-yellow-400">⚙ 직접 설정 (커스텀)</h3>
                 <p className="text-gray-400 text-sm mt-1">참가자 수, 조 편성, 예선/본선 규칙 등을 자유롭게 설정합니다</p>
@@ -580,6 +697,15 @@ export default function TournamentCreate() {
                 <h3 className="text-lg font-bold">토너먼트 (직접 대진)</h3>
                 <p className="text-gray-400 text-sm mt-1">싱글/더블 엘리미네이션 토너먼트만 진행합니다.</p>
               </button>
+              <button
+                role="radio"
+                aria-checked={state.tournamentMode === 'manual'}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'manual' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'manual' })}
+              >
+                <h3 className="text-lg font-bold">완전 수동 설정</h3>
+                <p className="text-gray-400 text-sm mt-1">참가자만 등록하고, 대진표와 스케줄을 직접 설정합니다.</p>
+              </button>
             </div>
 
             {state.tournamentMode === 'full_league_all' && (() => {
@@ -602,6 +728,239 @@ export default function TournamentCreate() {
               );
             })()}
           </div>
+
+          {state.tournamentMode === 'manual' && (
+          <div className="card space-y-4">
+            <h2 className="text-xl font-bold text-yellow-400">수동 대회 구성</h2>
+            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3" role="note">
+              <p className="text-yellow-300 text-sm font-semibold">모든 편성을 직접 수행합니다</p>
+              <p className="text-gray-400 text-xs mt-1">조 편성, 대진 배정, 경기장, 스케줄을 대회 상세에서 수동으로 설정합니다.</p>
+            </div>
+
+            {/* 예선 토글 */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <span className="text-lg font-semibold">예선 (조별 리그)</span>
+                <p className="text-gray-400 text-sm">조별 라운드로빈 예선을 진행합니다</p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={state.hasGroupStage}
+                aria-label="예선 포함"
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasGroupStage ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasGroupStage', value: !state.hasGroupStage })}
+              >
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.hasGroupStage ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </label>
+
+            {state.hasGroupStage && (() => {
+              const effectiveCount = state.type === 'randomTeamLeague'
+                ? Math.floor(state.participantCount / state.teamSize)
+                : state.participantCount;
+              const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+              const perGroup = Math.floor(effectiveCount / state.groupCount);
+              return (
+                <div className="space-y-4 pl-4 border-l-2 border-cyan-400">
+                  <NumberStepper
+                    label="조 수"
+                    value={state.groupCount}
+                    min={2}
+                    max={16}
+                    onChange={v => dispatch({ type: 'SET_FIELD', field: 'groupCount', value: v })}
+                    ariaLabel="조 수"
+                  />
+                  <p className="text-cyan-400 text-sm">
+                    조당 약 {perGroup}{unitLabel} ({effectiveCount}{unitLabel} ÷ {state.groupCount}조)
+                  </p>
+                  <NumberStepper
+                    label={`조당 진출 ${unitLabel === '팀' ? '팀 수' : '인원'}`}
+                    value={state.advancePerGroup}
+                    min={1}
+                    max={Math.max(1, perGroup)}
+                    onChange={v => dispatch({ type: 'SET_FIELD', field: 'advancePerGroup', value: v })}
+                    ariaLabel={`조당 진출 ${unitLabel === '팀' ? '팀 수' : '인원'}`}
+                  />
+                  <div className="bg-cyan-900/20 rounded-lg p-3">
+                    <p className="text-cyan-300 text-sm font-semibold">
+                      {state.groupCount}조 × {state.advancePerGroup}{unitLabel} = 총 {state.advancePerGroup * state.groupCount}{unitLabel} 진출
+                    </p>
+                    <p className="text-gray-400 text-xs mt-1">조 편성은 대회 상세에서 직접 배정합니다</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 본선 토글 */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <span className="text-lg font-semibold">본선 (토너먼트)</span>
+                <p className="text-gray-400 text-sm">{state.hasGroupStage ? '예선 후' : ''} 토너먼트 본선을 진행합니다</p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={state.hasFinalsStage}
+                aria-label="본선 포함"
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasFinalsStage ? 'bg-green-600' : 'bg-gray-600'}`}
+                onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasFinalsStage', value: !state.hasFinalsStage })}
+              >
+                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.hasFinalsStage ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </label>
+
+            {state.hasFinalsStage && (
+              <div className="space-y-3 pl-4 border-l-2 border-yellow-400">
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="본선 형식">
+                  <button
+                    role="radio"
+                    aria-checked={state.finalsFormat === 'single_elimination'}
+                    className={`btn py-3 ${state.finalsFormat === 'single_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'single_elimination' })}
+                  >
+                    싱글 엘리미네이션
+                  </button>
+                  <button
+                    role="radio"
+                    aria-checked={state.finalsFormat === 'double_elimination'}
+                    className={`btn py-3 ${state.finalsFormat === 'double_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'double_elimination' })}
+                  >
+                    더블 엘리미네이션
+                  </button>
+                </div>
+                {state.hasGroupStage && (
+                  <p className="text-yellow-300 text-sm">
+                    본선 {state.finalsStartRound}강 시작 (진출 {state.advancePerGroup * state.groupCount}명 기준)
+                  </p>
+                )}
+                {!state.hasGroupStage && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-400 mb-2">본선 시작 라운드</h4>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[4, 8, 16, 32].filter(v => v <= state.participantCount).map(v => (
+                        <button
+                          key={v}
+                          className={`btn py-2 text-sm ${state.finalsStartRound === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                          onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: v })}
+                          aria-pressed={state.finalsStartRound === v}
+                        >
+                          {v === 4 ? '4강' : v === 8 ? '8강' : v === 16 ? '16강' : '32강'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="text-gray-400 text-xs">대진 배정은 대회 상세에서 직접 수행합니다</p>
+              </div>
+            )}
+
+            {/* 경기 규칙 (수동 모드) */}
+            <div className="space-y-4 mt-4">
+              <h3 className="text-lg font-bold text-cyan-400">경기 규칙</h3>
+              <fieldset className="space-y-4">
+                <legend className="sr-only">경기 규칙 설정</legend>
+                <NumberStepper
+                  label={`예선 세트 수: ${state.qualifyingScoringRules.maxSets}세트 (${state.qualifyingScoringRules.setsToWin}세트 선승)`}
+                  value={state.qualifyingScoringRules.setsToWin}
+                  min={1}
+                  max={5}
+                  onChange={v => {
+                    dispatch({ type: 'SET_FIELD', field: 'qualifyingScoringRules', value: { ...state.qualifyingScoringRules, setsToWin: v, maxSets: v * 2 - 1 } });
+                    if (state.sameRulesAsQualifying) {
+                      dispatch({ type: 'SET_FIELD', field: 'finalsScoringRules', value: { ...state.finalsScoringRules, setsToWin: v, maxSets: v * 2 - 1 } });
+                    }
+                  }}
+                  ariaLabel="예선 세트 선승 수"
+                />
+
+                {state.hasFinalsStage && (
+                  <>
+                    <NumberStepper
+                      label={`본선 기본 세트 수: ${state.finalsScoringRules.maxSets}세트 (${state.finalsScoringRules.setsToWin}세트 선승)`}
+                      value={state.finalsScoringRules.setsToWin}
+                      min={1}
+                      max={5}
+                      onChange={v => {
+                        dispatch({ type: 'SET_FIELD', field: 'finalsScoringRules', value: { ...state.finalsScoringRules, setsToWin: v, maxSets: v * 2 - 1 } });
+                        dispatch({ type: 'SET_FIELD', field: 'sameRulesAsQualifying', value: false });
+                      }}
+                      ariaLabel="본선 기본 세트 선승 수"
+                    />
+
+                    {/* 라운드별 세트 수 오버라이드 */}
+                    {(() => {
+                      const availableRounds: Array<{ value: number; label: string }> = [];
+                      let r = state.finalsStartRound;
+                      while (r >= 2) {
+                        if (r < state.finalsStartRound) {
+                          availableRounds.push({ value: r, label: r === 2 ? '결승' : `${r}강` });
+                        }
+                        r = Math.floor(r / 2);
+                      }
+                      if (availableRounds.length === 0) return null;
+                      return (
+                        <div>
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="font-semibold">후반 라운드에서 세트 수 변경</span>
+                            <button
+                              role="switch"
+                              aria-checked={state.hasRoundScoringOverride}
+                              aria-label="후반 라운드 세트 수 변경"
+                              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasRoundScoringOverride ? 'bg-green-600' : 'bg-gray-600'}`}
+                              onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasRoundScoringOverride', value: !state.hasRoundScoringOverride })}
+                            >
+                              <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.hasRoundScoringOverride ? 'translate-x-7' : 'translate-x-1'}`} />
+                            </button>
+                          </label>
+                          {state.hasRoundScoringOverride && (
+                            <div className="mt-3 p-3 bg-gray-800 rounded-lg space-y-3">
+                              <div className="flex items-center gap-3">
+                                <label htmlFor="manual-round-from" className="text-sm text-gray-400">시작</label>
+                                <select
+                                  id="manual-round-from"
+                                  className="input bg-gray-600 text-white py-1 px-2 rounded"
+                                  value={state.roundOverrideFromRound}
+                                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'roundOverrideFromRound', value: Number(e.target.value) })}
+                                  aria-label="세트 수 변경 시작 라운드"
+                                >
+                                  {availableRounds.map(r => (
+                                    <option key={r.value} value={r.value}>{r.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <NumberStepper
+                                label={`변경 세트 수: ${state.roundOverrideMaxSets}세트 (${state.roundOverrideSetsToWin}세트 선승)`}
+                                value={state.roundOverrideSetsToWin}
+                                min={state.finalsScoringRules.setsToWin + 1}
+                                max={5}
+                                onChange={v => {
+                                  dispatch({ type: 'SET_FIELD', field: 'roundOverrideSetsToWin', value: v });
+                                  dispatch({ type: 'SET_FIELD', field: 'roundOverrideMaxSets', value: v * 2 - 1 });
+                                }}
+                                ariaLabel="변경 세트 선승 수"
+                              />
+                              <p aria-live="polite" className="text-sm text-cyan-400">
+                                {state.finalsStartRound === 2 ? '결승' : `${state.finalsStartRound}강`}~{state.roundOverrideFromRound * 2 === 2 ? '결승' : `${state.roundOverrideFromRound * 2}강`}: {state.finalsScoringRules.maxSets}세트 | {state.roundOverrideFromRound === 2 ? '결승' : `${state.roundOverrideFromRound}강`}~결승: {state.roundOverrideMaxSets}세트
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+              </fieldset>
+            </div>
+
+            {!state.hasGroupStage && !state.hasFinalsStage && (
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-400 text-sm">
+                  스테이지를 선택하지 않으면 참가자만 등록되고, 모든 설정은 대회 상세에서 진행합니다.
+                </p>
+              </div>
+            )}
+          </div>
+          )}
 
           {state.tournamentMode === 'group_tournament' && (
           <div className="card space-y-4">
@@ -825,7 +1184,7 @@ export default function TournamentCreate() {
         {state.step < 4 ? (
           <button
             className="btn btn-primary flex-1"
-            onClick={() => dispatch({ type: 'NEXT_STEP' })}
+            onClick={() => tryAdvanceStep({ type: 'NEXT_STEP' })}
             aria-label="다음 단계"
           >
             다음

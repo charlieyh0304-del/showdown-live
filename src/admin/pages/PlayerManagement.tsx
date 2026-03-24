@@ -118,7 +118,7 @@ export default function PlayerManagement() {
             <div key={p.id} className="card flex items-center justify-between flex-wrap gap-3">
               <div>
                 <span className="font-bold text-lg">{p.name}</span>
-                {p.gender && <span className="ml-2 text-xs text-gray-500">{p.gender === 'male' ? '남' : '여'}</span>}
+                {p.gender && <span className="ml-2 text-xs text-gray-400">{p.gender === 'male' ? '남' : '여'}</span>}
                 {p.club && <span className="ml-3 text-gray-400">({p.club})</span>}
                 {p.class && <span className="ml-3 text-cyan-400">[{p.class}]</span>}
               </div>
@@ -148,12 +148,9 @@ export default function PlayerManagement() {
           className="modal-backdrop"
           onClick={closeModal}
           onKeyDown={handleKeyDown}
-          role="dialog"
-          aria-modal="true"
-          aria-label={modalMode === 'add' ? '선수 추가' : '선수 수정'}
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-yellow-400 mb-4">
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="player-modal-title">
+            <h2 id="player-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
               {modalMode === 'add' ? '선수 추가' : '선수 수정'}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
@@ -245,12 +242,9 @@ export default function PlayerManagement() {
           className="modal-backdrop"
           onClick={() => setDeleteTarget(null)}
           onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="선수 삭제 확인"
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-red-500 mb-4">선수 삭제</h2>
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="player-delete-title">
+            <h2 id="player-delete-title" className="text-2xl font-bold text-red-500 mb-4">선수 삭제</h2>
             <p className="text-lg mb-6">{deleteTarget.name} 선수를 삭제하시겠습니까?</p>
             <div className="flex gap-4">
               <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label="삭제 확인">

@@ -10,7 +10,7 @@ interface TimerModalProps {
 }
 
 export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel = '닫기' }: TimerModalProps) {
-  const trapRef = useFocusTrap(true);
+  const trapRef = useFocusTrap(true, onClose);
 
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -19,8 +19,8 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
     : `${seconds}`;
 
   return (
-    <div className="modal-backdrop" style={{ zIndex: 100 }} role="dialog" aria-modal="true" aria-label={title}>
-      <div ref={trapRef} className="flex flex-col items-center gap-6 p-8">
+    <div className="modal-backdrop" style={{ zIndex: 100 }}>
+      <div ref={trapRef} className="flex flex-col items-center gap-6 p-8" role="dialog" aria-modal="true" aria-label={title}>
         <h2 className="text-3xl font-bold text-yellow-400">{title}</h2>
         <div
           className={`text-8xl font-bold my-4 ${isWarning ? 'animate-pulse text-red-400' : 'text-white'}`}

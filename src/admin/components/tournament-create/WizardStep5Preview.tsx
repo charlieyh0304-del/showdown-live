@@ -18,7 +18,7 @@ export interface TournamentWizardState {
   type: TournamentType;
   presetId: string | null;
   // Step 2: 참가자
-  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament';
+  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament' | 'manual';
   participantCount: number;
   participantNames: string[];
   hasGroupStage: boolean;
@@ -32,7 +32,7 @@ export interface TournamentWizardState {
   finalsFormat: 'single_elimination' | 'double_elimination';
   advanceCount: number;
   startingRound: number;
-  seedMethod: 'ranking' | 'manual' | 'random';
+  seedMethod: 'ranking' | 'manual' | 'custom';
   finalsScoringRules: ScoringRules;
   finalsMatchRules: MatchRules;
   hasThirdPlaceMatch: boolean;
@@ -43,6 +43,13 @@ export interface TournamentWizardState {
   teamRules: TeamRules;
   formatType: BracketFormatType;
   useCustomRules: boolean;
+  // 대진 편성
+  bracketArrangement: 'cross_group' | 'sequential' | 'custom';
+  hasRoundScoringOverride?: boolean;
+  roundOverrideFromRound?: number;
+  roundOverrideSetsToWin?: number;
+  roundOverrideMaxSets?: number;
+  customPairings?: Array<{ position: number; slot1: string; slot2: string }>;
 }
 
 export type WizardAction =
@@ -70,6 +77,7 @@ function getFormatLabel(format: BracketFormatType): string {
     double_elimination: '더블 엘리미네이션',
     swiss: '스위스 시스템',
     group_knockout: '조별리그 + 토너먼트',
+    manual: '완전 수동 설정',
   };
   return map[format] || format;
 }
@@ -89,8 +97,17 @@ function getSeedMethodLabel(method: string): string {
   switch (method) {
     case 'ranking': return '순위 기반';
     case 'manual': return '수동 배정';
-    case 'random': return '랜덤';
+    case 'custom': return '커스텀 배정';
     default: return method;
+  }
+}
+
+function getBracketArrangementLabel(arrangement: string): string {
+  switch (arrangement) {
+    case 'cross_group': return '교차 배정';
+    case 'sequential': return '순차 배치';
+    case 'custom': return '커스텀 배정';
+    default: return arrangement;
   }
 }
 
@@ -171,6 +188,16 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-yellow-400">설정 확인 및 미리보기</h2>
 
+      {/* 수동 모드 배너 */}
+      {state.tournamentMode === 'manual' && (
+        <div className="card p-4 bg-yellow-900/20 border-2 border-yellow-500/40">
+          <p className="text-yellow-400 font-bold text-lg">완전 수동 모드</p>
+          <p className="text-gray-300 text-sm mt-1">
+            조 편성과 대진 배정을 대회 상세에서 직접 수행합니다.
+          </p>
+        </div>
+      )}
+
       {/* 1. 대회 기본 정보 */}
       <section className="card p-5" aria-label="대회 기본 정보">
         <SectionHeader title="대회 기본 정보" step={1} dispatch={dispatch} />
@@ -192,7 +219,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                 className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
                 role="listitem"
               >
-                <div className="text-sm text-cyan-400 font-semibold">예선</div>
+                <div className="text-sm text-cyan-400 font-semibold">예선{state.tournamentMode === 'manual' ? ' (수동)' : ''}</div>
                 <div className="text-white font-bold mt-1">
                   {state.groupCount > 1
                     ? `${state.groupCount}조 조별리그`
@@ -202,13 +229,13 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                   {effectiveCount}{unitLabel}
                 </div>
                 {state.groupCount > 1 && (
-                  <div className="text-gray-500 text-xs mt-0.5">
+                  <div className="text-gray-400 text-xs mt-0.5">
                     조당 ~{perGroup}{unitLabel}
                   </div>
                 )}
               </div>
               {state.hasFinalsStage && (
-                <div className="text-2xl text-gray-500 flex-shrink-0" aria-hidden="true">→</div>
+                <div className="text-2xl text-gray-400 flex-shrink-0" aria-hidden="true">→</div>
               )}
             </>
           )}
@@ -219,7 +246,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                 className="flex-shrink-0 rounded-lg border-2 border-yellow-500 bg-gray-800 p-3 text-center min-w-[140px]"
                 role="listitem"
               >
-                <div className="text-sm text-yellow-400 font-semibold">본선</div>
+                <div className="text-sm text-yellow-400 font-semibold">본선{state.tournamentMode === 'manual' ? ' (수동)' : ''}</div>
                 <div className="text-white font-bold mt-1">
                   {getStartingRoundLabel(state.startingRound)} 토너먼트
                 </div>
@@ -230,7 +257,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
 
               {state.rankingMatch.enabled && (
                 <>
-                  <div className="text-2xl text-gray-500 flex-shrink-0" aria-hidden="true">→</div>
+                  <div className="text-2xl text-gray-400 flex-shrink-0" aria-hidden="true">→</div>
                   <div
                     className="flex-shrink-0 rounded-lg border-2 border-orange-500 bg-gray-800 p-3 text-center min-w-[140px]"
                     role="listitem"
@@ -289,6 +316,9 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                 <SummaryRow label={isTeamType ? '조별 진출 수' : '조별 진출 수'} value={`${state.advancePerGroup}${unitLabel}`} />
               </>
             )}
+            {state.tournamentMode === 'manual' && (
+              <SummaryRow label="조 편성" value="수동 배정" />
+            )}
             <SummaryRow label="경기 규칙" value={formatScoringRules(state.qualifyingScoringRules)} />
             <SummaryRow label="타임아웃" value={formatMatchRules(state.qualifyingMatchRules)} />
             <SummaryRow label="예상 경기 수" value={`${matchCounts.qualifying}경기`} />
@@ -306,12 +336,38 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
               value={state.finalsFormat === 'single_elimination' ? '싱글 엘리미네이션' : '더블 엘리미네이션'}
             />
             <SummaryRow label="시작" value={getStartingRoundLabel(state.startingRound)} />
-            <SummaryRow label="편성 방식" value={getSeedMethodLabel(state.seedMethod)} />
+            <SummaryRow label="편성 방식" value={state.tournamentMode === 'manual' ? '수동 배정' : getSeedMethodLabel(state.seedMethod)} />
             <SummaryRow label="경기 규칙" value={formatScoringRules(state.finalsScoringRules)} />
             <SummaryRow label="타임아웃" value={formatMatchRules(state.finalsMatchRules)} />
+            <SummaryRow label="대진 편성" value={getBracketArrangementLabel(state.bracketArrangement)} />
+            {state.hasRoundScoringOverride && state.roundOverrideFromRound && state.roundOverrideSetsToWin && state.roundOverrideMaxSets && (
+              <div
+                className="flex justify-between py-1.5 border-b border-gray-700"
+                aria-label={`라운드별 세트 수: 기본 ${state.finalsScoringRules.maxSets}세트 ${state.finalsScoringRules.setsToWin}세트 선승, ${getStartingRoundLabel(state.roundOverrideFromRound)}부터 ${state.roundOverrideMaxSets}세트 ${state.roundOverrideSetsToWin}세트 선승`}
+              >
+                <dt className="text-gray-400">세트 수</dt>
+                <dd className="font-semibold text-white text-right">
+                  기본: {state.finalsScoringRules.maxSets}세트 ({state.finalsScoringRules.setsToWin}세트 선승) | {getStartingRoundLabel(state.roundOverrideFromRound)}~: {state.roundOverrideMaxSets}세트 ({state.roundOverrideSetsToWin}세트 선승)
+                </dd>
+              </div>
+            )}
             <SummaryRow label="3/4위 결정전" value={state.hasThirdPlaceMatch ? '있음' : '없음'} />
             <SummaryRow label="예상 경기 수" value={`${matchCounts.finals}경기`} />
           </dl>
+
+          {/* 커스텀 대진 목록 */}
+          {state.customPairings && state.customPairings.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-gray-400 mb-2">커스텀 대진</h4>
+              <ul role="list" className="space-y-1">
+                {state.customPairings.map((pairing) => (
+                  <li key={pairing.position} className="text-sm text-white">
+                    경기{pairing.position}: {pairing.slot1} vs {pairing.slot2}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -375,7 +431,32 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
         )}
       </section>
 
-      {/* 7. 생성 버튼 */}
+      {/* 7. 스케줄 안내 */}
+      {state.tournamentMode === 'manual' ? (
+        <section className="card p-4 bg-blue-900/20 border border-blue-500/40" role="note" aria-label="다음 단계 안내">
+          <p className="text-blue-400 font-bold">&#8505; 다음 단계 안내</p>
+          <p className="text-gray-300 text-sm mt-2">
+            대회 생성 후 [대회 상세] 페이지에서:
+          </p>
+          <ul className="text-gray-300 text-sm mt-1 list-disc list-inside">
+            <li>조 편성 (수동 배정)</li>
+            <li>대진표 설정</li>
+            <li>경기장/심판 배정</li>
+            <li>스케줄 설정</li>
+          </ul>
+          <p className="text-gray-300 text-sm mt-1">을 진행할 수 있습니다.</p>
+        </section>
+      ) : (
+        <section className="card p-4 bg-blue-900/20 border border-blue-500/40" role="note" aria-label="스케줄 안내">
+          <p className="text-blue-400 font-bold">&#8505; 스케줄 안내</p>
+          <p className="text-gray-300 text-sm mt-2">
+            대회 생성 후 [대회 상세 &gt; 스케줄] 탭에서
+            경기장, 심판 배정, 시간 설정을 할 수 있습니다.
+          </p>
+        </section>
+      )}
+
+      {/* 8. 생성 버튼 */}
       <button
         className="btn btn-success btn-large w-full text-xl py-4"
         onClick={onSubmit}

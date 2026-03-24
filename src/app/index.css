@@ -26,6 +26,43 @@ body {
   min-height: 100vh;
 }
 
+/* ===== 접근성: Skip Navigation Link ===== */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 1rem 2rem;
+  background-color: var(--color-primary);
+  color: #000000;
+  font-size: 1.25rem;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 0 0 0.5rem 0.5rem;
+  transition: top 0.15s ease-in-out;
+  min-height: auto;
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: 3px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+/* ===== 접근성: 스크린리더 전용 텍스트 ===== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 /* 접근성: 큰 터치 타겟 */
 button, a, input, select {
   min-height: 48px;
@@ -43,17 +80,16 @@ button, a, input, select {
   box-shadow: 0 0 0 4px rgba(255, 255, 0, 0.3);
 }
 
-/* 접근성: 스크린리더 전용 텍스트 */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
+/* ===== 접근성: Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* 버튼 스타일 */
@@ -73,9 +109,11 @@ button, a, input, select {
   box-shadow: 0 0 0 4px rgba(255, 255, 0, 0.3);
 }
 
-.btn:disabled {
-  opacity: 0.5;
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.6;
   cursor: not-allowed;
+  filter: grayscale(30%);
 }
 
 .btn:active:not(:disabled) {
@@ -147,10 +185,18 @@ button, a, input, select {
 .input:focus {
   outline: none;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(255, 255, 0, 0.3);
+}
+
+.input:focus-visible {
+  border-color: var(--color-primary);
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(250, 204, 21, 0.3);
 }
 
 .input::placeholder {
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 /* 카드 */
@@ -257,19 +303,6 @@ button, a, input, select {
   font-weight: bold;
 }
 
-/* ===== 스크린 리더 전용 ===== */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
 /* ===== High Contrast Mode ===== */
 .mode-high-contrast {
   --color-bg: #000000;
@@ -326,7 +359,7 @@ button, a, input, select {
 }
 
 /* All interactive elements get visible focus in high-contrast */
-.mode-high-contrast *:focus {
+.mode-high-contrast *:focus-visible {
   outline: 3px solid #FFD700 !important;
   outline-offset: 2px;
 }
@@ -400,8 +433,44 @@ button, a, input, select {
   padding: 1rem 1.5rem;
 }
 
-/* ===== Improved focus visibility for ALL modes ===== */
-*:focus-visible {
+/* ===== Focus ring for interactive elements ===== */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
   outline: 3px solid #facc15;
   outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(250, 204, 21, 0.3);
+}
+
+/* ===== Disabled interactive elements ===== */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+/* ===== Link visibility ===== */
+a:not(.btn):not(.nav-link):not(.mode-card):not(.skip-link) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:not(.btn):not(.nav-link):not(.mode-card):not(.skip-link):hover {
+  text-decoration-thickness: 2px;
+}
+
+/* ===== High contrast skip-link ===== */
+.mode-high-contrast .skip-link {
+  background-color: #FFD700;
+  color: #000000;
+}
+
+.mode-high-contrast .skip-link:focus {
+  outline: 3px solid #00FFFF;
 }

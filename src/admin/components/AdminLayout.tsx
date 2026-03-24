@@ -33,7 +33,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <nav className="flex items-center gap-2 p-4 border-b border-gray-700 flex-wrap" aria-label="관리자 내비게이션">
+      <a href="#main-content" className="skip-link">본문으로 건너뛰기</a>
+      <header role="banner">
+        <nav className="flex items-center gap-2 p-4 border-b border-gray-700 flex-wrap" aria-label="관리자 내비게이션">
         <NavLink
           to="/admin"
           end
@@ -81,8 +83,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         >
           로그아웃
         </button>
-      </nav>
-      <main className="flex-1 p-4">
+        </nav>
+      </header>
+      <main id="main-content" className="flex-1 p-4">
         <ErrorBoundary>
           {children}
         </ErrorBoundary>

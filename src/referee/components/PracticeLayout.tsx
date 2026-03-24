@@ -19,7 +19,7 @@ export default function PracticeLayout() {
       >
         연습 모드 - 실제 대회에 영향 없음
       </div>
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900" role="banner">
         <ModeBadge mode="practice" />
         <button
           className="btn btn-accent"
@@ -29,7 +29,7 @@ export default function PracticeLayout() {
           나가기
         </button>
       </header>
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <Outlet />
       </main>
     </div>

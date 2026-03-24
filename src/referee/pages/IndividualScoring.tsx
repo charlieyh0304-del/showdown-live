@@ -43,6 +43,9 @@ export default function IndividualScoring() {
   const [isMatchEnd, setIsMatchEnd] = useState(false);
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
+  // Coin toss
+  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
+  const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
   // Pause
   const [isPausedLocal, setIsPausedLocal] = useState(false);
   const [pauseElapsed, setPauseElapsed] = useState(0);
@@ -77,16 +80,12 @@ export default function IndividualScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 워밍업 시간 안내 (30초, 15초)
+  // 개인전 워밍업 60초: 15초 남음 알림
   useEffect(() => {
     if (warmupTimer.isRunning) {
-      if (warmupTimer.seconds === 30) {
-        setLastAction('⚠️ 워밍업 30초 남았습니다');
-        setAnnouncement('워밍업 30초 남았습니다');
-      }
       if (warmupTimer.seconds === 15) {
-        setLastAction('⚠️ 워밍업 15초 남았습니다');
-        setAnnouncement('워밍업 15초 남았습니다');
+        setLastAction('⚠️ 15초');
+        setAnnouncement('15초');
       }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
@@ -545,26 +544,47 @@ export default function IndividualScoring() {
         <h1 className="text-3xl font-bold text-yellow-400">경기 준비</h1>
         <div className="flex items-center gap-8 text-2xl">
           <span className="text-yellow-400 font-bold">{player1Name}</span>
-          <span className="text-gray-500">vs</span>
+          <span className="text-gray-400">vs</span>
           <span className="text-cyan-400 font-bold">{player2Name}</span>
         </div>
         {match.courtName && <p className="text-gray-400 text-lg">코트: {match.courtName}</p>}
 
-        <div className="card w-full max-w-md space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-300">첫 서브 선택</h2>
-          <div className="flex gap-4">
-            <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch('player1')}>
-              🎾 {player1Name}
-            </button>
-            <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch('player2')}>
-              🎾 {player2Name}
+        {coinTossStep === 'toss' && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">동전던지기 승자</h2>
+            <div className="flex gap-4">
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player1'); setCoinTossStep('choice'); }}>
+                {player1Name}
+              </button>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player2'); setCoinTossStep('choice'); }}>
+                {player2Name}
+              </button>
+            </div>
+          </div>
+        )}
+        {coinTossStep === 'choice' && tossWinner && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">
+              {tossWinner === 'player1' ? player1Name : player2Name} 승리!
+            </h2>
+            <p className="text-gray-400 text-center">서브 또는 리시브를 선택하세요</p>
+            <div className="flex gap-4">
+              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch(tossWinner)} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name}가 서브 선택`}>
+                🎾 서브
+              </button>
+              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch(tossWinner === 'player1' ? 'player2' : 'player1')} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name}가 리시브 선택`}>
+                🏓 리시브
+              </button>
+            </div>
+            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label="동전던지기 다시 선택" style={{ minHeight: '44px' }}>
+              다시 선택
             </button>
           </div>
-        </div>
+        )}
 
         <div className="card w-full max-w-md space-y-4">
           <div className="border-t border-gray-700 pt-3">
-            <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>
+            <h3 className="text-sm font-bold text-gray-400 mb-2">부전승 처리</h3>
             <div className="grid grid-cols-2 gap-2">
               <button
                 className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
@@ -593,27 +613,45 @@ export default function IndividualScoring() {
     const setWins = Array.isArray(match.sets) && match.sets.length > 0 ? countSetWins(match.sets, gameConfig) : { player1: 0, player2: 0 };
     const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-4">
-        <h1 className="text-3xl font-bold text-yellow-400">경기 종료</h1>
-        <div className="text-4xl font-bold text-green-400">{winnerName} 승리!</div>
-        <div className="text-2xl text-gray-300">세트 스코어: {setWins.player1} - {setWins.player2}</div>
-        {match.sets && match.sets.map((s: SetScore, i: number) => {
-          const winner = s.player1Score > s.player2Score ? player1Name : player2Name;
-          return (
-            <div key={i} className="text-lg text-gray-400">
-              세트 {i + 1}: {s.player1Score} - {s.player2Score} ({winner} 승)
+      <div className="min-h-screen flex flex-col p-4">
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold text-yellow-400">경기 종료</h1>
+          <div className="text-4xl font-bold text-green-400 mt-2" role="status" aria-live="assertive">🏆 {winnerName} 승리!</div>
+          <div className="text-2xl text-gray-300 mt-1" aria-label={`세트 스코어 ${setWins.player1} 대 ${setWins.player2}`}>세트 스코어: {setWins.player1} - {setWins.player2}</div>
+        </div>
+        {/* 세트별 결과 */}
+        {match.sets && match.sets.length > 0 && (
+          <div className="w-full max-w-lg mx-auto mb-4">
+            <div className="grid grid-cols-1 gap-2">
+              {match.sets.map((s: SetScore, i: number) => {
+                const winner = s.player1Score > s.player2Score ? player1Name : player2Name;
+                return (
+                  <div key={i} className="flex justify-between items-center bg-gray-800 rounded px-4 py-2" aria-label={`세트 ${i + 1}: ${player1Name} ${s.player1Score} 대 ${player2Name} ${s.player2Score}, ${winner} 승리`}>
+                    <span className="text-sm text-gray-400">세트 {i + 1}</span>
+                    <span className="text-lg font-bold">
+                      <span className="text-yellow-400">{s.player1Score}</span>
+                      <span className="text-gray-400"> - </span>
+                      <span className="text-cyan-400">{s.player2Score}</span>
+                    </span>
+                    <span className="text-sm text-green-400">🏆 {winner} 승</span>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
+        {/* 상세 경기 기록 */}
         {history.length > 0 && (
-          <div className="w-full max-w-lg">
-            <h3 className="text-lg font-bold text-gray-300 mb-2">경기 기록 ({history.length})</h3>
-            <div className="max-h-60 overflow-y-auto">
+          <div className="w-full max-w-lg mx-auto flex-1 flex flex-col min-h-0">
+            <h3 className="text-lg font-bold text-gray-300 mb-2">상세 경기 기록 ({history.length})</h3>
+            <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 380px)' }}>
               <SetGroupedHistory history={history} sets={match.sets ?? []} showAll />
             </div>
           </div>
         )}
-        <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>목록으로</button>
+        <div className="text-center mt-4">
+          <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>목록으로</button>
+        </div>
       </div>
     );
   }
@@ -689,8 +727,8 @@ export default function IndividualScoring() {
 
       {/* Set End Confirmation Dialog */}
       {showSetEndConfirm && (
-        <div className="modal-backdrop" style={{ zIndex: 100 }} role="dialog" aria-modal="true" aria-label="세트 종료 확인">
-          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm">
+        <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape' && !isMatchEnd) handleCancelSetEnd(); }}>
+          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm" role="dialog" aria-modal="true" aria-label="세트 종료 확인">
             <h2 className="text-2xl font-bold text-yellow-400">세트 종료 확인</h2>
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
@@ -705,25 +743,25 @@ export default function IndividualScoring() {
 
       {/* Pause Banner */}
       {isPausedLocal && (
-        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between">
+        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between" role="status" aria-live="polite" aria-label="경기 일시정지 중">
           <div>
             <span className="text-orange-300 font-bold">⏸️ 경기 일시정지</span>
-            <span className="text-orange-200 ml-3">
+            <span className="text-orange-200 ml-3" aria-label={`경과 시간 ${Math.floor(pauseElapsed / 60)}분 ${pauseElapsed % 60}초`}>
               {Math.floor(pauseElapsed / 60)}:{(pauseElapsed % 60).toString().padStart(2, '0')}
             </span>
             {pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({pauseReason})</span>}
           </div>
-          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume}>▶ 재개</button>
+          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label="경기 재개">▶ 재개</button>
         </div>
       )}
 
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/games')}>← 목록</button>
+          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/games')} aria-label="경기 목록으로 돌아가기">← 목록</button>
           <div className="text-center">
-            <div className="text-lg font-bold text-yellow-400">세트 {currentSetIndex + 1}/{gameConfig.MAX_SETS}</div>
-            <div className="text-sm text-gray-400">세트 스코어: {setWins.player1} - {setWins.player2}</div>
+            <h1 className="text-lg font-bold text-yellow-400">세트 {currentSetIndex + 1}/{gameConfig.MAX_SETS}</h1>
+            <div className="text-sm text-gray-400" aria-label={`세트 스코어 ${setWins.player1} 대 ${setWins.player2}`}>세트 스코어: {setWins.player1} - {setWins.player2}</div>
           </div>
           <div className="text-sm text-gray-400 text-right">
             {match.courtName && <div>{match.courtName}</div>}
@@ -733,11 +771,11 @@ export default function IndividualScoring() {
       </div>
 
       {/* Serve display */}
-      <div className="bg-blue-900/50 px-4 py-2 text-center">
+      <div className="bg-blue-900/50 px-4 py-2 text-center" role="status" aria-label={`${serverName} 서브 ${serveCountVal + 1}/${maxServes}회차`}>
         <span className="text-blue-300 font-semibold">
           🎾 {serverName} 서브 {serveCountVal + 1}/{maxServes}회차
         </span>
-        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe}>
+        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label="서브권 수동 변경" style={{ minHeight: '44px', minWidth: '44px' }}>
           서브권 변경
         </button>
       </div>
@@ -773,6 +811,7 @@ export default function IndividualScoring() {
               className="btn btn-success text-lg py-4 font-bold"
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
               onClick={() => handleIBSAScore(1, 'goal', 2, false, `${player1Name} 골`)}
+              aria-label={`${player1Name} 골 득점. ${player1Name}에게 2점 추가`}
             >
               {player1Name}<br/>골 +2점
             </button>
@@ -780,6 +819,7 @@ export default function IndividualScoring() {
               className="btn btn-success text-lg py-4 font-bold"
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
               onClick={() => handleIBSAScore(2, 'goal', 2, false, `${player2Name} 골`)}
+              aria-label={`${player2Name} 골 득점. ${player2Name}에게 2점 추가`}
             >
               {player2Name}<br/>골 +2점
             </button>
@@ -797,6 +837,7 @@ export default function IndividualScoring() {
                     className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
                     disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                     onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
+                    aria-label={`${player1Name} ${action.label}. ${player2Name}에게 1점 추가`}
                   >
                     {player1Name} {action.label}<br/>
                     <span className="text-xs opacity-75">→ {player2Name} +1점</span>
@@ -807,6 +848,7 @@ export default function IndividualScoring() {
                     className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
                     disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                     onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
+                    aria-label={`${player2Name} ${action.label}. ${player1Name}에게 1점 추가`}
                   >
                     {player2Name} {action.label}<br/>
                     <span className="text-xs opacity-75">→ {player1Name} +1점</span>
@@ -827,6 +869,7 @@ export default function IndividualScoring() {
                   className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
                   disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                   onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
+                  aria-label={`${player1Name} ${action.label}. ${player2Name}에게 ${action.points}점 추가`}
                 >
                   {player1Name} {action.label}<br/>
                   <span className="text-xs opacity-75">→ {player2Name} +{action.points}점</span>
@@ -835,6 +878,7 @@ export default function IndividualScoring() {
                   className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
                   disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
                   onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
+                  aria-label={`${player2Name} ${action.label}. ${player1Name}에게 ${action.points}점 추가`}
                 >
                   {player2Name} {action.label}<br/>
                   <span className="text-xs opacity-75">→ {player1Name} +{action.points}점</span>
@@ -846,7 +890,7 @@ export default function IndividualScoring() {
 
         {/* Actions */}
         <div className="flex gap-3">
-          <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0}>
+          <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0} aria-label="마지막 점수 취소">
             ↩️ 취소
           </button>
           <button
@@ -875,6 +919,7 @@ export default function IndividualScoring() {
             className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
             onClick={handleDeadBall}
+            aria-label="데드볼. 현재 서브를 무효로 하고 재서브"
           >
             🔵 데드볼
           </button>
@@ -883,12 +928,12 @@ export default function IndividualScoring() {
         {/* Warmup + Pause */}
         <div className="flex gap-3">
           {!match.warmupUsed && (
-            <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup}>
+            <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup} aria-label="워밍업 60초 시작">
               🔥 워밍업 60초
             </button>
           )}
           {!isPausedLocal && (
-            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white" onClick={handlePause}>
+            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white" onClick={handlePause} aria-label="경기 일시정지">
               ⏸️ 일시정지
             </button>
           )}
@@ -896,12 +941,13 @@ export default function IndividualScoring() {
 
         {/* Walkover (부전승) */}
         <div className="border-t border-gray-700 pt-3 mt-3">
-          <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>
+          <h3 className="text-sm font-bold text-gray-400 mb-2">부전승 처리</h3>
           <div className="grid grid-cols-2 gap-2">
             <button
               className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
               onClick={() => handleWalkover(1)}
               disabled={match.status !== 'in_progress' && match.status !== 'pending'}
+              aria-label={`${player1Name} 부전승 처리`}
             >
               {player1Name} 부전승
             </button>
@@ -909,6 +955,7 @@ export default function IndividualScoring() {
               className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
               onClick={() => handleWalkover(2)}
               disabled={match.status !== 'in_progress' && match.status !== 'pending'}
+              aria-label={`${player2Name} 부전승 처리`}
             >
               {player2Name} 부전승
             </button>
@@ -917,11 +964,11 @@ export default function IndividualScoring() {
 
         {/* History (set-grouped) */}
         <div>
-          <button className="text-sm text-gray-400 underline mb-2" onClick={() => setShowHistory(!showHistory)}>
+          <button className="text-sm text-gray-400 underline mb-2" onClick={() => setShowHistory(!showHistory)} aria-expanded={showHistory} aria-label={showHistory ? '경기 기록 닫기' : `경기 기록 열기, ${history.length}건`} style={{ minHeight: '44px' }}>
             {showHistory ? '▲ 경기 기록 닫기' : `▼ 경기 기록 (${history.length})`}
           </button>
           {showHistory && history.length > 0 && (
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto">
               <SetGroupedHistory history={history} sets={sets} />
             </div>
           )}
@@ -934,11 +981,11 @@ export default function IndividualScoring() {
           <h3 className="text-sm font-bold text-gray-400 mb-2">세트 기록</h3>
           <div className="flex gap-4 overflow-x-auto">
             {sets.map((s: SetScore, i: number) => (
-              <div key={i} className={`text-center px-3 py-1 rounded ${i === currentSetIndex ? 'bg-gray-700' : ''}`}>
-                <div className="text-xs text-gray-500">세트 {i + 1}</div>
+              <div key={i} className={`text-center px-3 py-1 rounded ${i === currentSetIndex ? 'bg-gray-700' : ''}`} aria-label={`세트 ${i + 1}: ${player1Name} ${s.player1Score} 대 ${player2Name} ${s.player2Score}${i === currentSetIndex ? ' (현재 세트)' : ''}`} aria-current={i === currentSetIndex ? 'true' : undefined}>
+                <div className="text-xs text-gray-400">세트 {i + 1}</div>
                 <div className="text-lg font-bold">
                   <span className="text-yellow-400">{s.player1Score}</span>
-                  <span className="text-gray-500"> - </span>
+                  <span className="text-gray-400"> - </span>
                   <span className="text-cyan-400">{s.player2Score}</span>
                 </div>
               </div>

@@ -36,7 +36,7 @@ export default function RefereeLayout() {
           로그아웃
         </button>
       </header>
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>

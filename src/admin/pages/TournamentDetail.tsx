@@ -266,30 +266,37 @@ export default function TournamentDetail() {
         await setScheduleBulk(remappedSchedule);
       }
 
-      // === 심판 배정 업데이트 (실제 match ID로) ===
-      if (simAutoReferee) {
-        if (referees.length > 0) {
-          // 기존 심판에게 경기 라운드로빈 배정
-          const refAssignments = referees.map(r => ({ id: r.id, assignedMatchIds: [] as string[] }));
-          actualMatchIds.forEach((matchId, idx) => {
-            const refIdx = idx % refAssignments.length;
-            refAssignments[refIdx].assignedMatchIds.push(matchId);
-          });
-          setSimProgress(`심판 ${referees.length}명 배정 정보 저장 중...`);
-          for (const ra of refAssignments) {
-            await updateReferee(ra.id, { assignedMatchIds: ra.assignedMatchIds });
-          }
-        } else if (result.referees && result.referees.length > 0) {
-          // 가상 심판에 실제 match ID 배정
-          setSimProgress(`심판 배정 정보 저장 중...`);
-          for (const simRef of result.referees) {
-            const realRefId = refIdMap.get(simRef.id);
-            if (realRefId) {
-              const remappedIds = simRef.assignedMatchIds.map(id => matchIdMap.get(id) || id);
-              await updateReferee(realRefId, { assignedMatchIds: remappedIds });
-            }
+      // === 심판 배정 업데이트 (실제 match ID로, 타임아웃 포함) ===
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+      try {
+        if (simAutoReferee) {
+          if (referees.length > 0) {
+            const refAssignments = referees.map(r => ({ id: r.id, assignedMatchIds: [] as string[] }));
+            actualMatchIds.forEach((matchId, idx) => {
+              const refIdx = idx % refAssignments.length;
+              refAssignments[refIdx].assignedMatchIds.push(matchId);
+            });
+            setSimProgress(`심판 ${referees.length}명 배정 정보 저장 중...`);
+            await withTimeout(
+              Promise.all(refAssignments.map(ra => updateReferee(ra.id, { assignedMatchIds: ra.assignedMatchIds }))),
+              10000,
+            );
+          } else if (result.referees && result.referees.length > 0) {
+            setSimProgress(`심판 배정 정보 저장 중...`);
+            const refPromises = result.referees
+              .map(simRef => {
+                const realRefId = refIdMap.get(simRef.id);
+                if (!realRefId) return null;
+                const remappedIds = simRef.assignedMatchIds.map(id => matchIdMap.get(id) || id);
+                return updateReferee(realRefId, { assignedMatchIds: remappedIds });
+              })
+              .filter(Boolean);
+            await withTimeout(Promise.all(refPromises), 10000);
           }
         }
+      } catch (refErr) {
+        console.error('심판 배정 오류 (무시하고 계속):', refErr);
       }
 
       setSimProgress('대회 상태 업데이트 중...');
@@ -297,12 +304,16 @@ export default function TournamentDetail() {
       const allCompleted = result.matches.every(m => m.status === 'completed');
       await updateTournament({ status: allCompleted ? 'completed' : 'in_progress' });
 
-      setSimProgress('시뮬레이션 완료! ✅');
-      // 3초 후 메시지 클리어
-      setTimeout(() => setSimProgress(''), 3000);
+      setSimProgress(`시뮬레이션 완료! 경기 ${result.matches.length}건 생성, 대회 상태: ${allCompleted ? '완료' : '진행중'}`);
+      // 10초 후 메시지 클리어
+      setTimeout(() => setSimProgress(''), 10000);
     } catch (err) {
       console.error('시뮬레이션 오류:', err);
       setSimProgress('시뮬레이션 중 오류 발생');
+      // 에러 발생해도 대회 상태는 in_progress로 업데이트 시도
+      try {
+        await updateTournament({ status: 'in_progress' });
+      } catch { /* ignore */ }
     } finally {
       setSimulating(false);
     }
@@ -339,7 +350,7 @@ export default function TournamentDetail() {
               aria-label={isTeamType ? '참가 팀 수' : '참가 인원'}
             />
             {isTeamType && (
-              <p className="text-xs text-gray-500 mt-1">등록된 팀이 있으면 해당 팀으로 시뮬레이션됩니다.</p>
+              <p className="text-xs text-gray-400 mt-1">등록된 팀이 있으면 해당 팀으로 시뮬레이션됩니다.</p>
             )}
           </div>
           <div className="space-y-3 mb-4">
@@ -352,7 +363,7 @@ export default function TournamentDetail() {
               />
               <div>
                 <span className="text-sm font-medium text-gray-200">대진표 자동 배정</span>
-                <p className="text-xs text-gray-500">조별 라운드로빈 대진을 자동으로 생성합니다.</p>
+                <p className="text-xs text-gray-400">조별 라운드로빈 대진을 자동으로 생성합니다.</p>
               </div>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">
@@ -364,7 +375,7 @@ export default function TournamentDetail() {
               />
               <div>
                 <span className="text-sm font-medium text-gray-200">심판 자동 배정</span>
-                <p className="text-xs text-gray-500">가상 심판을 생성하고 경기에 배정합니다.</p>
+                <p className="text-xs text-gray-400">가상 심판을 생성하고 경기에 배정합니다.</p>
               </div>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">
@@ -376,37 +387,44 @@ export default function TournamentDetail() {
               />
               <div>
                 <span className="text-sm font-medium text-gray-200">경기장 자동 배정</span>
-                <p className="text-xs text-gray-500">가상 경기장을 생성하고 스케줄에 배정합니다.</p>
+                <p className="text-xs text-gray-400">가상 경기장을 생성하고 스케줄에 배정합니다.</p>
               </div>
             </label>
           </div>
-          {simProgress && <p className="text-cyan-400 text-sm mb-2">{simProgress}</p>}
+          {simProgress && (
+            <p className={`text-sm mb-2 font-semibold ${simProgress.includes('완료') ? 'text-green-400 text-base' : simProgress.includes('오류') ? 'text-red-400' : 'text-cyan-400'}`} role="status" aria-live="polite">
+              {simProgress}
+            </p>
+          )}
           <button
             className="btn bg-purple-700 hover:bg-purple-600 text-white w-full"
             onClick={handleSimulate}
             disabled={simulating}
+            aria-label="시뮬레이션 실행"
           >
             {simulating ? '시뮬레이션 진행 중...' : '시뮬레이션 실행'}
           </button>
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap border-b border-gray-700 pb-2" role="tablist" aria-label="대회 상세 탭">
+      <div className="flex gap-2 flex-wrap border-b border-gray-700 pb-2" role="tablist" aria-label="대회 상세 탭" onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const idx = TABS.findIndex(t => t.key === activeTab); const next = e.key === 'ArrowRight' ? (idx + 1) % TABS.length : (idx - 1 + TABS.length) % TABS.length; setActiveTab(TABS[next].key); e.currentTarget.querySelector<HTMLElement>(`#tab-${TABS[next].key}`)?.focus(); } }}>
         {TABS.map(tab => (
           <button
             key={tab.key}
+            id={`tab-${tab.key}`}
             role="tab"
             aria-selected={activeTab === tab.key}
+            aria-controls={`tabpanel-${tab.key}`}
+            tabIndex={activeTab === tab.key ? 0 : -1}
             className={`nav-link ${activeTab === tab.key ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.key)}
-            aria-label={tab.label}
           >
             {tab.label}
           </button>
         ))}
       </div>
 
-      <div role="tabpanel" aria-label={TABS.find(t => t.key === activeTab)?.label}>
+      <div id={`tabpanel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'players' && (
           <PlayersTab
             tournament={tournament}
@@ -569,6 +587,11 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
+  const [manualGroupCount, setManualGroupCount] = useState<number>(
+    tournament.qualifyingConfig?.groupCount
+      || toArray(tournament.stages).find(s => s.type === 'qualifying')?.groupCount
+      || 4
+  );
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   // 팀별 설정 편집용 로컬 state (Firebase 즉시 쓰기 대신 로컬에서 편집 후 저장)
   const [editCoachName, setEditCoachName] = useState('');
@@ -806,7 +829,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <option value="female">여</option>
             </select>
             )}
-            <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()}>
+            <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()} aria-label="선수 추가">
               추가
             </button>
           </div>
@@ -938,7 +961,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       })}
                     </ul>
                     {memberCount === 0 && (
-                      <p className="text-gray-500 text-sm mt-2">선수를 추가해주세요.</p>
+                      <p className="text-gray-400 text-sm mt-2">선수를 추가해주세요.</p>
                     )}
                     {/* 팀 내 선수 추가 */}
                     <div className="mt-3">
@@ -959,11 +982,11 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     </div>
                     {/* Per-team settings editor (로컬 state로 편집, 저장 버튼으로 한번에 반영) */}
                       <div className="mt-3 pt-3 border-t border-gray-700 space-y-3">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-400">
                           팀별 설정 (비워두면 대회 기본값 적용{globalMaxReserves != null || globalGenderRatio ? `: 예비 ${globalMaxReserves ?? '-'}명, 남 ${globalGenderRatio?.male ?? '-'} / 여 ${globalGenderRatio?.female ?? '-'}` : ''})
                         </p>
                         <div>
-                          <label className="block text-sm text-gray-400 mb-1">코치</label>
+                          <label className="block text-sm text-gray-300 mb-1">코치</label>
                           <input
                             type="text"
                             className="input w-full"
@@ -974,7 +997,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-400 mb-1">예비 선수 수</label>
+                          <label className="block text-sm text-gray-300 mb-1">예비 선수 수</label>
                           <input
                             type="number"
                             className="input w-full"
@@ -987,10 +1010,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-400 mb-1">성별 비율</label>
+                          <label className="block text-sm text-gray-300 mb-1">성별 비율</label>
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <label className="block text-xs text-gray-500 mb-0.5">남</label>
+                              <label className="block text-xs text-gray-300 mb-0.5">남</label>
                               <input
                                 type="number"
                                 className="input w-full"
@@ -1003,7 +1026,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                               />
                             </div>
                             <div className="flex-1">
-                              <label className="block text-xs text-gray-500 mb-0.5">여</label>
+                              <label className="block text-xs text-gray-300 mb-0.5">여</label>
                               <input
                                 type="number"
                                 className="input w-full"
@@ -1020,6 +1043,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         <button
                           className="btn btn-primary w-full"
                           onClick={saveTeamSettings}
+                          aria-label="팀 설정 저장"
                         >
                           설정 저장
                         </button>
@@ -1028,6 +1052,134 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 수동 모드: 조별 리그 설정 */}
+      {tournament.formatType === 'manual' && tournamentPlayers.length >= 4 && (
+        <div className="card space-y-4">
+          <h3 className="text-lg font-bold text-yellow-400">조별 리그 설정</h3>
+          <p className="text-gray-400 text-sm">조 수를 설정하면 참가자를 조별로 배정하고 조별 라운드로빈 대진을 생성할 수 있습니다.</p>
+          <div className="flex items-center gap-4">
+            <label className="text-gray-300">조 수</label>
+            <input
+              type="number"
+              className="input w-24"
+              min={2}
+              max={Math.min(16, Math.floor(tournamentPlayers.length / 2))}
+              value={manualGroupCount}
+              onChange={e => setManualGroupCount(Math.max(2, Math.min(16, Number(e.target.value) || 2)))}
+              aria-label="조 수"
+            />
+            <span className="text-gray-400 text-sm">
+              (조당 약 {Math.ceil(tournamentPlayers.length / manualGroupCount)}명)
+            </span>
+          </div>
+          <button
+            className="btn btn-primary w-full"
+            onClick={async () => {
+              const now = Date.now();
+              const existingStages = toArray(tournament.stages);
+              const existingQualifying = existingStages.find(s => s.type === 'qualifying');
+              const qualifyingStage = existingQualifying || {
+                id: `stage_qualifying_${now}`,
+                name: '조별 예선',
+                order: 0,
+                type: 'qualifying' as const,
+                format: 'group_knockout' as const,
+                groupCount: manualGroupCount,
+                status: 'pending' as const,
+              };
+              const updatedStage = { ...qualifyingStage, groupCount: manualGroupCount };
+              const stages = existingQualifying
+                ? existingStages.map(s => s.id === existingQualifying.id ? updatedStage : s)
+                : [updatedStage, ...existingStages];
+              await updateTournament({
+                stages,
+                qualifyingConfig: {
+                  ...(tournament.qualifyingConfig || {}),
+                  groupCount: manualGroupCount,
+                  format: 'group_round_robin',
+                },
+              });
+            }}
+            aria-label="조별 리그 설정 저장"
+          >
+            {tournament.qualifyingConfig?.groupCount ? '조 설정 업데이트' : '조별 리그 설정 저장'}
+          </button>
+          {tournament.qualifyingConfig?.groupCount && (
+            <p className="text-green-400 text-sm">현재 {tournament.qualifyingConfig.groupCount}개 조 설정됨. 대진표 탭에서 조 편성 및 대진 생성이 가능합니다.</p>
+          )}
+
+          {/* 본선 설정 */}
+          {tournament.qualifyingConfig?.groupCount && (
+            <div className="border-t border-gray-700 pt-4 mt-4 space-y-3">
+              <h4 className="text-md font-bold text-cyan-400">본선 토너먼트 설정</h4>
+              <p className="text-gray-400 text-sm">조별 예선 후 본선에 진출할 인원 수와 형식을 설정합니다.</p>
+              <div className="flex items-center gap-4">
+                <label className="text-gray-300">조당 진출 인원</label>
+                <input
+                  type="number"
+                  className="input w-24"
+                  min={1}
+                  max={Math.ceil(tournamentPlayers.length / (tournament.qualifyingConfig.groupCount || 2))}
+                  value={(() => {
+                    const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
+                    const apc = fc?.advancePerGroup;
+                    return typeof apc === 'number' ? apc : 2;
+                  })()}
+                  onChange={async (e) => {
+                    const advancePerGroup = Math.max(1, Number(e.target.value) || 1);
+                    const groupCount = tournament.qualifyingConfig?.groupCount || 2;
+                    const totalAdvance = advancePerGroup * groupCount;
+                    // 2의 거듭제곱으로 본선 시작 라운드 결정
+                    let startRound = 4;
+                    while (startRound < totalAdvance) startRound *= 2;
+
+                    const existingStages = toArray(tournament.stages);
+                    const existingFinals = existingStages.find(s => s.type === 'finals');
+                    const now = Date.now();
+                    const finalsStage = existingFinals || {
+                      id: `stage_finals_${now}`,
+                      name: '본선 토너먼트',
+                      order: 1,
+                      type: 'finals' as const,
+                      format: 'single_elimination' as const,
+                      status: 'pending' as const,
+                    };
+                    const updatedFinals = { ...finalsStage, advanceCount: totalAdvance };
+                    const stages = existingFinals
+                      ? existingStages.map(s => s.id === existingFinals.id ? updatedFinals : s)
+                      : [...existingStages, updatedFinals];
+
+                    await updateTournament({
+                      stages,
+                      finalsConfig: {
+                        ...(typeof tournament.finalsConfig === 'object' && tournament.finalsConfig ? tournament.finalsConfig : {}),
+                        advancePerGroup,
+                        advanceCount: totalAdvance,
+                        format: 'single_elimination',
+                        startingRound: startRound,
+                        seedMethod: 'manual',
+                      },
+                    });
+                  }}
+                  aria-label="조당 진출 인원"
+                />
+                <span className="text-gray-400 text-sm">
+                  (총 {(() => {
+                    const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
+                    const apc = fc?.advancePerGroup;
+                    const adv = typeof apc === 'number' ? apc : 2;
+                    return adv * (tournament.qualifyingConfig?.groupCount || 2);
+                  })()}명 본선 진출)
+                </span>
+              </div>
+              {toArray(tournament.stages).find(s => s.type === 'finals') && (
+                <p className="text-green-400 text-sm">본선 설정 완료. 대진표 탭에서 조별 예선 대진 생성 → 예선 완료 후 본선 대진을 수동 편성할 수 있습니다.</p>
+              )}
             </div>
           )}
         </div>
@@ -1064,44 +1216,45 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
       {/* 새 팀 추가 모달 */}
       {showAddTeamModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowAddTeamModal(false)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowAddTeamModal(false)} onKeyDown={e => { if (e.key === 'Escape') setShowAddTeamModal(false); }}>
           <div
             className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4 border border-gray-700 max-h-[80vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
             role="dialog"
-            aria-label="새 팀 추가"
+            aria-modal="true"
+            aria-labelledby="add-team-modal-title"
           >
-            <h3 className="text-xl font-bold text-yellow-400">새 팀 추가</h3>
+            <h3 id="add-team-modal-title" className="text-xl font-bold text-yellow-400">새 팀 추가</h3>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">팀 이름</label>
+              <label htmlFor="new-team-name" className="block text-sm text-gray-300 mb-1">팀 이름</label>
               <input
+                id="new-team-name"
                 className="input w-full"
                 value={newTeamName}
                 onChange={e => setNewTeamName(e.target.value)}
                 onCompositionStart={() => { composingRef.current = true; }}
                 onCompositionEnd={() => { composingRef.current = false; }}
                 placeholder={`${teams.length + 1}팀`}
-                aria-label="팀 이름"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">코치 이름 (선택)</label>
+              <label htmlFor="new-team-coach" className="block text-sm text-gray-300 mb-1">코치 이름 (선택)</label>
               <input
+                id="new-team-coach"
                 className="input w-full"
                 value={newTeamCoach}
                 onChange={e => setNewTeamCoach(e.target.value)}
                 onCompositionStart={() => { composingRef.current = true; }}
                 onCompositionEnd={() => { composingRef.current = false; }}
                 placeholder="코치 이름"
-                aria-label="코치 이름"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-2">선수 등록</label>
+              <label className="block text-sm text-gray-300 mb-2">선수 등록</label>
               <div className="mb-3">
                 <KoreanNameInput
                   placeholder="선수 이름"
@@ -1133,7 +1286,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 </ul>
               )}
               {newTeamMembers.length === 0 && (
-                <p className="text-gray-500 text-sm">선수를 추가해주세요.</p>
+                <p className="text-gray-400 text-sm">선수를 추가해주세요.</p>
               )}
             </div>
 
@@ -1141,12 +1294,14 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <button
                 className="btn btn-success flex-1"
                 onClick={handleAddTeamFromModal}
+                aria-label="팀 생성"
               >
                 팀 생성 ({newTeamMembers.length}명)
               </button>
               <button
                 className="btn btn-secondary flex-1"
                 onClick={() => setShowAddTeamModal(false)}
+                aria-label="취소"
               >
                 취소
               </button>
@@ -1157,10 +1312,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
       {/* 전역 선수 가져오기 모달 */}
       {showGlobalModal && (
-        <div className="modal-backdrop" onClick={() => setShowGlobalModal(false)}>
-          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={() => setShowGlobalModal(false)} onKeyDown={e => { if (e.key === 'Escape') setShowGlobalModal(false); }}>
+          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="global-player-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">전역 선수에서 가져오기</h2>
+              <h2 id="global-player-modal-title" className="text-xl font-bold">전역 선수에서 가져오기</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={() => setShowGlobalModal(false)}
@@ -1306,9 +1461,43 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     try {
       const newMatches: Omit<Match, 'id'>[] = [];
       const now = Date.now();
+      const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
+      const hasGroups = groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0);
 
-      if (!isTeamType) {
-        // Individual round-robin
+      if (hasGroups && !isTeamType) {
+        // 조별 라운드로빈: 각 조 내에서 라운드로빈
+        let round = 1;
+        for (const group of groupAssignment) {
+          const playerIds = group.playerIds;
+          for (let i = 0; i < playerIds.length; i++) {
+            for (let j = i + 1; j < playerIds.length; j++) {
+              const p1 = tournamentPlayers.find(p => p.id === playerIds[i]);
+              const p2 = tournamentPlayers.find(p => p.id === playerIds[j]);
+              if (!p1 || !p2) continue;
+              newMatches.push({
+                tournamentId: tournament.id,
+                type: 'individual',
+                status: 'pending',
+                round,
+                player1Id: p1.id,
+                player2Id: p2.id,
+                player1Name: p1.name,
+                player2Name: p2.name,
+                sets: [createEmptySet()],
+                currentSet: 0,
+                player1Timeouts: 0,
+                player2Timeouts: 0,
+                winnerId: null,
+                createdAt: now,
+                groupId: group.id,
+                ...(qualifyingStage ? { stageId: qualifyingStage.id } : {}),
+              });
+              round++;
+            }
+          }
+        }
+      } else if (!isTeamType) {
+        // Individual round-robin (전체 풀리그)
         const players = [...tournamentPlayers];
         let round = 1;
         for (let i = 0; i < players.length; i++) {
@@ -1367,7 +1556,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     } finally {
       setGenerating(false);
     }
-  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk]);
+  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages]);
 
   const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId', value: string) => {
     const data: Partial<Match> = { [field]: value || undefined };
@@ -1523,7 +1712,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             disabled={generating || !canGenerate}
             aria-label="대진표 자동 생성"
           >
-            {generating ? '생성 중...' : '대진표 자동 생성'}
+            {generating ? '생성 중...' : (groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0) ? '조별 라운드로빈 대진 생성' : '대진표 자동 생성')}
           </button>
           <button
             className="btn btn-success"
@@ -1541,7 +1730,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           <h3 className="font-bold text-green-400">경기 추가</h3>
           <div className="flex gap-3 flex-wrap items-end">
             <div className="flex-1 min-w-40">
-              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
               <select className="input w-full" value={addPlayer1} onChange={e => setAddPlayer1(e.target.value)} aria-label={isTeamType ? '팀 1 선택' : '선수 1 선택'}>
                 <option value="">선택</option>
                 {selectOptions.map(o => (
@@ -1550,7 +1739,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               </select>
             </div>
             <div className="flex-1 min-w-40">
-              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
               <select className="input w-full" value={addPlayer2} onChange={e => setAddPlayer2(e.target.value)} aria-label={isTeamType ? '팀 2 선택' : '선수 2 선택'}>
                 <option value="">선택</option>
                 {selectOptions.map(o => (
@@ -1559,7 +1748,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               </select>
             </div>
             <div className="min-w-32">
-              <label className="block text-sm text-gray-400 mb-1">조 ID (선택)</label>
+              <label className="block text-sm text-gray-300 mb-1">조 ID (선택)</label>
               <input className="input w-full" value={addGroupId} onChange={e => setAddGroupId(e.target.value)} placeholder="예: group_1" aria-label="조 ID" />
             </div>
             <button
@@ -1581,7 +1770,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
         <div className="card space-y-4 mb-4">
           <h3 className="text-lg font-bold text-yellow-400">조 편성</h3>
-          <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment}>
+          <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment} aria-label="자동 편성 (Snake Draft)">
             자동 편성 (Snake Draft)
           </button>
 
@@ -1590,6 +1779,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             const sizes = groupAssignment.map(g => g.playerIds.length);
             const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length;
             const isUnbalanced = sizes.some(s => Math.abs(s - avgSize) > 1);
+            const assignedIds = new Set(groupAssignment.flatMap(g => g.playerIds));
+            const unassignedPlayers = tournamentPlayers.filter(p => !assignedIds.has(p.id));
             return (
               <>
                 {/* Group size summary */}
@@ -1604,6 +1795,50 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   ))}
                   {isUnbalanced && <span className="ml-2 text-yellow-400"> -- 조별 인원이 불균형합니다</span>}
                 </div>
+
+                {/* 미배정 선수 */}
+                {unassignedPlayers.length > 0 && (
+                  <div className="bg-red-900/30 border border-red-600 rounded p-3">
+                    <h4 className="text-sm font-bold text-red-400 mb-2">미배정 선수 ({unassignedPlayers.length}명)</h4>
+                    <div className="space-y-1">
+                      {unassignedPlayers.map(player => {
+                        const seedNum = toArray(tournament.seeds).findIndex(s => s.playerId === player.id) + 1;
+                        return (
+                          <div key={player.id} className="flex items-center gap-2 text-sm">
+                            {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
+                            <span className="flex-1 text-gray-300">{player.name}</span>
+                            <select
+                              className="bg-gray-700 text-gray-200 text-xs rounded px-2 py-1 border border-gray-600"
+                              value=""
+                              onChange={async (e) => {
+                                const targetGroupId = e.target.value;
+                                if (!targetGroupId) return;
+                                const updatedGroups = groupAssignment.map(g =>
+                                  g.id === targetGroupId ? { ...g, playerIds: [...g.playerIds, player.id] } : g
+                                );
+                                setGroupAssignment(updatedGroups);
+                                setGroupEditWarning(true);
+                                const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
+                                if (qualifyingStage) {
+                                  const updatedStages = toArray(tournament.stages).map(s =>
+                                    s.id === qualifyingStage.id ? { ...s, groups: updatedGroups } : s
+                                  );
+                                  await updateTournament({ stages: updatedStages });
+                                }
+                              }}
+                              aria-label={`${player.name} 조 배정`}
+                            >
+                              <option value="">조 선택</option>
+                              {groupAssignment.map(g => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Warning after manual edit */}
                 {groupEditWarning && (
@@ -1661,12 +1896,153 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             <button
               className="btn btn-primary"
               onClick={handleBulkAssignReferees}
+              aria-label="심판 자동 배정 (라운드로빈)"
             >
               자동 배정 (라운드로빈)
             </button>
           </div>
         </div>
       )}
+
+      {/* 본선 대진 생성 (수동 모드: finals 스테이지가 있고, 본선 매치가 없을 때) */}
+      {(() => {
+        const finalsStage = toArray(tournament.stages).find(s => s.type === 'finals');
+        if (!finalsStage) return null;
+        const finalsMatches = matches.filter(m => m.stageId === finalsStage.id);
+        if (finalsMatches.length > 0) return null; // 이미 본선 매치가 있으면 아래 편성 카드에서 처리
+
+        const qualifyingMatches = matches.filter(m => m.groupId);
+        const hasQualifyingMatches = qualifyingMatches.length > 0;
+
+        // 조별 순위 계산
+        const qualifyingGroups = (() => {
+          const qualifying = toArray(tournament.stages).find(s => s.type === 'qualifying');
+          return qualifying ? toArray(qualifying.groups) : [];
+        })();
+        const groupIdToName = new Map<string, string>();
+        qualifyingGroups.forEach(g => { groupIdToName.set(g.id, g.name); });
+
+        const groupRankings = new Map<string, { groupId: string; groupName: string; rank: number }>();
+        const groupMap = new Map<string, typeof matches>();
+        qualifyingMatches.forEach(m => {
+          const gid = m.groupId!;
+          if (!groupMap.has(gid)) groupMap.set(gid, []);
+          groupMap.get(gid)!.push(m);
+        });
+        groupMap.forEach((gMatches, gid) => {
+          const stats = new Map<string, { wins: number; setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number }>();
+          gMatches.filter(m => m.status === 'completed').forEach(m => {
+            const p1 = m.player1Id || m.team1Id || '';
+            const p2 = m.player2Id || m.team2Id || '';
+            if (!stats.has(p1)) stats.set(p1, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+            if (!stats.has(p2)) stats.set(p2, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+            if (m.winnerId === p1) stats.get(p1)!.wins++;
+            else if (m.winnerId === p2) stats.get(p2)!.wins++;
+            (m.sets || []).forEach(s => {
+              stats.get(p1)!.pointsFor += s.player1Score;
+              stats.get(p1)!.pointsAgainst += s.player2Score;
+              stats.get(p2)!.pointsFor += s.player2Score;
+              stats.get(p2)!.pointsAgainst += s.player1Score;
+              if (s.player1Score > s.player2Score) { stats.get(p1)!.setsWon++; stats.get(p2)!.setsLost++; }
+              else { stats.get(p2)!.setsWon++; stats.get(p1)!.setsLost++; }
+            });
+          });
+          const sorted = Array.from(stats.entries())
+            .sort(([,a], [,b]) => b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst));
+          sorted.forEach(([id], idx) => {
+            groupRankings.set(id, { groupId: gid, groupName: groupIdToName.get(gid) || gid, rank: idx + 1 });
+          });
+        });
+
+        const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
+        const advancePerGroup = typeof fc?.advancePerGroup === 'number' ? fc.advancePerGroup : 2;
+        const totalAdvance = finalsStage.advanceCount || advancePerGroup * (tournament.qualifyingConfig?.groupCount || 2);
+        let matchCount = Math.floor(totalAdvance / 2);
+        if (matchCount < 1) matchCount = 1;
+
+        const idToName = new Map<string, string>();
+        tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
+        teams.forEach(t => idToName.set(t.id, t.name));
+
+        // 조별 순위 요약 표시
+        const completedCount = qualifyingMatches.filter(m => m.status === 'completed').length;
+        const totalCount = qualifyingMatches.length;
+
+        return (
+          <div className="card space-y-4 border-cyan-600">
+            <h3 className="text-lg font-bold text-cyan-400">본선 대진 생성</h3>
+
+            {!hasQualifyingMatches ? (
+              <p className="text-gray-400 text-sm">먼저 조별 예선 대진을 생성하세요.</p>
+            ) : (
+              <>
+                <div className="text-sm text-gray-400">
+                  예선 진행: {completedCount}/{totalCount}경기 완료 | 조당 {advancePerGroup}명 진출 (총 {totalAdvance}명) | 본선 {matchCount}경기
+                </div>
+
+                {/* 조별 순위 현황 */}
+                {completedCount > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-bold text-gray-300">조별 순위 현황</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {qualifyingGroups.map(group => {
+                        const groupPlayerRankings = Array.from(groupRankings.entries())
+                          .filter(([, info]) => info.groupId === group.id)
+                          .sort(([, a], [, b]) => a.rank - b.rank);
+                        return (
+                          <div key={group.id} className="bg-gray-800 rounded p-2">
+                            <h5 className="text-xs font-bold text-cyan-400 mb-1">{group.name}</h5>
+                            {groupPlayerRankings.map(([pid, info]) => (
+                              <div key={pid} className={`text-xs flex gap-1 ${info.rank <= advancePerGroup ? 'text-green-400' : 'text-gray-400'}`}>
+                                <span className="w-6">{info.rank}위</span>
+                                <span>{idToName.get(pid) || pid}</span>
+                                {info.rank <= advancePerGroup && <span className="text-green-500 ml-auto">진출</span>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  className="btn btn-accent w-full"
+                  onClick={async () => {
+                    const now = Date.now();
+                    const newMatches: Omit<Match, 'id'>[] = [];
+                    for (let i = 0; i < matchCount; i++) {
+                      newMatches.push({
+                        tournamentId: tournament.id,
+                        type: isTeamType ? 'team' : 'individual',
+                        status: 'pending',
+                        round: 1,
+                        bracketPosition: i,
+                        stageId: finalsStage.id,
+                        player1Id: '',
+                        player2Id: '',
+                        player1Name: '미정',
+                        player2Name: '미정',
+                        sets: [createEmptySet()],
+                        currentSet: 0,
+                        player1Timeouts: 0,
+                        player2Timeouts: 0,
+                        winnerId: null,
+                        createdAt: now + i,
+                      });
+                    }
+                    await setMatchesBulk(newMatches);
+                  }}
+                  aria-label="본선 대진 슬롯 생성"
+                >
+                  본선 {matchCount}경기 슬롯 생성 (이후 수동 편성)
+                </button>
+                <p className="text-gray-400 text-xs">슬롯 생성 후 각 경기에 조/순위별 선수를 직접 배정할 수 있습니다.</p>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 본선 대진 편성 카드 */}
       {(() => {
@@ -1738,7 +2114,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           return name;
         };
 
-        const applyArrangement = async (mode: 'cross' | 'sequential' | 'random') => {
+        const applyArrangement = async (mode: 'cross' | 'sequential') => {
           // Collect advanced with group info, sorted by group then rank
           const withInfo = advancedList.map(id => ({ id, ...(groupRankings.get(id) || { groupId: '', groupName: '', rank: 0 }) }));
           const groupIds = [...new Set(withInfo.map(w => w.groupId))].sort();
@@ -1772,12 +2148,6 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                 if (arr[k + 1]) pairs.push([arr[k].id, arr[k + 1].id]);
               }
             });
-          } else {
-            // Random: shuffle all then pair
-            const shuffled = [...advancedList].sort(() => Math.random() - 0.5);
-            for (let k = 0; k < shuffled.length; k += 2) {
-              if (shuffled[k + 1]) pairs.push([shuffled[k], shuffled[k + 1]]);
-            }
           }
 
           // Update existing finals matches with new pairings
@@ -1808,9 +2178,19 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
         const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
 
+        // Build group+rank based options for manual arrangement
+        const groupNames = [...new Set(Array.from(groupRankings.values()).map(v => v.groupName))].sort();
+        const maxRank = Math.max(...Array.from(groupRankings.values()).map(v => v.rank), 0);
+        const findByGroupRank = (groupName: string, rank: number): string | null => {
+          for (const [pid, info] of groupRankings.entries()) {
+            if (info.groupName === groupName && info.rank === rank) return pid;
+          }
+          return null;
+        };
+
         return (
           <div className="card space-y-4 border-yellow-600">
-            <h3 className="text-lg font-bold text-yellow-400">본선 대진 편성 (교차 편성 가능)</h3>
+            <h3 className="text-lg font-bold text-yellow-400">본선 대진 편성</h3>
 
             {/* Preset buttons */}
             <div className="flex gap-2 flex-wrap">
@@ -1820,46 +2200,116 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label="순차 편성">
                 순차 편성
               </button>
-              <button className="btn bg-purple-700 hover:bg-purple-600 text-white" onClick={() => applyArrangement('random')} aria-label="랜덤 편성">
-                랜덤 편성
-              </button>
             </div>
 
-            {/* Current bracket with dropdowns */}
+            {/* Manual arrangement: group+rank selectors per match */}
             <div className="space-y-2">
+              <p className="text-gray-400 text-sm">각 경기에서 조와 순위를 직접 선택하여 편성할 수 있습니다.</p>
               {sortedFinals.map((m, i) => {
                 const p1Id = isTeamType ? m.team1Id : m.player1Id;
                 const p2Id = isTeamType ? m.team2Id : m.player2Id;
+                const p1Info = p1Id ? groupRankings.get(p1Id) : null;
+                const p2Info = p2Id ? groupRankings.get(p2Id) : null;
+
+                const makeGroupRankSelector = (slot: 'player1' | 'player2', _currentId: string | undefined, currentInfo: typeof p1Info) => {
+                  const groupVal = currentInfo?.groupName || '';
+                  const rankVal = currentInfo?.rank || 0;
+
+                  return (
+                    <div className="flex-1 min-w-44 flex gap-1 items-center">
+                      <select
+                        className="input flex-1 min-w-20"
+                        value={groupVal}
+                        onChange={e => {
+                          const newGroup = e.target.value;
+                          const r = rankVal || 1;
+                          const pid = findByGroupRank(newGroup, r);
+                          if (pid) handleSlotChange(m.id, slot, pid);
+                        }}
+                        disabled={m.status !== 'pending'}
+                        aria-label={`경기${i + 1} ${slot === 'player1' ? '선수1' : '선수2'} 조 선택`}
+                      >
+                        <option value="">조</option>
+                        {groupNames.map(gn => (
+                          <option key={gn} value={gn}>{gn}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="input w-20"
+                        value={rankVal || ''}
+                        onChange={e => {
+                          const newRank = Number(e.target.value);
+                          const g = groupVal;
+                          if (g) {
+                            const pid = findByGroupRank(g, newRank);
+                            if (pid) handleSlotChange(m.id, slot, pid);
+                          }
+                        }}
+                        disabled={m.status !== 'pending' || !groupVal}
+                        aria-label={`경기${i + 1} ${slot === 'player1' ? '선수1' : '선수2'} 순위 선택`}
+                      >
+                        <option value="">순위</option>
+                        {Array.from({ length: maxRank }, (_, k) => k + 1).map(r => {
+                          const pid = groupVal ? findByGroupRank(groupVal, r) : null;
+                          return (
+                            <option key={r} value={r} disabled={!pid}>
+                              {r}위{pid ? ` (${idToName.get(pid) || ''})` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  );
+                };
+
                 return (
-                  <div key={m.id} className="bg-gray-800 rounded-lg p-3 flex items-center gap-3 flex-wrap">
-                    <span className="text-gray-400 text-sm font-mono w-16">경기{i + 1}</span>
-                    <select
-                      className="input flex-1 min-w-36"
-                      value={p1Id || ''}
-                      onChange={e => handleSlotChange(m.id, 'player1', e.target.value)}
-                      disabled={m.status !== 'pending'}
-                      aria-label={`경기${i + 1} 선수1 선택`}
-                    >
-                      <option value="">선택</option>
-                      {advancedList.map(pid => (
-                        <option key={pid} value={pid}>{getLabel(pid)}</option>
-                      ))}
-                    </select>
-                    <span className="text-gray-400 font-bold">vs</span>
-                    <select
-                      className="input flex-1 min-w-36"
-                      value={p2Id || ''}
-                      onChange={e => handleSlotChange(m.id, 'player2', e.target.value)}
-                      disabled={m.status !== 'pending'}
-                      aria-label={`경기${i + 1} 선수2 선택`}
-                    >
-                      <option value="">선택</option>
-                      {advancedList.map(pid => (
-                        <option key={pid} value={pid}>{getLabel(pid)}</option>
-                      ))}
-                    </select>
+                  <div key={m.id} className="bg-gray-800 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-gray-400 text-sm font-mono w-16">경기{i + 1}</span>
+                      {groupNames.length > 0 ? (
+                        <>
+                          {makeGroupRankSelector('player1', p1Id, p1Info)}
+                          <span className="text-gray-400 font-bold">vs</span>
+                          {makeGroupRankSelector('player2', p2Id, p2Info)}
+                        </>
+                      ) : (
+                        <>
+                          <select
+                            className="input flex-1 min-w-36"
+                            value={p1Id || ''}
+                            onChange={e => handleSlotChange(m.id, 'player1', e.target.value)}
+                            disabled={m.status !== 'pending'}
+                            aria-label={`경기${i + 1} 선수1 선택`}
+                          >
+                            <option value="">선택</option>
+                            {advancedList.map(pid => (
+                              <option key={pid} value={pid}>{getLabel(pid)}</option>
+                            ))}
+                          </select>
+                          <span className="text-gray-400 font-bold">vs</span>
+                          <select
+                            className="input flex-1 min-w-36"
+                            value={p2Id || ''}
+                            onChange={e => handleSlotChange(m.id, 'player2', e.target.value)}
+                            disabled={m.status !== 'pending'}
+                            aria-label={`경기${i + 1} 선수2 선택`}
+                          >
+                            <option value="">선택</option>
+                            {advancedList.map(pid => (
+                              <option key={pid} value={pid}>{getLabel(pid)}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+                    {/* Show current assignment summary */}
+                    {(p1Id || p2Id) && (
+                      <div className="text-xs text-gray-400 ml-16">
+                        {p1Id ? getLabel(p1Id) : '미정'} vs {p2Id ? getLabel(p2Id) : '미정'}
+                      </div>
+                    )}
                     {m.status !== 'pending' && (
-                      <span className="text-xs text-orange-400">진행중/완료 경기는 변경 불가</span>
+                      <span className="text-xs text-orange-400 ml-16">진행중/완료 경기는 변경 불가</span>
                     )}
                   </div>
                 );
@@ -1882,7 +2332,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   {/* Reorder buttons */}
                   <div className="flex flex-col gap-0.5">
                     <button
-                      className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-30"
+                      className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => handleSwapRound(match.id, 'up')}
                       disabled={matchIdx === 0}
                       aria-label="순서 위로"
@@ -1890,7 +2340,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                       &uarr;
                     </button>
                     <button
-                      className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-30"
+                      className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => handleSwapRound(match.id, 'down')}
                       disabled={matchIdx === matches.length - 1}
                       aria-label="순서 아래로"
@@ -1944,7 +2394,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48">
-                  <label className="block text-sm text-gray-400 mb-1">심판</label>
+                  <label className="block text-sm text-gray-300 mb-1">심판</label>
                   <select
                     className="input"
                     value={match.refereeId ?? ''}
@@ -1958,7 +2408,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   </select>
                 </div>
                 <div className="flex-1 min-w-48">
-                  <label className="block text-sm text-gray-400 mb-1">경기장</label>
+                  <label className="block text-sm text-gray-300 mb-1">경기장</label>
                   <select
                     className="input"
                     value={match.courtId ?? ''}
@@ -1979,11 +2429,11 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
       {/* 경기 수정 모달 */}
       {editingMatchId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingMatchId(null)}>
-          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4 border border-gray-700" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-yellow-400">경기 수정</h3>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingMatchId(null)} onKeyDown={e => { if (e.key === 'Escape') setEditingMatchId(null); }}>
+          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4 border border-gray-700" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="edit-match-modal-title">
+            <h3 id="edit-match-modal-title" className="text-lg font-bold text-yellow-400">경기 수정</h3>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
               <select className="input w-full" value={editPlayer1} onChange={e => setEditPlayer1(e.target.value)} aria-label={isTeamType ? '팀 1 변경' : '선수 1 변경'}>
                 <option value="">선택</option>
                 {selectOptions.map(o => (
@@ -1992,7 +2442,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
               <select className="input w-full" value={editPlayer2} onChange={e => setEditPlayer2(e.target.value)} aria-label={isTeamType ? '팀 2 변경' : '선수 2 변경'}>
                 <option value="">선택</option>
                 {selectOptions.map(o => (
@@ -2304,7 +2754,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         <h2 className="text-xl font-bold">스케줄 설정</h2>
         <div className="flex gap-4 flex-wrap">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">날짜</label>
+            <label className="block text-sm text-gray-300 mb-1">날짜</label>
             <input
               type="date"
               className="input"
@@ -2314,7 +2764,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
             />
           </div>
           <div>
-            <label htmlFor="start-time" className="block text-sm text-gray-400 mb-1">시작 시간</label>
+            <label htmlFor="start-time" className="block text-sm text-gray-300 mb-1">시작 시간</label>
             <input
               id="start-time"
               type="time"
@@ -2325,7 +2775,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
             />
           </div>
           <div>
-            <label htmlFor="interval" className="block text-sm text-gray-400 mb-1">경기 간격 (분)</label>
+            <label htmlFor="interval" className="block text-sm text-gray-300 mb-1">경기 간격 (분)</label>
             <input
               id="interval"
               type="number"
@@ -2340,7 +2790,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         </div>
         <div className="flex gap-4 flex-wrap">
           <div>
-            <label htmlFor="end-time" className="block text-sm text-gray-400 mb-1">마감 시간</label>
+            <label htmlFor="end-time" className="block text-sm text-gray-300 mb-1">마감 시간</label>
             <input
               id="end-time"
               type="time"
@@ -2351,7 +2801,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
             />
           </div>
           <div>
-            <label htmlFor="rest-interval" className="block text-sm text-gray-400 mb-1">선수 휴식 시간 (분)</label>
+            <label htmlFor="rest-interval" className="block text-sm text-gray-300 mb-1">선수 휴식 시간 (분)</label>
             <input
               id="rest-interval"
               type="number"
@@ -2364,7 +2814,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
             />
           </div>
           <div>
-            <label htmlFor="next-day-start" className="block text-sm text-gray-400 mb-1">다음날 시작 시간</label>
+            <label htmlFor="next-day-start" className="block text-sm text-gray-300 mb-1">다음날 시작 시간</label>
             <input
               id="next-day-start"
               type="time"
@@ -2410,10 +2860,10 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
                 <table className="w-full border-collapse mb-4" aria-label={`스케줄 그리드${date ? ` - ${date}` : ''}`}>
                   <thead>
                     <tr>
-                      {hasMultipleDates && <th className="border border-gray-600 p-3 text-left bg-gray-800">날짜</th>}
-                      <th className="border border-gray-600 p-3 text-left bg-gray-800">시간</th>
+                      {hasMultipleDates && <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">날짜</th>}
+                      <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">시간</th>
                       {courts.map(c => (
-                        <th key={c.id} className="border border-gray-600 p-3 text-center bg-gray-800">{c.name}</th>
+                        <th scope="col" key={c.id} className="border border-gray-600 p-3 text-center bg-gray-800">{c.name}</th>
                       ))}
                     </tr>
                   </thead>
@@ -2432,7 +2882,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-gray-600">-</span>
+                              <span className="text-gray-400">-</span>
                             )}
                           </td>
                         ))}
@@ -2481,12 +2931,12 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
                       {match.scheduledDate && <span>{match.scheduledDate}</span>}
                       {match.scheduledTime && <span>{match.scheduledTime}</span>}
                       {match.courtName && <span>/ {match.courtName}</span>}
-                      {!match.scheduledDate && !match.scheduledTime && <span className="text-gray-600">미배정</span>}
+                      {!match.scheduledDate && !match.scheduledTime && <span className="text-gray-400">미배정</span>}
                     </div>
                   </div>
                   <div className="flex gap-3 flex-wrap items-end">
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">날짜</label>
+                      <label className="block text-xs text-gray-300 mb-1">날짜</label>
                       <input
                         type="date"
                         className="input text-sm"
@@ -2496,7 +2946,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">시간</label>
+                      <label className="block text-xs text-gray-300 mb-1">시간</label>
                       <input
                         type="time"
                         className="input text-sm"
@@ -2506,7 +2956,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">경기장</label>
+                      <label className="block text-xs text-gray-300 mb-1">경기장</label>
                       <select
                         className="input text-sm"
                         value={edit.courtId}
@@ -2889,7 +3339,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 {allDone && stage.type === 'qualifying' && (
                   <div className="mt-3 space-y-2">
                     <p className="text-green-400 text-sm font-semibold">예선 완료 - 본선 진출자가 결정되었습니다</p>
-                    <button className="btn btn-success w-full" onClick={handleAdvanceToFinals}>
+                    <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} aria-label="본선 대진표 생성">
                       본선 대진표 생성
                     </button>
                   </div>
@@ -3009,10 +3459,10 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
 
       {/* 점수 수정 모달 */}
       {correctionMatch && (
-        <div className="modal-backdrop" onClick={closeCorrectionModal}>
-          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={closeCorrectionModal} onKeyDown={e => { if (e.key === 'Escape') closeCorrectionModal(); }}>
+          <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="correction-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">점수 수정</h2>
+              <h2 id="correction-modal-title" className="text-xl font-bold">점수 수정</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={closeCorrectionModal}
@@ -3109,10 +3559,10 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
 
       {/* 부전승 처리 모달 */}
       {walkoverMatch && (
-        <div className="modal-backdrop" onClick={closeWalkoverModal}>
-          <div className="card max-w-md w-full" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={closeWalkoverModal} onKeyDown={e => { if (e.key === 'Escape') closeWalkoverModal(); }}>
+          <div className="card max-w-md w-full" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="walkover-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-orange-400">부전승 처리</h2>
+              <h2 id="walkover-modal-title" className="text-xl font-bold text-orange-400">부전승 처리</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={closeWalkoverModal}
@@ -3311,13 +3761,13 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
             <table className="w-full border-collapse" aria-label="팀 순위표">
               <thead>
                 <tr>
-                  <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
-                  <th className="border border-gray-600 p-3 text-left bg-gray-800">팀명</th>
-                  <th className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
-                  <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
-                  <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-                  <th className="border border-gray-600 p-3 text-center bg-gray-800">득실점</th>
-                  <th className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">팀명</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">득실점</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
                 </tr>
               </thead>
               <tbody>
@@ -3384,15 +3834,15 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
           <table className="w-full border-collapse" aria-label="개인 순위표">
             <thead>
               <tr>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
-                <th className="border border-gray-600 p-3 text-left bg-gray-800">이름</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">세트득실</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">세트차</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">포인트득실</th>
-                <th className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
+                <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">이름</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">세트득실</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">세트차</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">포인트득실</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
               </tr>
             </thead>
             <tbody>

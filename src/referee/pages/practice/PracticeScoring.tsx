@@ -14,7 +14,7 @@ import {
   getMaxServes,
 } from '@shared/utils/scoring';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
-import type { SetScore, ScoreActionType } from '@shared/types';
+import type { SetScore, ScoreActionType, PracticeMatch } from '@shared/types';
 
 // Practice mode descriptive labels for learning referees
 const PRACTICE_DESCRIPTIVE_LABELS: Record<string, string> = {
@@ -46,13 +46,20 @@ export default function PracticeScoring() {
   const matchType = (searchParams.get('type') || 'individual') as 'individual' | 'team';
   const p1Name = searchParams.get('p1') || '연습선수A';
   const p2Name = searchParams.get('p2') || '연습선수B';
-  const config = JSON.parse(searchParams.get('config') || '{"SETS_TO_WIN":2,"MAX_SETS":3,"POINTS_TO_WIN":11,"MIN_POINT_DIFF":2}');
+  const defaultConfig = matchType === 'team'
+    ? { SETS_TO_WIN: 1, MAX_SETS: 1, POINTS_TO_WIN: 31, MIN_POINT_DIFF: 2 }
+    : { SETS_TO_WIN: 2, MAX_SETS: 3, POINTS_TO_WIN: 11, MIN_POINT_DIFF: 2 };
+  const config = JSON.parse(searchParams.get('config') || JSON.stringify(defaultConfig));
+  const team1Members: string[] = matchType === 'team' ? JSON.parse(searchParams.get('t1m') || '[]') : [];
+  const team2Members: string[] = matchType === 'team' ? JSON.parse(searchParams.get('t2m') || '[]') : [];
 
   const { match, updateMatch, startMatch, addAction } = usePracticeMatch({
     matchType,
     player1Name: p1Name,
     player2Name: p2Name,
     config,
+    team1Members,
+    team2Members,
   });
 
   const [announcement, setAnnouncement] = useState('');
@@ -64,12 +71,23 @@ export default function PracticeScoring() {
   const [setEndMessage, setSetEndMessage] = useState('');
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
+  // Coin toss
+  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
+  const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
+  const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
+  const [showWarmupChoice, setShowWarmupChoice] = useState(false);
   // Pause
   const [isPausedLocal, setIsPausedLocal] = useState(false);
+  const [rotationInfo, setRotationInfo] = useState('');
+  const [showSubModal, setShowSubModal] = useState(false);
+  const [subTeam, setSubTeam] = useState<1 | 2 | null>(null);
+  const [subOutIdx, setSubOutIdx] = useState<number | null>(null);
+  const [subInIdx, setSubInIdx] = useState<number | null>(null);
   const [pauseElapsed, setPauseElapsed] = useState(0);
   const [pauseReason, setPauseReason] = useState('');
 
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
+  const subModalTrapRef = useFocusTrap(showSubModal);
 
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
@@ -92,23 +110,27 @@ export default function PracticeScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 워밍업 시간 안내 (60초, 30초, 15초 - 팀전은 90초, 개인전은 60초)
   useEffect(() => {
     if (warmupTimer.isRunning) {
-      if (warmupTimer.seconds === 60) {
-        setLastAction('⚠️ 워밍업 60초 남았습니다');
-        setAnnouncement('워밍업 60초 남았습니다');
-      }
-      if (warmupTimer.seconds === 30) {
-        setLastAction('⚠️ 워밍업 30초 남았습니다');
-        setAnnouncement('워밍업 30초 남았습니다');
-      }
-      if (warmupTimer.seconds === 15) {
-        setLastAction('⚠️ 워밍업 15초 남았습니다');
-        setAnnouncement('워밍업 15초 남았습니다');
+      if (matchType === 'team') {
+        // 팀전 90초: 30초마다 알림 (돌아가며 연습)
+        if (warmupTimer.seconds === 60) {
+          setLastAction('⚠️ 30초');
+          setAnnouncement('30초');
+        }
+        if (warmupTimer.seconds === 30) {
+          setLastAction('⚠️ 30초');
+          setAnnouncement('30초');
+        }
+      } else {
+        // 개인전 60초: 15초 남음 알림
+        if (warmupTimer.seconds === 15) {
+          setLastAction('⚠️ 15초');
+          setAnnouncement('15초');
+        }
       }
     }
-  }, [warmupTimer.seconds, warmupTimer.isRunning]);
+  }, [warmupTimer.seconds, warmupTimer.isRunning, matchType]);
 
   // localStorage sharing (spectator mode)
   useEffect(() => {
@@ -116,6 +138,12 @@ export default function PracticeScoring() {
       localStorage.setItem('showdown_practice_live', JSON.stringify([match]));
     } else if (match.status === 'completed') {
       localStorage.removeItem('showdown_practice_live');
+      // 완료된 경기를 별도 저장 (관람용)
+      try {
+        const completed: PracticeMatch[] = JSON.parse(localStorage.getItem('showdown_practice_completed') || '[]');
+        completed.unshift(match);
+        localStorage.setItem('showdown_practice_completed', JSON.stringify(completed.slice(0, 20)));
+      } catch { /* ignore */ }
     }
     return () => { localStorage.removeItem('showdown_practice_live'); };
   }, [match]);
@@ -137,15 +165,6 @@ export default function PracticeScoring() {
     const interval = setInterval(() => setPauseElapsed(p => p + 1), 1000);
     return () => clearInterval(interval);
   }, [isPausedLocal]);
-
-  // Warmup
-  const handleWarmup = useCallback(() => {
-    if (match.warmupUsed) return;
-    updateMatch({ warmupUsed: true });
-    const warmupSeconds = matchType === 'team' ? 90 : 60;
-    warmupTimer.start(warmupSeconds);
-    setShowWarmup(true);
-  }, [match.warmupUsed, matchType, updateMatch, warmupTimer]);
 
   // Pause
   const handlePause = useCallback(() => {
@@ -185,7 +204,7 @@ export default function PracticeScoring() {
   ) => {
     if (!canAct()) return;
     if (match.status !== 'in_progress' || match.isPaused) return;
-    if (match.activeTimeout) return;
+    if (match.activeTimeout || showSideChange) return;
 
     const sets = [...match.sets.map(s => ({ ...s }))];
     const ci = match.currentSet;
@@ -212,11 +231,52 @@ export default function PracticeScoring() {
       scoreBefore, scoreAfter,
     });
 
-    const newHistory = [historyEntry, ...match.scoreHistory];
-
     const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
       match.currentServe, match.serveCount, matchType,
     );
+
+    // 팀전: 서브를 마친 팀이 선수 교체 (로테이션)
+    let rotationEntry: ReturnType<typeof createScoreHistoryEntry> | null = null;
+    let rotationUpdate: Partial<PracticeMatch> = {};
+    let rotationAnnounce = '';
+    if (matchType === 'team' && nextCount === 0 && nextServe !== match.currentServe) {
+      // 서브를 마친 팀 = match.currentServe 쪽 팀이 로테이션
+      const finishedServeTeam = match.currentServe; // 서브를 방금 마친 팀
+      const rotTeamName = finishedServeTeam === 'player1' ? p1Name : p2Name;
+      const rotMembers = finishedServeTeam === 'player1' ? match.team1Members : match.team2Members;
+      const rotIdxKey = finishedServeTeam === 'player1' ? 'team1CurrentPlayerIndex' : 'team2CurrentPlayerIndex';
+      const currentRotIdx = (finishedServeTeam === 'player1' ? match.team1CurrentPlayerIndex : match.team2CurrentPlayerIndex) ?? 0;
+      const activeCount = Math.min(3, rotMembers?.length ?? 0);
+      const nextRotIdx = activeCount > 0 ? (currentRotIdx + 1) % activeCount : 0;
+      const prevPlayerName = rotMembers?.[currentRotIdx] || '';
+      const nextPlayerName = rotMembers?.[nextRotIdx] || '';
+
+      rotationEntry = createScoreHistoryEntry({
+        scoringPlayer: '',
+        actionPlayer: rotTeamName,
+        actionType: 'player_rotation',
+        actionLabel: nextPlayerName ? `선수 교체: ${prevPlayerName} → ${nextPlayerName} (${rotTeamName})` : `선수 로테이션 (${rotTeamName})`,
+        points: 0,
+        set: ci + 1,
+        server: nextServe === 'player1' ? p1Name : p2Name,
+        serveNumber: 1,
+        scoreBefore: scoreAfter,
+        scoreAfter: scoreAfter,
+        serverSide: nextServe,
+      });
+      rotationUpdate = rotIdxKey === 'team1CurrentPlayerIndex'
+        ? { team1CurrentPlayerIndex: nextRotIdx }
+        : { team2CurrentPlayerIndex: nextRotIdx };
+      if (nextPlayerName && prevPlayerName !== nextPlayerName) {
+        rotationAnnounce = `${rotTeamName} 선수 교체: ${prevPlayerName} → ${nextPlayerName}`;
+        setRotationInfo(rotationAnnounce);
+        setTimeout(() => setRotationInfo(''), 4000);
+      }
+    }
+
+    const newHistory = rotationEntry
+      ? [rotationEntry, historyEntry, ...match.scoreHistory]
+      : [historyEntry, ...match.scoreHistory];
 
     addAction({ type: 'score', player: actingPlayer, detail: `${label} (${points}점)` });
     setScoreFlash(f => f + 1);
@@ -228,13 +288,14 @@ export default function PracticeScoring() {
     const actionDesc = toOpponent
       ? `${actorName} ${label.split(' ').slice(1).join(' ')} → ${pName} +${points}점`
       : `${pName} 골! +${points}점`;
-    setLastAction(`${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2}`);
+    setLastAction(rotationAnnounce
+      ? `${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2} | ${rotationAnnounce}`
+      : `${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2}`);
 
     const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
     const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
-    setAnnouncement(
-      `${pName} ${points}점. 스코어 ${serverScore} 대 ${receiverScore}. ${nextServerName} ${nextCount + 1}번째 서브`
-    );
+    const announceBase = `${pName} ${points}점. 스코어 ${serverScore} 대 ${receiverScore}. ${nextServerName} ${nextCount + 1}번째 서브`;
+    setAnnouncement(rotationAnnounce ? `${announceBase}. ${rotationAnnounce}` : announceBase);
 
     // Set winner check with confirmation
     const setWinner = checkSetWinner(cs.player1Score, cs.player2Score, config);
@@ -247,7 +308,7 @@ export default function PracticeScoring() {
       // Save state first
       updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
-        scoreHistory: newHistory,
+        scoreHistory: newHistory, ...rotationUpdate,
       });
 
       // Show confirmation after 500ms delay
@@ -269,7 +330,7 @@ export default function PracticeScoring() {
     if (shouldSideChange(matchType, cs, match.sideChangeUsed, sets, config)) {
       updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
-        sideChangeUsed: true, scoreHistory: newHistory,
+        sideChangeUsed: true, scoreHistory: newHistory, ...rotationUpdate,
       });
       sideChangeTimer.start(60);
       setShowSideChange(true);
@@ -278,9 +339,9 @@ export default function PracticeScoring() {
 
     updateMatch({
       sets, currentServe: nextServe, serveCount: nextCount,
-      scoreHistory: newHistory,
+      scoreHistory: newHistory, ...rotationUpdate,
     });
-  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer]);
+  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer, showSideChange]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(() => {
@@ -352,6 +413,79 @@ export default function PracticeScoring() {
     setAnnouncement(`서브권 변경: ${newServer}`);
   }, [match, updateMatch, p1Name, p2Name]);
 
+  // Dead Ball (팀전)
+  const handleDeadBall = useCallback(() => {
+    if (match.status !== 'in_progress' || match.isPaused || match.activeTimeout) return;
+    const ci = match.currentSet;
+    const cs = match.sets[ci];
+    if (!cs) return;
+    const sName = match.currentServe === 'player1' ? p1Name : p2Name;
+    const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
+    const entry = createScoreHistoryEntry({
+      scoringPlayer: '',
+      actionPlayer: sName,
+      actionType: 'dead_ball',
+      actionLabel: '데드볼',
+      points: 0,
+      set: ci + 1,
+      server: sName,
+      serveNumber: match.serveCount + 1,
+      scoreBefore,
+      scoreAfter: scoreBefore,
+      serverSide: match.currentServe,
+    });
+    updateMatch({ scoreHistory: [entry, ...match.scoreHistory] });
+    setLastAction(`데드볼 - ${sName} 재서브`);
+    setAnnouncement(`데드볼. ${sName} 재서브`);
+  }, [match, updateMatch, p1Name, p2Name]);
+
+  const handleSubstitution = useCallback(() => {
+    if (subTeam === null || subOutIdx === null || subInIdx === null) return;
+    const members = subTeam === 1 ? [...(match.team1Members || [])] : [...(match.team2Members || [])];
+    const activeCount = 3; // first 3 are active
+    const outName = members[subOutIdx];
+    const inName = members[activeCount + subInIdx];
+    // Swap
+    members[subOutIdx] = inName;
+    members[activeCount + subInIdx] = outName;
+
+    const teamName = subTeam === 1 ? p1Name : p2Name;
+    const entry = createScoreHistoryEntry({
+      scoringPlayer: '',
+      actionPlayer: teamName,
+      actionType: 'substitution',
+      actionLabel: `선수 교체: ${outName} → ${inName} (${teamName})`,
+      points: 0,
+      set: match.currentSet + 1,
+      server: match.currentServe === 'player1' ? p1Name : p2Name,
+      serveNumber: match.serveCount + 1,
+      scoreBefore: { player1: match.sets[match.currentSet]?.player1Score ?? 0, player2: match.sets[match.currentSet]?.player2Score ?? 0 },
+      scoreAfter: { player1: match.sets[match.currentSet]?.player1Score ?? 0, player2: match.sets[match.currentSet]?.player2Score ?? 0 },
+      serverSide: match.currentServe,
+    });
+
+    const update: Partial<PracticeMatch> = {
+      scoreHistory: [entry, ...match.scoreHistory],
+    };
+    if (subTeam === 1) {
+      update.team1Members = members;
+      update.team1PlayerOrder = members.slice(0, activeCount);
+      update.team1SubUsed = true;
+    } else {
+      update.team2Members = members;
+      update.team2PlayerOrder = members.slice(0, activeCount);
+      update.team2SubUsed = true;
+    }
+    updateMatch(update);
+
+    setLastAction(`${teamName} 선수 교체: ${outName} → ${inName}`);
+    setAnnouncement(`${teamName} 선수 교체. ${outName} 퇴장, ${inName} 입장`);
+    setShowSubModal(false);
+    setSubTeam(null);
+    setSubOutIdx(null);
+    setSubInIdx(null);
+  }, [match, subTeam, subOutIdx, subInIdx, p1Name, p2Name, updateMatch]);
+
   const handleTimeout = useCallback((player: 1 | 2) => {
     if (match.status !== 'in_progress') return;
     const used = player === 1 ? match.player1Timeouts : match.player2Timeouts;
@@ -372,24 +506,69 @@ export default function PracticeScoring() {
         <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>연습 경기</h1>
         <div className="flex items-center gap-8 text-2xl">
           <span className="text-yellow-400 font-bold">{p1Name}</span>
-          <span className="text-gray-500">vs</span>
+          <span className="text-gray-400">vs</span>
           <span className="text-cyan-400 font-bold">{p2Name}</span>
         </div>
         <p className="text-gray-400">
-          {matchType === 'team' ? '31점 단판' : `${config.POINTS_TO_WIN}점 | ${config.SETS_TO_WIN}세트 선승`}
+          {matchType === 'team' ? '31점 단판 | 서브 3회 교대' : `${config.POINTS_TO_WIN}점 | ${config.SETS_TO_WIN}세트 선승`}
         </p>
 
-        <div className="card w-full max-w-md space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-300">첫 서브 선택</h2>
-          <div className="flex gap-4">
-            <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => startMatch('player1')}>
-              🎾 {p1Name}
-            </button>
-            <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => startMatch('player2')}>
-              🎾 {p2Name}
+        {!showWarmupChoice && coinTossStep === 'toss' && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">동전던지기 승자</h2>
+            <div className="flex gap-4">
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player1'); setCoinTossStep('choice'); }}>
+                {p1Name}
+              </button>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player2'); setCoinTossStep('choice'); }}>
+                {p2Name}
+              </button>
+            </div>
+          </div>
+        )}
+        {!showWarmupChoice && coinTossStep === 'choice' && tossWinner && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">
+              {tossWinner === 'player1' ? p1Name : p2Name} 승리!
+            </h2>
+            <p className="text-gray-400 text-center">서브 또는 리시브를 선택하세요</p>
+            <div className="flex gap-4">
+              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setShowWarmupChoice(true); setCoinTossStep('toss'); }}>
+                🎾 서브
+              </button>
+              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setShowWarmupChoice(true); setCoinTossStep('toss'); }}>
+                🏓 리시브
+              </button>
+            </div>
+            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }}>
+              다시 선택
             </button>
           </div>
-        </div>
+        )}
+
+        {showWarmupChoice && pendingFirstServe && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">워밍업</h2>
+            <p className="text-gray-400 text-center">{matchType === 'team' ? '90초' : '60초'} 워밍업을 진행하시겠습니까?</p>
+            <div className="flex gap-4">
+              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => {
+                startMatch(pendingFirstServe);
+                updateMatch({ warmupUsed: true });
+                warmupTimer.start(matchType === 'team' ? 90 : 60);
+                setShowWarmup(true);
+                setShowWarmupChoice(false);
+              }}>
+                🔥 워밍업 시작
+              </button>
+              <button className="btn btn-secondary btn-large flex-1 text-xl py-6" onClick={() => {
+                startMatch(pendingFirstServe);
+                setShowWarmupChoice(false);
+              }}>
+                건너뛰기
+              </button>
+            </div>
+          </div>
+        )}
 
         <button className="btn btn-accent" onClick={() => navigate('/referee/practice/setup')}>설정으로</button>
       </div>
@@ -403,8 +582,8 @@ export default function PracticeScoring() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 p-4">
         <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>연습 경기 종료</h1>
-        <div className="text-4xl font-bold text-green-400">{winnerName} 승리!</div>
-        <div className="text-2xl text-gray-300">세트 스코어: {setWins.player1} - {setWins.player2}</div>
+        <div className="text-4xl font-bold text-green-400" role="status" aria-live="assertive">🏆 {winnerName} 승리!</div>
+        <div className="text-2xl text-gray-300" aria-label={`세트 스코어 ${setWins.player1} 대 ${setWins.player2}`}>세트 스코어: {setWins.player1} - {setWins.player2}</div>
         {match.sets.map((s: SetScore, i: number) => {
           const winner = s.player1Score > s.player2Score ? p1Name : p2Name;
           return (
@@ -492,10 +671,45 @@ export default function PracticeScoring() {
         />
       )}
 
+      {/* Substitution Modal */}
+      {showSubModal && subTeam && (
+        <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape') { setShowSubModal(false); setSubTeam(null); setSubOutIdx(null); setSubInIdx(null); } }}>
+          <div ref={subModalTrapRef} className="flex flex-col items-center gap-4 p-6 max-w-sm w-full" role="dialog" aria-modal="true" aria-label="선수 교체">
+            <h2 className="text-xl font-bold text-yellow-400">{subTeam === 1 ? p1Name : p2Name} 선수 교체</h2>
+            <div className="w-full space-y-3">
+              <div>
+                <p className="text-sm text-gray-400 mb-2">교체할 선수 (출전 중)</p>
+                <div className="flex flex-col gap-1">
+                  {(subTeam === 1 ? match.team1Members : match.team2Members)?.slice(0, 3).map((name, i) => (
+                    <button key={i} className={`btn text-left py-2 px-3 ${subOutIdx === i ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white'}`} aria-pressed={subOutIdx === i} onClick={() => setSubOutIdx(i)}>
+                      {i + 1}. {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-2">투입할 선수 (예비)</p>
+                <div className="flex flex-col gap-1">
+                  {(subTeam === 1 ? match.team1Members : match.team2Members)?.slice(3).map((name, i) => (
+                    <button key={i} className={`btn text-left py-2 px-3 ${subInIdx === i ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white'}`} aria-pressed={subInIdx === i} onClick={() => setSubInIdx(i)}>
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button className="btn btn-success flex-1" onClick={handleSubstitution} disabled={subOutIdx === null || subInIdx === null}>교체 확인</button>
+              <button className="btn btn-secondary flex-1" onClick={() => { setShowSubModal(false); setSubTeam(null); setSubOutIdx(null); setSubInIdx(null); }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Set End Confirmation */}
       {showSetEndConfirm && (
-        <div className="modal-backdrop" style={{ zIndex: 100 }} role="dialog" aria-modal="true" aria-label="세트 종료 확인">
-          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm">
+        <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape') handleCancelSetEnd(); }}>
+          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm" role="dialog" aria-modal="true" aria-label="세트 종료 확인">
             <h2 className="text-2xl font-bold text-yellow-400">세트 종료 확인</h2>
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
@@ -508,43 +722,61 @@ export default function PracticeScoring() {
 
       {/* Pause Banner */}
       {isPausedLocal && (
-        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between">
+        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between" role="status" aria-live="polite" aria-label="경기 일시정지 중">
           <div>
             <span className="text-orange-300 font-bold">⏸️ 경기 일시정지</span>
-            <span className="text-orange-200 ml-3">
+            <span className="text-orange-200 ml-3" aria-label={`경과 시간 ${Math.floor(pauseElapsed / 60)}분 ${pauseElapsed % 60}초`}>
               {Math.floor(pauseElapsed / 60)}:{(pauseElapsed % 60).toString().padStart(2, '0')}
             </span>
             {pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({pauseReason})</span>}
           </div>
-          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume}>▶ 재개</button>
+          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label="경기 재개">▶ 재개</button>
         </div>
       )}
 
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/practice')}>← 연습 홈</button>
+          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/practice')} aria-label="연습 홈으로 돌아가기">← 연습 홈</button>
           <div className="text-center">
-            <div className="text-lg font-bold" style={{ color: '#c084fc' }}>
+            <h1 className="text-lg font-bold" style={{ color: '#c084fc' }}>
               {matchType === 'team' ? '팀전 31점' : `세트 ${ci + 1}/${config.MAX_SETS}`}
-            </div>
+            </h1>
             {matchType === 'individual' && (
-              <div className="text-sm text-gray-400">세트 스코어: {setWins.player1} - {setWins.player2}</div>
+              <div className="text-sm text-gray-400" aria-label={`세트 스코어 ${setWins.player1} 대 ${setWins.player2}`}>세트 스코어: {setWins.player1} - {setWins.player2}</div>
             )}
           </div>
-          <div className="text-sm text-gray-500">연습</div>
+          <div className="text-sm text-gray-400">연습</div>
         </div>
       </div>
 
       {/* Serve */}
-      <div className="bg-blue-900/50 px-4 py-2 text-center">
+      <div className="bg-blue-900/50 px-4 py-2 text-center" role="status" aria-label={`${serverName} 서브 ${match.serveCount + 1}/${maxServes}회차`}>
         <span className="text-blue-300 font-semibold">
           🎾 {serverName} 서브 {match.serveCount + 1}/{maxServes}회차
         </span>
-        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe}>
+        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label="서브권 수동 변경" style={{ minHeight: '44px', minWidth: '44px' }}>
           서브권 변경
         </button>
       </div>
+
+      {/* 팀전: 현재 출전 선수 표시 */}
+      {matchType === 'team' && match.team1Members && match.team1Members.length > 0 && (
+        <div className="bg-gray-800/50 px-4 py-1.5 text-center text-sm flex justify-center gap-4">
+          <span className="text-yellow-400">
+            {p1Name}: <strong>{match.team1Members[match.team1CurrentPlayerIndex ?? 0]}</strong>
+          </span>
+          <span className="text-gray-400">|</span>
+          <span className="text-cyan-400">
+            {p2Name}: <strong>{match.team2Members?.[match.team2CurrentPlayerIndex ?? 0]}</strong>
+          </span>
+        </div>
+      )}
+      {rotationInfo && (
+        <div className="bg-purple-900/70 px-4 py-2 text-center" role="alert">
+          <span className="text-purple-300 font-bold">🔄 {rotationInfo}</span>
+        </div>
+      )}
 
       {/* Score display - server on left */}
       <div className="flex border-b border-gray-700" aria-live="polite">
@@ -578,7 +810,7 @@ export default function PracticeScoring() {
         <div className="grid grid-cols-2 gap-2">
           <button
             className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
-            disabled={!!match.activeTimeout || isPausedLocal}
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} 골`)}
             aria-label={`${p1Name} 골 득점. ${p1Name}에게 2점 추가`}
           >
@@ -587,7 +819,7 @@ export default function PracticeScoring() {
           </button>
           <button
             className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
-            disabled={!!match.activeTimeout || isPausedLocal}
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} 골`)}
             aria-label={`${p2Name} 골 득점. ${p2Name}에게 2점 추가`}
           >
@@ -597,21 +829,23 @@ export default function PracticeScoring() {
         </div>
 
         {/* Fouls */}
-        <div className="text-center text-xs text-gray-500 font-semibold">파울 (상대에게 +1점)</div>
+        <div className="text-center text-xs text-gray-400 font-semibold">파울 (상대에게 +1점)</div>
         {foulActions.map(action => (
           <div key={action.type} className="grid grid-cols-2 gap-2">
             <button
               className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
-              disabled={!!match.activeTimeout || isPausedLocal}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (action.type === 'irregular_serve' && match.currentServe !== 'player1')}
               onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
+              aria-label={`${p1Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p2Name}에게 1점 추가`}
             >
               🟡 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p2Name} +1점</span>
             </button>
             <button
               className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
-              disabled={!!match.activeTimeout || isPausedLocal}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (action.type === 'irregular_serve' && match.currentServe !== 'player2')}
               onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
+              aria-label={`${p2Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p1Name}에게 1점 추가`}
             >
               🟡 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p1Name} +1점</span>
@@ -620,21 +854,23 @@ export default function PracticeScoring() {
         ))}
 
         {/* Penalties */}
-        <div className="text-center text-xs text-gray-500 font-semibold">벌점 (상대에게 +2점)</div>
+        <div className="text-center text-xs text-gray-400 font-semibold">벌점 (상대에게 +2점)</div>
         {penaltyActions.map(action => (
           <div key={action.type} className="grid grid-cols-2 gap-2">
             <button
               className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
-              disabled={!!match.activeTimeout || isPausedLocal}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
               onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
+              aria-label={`${p1Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p2Name}에게 ${action.points}점 추가`}
             >
               🔴 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p2Name} +{action.points}점</span>
             </button>
             <button
               className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
-              disabled={!!match.activeTimeout || isPausedLocal}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
               onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
+              aria-label={`${p2Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p1Name}에게 ${action.points}점 추가`}
             >
               🔴 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
               <span className="text-xs opacity-75">→ {p1Name} +{action.points}점</span>
@@ -647,6 +883,9 @@ export default function PracticeScoring() {
           <button
             className="text-sm text-gray-400 underline mb-2"
             onClick={() => setShowHistory(!showHistory)}
+            aria-expanded={showHistory}
+            aria-label={showHistory ? '경기 기록 닫기' : `경기 기록 열기, ${match.scoreHistory.length}건`}
+            style={{ minHeight: '44px' }}
           >
             {showHistory ? '▲ 경기 기록 닫기' : `▼ 경기 기록 (${match.scoreHistory.length})`}
           </button>
@@ -665,6 +904,7 @@ export default function PracticeScoring() {
             className="btn btn-danger flex-1 py-3"
             onClick={handleUndo}
             disabled={match.scoreHistory.length === 0}
+            aria-label="마지막 점수 취소"
           >
             ↩️ 취소
           </button>
@@ -687,15 +927,38 @@ export default function PracticeScoring() {
             <span className="block text-xs opacity-75">남은 횟수: {1 - match.player2Timeouts}</span>
           </button>
         </div>
-        {/* Warmup + Pause */}
+        {/* Dead Ball (팀전) + Warmup + Pause */}
         <div className="flex gap-2 mt-2">
-          {!match.warmupUsed && (
-            <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white py-2 text-sm" onClick={handleWarmup}>
-              🔥 워밍업 {matchType === 'team' ? '90초' : '60초'}
+          {matchType === 'team' && (match.team1Members?.length ?? 0) > 3 && !match.team1SubUsed && (
+            <button
+              className="btn flex-1 bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm"
+              onClick={() => { setSubTeam(1); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+              aria-label={`${p1Name} 선수 교체`}
+            >
+              🔄 {p1Name} 교체
             </button>
           )}
+          {matchType === 'team' && (match.team2Members?.length ?? 0) > 3 && !match.team2SubUsed && (
+            <button
+              className="btn flex-1 bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm"
+              onClick={() => { setSubTeam(2); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }}
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+              aria-label={`${p2Name} 선수 교체`}
+            >
+              🔄 {p2Name} 교체
+            </button>
+          )}
+          <button
+            className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
+            onClick={handleDeadBall}
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            aria-label="데드볼. 현재 서브를 무효로 하고 재서브"
+          >
+            🔵 데드볼
+          </button>
           {!isPausedLocal && (
-            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 text-sm" onClick={handlePause}>
+            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 text-sm" onClick={handlePause} aria-label="경기 일시정지">
               ⏸️ 일시정지
             </button>
           )}
@@ -707,11 +970,11 @@ export default function PracticeScoring() {
         <div className="bg-gray-900 border-t border-gray-700 px-4 py-3">
           <div className="flex gap-4 overflow-x-auto">
             {sets.map((s: SetScore, i: number) => (
-              <div key={i} className={`text-center px-3 py-1 rounded ${i === ci ? 'bg-gray-700' : ''}`}>
-                <div className="text-xs text-gray-500">세트 {i + 1}</div>
+              <div key={i} className={`text-center px-3 py-1 rounded ${i === ci ? 'bg-gray-700' : ''}`} aria-label={`세트 ${i + 1}: ${p1Name} ${s.player1Score} 대 ${p2Name} ${s.player2Score}${i === ci ? ' (현재 세트)' : ''}`} aria-current={i === ci ? 'true' : undefined}>
+                <div className="text-xs text-gray-400">세트 {i + 1}</div>
                 <div className="text-lg font-bold">
                   <span className="text-yellow-400">{s.player1Score}</span>
-                  <span className="text-gray-500"> - </span>
+                  <span className="text-gray-400"> - </span>
                   <span className="text-cyan-400">{s.player2Score}</span>
                 </div>
               </div>

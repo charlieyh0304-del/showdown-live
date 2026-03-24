@@ -1,43 +1,89 @@
 {
   "rules": {
+    "config": {
+      "adminPin": {
+        ".read": true,
+        ".write": "auth != null",
+        ".validate": "newData.isString() && newData.val().length >= 10"
+      }
+    },
+    "admins": {
+      ".read": true,
+      "$adminId": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['name', 'pin'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "pin": { ".validate": "newData.isString() && newData.val().length >= 10" }
+      }
+    },
     "tournaments": {
       ".read": true,
       "$tournamentId": {
-        ".write": true,
-        ".validate": "newData.hasChildren(['name', 'type', 'status'])"
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['name', 'type', 'status'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
+        "type": { ".validate": "newData.isString() && (newData.val() === 'individual' || newData.val() === 'team')" },
+        "status": { ".validate": "newData.isString() && (newData.val() === 'draft' || newData.val() === 'in_progress' || newData.val() === 'completed' || newData.val() === 'cancelled')" }
       }
     },
     "matches": {
       ".read": true,
-      "$tournamentId": { ".write": true }
+      "$tournamentId": {
+        ".write": "auth != null",
+        "$matchId": {
+          ".validate": "newData.hasChildren(['tournamentId', 'status'])",
+          "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'in_progress' || newData.val() === 'completed' || newData.val() === 'cancelled')" }
+        }
+      }
     },
     "tournamentPlayers": {
       ".read": true,
-      "$tournamentId": { ".write": true }
+      "$tournamentId": { ".write": "auth != null" }
+    },
+    "tournamentReferees": {
+      ".read": true,
+      "$tournamentId": { ".write": "auth != null" }
     },
     "teams": {
       ".read": true,
-      "$tournamentId": { ".write": true }
+      "$tournamentId": { ".write": "auth != null" }
     },
     "schedule": {
       ".read": true,
-      "$tournamentId": { ".write": true }
+      "$tournamentId": { ".write": "auth != null" }
     },
     "players": {
       ".read": true,
-      ".write": true
+      "$playerId": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['name'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" }
+      }
     },
     "referees": {
       ".read": true,
-      ".write": true
+      "$refereeId": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['name', 'pin'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "pin": { ".validate": "newData.isString() && newData.val().length >= 10" }
+      }
     },
     "courts": {
       ".read": true,
-      ".write": true
+      "$courtId": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['name'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" }
+      }
     },
     "notifications": {
       ".read": true,
-      ".write": true
+      "$tournamentId": { ".write": "auth != null" }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
     }
   }
 }

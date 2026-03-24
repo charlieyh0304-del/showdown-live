@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatches, useTournament, usePlayers } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
@@ -69,9 +69,13 @@ export default function PlayerProfileView() {
 
   const loading = tLoading || mLoading || pLoading;
 
+  useEffect(() => {
+    document.title = decodedName ? `${decodedName} 프로필 - 쇼다운 관람` : '선수 프로필 - 쇼다운 관람';
+  }, [decodedName]);
+
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
         <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
       </div>
     );
@@ -79,7 +83,7 @@ export default function PlayerProfileView() {
 
   if (!tournament) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="alert">
         <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>대회를 찾을 수 없습니다</p>
         <button className="btn btn-primary" onClick={() => navigate('/spectator')} style={{ marginTop: '1rem' }}>
           목록으로 돌아가기
@@ -140,13 +144,13 @@ export default function PlayerProfileView() {
               </span>
             )}
             {playerInfo.gender && (
-              <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#9ca3af' }}>
+              <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#d1d5db' }}>
                 {playerInfo.gender === 'male' ? '남성' : '여성'}
               </span>
             )}
           </div>
         )}
-        <p style={{ color: '#9ca3af', marginTop: '0.25rem' }}>{tournament.name}</p>
+        <p style={{ color: '#d1d5db', marginTop: '0.25rem' }}>{tournament.name}</p>
       </div>
 
       {/* Stats */}
@@ -156,15 +160,15 @@ export default function PlayerProfileView() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{stats.wins}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>승</p>
+              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>승</p>
             </div>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{stats.losses}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>패</p>
+              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>패</p>
             </div>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22d3ee' }}>{stats.setsWon}-{stats.setsLost}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>세트 득실</p>
+              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>세트 득실</p>
             </div>
           </div>
         </div>
@@ -176,7 +180,7 @@ export default function PlayerProfileView() {
           예정된 경기 ({upcomingMatches.length})
         </h2>
         {upcomingMatches.length === 0 ? (
-          <p style={{ color: '#9ca3af' }}>예정된 경기가 없습니다</p>
+          <p style={{ color: '#d1d5db' }}>예정된 경기가 없습니다</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {hasMultipleUpcomingDates ? (
@@ -217,7 +221,7 @@ export default function PlayerProfileView() {
           완료된 경기 ({completedMatches.length})
         </h2>
         {completedMatches.length === 0 ? (
-          <p style={{ color: '#9ca3af' }}>완료된 경기가 없습니다</p>
+          <p style={{ color: '#d1d5db' }}>완료된 경기가 없습니다</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {completedMatches.map(m => {
@@ -249,7 +253,7 @@ export default function PlayerProfileView() {
                     <div>
                       <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
                       {m.roundLabel && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#9ca3af' }}>{m.roundLabel}</span>
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>
                       )}
                       {m.groupId && (
                         <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}조</span>
@@ -262,13 +266,13 @@ export default function PlayerProfileView() {
                       {result} ({mySetWins}-{oppSetWins})
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.75rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#d1d5db', fontSize: '0.75rem' }}>
                     {m.scheduledDate && <span>{m.scheduledDate}</span>}
                     {m.scheduledTime && <span>{m.scheduledTime}</span>}
                     {m.courtName && <span>{m.courtName}</span>}
                   </div>
                   {Array.isArray(m.sets) && m.sets.length > 0 && (
-                    <div style={{ color: '#6b7280', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                    <div style={{ color: '#d1d5db', marginTop: '0.25rem', fontSize: '0.75rem' }}>
                       {m.sets.map((s) => `${s.player1Score}-${s.player2Score}`).join(' / ')}
                     </div>
                   )}
@@ -314,7 +318,7 @@ function ScheduleMatchCard({
         <div>
           <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
           {m.roundLabel && (
-            <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#9ca3af' }}>{m.roundLabel}</span>
+            <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>
           )}
           {m.groupId && (
             <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}조</span>
@@ -328,7 +332,7 @@ function ScheduleMatchCard({
           {m.status === 'in_progress' ? '진행중' : '대기'}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.75rem' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#d1d5db', fontSize: '0.75rem' }}>
         {m.scheduledDate && <span>{m.scheduledDate}</span>}
         {m.scheduledTime && <span>{m.scheduledTime}</span>}
         {m.courtName && <span>{m.courtName}</span>}

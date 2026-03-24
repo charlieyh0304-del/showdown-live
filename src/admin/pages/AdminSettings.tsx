@@ -202,7 +202,7 @@ export default function AdminSettings() {
   }, [admins, session]);
 
   if (loading) {
-    return <div className="flex justify-center p-8"><p className="text-gray-400 animate-pulse">로딩 중...</p></div>;
+    return <div className="flex justify-center p-8" aria-live="polite"><p className="text-gray-300 animate-pulse">로딩 중...</p></div>;
   }
 
   return (
@@ -214,7 +214,7 @@ export default function AdminSettings() {
         <h2 className="text-xl font-bold mb-3">현재 로그인</h2>
         <p className="text-gray-300">
           {session?.adminName ?? '관리자'}
-          {session?.adminId && <span className="text-gray-500 text-sm ml-2">(ID: {session.adminId.slice(0, 8)})</span>}
+          {session?.adminId && <span className="text-gray-400 text-sm ml-2">(ID: {session.adminId.slice(0, 8)})</span>}
         </p>
       </div>
 
@@ -225,6 +225,8 @@ export default function AdminSettings() {
           <button
             className="btn btn-secondary text-sm"
             onClick={() => { setShowChangePin(!showChangePin); setChangePinError(''); setChangePinSuccess(''); }}
+            aria-expanded={showChangePin}
+            aria-label={showChangePin ? '비밀번호 변경 취소' : '비밀번호 변경'}
           >
             {showChangePin ? '취소' : '변경'}
           </button>
@@ -233,7 +235,7 @@ export default function AdminSettings() {
         {showChangePin && (
           <form onSubmit={handleChangePin} className="space-y-3">
             <div>
-              <label htmlFor="current-pin" className="block mb-1 text-sm text-gray-400">현재 PIN</label>
+              <label htmlFor="current-pin" className="block mb-1 text-sm text-gray-300">현재 PIN</label>
               <input
                 id="current-pin"
                 type="password"
@@ -245,7 +247,7 @@ export default function AdminSettings() {
               />
             </div>
             <div>
-              <label htmlFor="new-pin" className="block mb-1 text-sm text-gray-400">새 PIN (4자리 이상)</label>
+              <label htmlFor="new-pin" className="block mb-1 text-sm text-gray-300">새 PIN (4자리 이상)</label>
               <input
                 id="new-pin"
                 type="password"
@@ -257,7 +259,7 @@ export default function AdminSettings() {
               />
             </div>
             <div>
-              <label htmlFor="confirm-new-pin" className="block mb-1 text-sm text-gray-400">새 PIN 확인</label>
+              <label htmlFor="confirm-new-pin" className="block mb-1 text-sm text-gray-300">새 PIN 확인</label>
               <input
                 id="confirm-new-pin"
                 type="password"
@@ -281,6 +283,8 @@ export default function AdminSettings() {
           <button
             className="btn btn-success text-sm"
             onClick={() => { setShowAddAdmin(!showAddAdmin); setAddError(''); setAddSuccess(''); }}
+            aria-expanded={showAddAdmin}
+            aria-label={showAddAdmin ? '관리자 추가 취소' : '관리자 추가'}
           >
             {showAddAdmin ? '취소' : '+ 관리자 추가'}
           </button>
@@ -292,7 +296,7 @@ export default function AdminSettings() {
           <form onSubmit={handleAddAdmin} className="space-y-3 mb-4 p-4 bg-gray-800 rounded-lg">
             <h3 className="text-lg font-bold text-gray-300">새 관리자 추가</h3>
             <div>
-              <label htmlFor="admin-name" className="block mb-1 text-sm text-gray-400">이름</label>
+              <label htmlFor="admin-name" className="block mb-1 text-sm text-gray-300">이름</label>
               <input
                 id="admin-name"
                 type="text"
@@ -303,9 +307,9 @@ export default function AdminSettings() {
               />
             </div>
             <div>
-              <label htmlFor="admin-pin" className="block mb-1 text-sm text-gray-400">PIN (4자리 이상)</label>
+              <label htmlFor="new-admin-pin" className="block mb-1 text-sm text-gray-300">PIN (4자리 이상)</label>
               <input
-                id="admin-pin"
+                id="new-admin-pin"
                 type="password"
                 className="input"
                 value={newAdminPin}
@@ -315,7 +319,7 @@ export default function AdminSettings() {
               />
             </div>
             <div>
-              <label htmlFor="admin-pin-confirm" className="block mb-1 text-sm text-gray-400">PIN 확인</label>
+              <label htmlFor="admin-pin-confirm" className="block mb-1 text-sm text-gray-300">PIN 확인</label>
               <input
                 id="admin-pin-confirm"
                 type="password"
@@ -332,7 +336,7 @@ export default function AdminSettings() {
         )}
 
         {admins.length === 0 ? (
-          <p className="text-gray-500">등록된 관리자가 없습니다. (레거시 PIN으로 로그인 중)</p>
+          <p className="text-gray-400">등록된 관리자가 없습니다. (레거시 PIN으로 로그인 중)</p>
         ) : (
           <div className="space-y-2">
             {admins.map(admin => (
@@ -342,7 +346,7 @@ export default function AdminSettings() {
                   {admin.id === session?.adminId && (
                     <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">현재 로그인</span>
                   )}
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-400 mt-1">
                     등록일: {new Date(admin.createdAt).toLocaleDateString('ko-KR')}
                   </div>
                 </div>
@@ -350,6 +354,7 @@ export default function AdminSettings() {
                   className="btn btn-danger text-sm"
                   onClick={() => handleDeleteAdmin(admin)}
                   disabled={admin.id === session?.adminId || admins.length <= 1}
+                  aria-label={`${admin.name} 관리자 삭제`}
                 >
                   삭제
                 </button>
@@ -366,8 +371,9 @@ export default function AdminSettings() {
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-1">선수 이름 ({samplePlayerText.split('\n').filter(s => s.trim()).length}명)</label>
+            <label htmlFor="sample-players" className="block text-sm font-semibold text-gray-300 mb-1">선수 이름 ({samplePlayerText.split('\n').filter(s => s.trim()).length}명)</label>
             <textarea
+              id="sample-players"
               className="input w-full h-48"
               value={samplePlayerText}
               onChange={e => setSamplePlayerText(e.target.value)}
@@ -376,8 +382,9 @@ export default function AdminSettings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-1">심판 이름 ({sampleRefereeText.split('\n').filter(s => s.trim()).length}명)</label>
+            <label htmlFor="sample-referees" className="block text-sm font-semibold text-gray-300 mb-1">심판 이름 ({sampleRefereeText.split('\n').filter(s => s.trim()).length}명)</label>
             <textarea
+              id="sample-referees"
               className="input w-full h-48"
               value={sampleRefereeText}
               onChange={e => setSampleRefereeText(e.target.value)}

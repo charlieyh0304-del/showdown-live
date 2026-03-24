@@ -84,20 +84,16 @@ export default function TeamMatchScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 워밍업 시간 안내 (60초, 30초, 15초)
+  // 팀전 워밍업 90초: 60초 남음(30초 경과), 30초 남음(60초 경과) 알림
   useEffect(() => {
     if (warmupTimer.isRunning) {
       if (warmupTimer.seconds === 60) {
-        setLastAction('⚠️ 워밍업 60초 남았습니다');
-        setAnnouncement('워밍업 60초 남았습니다');
+        setLastAction('⚠️ 30초');
+        setAnnouncement('30초');
       }
       if (warmupTimer.seconds === 30) {
-        setLastAction('⚠️ 워밍업 30초 남았습니다');
-        setAnnouncement('워밍업 30초 남았습니다');
-      }
-      if (warmupTimer.seconds === 15) {
-        setLastAction('⚠️ 워밍업 15초 남았습니다');
-        setAnnouncement('워밍업 15초 남았습니다');
+        setLastAction('⚠️ 30초');
+        setAnnouncement('30초');
       }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
@@ -399,22 +395,25 @@ export default function TeamMatchScoring() {
       currentServe, serveCount, 'team',
     );
 
-    // Player rotation: when serve switches to other team, advance that team's player index
+    // Player rotation: 서브를 마친 팀이 선수 교체 (로테이션)
     let rotationUpdate: Record<string, unknown> = {};
     if (nextCount === 0 && nextServe !== currentServe) {
-      const teamKey = nextServe === 'player1' ? 'team1' : 'team2';
+      // 서브를 마친 팀 = currentServe 쪽 팀이 로테이션
+      const teamKey = currentServe === 'player1' ? 'team1' : 'team2';
       const orderKey = `${teamKey}PlayerOrder` as 'team1PlayerOrder' | 'team2PlayerOrder';
       const indexKey = `${teamKey}CurrentPlayerIndex` as 'team1CurrentPlayerIndex' | 'team2CurrentPlayerIndex';
       const currentIdx = (match[indexKey] as number | undefined) ?? 0;
       const order = (match[orderKey] as string[] | undefined) ?? [];
-      const nextIdx = order.length > 0 ? (currentIdx + 1) % order.length : 0;
+      const activeCount = Math.min(3, order.length);
+      const nextIdx = activeCount > 0 ? (currentIdx + 1) % activeCount : 0;
+      const rotTeamName = currentServe === 'player1' ? t1Name : t2Name;
 
       const rotationEntry: ScoreHistoryEntry = {
         time: new Date().toLocaleTimeString('ko-KR'),
         scoringPlayer: '',
-        actionPlayer: nextServe === 'player1' ? t1Name : t2Name,
+        actionPlayer: rotTeamName,
         actionType: 'player_rotation' as ScoreActionType,
-        actionLabel: `선수 로테이션 (${nextServe === 'player1' ? t1Name : t2Name})`,
+        actionLabel: `선수 로테이션 (${rotTeamName})`,
         points: 0,
         set: 1,
         server: nextServe === 'player1' ? t1Name : t2Name,
@@ -742,7 +741,7 @@ export default function TeamMatchScoring() {
             <span className="text-yellow-400 font-bold">{team1Name}</span>
             {match.team1?.coachName && <div className="text-sm text-gray-400">코치: {match.team1.coachName}</div>}
           </div>
-          <span className="text-gray-500">vs</span>
+          <span className="text-gray-400">vs</span>
           <div className="text-center">
             <span className="text-cyan-400 font-bold">{team2Name}</span>
             {match.team2?.coachName && <div className="text-sm text-gray-400">코치: {match.team2.coachName}</div>}
@@ -771,21 +770,21 @@ export default function TeamMatchScoring() {
             </h2>
             <p className="text-gray-400 text-center">서브 또는 리시브를 선택하세요</p>
             <div className="flex gap-4">
-              <button className="btn btn-success btn-large flex-1" onClick={() => handleStartMatch(tossWinner, 'serve')}>
+              <button className="btn btn-success btn-large flex-1" onClick={() => handleStartMatch(tossWinner, 'serve')} aria-label={`${tossWinner === 'team1' ? team1Name : team2Name}가 서브 선택`}>
                 🎾 서브
               </button>
-              <button className="btn btn-accent btn-large flex-1" onClick={() => handleStartMatch(tossWinner, 'receive')}>
+              <button className="btn btn-accent btn-large flex-1" onClick={() => handleStartMatch(tossWinner, 'receive')} aria-label={`${tossWinner === 'team1' ? team1Name : team2Name}가 리시브 선택`}>
                 🏓 리시브
               </button>
             </div>
-            <button className="text-sm text-gray-500 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }}>
+            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label="동전던지기 다시 선택" style={{ minHeight: '44px' }}>
               다시 선택
             </button>
           </div>
         )}
         <div className="card w-full max-w-md space-y-4">
           <div className="border-t border-gray-700 pt-3">
-            <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>
+            <h3 className="text-sm font-bold text-gray-400 mb-2">부전승 처리</h3>
             <div className="grid grid-cols-2 gap-2">
               <button
                 className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
@@ -814,19 +813,36 @@ export default function TeamMatchScoring() {
     const finalSet = match.sets?.[0];
     const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-4">
-        <h1 className="text-3xl font-bold text-yellow-400">팀전 경기 종료</h1>
-        <div className="text-4xl font-bold text-green-400">{winnerName} 승리!</div>
-        {finalSet && <div className="text-2xl text-gray-300">최종: {finalSet.player1Score} - {finalSet.player2Score}</div>}
+      <div className="min-h-screen flex flex-col p-4">
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold text-yellow-400">팀전 경기 종료</h1>
+          <div className="text-4xl font-bold text-green-400 mt-2" role="status" aria-live="assertive">🏆 {winnerName} 승리!</div>
+          {finalSet && (
+            <div className="mt-2">
+              <div className="inline-flex items-center bg-gray-800 rounded-lg px-6 py-3 gap-4" aria-label={`최종 스코어 ${team1Name} ${finalSet.player1Score} 대 ${team2Name} ${finalSet.player2Score}`}>
+                <span className="text-lg text-gray-300">{team1Name}</span>
+                <span className="text-3xl font-bold">
+                  <span className="text-yellow-400">{finalSet.player1Score}</span>
+                  <span className="text-gray-400"> - </span>
+                  <span className="text-cyan-400">{finalSet.player2Score}</span>
+                </span>
+                <span className="text-lg text-gray-300">{team2Name}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        {/* 상세 경기 기록 */}
         {history.length > 0 && (
-          <div className="w-full max-w-lg">
-            <h3 className="text-lg font-bold text-gray-300 mb-2">경기 기록 ({history.length})</h3>
-            <div className="max-h-60 overflow-y-auto">
+          <div className="w-full max-w-lg mx-auto flex-1 flex flex-col min-h-0">
+            <h3 className="text-lg font-bold text-gray-300 mb-2">상세 경기 기록 ({history.length})</h3>
+            <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
               <SetGroupedHistory history={history} sets={match.sets ?? []} showAll />
             </div>
           </div>
         )}
-        <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>목록으로</button>
+        <div className="text-center mt-4">
+          <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>목록으로</button>
+        </div>
       </div>
     );
   }
@@ -856,7 +872,7 @@ export default function TeamMatchScoring() {
   const t2TimeoutsUsed = match.player2Timeouts ?? 0;
 
   // GAP-2: disabled condition for scoring buttons
-  const scoringDisabled = !!match.activeTimeout || isPausedLocal;
+  const scoringDisabled = !!match.activeTimeout || isPausedLocal || showSideChange;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -905,8 +921,8 @@ export default function TeamMatchScoring() {
         const reserves = getTeamReservePlayers(subTeam);
         const subTeamName = subTeam === 1 ? team1Name : team2Name;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onKeyDown={e => { if (e.key === 'Escape') { setShowSubstitution(false); setSubTeam(null); } }}>
+            <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md space-y-4" role="dialog" aria-modal="true" aria-label={`${subTeamName} 선수 교체`}>
               <h2 className="text-xl font-bold text-indigo-300 text-center">
                 🔄 {subTeamName} 선수 교체
               </h2>
@@ -924,6 +940,8 @@ export default function TeamMatchScoring() {
                           : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
                       }`}
                       onClick={() => setSubOutIndex(i)}
+                      aria-pressed={subOutIndex === i}
+                      aria-label={`${name} 퇴장 선택${subOutIndex === i ? ' (선택됨)' : ''}`}
                     >
                       {name}
                     </button>
@@ -944,6 +962,8 @@ export default function TeamMatchScoring() {
                           : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
                       }`}
                       onClick={() => setSubInIndex(i)}
+                      aria-pressed={subInIndex === i}
+                      aria-label={`${name} 입장 선택${subInIndex === i ? ' (선택됨)' : ''}`}
                     >
                       {name}
                     </button>
@@ -974,24 +994,24 @@ export default function TeamMatchScoring() {
 
       {/* Pause Banner */}
       {isPausedLocal && (
-        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between">
+        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between" role="status" aria-live="polite" aria-label="경기 일시정지 중">
           <div>
             <span className="text-orange-300 font-bold">⏸️ 경기 일시정지</span>
-            <span className="text-orange-200 ml-3">
+            <span className="text-orange-200 ml-3" aria-label={`경과 시간 ${Math.floor(pauseElapsed / 60)}분 ${pauseElapsed % 60}초`}>
               {Math.floor(pauseElapsed / 60)}:{(pauseElapsed % 60).toString().padStart(2, '0')}
             </span>
             {pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({pauseReason})</span>}
           </div>
-          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume}>▶ 재개</button>
+          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label="경기 재개">▶ 재개</button>
         </div>
       )}
 
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/games')}>← 목록</button>
+          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/games')} aria-label="경기 목록으로 돌아가기">← 목록</button>
           <div className="text-center">
-            <div className="text-lg font-bold text-yellow-400">팀전 (31점 단판)</div>
+            <h1 className="text-lg font-bold text-yellow-400">팀전 (31점 단판)</h1>
           </div>
           <div className="text-sm text-gray-400 text-right">
             {match.courtName && <div>{match.courtName}</div>}
@@ -1001,11 +1021,11 @@ export default function TeamMatchScoring() {
       </div>
 
       {/* Serve */}
-      <div className="bg-blue-900/50 px-4 py-2 text-center">
+      <div className="bg-blue-900/50 px-4 py-2 text-center" role="status" aria-label={`${serverName} 서브 ${serveCountVal + 1}/${maxServes}회차`}>
         <span className="text-blue-300 font-semibold">
           🎾 {serverName} 서브 {serveCountVal + 1}/{maxServes}회차
         </span>
-        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe}>서브권 변경</button>
+        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label="서브권 수동 변경" style={{ minHeight: '44px', minWidth: '44px' }}>서브권 변경</button>
       </div>
 
       {/* Score display - server on left */}
@@ -1028,12 +1048,14 @@ export default function TeamMatchScoring() {
           <div className="grid grid-cols-2 gap-3">
             <button className="btn btn-success text-lg py-4 font-bold"
               disabled={scoringDisabled}
-              onClick={() => handleIBSAScore(1, 'goal', 2, false, `${team1Name} 골`)}>
+              onClick={() => handleIBSAScore(1, 'goal', 2, false, `${team1Name} 골`)}
+              aria-label={`${team1Name} 골 득점. ${team1Name}에게 2점 추가`}>
               {team1Name}<br/>골 +2점
             </button>
             <button className="btn btn-success text-lg py-4 font-bold"
               disabled={scoringDisabled}
-              onClick={() => handleIBSAScore(2, 'goal', 2, false, `${team2Name} 골`)}>
+              onClick={() => handleIBSAScore(2, 'goal', 2, false, `${team2Name} 골`)}
+              aria-label={`${team2Name} 골 득점. ${team2Name}에게 2점 추가`}>
               {team2Name}<br/>골 +2점
             </button>
           </div>
@@ -1045,14 +1067,16 @@ export default function TeamMatchScoring() {
             {foulActions.map(action => (
               <div key={action.type} className="grid grid-cols-2 gap-2">
                 <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  disabled={scoringDisabled}
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${team1Name} ${action.label}`)}>
+                  disabled={scoringDisabled || (action.type === 'irregular_serve' && currentServe !== 'player1')}
+                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${team1Name} ${action.label}`)}
+                  aria-label={`${team1Name} ${action.label}. ${team2Name}에게 1점 추가`}>
                   {team1Name} {action.label}<br/>
                   <span className="text-xs opacity-75">→ {team2Name} +1점</span>
                 </button>
                 <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  disabled={scoringDisabled}
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${team2Name} ${action.label}`)}>
+                  disabled={scoringDisabled || (action.type === 'irregular_serve' && currentServe !== 'player2')}
+                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${team2Name} ${action.label}`)}
+                  aria-label={`${team2Name} ${action.label}. ${team1Name}에게 1점 추가`}>
                   {team2Name} {action.label}<br/>
                   <span className="text-xs opacity-75">→ {team1Name} +1점</span>
                 </button>
@@ -1068,13 +1092,15 @@ export default function TeamMatchScoring() {
               <div key={action.type} className="grid grid-cols-2 gap-2">
                 <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
                   disabled={scoringDisabled}
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${team1Name} ${action.label}`)}>
+                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${team1Name} ${action.label}`)}
+                  aria-label={`${team1Name} ${action.label}. ${team2Name}에게 ${action.points}점 추가`}>
                   {team1Name} {action.label}<br/>
                   <span className="text-xs opacity-75">→ {team2Name} +{action.points}점</span>
                 </button>
                 <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
                   disabled={scoringDisabled}
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${team2Name} ${action.label}`)}>
+                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${team2Name} ${action.label}`)}
+                  aria-label={`${team2Name} ${action.label}. ${team1Name}에게 ${action.points}점 추가`}>
                   {team2Name} {action.label}<br/>
                   <span className="text-xs opacity-75">→ {team1Name} +{action.points}점</span>
                 </button>
@@ -1084,7 +1110,7 @@ export default function TeamMatchScoring() {
         </div>
 
         <div className="flex gap-3">
-          <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0}>↩️ 취소</button>
+          <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0} aria-label="마지막 점수 취소">↩️ 취소</button>
           <button
             className="btn btn-secondary flex-1"
             onClick={() => handleTimeout(1)}
@@ -1113,6 +1139,7 @@ export default function TeamMatchScoring() {
                 className="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-3"
                 disabled={!!match.team1SubUsed}
                 onClick={() => openSubstitution(1)}
+                aria-label={`${team1Name} 선수 교체. ${match.team1SubUsed ? '이미 교체 완료' : '1회 가능'}`}
               >
                 🔄 {team1Name} 선수 교체
                 <span className="block text-xs opacity-75">
@@ -1125,6 +1152,7 @@ export default function TeamMatchScoring() {
                 className="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-3"
                 disabled={!!match.team2SubUsed}
                 onClick={() => openSubstitution(2)}
+                aria-label={`${team2Name} 선수 교체. ${match.team2SubUsed ? '이미 교체 완료' : '1회 가능'}`}
               >
                 🔄 {team2Name} 선수 교체
                 <span className="block text-xs opacity-75">
@@ -1141,6 +1169,7 @@ export default function TeamMatchScoring() {
             className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
             disabled={scoringDisabled || match.status !== 'in_progress'}
             onClick={handleDeadBall}
+            aria-label="데드볼. 현재 서브를 무효로 하고 재서브"
           >
             🔵 데드볼
           </button>
@@ -1149,12 +1178,12 @@ export default function TeamMatchScoring() {
         {/* Warmup + Pause */}
         <div className="flex gap-3">
           {!match.warmupUsed && (
-            <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup}>
+            <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup} aria-label="워밍업 90초 시작">
               🔥 워밍업 90초
             </button>
           )}
           {!isPausedLocal && (
-            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white" onClick={handlePause}>
+            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white" onClick={handlePause} aria-label="경기 일시정지">
               ⏸️ 일시정지
             </button>
           )}
@@ -1162,12 +1191,13 @@ export default function TeamMatchScoring() {
 
         {/* Walkover (부전승) */}
         <div className="border-t border-gray-700 pt-3 mt-3">
-          <h3 className="text-sm font-bold text-gray-500 mb-2">부전승 처리</h3>
+          <h3 className="text-sm font-bold text-gray-400 mb-2">부전승 처리</h3>
           <div className="grid grid-cols-2 gap-2">
             <button
               className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
               onClick={() => handleWalkover(1)}
               disabled={match.status !== 'in_progress' && match.status !== 'pending'}
+              aria-label={`${team1Name} 부전승 처리`}
             >
               {team1Name} 부전승
             </button>
@@ -1175,6 +1205,7 @@ export default function TeamMatchScoring() {
               className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
               onClick={() => handleWalkover(2)}
               disabled={match.status !== 'in_progress' && match.status !== 'pending'}
+              aria-label={`${team2Name} 부전승 처리`}
             >
               {team2Name} 부전승
             </button>
@@ -1183,11 +1214,11 @@ export default function TeamMatchScoring() {
 
         {/* History (set-grouped) */}
         <div>
-          <button className="text-sm text-gray-400 underline mb-2" onClick={() => setShowHistory(!showHistory)}>
+          <button className="text-sm text-gray-400 underline mb-2" onClick={() => setShowHistory(!showHistory)} aria-expanded={showHistory} aria-label={showHistory ? '경기 기록 닫기' : `경기 기록 열기, ${history.length}건`} style={{ minHeight: '44px' }}>
             {showHistory ? '▲ 경기 기록 닫기' : `▼ 경기 기록 (${history.length})`}
           </button>
           {showHistory && history.length > 0 && (
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto">
               <SetGroupedHistory history={history} sets={sets} />
             </div>
           )}
