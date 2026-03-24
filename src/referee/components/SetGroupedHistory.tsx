@@ -11,6 +11,9 @@ const DESCRIPTIVE_ACTION_LABELS: Record<string, string> = {
   ball_holding: '볼 홀딩',
   mask_touch: '마스크/고글 터치',
   penalty: '기타 벌점',
+  penalty_table_pushing: '테이블 푸싱',
+  penalty_electronic: '전자기기 소리',
+  penalty_talking: '경기 중 말하기',
 };
 
 interface SetGroupedHistoryProps {
@@ -25,12 +28,16 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
   if (history.length === 0) return null;
 
   // Known meta-event types that are meaningful even with 0 points
-  const META_ACTION_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation', 'side_change']);
+  const META_ACTION_TYPES = new Set([
+    'pause', 'resume', 'timeout', 'timeout_player', 'timeout_medical', 'timeout_referee',
+    'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start',
+    'match_start', 'player_rotation', 'side_change'
+  ]);
 
   const groups: Record<number, ScoreHistoryEntry[]> = {};
   history.forEach(h => {
     // Filter out 0-point entries that are not meaningful meta-events
-    if (h.points === 0 && !META_ACTION_TYPES.has(h.actionType)) return;
+    if (h.points === 0 && !META_ACTION_TYPES.has(h.actionType) && !h.penaltyWarning) return;
     // 재개 정보 숨김 - 모든 resume 엔트리 제거
     if (h.actionType === 'resume') return;
     const setNum = h.set || 1;
@@ -74,7 +81,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
             </h4>
             <div className="space-y-2">
               {entries.map((h, i) => {
-                const icon = h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.points >= 2 ? '🔴' : '🟡';
+                const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
 
                 // h.time is stored as locale string (e.g. "오후 8:19:26") - use directly, don't re-parse
                 const timeStr = (() => {
@@ -90,13 +97,18 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                   return h.time;
                 })();
 
-                // Non-scoring entries (pause, resume, timeout, substitution, dead_ball, walkover)
-                if (h.points === 0) {
-                  const desc = h.actionType === 'walkover' ? `${h.actionPlayer || '?'} ${(h.actionLabel || '부전승').replace('부전승 (', '').replace(')', '') || '기권'} → ${h.scoringPlayer || '?'} 부전승` :
+                // Non-scoring entries (pause, resume, timeout, substitution, dead_ball, walkover, penaltyWarning)
+                if (h.points === 0 || h.penaltyWarning) {
+                  const actionLabel = DESCRIPTIVE_ACTION_LABELS[h.actionType || ''] || h.actionLabel || '';
+                  const desc = h.penaltyWarning ? `${h.actionPlayer || '?'} ${actionLabel} 경고` :
+                    h.actionType === 'walkover' ? `${h.actionPlayer || '?'} ${(h.actionLabel || '부전승').replace('부전승 (', '').replace(')', '') || '기권'} → ${h.scoringPlayer || '?'} 부전승` :
                     h.actionType === 'dead_ball' ? `${h.server || '?'} 데드볼 → 재서브` :
                     h.actionType === 'pause' ? `일시정지 (${h.actionPlayer || ''})` :
                     h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})` :
                     h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃` :
+                    h.actionType === 'timeout_player' ? `${h.actionPlayer || ''} 선수 타임아웃` :
+                    h.actionType === 'timeout_medical' ? `${h.actionPlayer || ''} 메디컬 타임아웃` :
+                    h.actionType === 'timeout_referee' ? `레프리 타임아웃` :
                     h.actionType === 'substitution' ? (h.actionLabel || '선수 교체') :
                     h.actionType === 'coin_toss' ? (h.actionLabel || '동전던지기') :
                     h.actionType === 'warmup_start' ? (h.actionLabel || '워밍업') :
@@ -105,7 +117,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지') :
                     (h.actionLabel || '');
                   // 타임아웃, 사이드 체인지 등은 점수 표시 없음
-                  const hideScore = h.actionType === 'timeout' || h.actionType === 'side_change' || h.actionType === 'pause' || h.actionType === 'warmup_start' || h.actionType === 'coin_toss';
+                  const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                   return (
                     <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2">
                       <div className="flex justify-between items-start gap-2">
@@ -121,6 +133,12 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 const descriptiveLabel = DESCRIPTIVE_ACTION_LABELS[h.actionType || ''];
                 if (h.actionType === 'goal') {
                   actionDesc = `${h.scoringPlayer || '?'} 골 득점 +${h.points}점`;
+                } else if (h.actionType === 'penalty_table_pushing') {
+                  actionDesc = `${h.actionPlayer || '?'} 테이블 푸싱 → ${h.scoringPlayer || '?'} +${h.points}점`;
+                } else if (h.actionType === 'penalty_electronic') {
+                  actionDesc = `${h.actionPlayer || '?'} 전자기기 소리 → ${h.scoringPlayer || '?'} +${h.points}점`;
+                } else if (h.actionType === 'penalty_talking') {
+                  actionDesc = `${h.actionPlayer || '?'} 경기 중 말하기 → ${h.scoringPlayer || '?'} +${h.points}점`;
                 } else if (descriptiveLabel) {
                   actionDesc = `${h.actionPlayer || '?'} ${descriptiveLabel} → ${h.scoringPlayer || '?'} +${h.points}점`;
                 } else {

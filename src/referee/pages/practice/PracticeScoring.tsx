@@ -151,9 +151,14 @@ export default function PracticeScoring() {
   // Timeout timer
   useEffect(() => {
     if (match.activeTimeout) {
-      const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
-      const remaining = Math.max(0, 60 - elapsed);
-      if (remaining > 0) timeoutTimer.start(remaining);
+      const type = match.activeTimeout.type ?? 'player';
+      const totalDuration = type === 'player' ? 60 : type === 'medical' ? 300 : 0;
+      if (totalDuration > 0) {
+        const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
+        const remaining = Math.max(0, totalDuration - elapsed);
+        if (remaining > 0) timeoutTimer.start(remaining);
+      }
+      // referee timeout: no auto-timer (manual end)
     } else {
       timeoutTimer.stop();
     }
@@ -413,19 +418,20 @@ export default function PracticeScoring() {
     setAnnouncement(`서브권 변경: ${newServer}`);
   }, [match, updateMatch, p1Name, p2Name]);
 
-  // Dead Ball (팀전)
-  const handleDeadBall = useCallback(() => {
+  // Dead Ball - 양쪽 모두 가능
+  const handleDeadBall = useCallback((player: 1 | 2) => {
     if (match.status !== 'in_progress' || match.isPaused || match.activeTimeout) return;
     const ci = match.currentSet;
     const cs = match.sets[ci];
     if (!cs) return;
     const sName = match.currentServe === 'player1' ? p1Name : p2Name;
+    const actionName = player === 1 ? p1Name : p2Name;
     const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
     const entry = createScoreHistoryEntry({
       scoringPlayer: '',
-      actionPlayer: sName,
+      actionPlayer: actionName,
       actionType: 'dead_ball',
-      actionLabel: '데드볼',
+      actionLabel: `${actionName} 데드볼 → 재서브`,
       points: 0,
       set: ci + 1,
       server: sName,
@@ -435,8 +441,8 @@ export default function PracticeScoring() {
       serverSide: match.currentServe,
     });
     updateMatch({ scoreHistory: [entry, ...match.scoreHistory] });
-    setLastAction(`데드볼 - ${sName} 재서브`);
-    setAnnouncement(`데드볼. ${sName} 재서브`);
+    setLastAction(`${actionName} 데드볼 - ${sName} 재서브`);
+    setAnnouncement(`${actionName} 데드볼. ${sName} 재서브`);
   }, [match, updateMatch, p1Name, p2Name]);
 
   const handleSubstitution = useCallback(() => {
@@ -486,18 +492,99 @@ export default function PracticeScoring() {
     setSubInIdx(null);
   }, [match, subTeam, subOutIdx, subInIdx, p1Name, p2Name, updateMatch]);
 
-  const handleTimeout = useCallback((player: 1 | 2) => {
+  const handleTimeout = useCallback((player: 1 | 2, type: 'player' | 'medical' | 'referee' = 'player') => {
     if (match.status !== 'in_progress') return;
-    const used = player === 1 ? match.player1Timeouts : match.player2Timeouts;
-    if (used >= 1) return;
+    // player timeout: 1회 제한, medical/referee: 제한 없음
+    if (type === 'player') {
+      const used = player === 1 ? match.player1Timeouts : match.player2Timeouts;
+      if (used >= 1) return;
+    }
+    const actionType = type === 'player' ? 'timeout_player' : type === 'medical' ? 'timeout_medical' : 'timeout_referee';
+    const actionLabel = type === 'player' ? '선수 타임아웃' : type === 'medical' ? '메디컬 타임아웃' : '레프리 타임아웃';
+    const pName = type === 'referee' ? '' : (player === 1 ? p1Name : p2Name);
+    const ci = match.currentSet;
+    const cs = match.sets[ci];
+    const scoreBefore = { player1: cs?.player1Score ?? 0, player2: cs?.player2Score ?? 0 };
+    const timeoutEntry = createScoreHistoryEntry({
+      scoringPlayer: '',
+      actionPlayer: pName,
+      actionType: actionType as ScoreActionType,
+      actionLabel,
+      points: 0,
+      set: ci + 1,
+      server: match.currentServe === 'player1' ? p1Name : p2Name,
+      serveNumber: match.serveCount + 1,
+      scoreBefore,
+      scoreAfter: scoreBefore,
+      serverSide: match.currentServe,
+    });
+    const duration = type === 'player' ? 60 : type === 'medical' ? 300 : 0;
     const up: Partial<typeof match> = {
-      activeTimeout: { playerId: `player${player}`, startTime: Date.now() },
+      activeTimeout: { playerId: `player${player}`, startTime: Date.now(), type },
+      scoreHistory: [timeoutEntry, ...match.scoreHistory],
     };
-    if (player === 1) up.player1Timeouts = match.player1Timeouts + 1;
-    else up.player2Timeouts = match.player2Timeouts + 1;
+    if (type === 'player') {
+      if (player === 1) up.player1Timeouts = match.player1Timeouts + 1;
+      else up.player2Timeouts = match.player2Timeouts + 1;
+    }
     updateMatch(up);
     addAction({ type: 'timeout', player });
-  }, [match, updateMatch, addAction]);
+    if (duration > 0) timeoutTimer.start(duration);
+  }, [match, updateMatch, addAction, p1Name, p2Name, timeoutTimer]);
+
+  // 벌점 핸들러: 경고 카운트를 scoreHistory에서 동적 계산
+  const handlePenalty = useCallback((
+    actingPlayer: 1 | 2,
+    penaltyType: 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking',
+  ) => {
+    if (!canAct()) return;
+    if (match.status !== 'in_progress' || match.isPaused) return;
+    if (match.activeTimeout || showSideChange) return;
+
+    const actorName = actingPlayer === 1 ? p1Name : p2Name;
+
+    // penalty_electronic은 즉시 2점
+    if (penaltyType === 'penalty_electronic') {
+      const label = `${actorName} 전자기기 소리`;
+      handleIBSAScore(actingPlayer, penaltyType, 2, true, label);
+      return;
+    }
+
+    // penalty_table_pushing, penalty_talking: 1회 경고 → 2회 2점 실점
+    const warningCount = match.scoreHistory.filter(
+      h => h.actionType === penaltyType && h.actionPlayer === actorName && h.penaltyWarning === true
+    ).length;
+
+    if (warningCount === 0) {
+      // 첫 번째: 경고만
+      const ci = match.currentSet;
+      const cs = match.sets[ci];
+      const scoreBefore = { player1: cs?.player1Score ?? 0, player2: cs?.player2Score ?? 0 };
+      const penaltyLabel = penaltyType === 'penalty_table_pushing' ? '테이블 푸싱' : '경기 중 말하기';
+      const warningEntry = createScoreHistoryEntry({
+        scoringPlayer: '',
+        actionPlayer: actorName,
+        actionType: penaltyType as ScoreActionType,
+        actionLabel: penaltyLabel,
+        points: 0,
+        set: ci + 1,
+        server: match.currentServe === 'player1' ? p1Name : p2Name,
+        serveNumber: match.serveCount + 1,
+        scoreBefore,
+        scoreAfter: scoreBefore,
+        serverSide: match.currentServe,
+      });
+      warningEntry.penaltyWarning = true;
+      updateMatch({ scoreHistory: [warningEntry, ...match.scoreHistory] });
+      setLastAction(`⚠️ ${actorName} ${penaltyLabel} 경고 (1회)`);
+      setAnnouncement(`${actorName} ${penaltyLabel} 경고`);
+    } else {
+      // 2회 이상: 2점 실점
+      const penaltyLabel = penaltyType === 'penalty_table_pushing' ? '테이블 푸싱' : '경기 중 말하기';
+      const label = `${actorName} ${penaltyLabel}`;
+      handleIBSAScore(actingPlayer, penaltyType, 2, true, label);
+    }
+  }, [match, canAct, handleIBSAScore, updateMatch, p1Name, p2Name, showSideChange]);
 
   // ===== PENDING =====
   if (match.status === 'pending') {
@@ -661,11 +748,12 @@ export default function PracticeScoring() {
       )}
 
       {/* Timeout Modal */}
-      {match.activeTimeout && timeoutTimer.isRunning && (
+      {match.activeTimeout && (timeoutTimer.isRunning || match.activeTimeout.type === 'referee') && (
         <TimerModal
-          title="타임아웃"
+          title={match.activeTimeout.type === 'medical' ? '🏥 메디컬 타임아웃' : match.activeTimeout.type === 'referee' ? '🟨 레프리 타임아웃' : '⏱️ 선수 타임아웃'}
           seconds={timeoutTimer.seconds}
           isWarning={timeoutTimer.isWarning}
+          subtitle={match.activeTimeout.type === 'referee' ? '수동 종료' : undefined}
           onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); }}
           closeLabel="타임아웃 종료"
         />
@@ -853,9 +941,73 @@ export default function PracticeScoring() {
           </div>
         ))}
 
-        {/* Penalties */}
-        <div className="text-center text-xs text-gray-400 font-semibold">벌점 (상대에게 +2점)</div>
-        {penaltyActions.map(action => (
+        {/* Penalties (경고/실점) */}
+        <div className="text-center text-xs text-gray-400 font-semibold">벌점 (경고/실점)</div>
+        {/* penalty_table_pushing: 1회 경고 → 2회 2점 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handlePenalty(1, 'penalty_table_pushing')}
+            aria-label={`${p1Name} 테이블 푸싱. 1회 경고, 2회 ${p2Name}에게 2점`}
+          >
+            🔴 {p1Name} 테이블 푸싱<br/>
+            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+          </button>
+          <button
+            className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handlePenalty(2, 'penalty_table_pushing')}
+            aria-label={`${p2Name} 테이블 푸싱. 1회 경고, 2회 ${p1Name}에게 2점`}
+          >
+            🔴 {p2Name} 테이블 푸싱<br/>
+            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+          </button>
+        </div>
+        {/* penalty_electronic: 즉시 2점 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handlePenalty(1, 'penalty_electronic')}
+            aria-label={`${p1Name} 전자기기 소리. ${p2Name}에게 즉시 2점`}
+          >
+            🔴 {p1Name} 전자기기 소리<br/>
+            <span className="text-xs opacity-75">→ {p2Name} 즉시 +2점</span>
+          </button>
+          <button
+            className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handlePenalty(2, 'penalty_electronic')}
+            aria-label={`${p2Name} 전자기기 소리. ${p1Name}에게 즉시 2점`}
+          >
+            🔴 {p2Name} 전자기기 소리<br/>
+            <span className="text-xs opacity-75">→ {p1Name} 즉시 +2점</span>
+          </button>
+        </div>
+        {/* penalty_talking: 1회 경고 → 2회 2점 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handlePenalty(1, 'penalty_talking')}
+            aria-label={`${p1Name} 경기 중 말하기. 1회 경고, 2회 ${p2Name}에게 2점`}
+          >
+            🔴 {p1Name} 경기 중 말하기<br/>
+            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+          </button>
+          <button
+            className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handlePenalty(2, 'penalty_talking')}
+            aria-label={`${p2Name} 경기 중 말하기. 1회 경고, 2회 ${p1Name}에게 2점`}
+          >
+            🔴 {p2Name} 경기 중 말하기<br/>
+            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+          </button>
+        </div>
+        {/* mask_touch는 기존 penaltyActions에서 별도 처리 */}
+        {penaltyActions.filter(a => !['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'].includes(a.type)).map(action => (
           <div key={action.type} className="grid grid-cols-2 gap-2">
             <button
               className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
@@ -908,26 +1060,63 @@ export default function PracticeScoring() {
           >
             ↩️ 취소
           </button>
+        </div>
+        {/* 타임아웃 (3종류) */}
+        <div className="mt-2 space-y-2">
+          {/* 선수 타임아웃 (1분, 1회) */}
+          <div className="flex gap-2">
+            <button
+              className="btn btn-secondary flex-1 py-2 text-sm"
+              onClick={() => handleTimeout(1, 'player')}
+              disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
+              aria-label={`${p1Name} 선수 타임아웃 (1분), 남은 횟수 ${1 - match.player1Timeouts}회`}
+            >
+              ⏱️ {p1Name} 선수 타임아웃
+              <span className="block text-xs opacity-75">1분 | 남은: {1 - match.player1Timeouts}</span>
+            </button>
+            <button
+              className="btn btn-secondary flex-1 py-2 text-sm"
+              onClick={() => handleTimeout(2, 'player')}
+              disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
+              aria-label={`${p2Name} 선수 타임아웃 (1분), 남은 횟수 ${1 - match.player2Timeouts}회`}
+            >
+              ⏱️ {p2Name} 선수 타임아웃
+              <span className="block text-xs opacity-75">1분 | 남은: {1 - match.player2Timeouts}</span>
+            </button>
+          </div>
+          {/* 메디컬 타임아웃 (5분) */}
+          <div className="flex gap-2">
+            <button
+              className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
+              onClick={() => handleTimeout(1, 'medical')}
+              disabled={!!match.activeTimeout}
+              aria-label={`${p1Name} 메디컬 타임아웃 (5분)`}
+            >
+              🏥 {p1Name} 메디컬
+              <span className="block text-xs opacity-75">5분</span>
+            </button>
+            <button
+              className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
+              onClick={() => handleTimeout(2, 'medical')}
+              disabled={!!match.activeTimeout}
+              aria-label={`${p2Name} 메디컬 타임아웃 (5분)`}
+            >
+              🏥 {p2Name} 메디컬
+              <span className="block text-xs opacity-75">5분</span>
+            </button>
+          </div>
+          {/* 레프리 타임아웃 (제한없음) */}
           <button
-            className="btn btn-secondary flex-1 py-3 text-sm"
-            onClick={() => handleTimeout(1)}
-            disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
-            aria-label={`${p1Name} 타임아웃 요청, 남은 횟수 ${1 - match.player1Timeouts}회`}
+            className="btn bg-yellow-800 hover:bg-yellow-700 text-white py-2 text-sm w-full"
+            onClick={() => handleTimeout(1, 'referee')}
+            disabled={!!match.activeTimeout}
+            aria-label="레프리 타임아웃 (제한없음)"
           >
-            {p1Name} 타임아웃
-            <span className="block text-xs opacity-75">남은 횟수: {1 - match.player1Timeouts}</span>
-          </button>
-          <button
-            className="btn btn-secondary flex-1 py-3 text-sm"
-            onClick={() => handleTimeout(2)}
-            disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
-            aria-label={`${p2Name} 타임아웃 요청, 남은 횟수 ${1 - match.player2Timeouts}회`}
-          >
-            {p2Name} 타임아웃
-            <span className="block text-xs opacity-75">남은 횟수: {1 - match.player2Timeouts}</span>
+            🟨 레프리 타임아웃
+            <span className="block text-xs opacity-75">제한없음 (수동 종료)</span>
           </button>
         </div>
-        {/* Dead Ball (팀전) + Warmup + Pause */}
+        {/* Dead Ball (양쪽) + Substitution + Pause */}
         <div className="flex gap-2 mt-2">
           {matchType === 'team' && (match.team1Members?.length ?? 0) > 3 && !match.team1SubUsed && (
             <button
@@ -951,11 +1140,19 @@ export default function PracticeScoring() {
           )}
           <button
             className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
-            onClick={handleDeadBall}
+            onClick={() => handleDeadBall(1)}
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            aria-label="데드볼. 현재 서브를 무효로 하고 재서브"
+            aria-label={`${p1Name} 데드볼. 현재 서브를 무효로 하고 재서브`}
           >
-            🔵 데드볼
+            🔵 {p1Name} 데드볼
+          </button>
+          <button
+            className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
+            onClick={() => handleDeadBall(2)}
+            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            aria-label={`${p2Name} 데드볼. 현재 서브를 무효로 하고 재서브`}
+          >
+            🔵 {p2Name} 데드볼
           </button>
           {!isPausedLocal && (
             <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 text-sm" onClick={handlePause} aria-label="경기 일시정지">

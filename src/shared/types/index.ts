@@ -264,9 +264,15 @@ export type ScoreActionType =
   | 'out'               // 아웃 (+1점, 상대에게)
   | 'ball_holding'      // 볼홀딩/2초룰 (+1점, 상대에게)
   | 'mask_touch'        // 마스크/고글 터치 (+2점, 상대에게)
-  | 'penalty'           // 기타 벌점 (+2점, 상대에게)
+  | 'penalty'           // 기타 벌점 (+2점, 상대에게) - 하위호환용
+  | 'penalty_table_pushing'  // 테이블 푸싱 (+2점, 상대에게)
+  | 'penalty_electronic'     // 전자기기 소리 (+2점, 상대에게)
+  | 'penalty_talking'        // 경기 중 말하기 (+2점, 상대에게)
   | 'manual'            // 수동 득점/감점
-  | 'timeout'           // 타임아웃
+  | 'timeout'           // 타임아웃 - 하위호환용
+  | 'timeout_player'    // 선수 타임아웃 (1분)
+  | 'timeout_medical'   // 메디컬 타임아웃 (5분)
+  | 'timeout_referee'   // 레프리 타임아웃 (제한 없음)
   | 'pause'             // 일시정지
   | 'resume'            // 재개
   | 'substitution'      // 선수 교체
@@ -295,7 +301,9 @@ export const IBSA_SCORE_ACTIONS: ScoreAction[] = [
   { type: 'out', points: 1, toOpponent: true, label: '아웃' },
   { type: 'ball_holding', points: 1, toOpponent: true, label: '볼홀딩(2초)' },
   { type: 'mask_touch', points: 2, toOpponent: true, label: '마스크터치 +2' },
-  { type: 'penalty', points: 2, toOpponent: true, label: '벌점(기타) +2' },
+  { type: 'penalty_table_pushing', points: 2, toOpponent: true, label: '테이블 푸싱' },
+  { type: 'penalty_electronic', points: 2, toOpponent: true, label: '전자기기 소리' },
+  { type: 'penalty_talking', points: 2, toOpponent: true, label: '경기 중 말하기' },
 ];
 
 // ===== 득점 히스토리 항목 =====
@@ -312,6 +320,7 @@ export interface ScoreHistoryEntry {
   scoreBefore: { player1: number; player2: number };
   scoreAfter: { player1: number; player2: number };
   serverSide?: 'player1' | 'player2';  // 서브권 가진 쪽 (player1/player2)
+  penaltyWarning?: boolean;  // 이 엔트리가 경고인지 (true=경고, false/undefined=실점)
 }
 
 // ===== 경기 (개인전/팀전 통합) =====
@@ -338,7 +347,7 @@ export interface Match {
   currentSet?: number;
   player1Timeouts?: number;
   player2Timeouts?: number;
-  activeTimeout?: { playerId: string; startTime: number } | null;
+  activeTimeout?: { playerId: string; startTime: number; type?: 'player' | 'medical' | 'referee' } | null;
   // 서브 추적 (IBSA 규칙)
   currentServe?: 'player1' | 'player2';  // 현재 서브권
   serveCount?: number;                     // 현재 서브 카운트 (0부터)
@@ -520,7 +529,7 @@ export interface PracticeMatch {
   winnerId: string | null;
   player1Timeouts: number;
   player2Timeouts: number;
-  activeTimeout: { playerId: string; startTime: number } | null;
+  activeTimeout: { playerId: string; startTime: number; type?: 'player' | 'medical' | 'referee' } | null;
   gameConfig: {
     SETS_TO_WIN: number;
     MAX_SETS: number;

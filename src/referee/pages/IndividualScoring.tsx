@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
@@ -25,6 +25,70 @@ import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
 import ActionToast from '../components/ActionToast';
 
+type PenaltyDropdownKey = 'player1' | 'player2' | null;
+type TimeoutDropdownKey = 'player1' | 'player2' | null;
+
+// Referee timeout elapsed timer component
+function TimeoutModal({ match, player1Name, player2Name, timeoutTimer, onClose }: {
+  match: { activeTimeout?: { playerId: string; startTime: number; type?: 'player' | 'medical' | 'referee' } | null; player1Id?: string };
+  player1Name: string;
+  player2Name: string;
+  timeoutTimer: { seconds: number; isRunning: boolean; isWarning: boolean; stop: () => void };
+  onClose: () => void;
+}) {
+  const toType = match.activeTimeout?.type ?? 'player';
+  const playerName = match.activeTimeout?.playerId === match.player1Id ? player1Name : player2Name;
+  const [elapsed, setElapsed] = useState(0);
+  const trapRef = useFocusTrap(true, onClose);
+
+  useEffect(() => {
+    if (toType !== 'referee' || !match.activeTimeout) return;
+    const startTime = match.activeTimeout.startTime;
+    setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [toType, match.activeTimeout]);
+
+  const titleMap: Record<string, string> = {
+    player: '선수 타임아웃',
+    medical: '메디컬 타임아웃',
+    referee: '레프리 타임아웃',
+  };
+
+  if (toType === 'referee') {
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    const display = `${mins}:${secs.toString().padStart(2, '0')}`;
+    return (
+      <div className="modal-backdrop" style={{ zIndex: 100 }}>
+        <div ref={trapRef} className="flex flex-col items-center gap-6 p-8" role="dialog" aria-modal="true" aria-label={titleMap[toType]}>
+          <h2 className="text-3xl font-bold text-yellow-400">{titleMap[toType]}</h2>
+          <div className="text-8xl font-bold my-4 text-white" aria-live="polite" aria-label={`경과 시간 ${display}`}>
+            {display}
+          </div>
+          <p className="text-xl text-gray-300">{playerName} (경과 시간)</p>
+          <button className="btn btn-danger btn-large" onClick={onClose} aria-label="타임아웃 종료">
+            타임아웃 종료
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <TimerModal
+      title={titleMap[toType]}
+      seconds={timeoutTimer.seconds}
+      isWarning={timeoutTimer.isWarning}
+      subtitle={playerName}
+      onClose={onClose}
+      closeLabel="타임아웃 종료"
+    />
+  );
+}
+
 export default function IndividualScoring() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
   const navigate = useNavigate();
@@ -50,6 +114,11 @@ export default function IndividualScoring() {
   const [isPausedLocal, setIsPausedLocal] = useState(false);
   const [pauseElapsed, setPauseElapsed] = useState(0);
   const [pauseReason, setPauseReason] = useState('');
+  // Penalty & timeout dropdowns
+  const [penaltyDropdown, setPenaltyDropdown] = useState<PenaltyDropdownKey>(null);
+  const [timeoutDropdown, setTimeoutDropdown] = useState<TimeoutDropdownKey>(null);
+  const penaltyDropdownRef = useRef<HTMLDivElement>(null);
+  const timeoutDropdownRef = useRef<HTMLDivElement>(null);
 
   const gameConfig = match && tournament
     ? getEffectiveScoringRules(match, tournament)
@@ -64,42 +133,79 @@ export default function IndividualScoring() {
     if (match) updateMatch({ activeTimeout: null });
   });
 
-  // 15초 안내 (타임아웃)
+  // 15초 안내 (타임아웃) - isRunning을 먼저 체크하여 종료 후 오발 방지
+  const timeoutAlerted = useRef(false);
   useEffect(() => {
-    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+    if (!timeoutTimer.isRunning) {
+      timeoutAlerted.current = false;
+      return;
+    }
+    if (timeoutTimer.seconds === 15 && !timeoutAlerted.current) {
+      timeoutAlerted.current = true;
       setLastAction('⚠️ 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
+  const sideChangeAlerted = useRef(false);
   useEffect(() => {
-    if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
+    if (!sideChangeTimer.isRunning) {
+      sideChangeAlerted.current = false;
+      return;
+    }
+    if (sideChangeTimer.seconds === 15 && !sideChangeAlerted.current) {
+      sideChangeAlerted.current = true;
       setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
   // 개인전 워밍업 60초: 15초 남음 알림
+  const warmupAlerted = useRef(false);
   useEffect(() => {
-    if (warmupTimer.isRunning) {
-      if (warmupTimer.seconds === 15) {
-        setLastAction('⚠️ 15초');
-        setAnnouncement('15초');
-      }
+    if (!warmupTimer.isRunning) {
+      warmupAlerted.current = false;
+      return;
+    }
+    if (warmupTimer.seconds === 15 && !warmupAlerted.current) {
+      warmupAlerted.current = true;
+      setLastAction('⚠️ 15초');
+      setAnnouncement('15초');
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
     if (match?.activeTimeout) {
-      const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
-      const remaining = Math.max(0, 60 - elapsed);
-      if (remaining > 0) timeoutTimer.start(remaining);
+      const toType = match.activeTimeout.type ?? 'player';
+      if (toType === 'referee') {
+        // Referee timeout: no countdown, manual end only
+        timeoutTimer.stop();
+      } else {
+        const duration = toType === 'medical' ? 300 : 60;
+        const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
+        const remaining = Math.max(0, duration - elapsed);
+        if (remaining > 0) timeoutTimer.start(remaining);
+      }
     } else {
       timeoutTimer.stop();
     }
   }, [match?.activeTimeout, timeoutTimer]);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (penaltyDropdown && penaltyDropdownRef.current && !penaltyDropdownRef.current.contains(e.target as Node)) {
+        setPenaltyDropdown(null);
+      }
+      if (timeoutDropdown && timeoutDropdownRef.current && !timeoutDropdownRef.current.contains(e.target as Node)) {
+        setTimeoutDropdown(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [penaltyDropdown, timeoutDropdown]);
 
   // Pause elapsed time counter
   useEffect(() => {
@@ -449,8 +555,8 @@ export default function IndividualScoring() {
     });
   }, [match, updateMatch]);
 
-  // Dead Ball
-  const handleDeadBall = useCallback(async () => {
+  // Dead Ball - player: 1 or 2 (who called dead ball)
+  const handleDeadBall = useCallback(async (callingPlayer: 1 | 2) => {
     if (!match?.sets || match.currentSet === undefined) return;
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout) return;
@@ -461,13 +567,14 @@ export default function IndividualScoring() {
     const currentServe = match.currentServe ?? 'player1';
     const serveCount = match.serveCount ?? 0;
     const sName = currentServe === 'player1' ? p1Name : p2Name;
+    const callerName = callingPlayer === 1 ? p1Name : p2Name;
     const scoreBefore = { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 };
 
     const historyEntry = createScoreHistoryEntry({
       scoringPlayer: '',
-      actionPlayer: sName,
+      actionPlayer: callerName,
       actionType: 'dead_ball',
-      actionLabel: '데드볼',
+      actionLabel: `${callerName} 데드볼 → 재서브`,
       points: 0,
       set: (match.currentSet ?? 0) + 1,
       server: sName,
@@ -482,24 +589,112 @@ export default function IndividualScoring() {
       scoreHistory: [historyEntry, ...prevHistory],
     });
 
-    setLastAction(`데드볼 - ${sName} 재서브`);
-    setAnnouncement(`데드볼. ${sName} 재서브`);
+    setLastAction(`${callerName} 데드볼 - ${sName} 재서브`);
+    setAnnouncement(`${callerName} 데드볼. ${sName} 재서브`);
   }, [match, updateMatch]);
 
-  const handleTimeout = useCallback(async (player: 1 | 2) => {
+  // Penalty with warning logic
+  const handlePenalty = useCallback(async (
+    actingPlayer: 1 | 2,
+    penaltyType: 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking',
+  ) => {
+    if (!canAct()) return;
+    if (!match?.sets || match.currentSet === undefined) return;
+    if (match.status !== 'in_progress' || match.isPaused) return;
+    if (match.activeTimeout) return;
+    if (showSetEndConfirm || showSideChange) return;
+    if (showWarmup && warmupTimer.isRunning) return;
+
+    const p1Name = match.player1Name ?? '선수1';
+    const p2Name = match.player2Name ?? '선수2';
+    const actorName = actingPlayer === 1 ? p1Name : p2Name;
+
+    const penaltyLabels: Record<string, string> = {
+      penalty_table_pushing: '테이블 푸싱',
+      penalty_electronic: '전자기기 소리',
+      penalty_talking: '경기 중 말하기',
+    };
+    const label = penaltyLabels[penaltyType];
+
+    // Count existing warnings for this player & penalty type
+    const warningCount = (match.scoreHistory || []).filter(h =>
+      h.actionType === penaltyType &&
+      h.penaltyWarning === true &&
+      h.actionPlayer === actorName
+    ).length;
+
+    // Determine if this is a warning or point deduction
+    const hasWarningPhase = penaltyType !== 'penalty_electronic'; // electronic is always immediate
+    const isWarningAction = hasWarningPhase && warningCount === 0;
+
+    if (isWarningAction) {
+      // Warning only - no points
+      const currentSetData = match.sets[match.currentSet];
+      const scoreBefore = { player1: currentSetData.player1Score, player2: currentSetData.player2Score };
+      const currentServe = match.currentServe ?? 'player1';
+      const serveCount = match.serveCount ?? 0;
+      const serverName = currentServe === 'player1' ? p1Name : p2Name;
+
+      const historyEntry: ScoreHistoryEntry = {
+        time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        scoringPlayer: '',
+        actionPlayer: actorName,
+        actionType: penaltyType,
+        actionLabel: `${label} 경고`,
+        points: 0,
+        set: (match.currentSet ?? 0) + 1,
+        server: serverName,
+        serveNumber: serveCount + 1,
+        scoreBefore,
+        scoreAfter: scoreBefore,
+        serverSide: currentServe,
+        penaltyWarning: true,
+      };
+
+      const prevHistory = match.scoreHistory ?? [];
+      await updateMatch({ scoreHistory: [historyEntry, ...prevHistory] });
+      setLastAction(`${actorName} ${label} 경고`);
+      setAnnouncement(`${actorName} ${label} 경고`);
+    } else {
+      // Point deduction - opponent gets +2
+      await handleIBSAScore(actingPlayer, penaltyType, 2, true, `${actorName} ${label}`);
+    }
+
+    setPenaltyDropdown(null);
+  }, [match, canAct, handleIBSAScore, updateMatch, showSetEndConfirm, showSideChange, showWarmup, warmupTimer]);
+
+  // Timeout with type
+  const handleTimeout = useCallback(async (player: 1 | 2, timeoutType: 'player' | 'medical' | 'referee') => {
     if (!match || match.status !== 'in_progress') return;
-    const usedTimeouts = player === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
-    if (usedTimeouts >= 1) return;
+
+    // Player timeout: limited to 1 per set per player
+    if (timeoutType === 'player') {
+      const usedTimeouts = player === 1 ? (match.player1Timeouts ?? 0) : (match.player2Timeouts ?? 0);
+      if (usedTimeouts >= 1) return;
+    }
+
     const playerId = player === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
     const playerName = player === 1 ? (match.player1Name ?? '선수1') : (match.player2Name ?? '선수2');
     const currentSetData = match.sets?.[match.currentSet ?? 0];
+
+    const actionTypeMap: Record<string, ScoreActionType> = {
+      player: 'timeout_player',
+      medical: 'timeout_medical',
+      referee: 'timeout_referee',
+    };
+    const labelMap: Record<string, string> = {
+      player: '선수 타임아웃 (1분)',
+      medical: '메디컬 타임아웃 (5분)',
+      referee: '레프리 타임아웃',
+    };
+
     const timeoutEntry: ScoreHistoryEntry = {
       time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: playerName,
-      actionType: 'timeout' as ScoreActionType,
-      actionLabel: '타임아웃',
+      actionType: actionTypeMap[timeoutType],
+      actionLabel: labelMap[timeoutType],
       points: 0,
       scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
       scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
@@ -509,12 +704,15 @@ export default function IndividualScoring() {
     };
     const prevHistory = match.scoreHistory ?? [];
     const timeoutUpdate: Record<string, unknown> = {
-      activeTimeout: { playerId, startTime: Date.now() },
+      activeTimeout: { playerId, startTime: Date.now(), type: timeoutType },
       scoreHistory: [timeoutEntry, ...prevHistory],
     };
-    if (player === 1) timeoutUpdate.player1Timeouts = (match.player1Timeouts ?? 0) + 1;
-    else timeoutUpdate.player2Timeouts = (match.player2Timeouts ?? 0) + 1;
+    if (timeoutType === 'player') {
+      if (player === 1) timeoutUpdate.player1Timeouts = (match.player1Timeouts ?? 0) + 1;
+      else timeoutUpdate.player2Timeouts = (match.player2Timeouts ?? 0) + 1;
+    }
     await updateMatch(timeoutUpdate);
+    setTimeoutDropdown(null);
   }, [match, updateMatch]);
 
   if (matchLoading) {
@@ -668,7 +866,6 @@ export default function IndividualScoring() {
   const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
 
   const foulActions = IBSA_SCORE_ACTIONS.filter(a => a.toOpponent && a.points === 1);
-  const penaltyActions = IBSA_SCORE_ACTIONS.filter(a => a.toOpponent && a.points >= 2);
 
   // Server-based score display flip (server = left side)
   const isFlipped = currentServe === 'player2';
@@ -713,15 +910,14 @@ export default function IndividualScoring() {
         />
       )}
 
-      {/* Timeout Modal */}
-      {match.activeTimeout && timeoutTimer.isRunning && (
-        <TimerModal
-          title="타임아웃"
-          seconds={timeoutTimer.seconds}
-          isWarning={timeoutTimer.isWarning}
-          subtitle={match.activeTimeout.playerId === match.player1Id ? player1Name : player2Name}
+      {/* Timeout Modal - countdown for player/medical, elapsed for referee */}
+      {match.activeTimeout && (match.activeTimeout.type === 'referee' || timeoutTimer.isRunning) && (
+        <TimeoutModal
+          match={match}
+          player1Name={player1Name}
+          player2Name={player2Name}
+          timeoutTimer={timeoutTimer}
           onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); }}
-          closeLabel="타임아웃 종료"
         />
       )}
 
@@ -859,32 +1055,71 @@ export default function IndividualScoring() {
           </div>
         </div>
 
-        {/* Penalty +2 (opponent scores) */}
+        {/* Penalty dropdown (per player) */}
         <div>
-          <h3 className="text-sm font-bold text-red-400 mb-2">🔴 벌점 +2점 (상대 득점)</h3>
-          <div className="space-y-2">
-            {penaltyActions.map(action => (
-              <div key={action.type} className="grid grid-cols-2 gap-2">
-                <button
-                  className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
-                  disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${player1Name} ${action.label}`)}
-                  aria-label={`${player1Name} ${action.label}. ${player2Name}에게 ${action.points}점 추가`}
-                >
-                  {player1Name} {action.label}<br/>
-                  <span className="text-xs opacity-75">→ {player2Name} +{action.points}점</span>
-                </button>
-                <button
-                  className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
-                  disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${player2Name} ${action.label}`)}
-                  aria-label={`${player2Name} ${action.label}. ${player1Name}에게 ${action.points}점 추가`}
-                >
-                  {player2Name} {action.label}<br/>
-                  <span className="text-xs opacity-75">→ {player1Name} +{action.points}점</span>
-                </button>
-              </div>
-            ))}
+          <h3 className="text-sm font-bold text-red-400 mb-2">🔴 벌점 (상대 득점)</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {([1, 2] as const).map(playerNum => {
+              const pName = playerNum === 1 ? player1Name : player2Name;
+              const opName = playerNum === 1 ? player2Name : player1Name;
+              const dropdownKey = playerNum === 1 ? 'player1' : 'player2';
+              const isOpen = penaltyDropdown === dropdownKey;
+
+              // Warning counts for this player
+              const tablePushWarnings = (match.scoreHistory || []).filter(h =>
+                h.actionType === 'penalty_table_pushing' && h.penaltyWarning === true && h.actionPlayer === pName
+              ).length;
+              const talkingWarnings = (match.scoreHistory || []).filter(h =>
+                h.actionType === 'penalty_talking' && h.penaltyWarning === true && h.actionPlayer === pName
+              ).length;
+
+              return (
+                <div key={playerNum} className="relative" ref={playerNum === 1 ? penaltyDropdownRef : undefined}>
+                  <button
+                    className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3 w-full"
+                    disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning)}
+                    onClick={() => setPenaltyDropdown(isOpen ? null : dropdownKey)}
+                    aria-expanded={isOpen}
+                    aria-haspopup="true"
+                    aria-label={`${pName} 벌점 메뉴`}
+                  >
+                    {pName} 벌점 ▾
+                  </button>
+                  {isOpen && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden" ref={playerNum === 2 ? penaltyDropdownRef : undefined}>
+                      {/* 테이블 푸싱 */}
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm border-b border-gray-700"
+                        onClick={() => handlePenalty(playerNum, 'penalty_table_pushing')}
+                      >
+                        <span className="text-red-300 font-semibold">테이블 푸싱</span>
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          {tablePushWarnings === 0 ? '→ 경고 (0점)' : `→ ${opName} +2점 (경고 ${tablePushWarnings}회 사용)`}
+                        </span>
+                      </button>
+                      {/* 전자기기 소리 */}
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm border-b border-gray-700"
+                        onClick={() => handlePenalty(playerNum, 'penalty_electronic')}
+                      >
+                        <span className="text-red-300 font-semibold">전자기기 소리</span>
+                        <span className="block text-xs text-gray-400 mt-0.5">→ {opName} +2점 (즉시)</span>
+                      </button>
+                      {/* 경기 중 말하기 */}
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm"
+                        onClick={() => handlePenalty(playerNum, 'penalty_talking')}
+                      >
+                        <span className="text-red-300 font-semibold">경기 중 말하기</span>
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          {talkingWarnings === 0 ? '→ 경고 (0점)' : `→ ${opName} +2점 (경고 ${talkingWarnings}회 사용)`}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -893,36 +1128,88 @@ export default function IndividualScoring() {
           <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0} aria-label="마지막 점수 취소">
             ↩️ 취소
           </button>
-          <button
-            className="btn btn-secondary flex-1"
-            onClick={() => handleTimeout(1)}
-            disabled={p1TimeoutsUsed >= 1 || !!match.activeTimeout}
-            aria-label={`${player1Name} 타임아웃 요청, 남은 횟수 ${1 - p1TimeoutsUsed}회`}
-          >
-            {player1Name} 타임아웃
-            <span className="block text-xs opacity-75">남은 횟수: {1 - p1TimeoutsUsed}</span>
-          </button>
-          <button
-            className="btn btn-secondary flex-1"
-            onClick={() => handleTimeout(2)}
-            disabled={p2TimeoutsUsed >= 1 || !!match.activeTimeout}
-            aria-label={`${player2Name} 타임아웃 요청, 남은 횟수 ${1 - p2TimeoutsUsed}회`}
-          >
-            {player2Name} 타임아웃
-            <span className="block text-xs opacity-75">남은 횟수: {1 - p2TimeoutsUsed}</span>
-          </button>
         </div>
 
-        {/* Dead Ball */}
-        <div className="flex gap-3">
-          <button
-            className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
-            disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
-            onClick={handleDeadBall}
-            aria-label="데드볼. 현재 서브를 무효로 하고 재서브"
-          >
-            🔵 데드볼
-          </button>
+        {/* Timeout dropdown (per player) */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-400 mb-2">⏱️ 타임아웃</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {([1, 2] as const).map(playerNum => {
+              const pName = playerNum === 1 ? player1Name : player2Name;
+              const dropdownKey = playerNum === 1 ? 'player1' : 'player2';
+              const isOpen = timeoutDropdown === dropdownKey;
+              const usedTimeouts = playerNum === 1 ? p1TimeoutsUsed : p2TimeoutsUsed;
+
+              return (
+                <div key={playerNum} className="relative" ref={playerNum === 1 ? timeoutDropdownRef : undefined}>
+                  <button
+                    className="btn btn-secondary text-sm py-3 w-full"
+                    disabled={!!match.activeTimeout}
+                    onClick={() => setTimeoutDropdown(isOpen ? null : dropdownKey)}
+                    aria-expanded={isOpen}
+                    aria-haspopup="true"
+                    aria-label={`${pName} 타임아웃 메뉴`}
+                  >
+                    {pName} 타임아웃 ▾
+                  </button>
+                  {isOpen && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden" ref={playerNum === 2 ? timeoutDropdownRef : undefined}>
+                      {/* 선수 타임아웃 */}
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-blue-900/50 text-sm border-b border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={usedTimeouts >= 1}
+                        onClick={() => handleTimeout(playerNum, 'player')}
+                      >
+                        <span className="text-blue-300 font-semibold">선수 타임아웃 (1분)</span>
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          {usedTimeouts >= 1 ? '이미 사용함' : `남은 횟수: ${1 - usedTimeouts}회`}
+                        </span>
+                      </button>
+                      {/* 메디컬 타임아웃 */}
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-green-900/50 text-sm border-b border-gray-700"
+                        onClick={() => handleTimeout(playerNum, 'medical')}
+                      >
+                        <span className="text-green-300 font-semibold">메디컬 타임아웃 (5분)</span>
+                        <span className="block text-xs text-gray-400 mt-0.5">무제한</span>
+                      </button>
+                      {/* 레프리 타임아웃 */}
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-yellow-900/50 text-sm"
+                        onClick={() => handleTimeout(playerNum, 'referee')}
+                      >
+                        <span className="text-yellow-300 font-semibold">레프리 타임아웃</span>
+                        <span className="block text-xs text-gray-400 mt-0.5">시간 제한 없음 (수동 종료)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dead Ball - both players */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-400 mb-2">🔵 데드볼 (재서브)</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
+              onClick={() => handleDeadBall(1)}
+              aria-label={`${player1Name} 데드볼. 현재 서브를 무효로 하고 재서브`}
+            >
+              {player1Name} 데드볼
+            </button>
+            <button
+              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
+              onClick={() => handleDeadBall(2)}
+              aria-label={`${player2Name} 데드볼. 현재 서브를 무효로 하고 재서브`}
+            >
+              {player2Name} 데드볼
+            </button>
+          </div>
         </div>
 
         {/* Warmup + Pause */}
