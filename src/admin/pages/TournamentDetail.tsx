@@ -587,11 +587,6 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
-  const [manualGroupCount, setManualGroupCount] = useState<number>(
-    tournament.qualifyingConfig?.groupCount
-      || toArray(tournament.stages).find(s => s.type === 'qualifying')?.groupCount
-      || 4
-  );
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   // 팀별 설정 편집용 로컬 state (Firebase 즉시 쓰기 대신 로컬에서 편집 후 저장)
   const [editCoachName, setEditCoachName] = useState('');
@@ -1057,145 +1052,17 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         </div>
       )}
 
-      {/* 수동 모드: 조별 리그 설정 */}
-      {tournament.formatType === 'manual' && tournamentPlayers.length >= 4 && (
-        <div className="card space-y-4">
-          <h3 className="text-lg font-bold text-yellow-400">조별 리그 설정</h3>
-          <p className="text-gray-400 text-sm">조 수를 설정하면 참가자를 조별로 배정하고 조별 라운드로빈 대진을 생성할 수 있습니다.</p>
-          <div className="flex items-center gap-4">
-            <label className="text-gray-300">조 수</label>
-            <input
-              type="number"
-              className="input w-24"
-              min={2}
-              max={Math.min(16, Math.floor(tournamentPlayers.length / 2))}
-              value={manualGroupCount}
-              onChange={e => setManualGroupCount(Math.max(2, Math.min(16, Number(e.target.value) || 2)))}
-              aria-label="조 수"
-            />
-            <span className="text-gray-400 text-sm">
-              (조당 약 {Math.ceil(tournamentPlayers.length / manualGroupCount)}명)
-            </span>
-          </div>
-          <button
-            className="btn btn-primary w-full"
-            onClick={async () => {
-              const now = Date.now();
-              const existingStages = toArray(tournament.stages);
-              const existingQualifying = existingStages.find(s => s.type === 'qualifying');
-              const qualifyingStage = existingQualifying || {
-                id: `stage_qualifying_${now}`,
-                name: '조별 예선',
-                order: 0,
-                type: 'qualifying' as const,
-                format: 'group_knockout' as const,
-                groupCount: manualGroupCount,
-                status: 'pending' as const,
-              };
-              const updatedStage = { ...qualifyingStage, groupCount: manualGroupCount };
-              const stages = existingQualifying
-                ? existingStages.map(s => s.id === existingQualifying.id ? updatedStage : s)
-                : [updatedStage, ...existingStages];
-              await updateTournament({
-                stages,
-                qualifyingConfig: {
-                  ...(tournament.qualifyingConfig || {}),
-                  groupCount: manualGroupCount,
-                  format: 'group_round_robin',
-                },
-              });
-            }}
-            aria-label="조별 리그 설정 저장"
-          >
-            {tournament.qualifyingConfig?.groupCount ? '조 설정 업데이트' : '조별 리그 설정 저장'}
-          </button>
-          {tournament.qualifyingConfig?.groupCount && (
-            <p className="text-green-400 text-sm">현재 {tournament.qualifyingConfig.groupCount}개 조 설정됨. 대진표 탭에서 조 편성 및 대진 생성이 가능합니다.</p>
-          )}
-
-          {/* 본선 설정 */}
-          {tournament.qualifyingConfig?.groupCount && (
-            <div className="border-t border-gray-700 pt-4 mt-4 space-y-3">
-              <h4 className="text-md font-bold text-cyan-400">본선 토너먼트 설정</h4>
-              <p className="text-gray-400 text-sm">조별 예선 후 본선에 진출할 인원 수와 형식을 설정합니다.</p>
-              <div className="flex items-center gap-4">
-                <label className="text-gray-300">조당 진출 인원</label>
-                <input
-                  type="number"
-                  className="input w-24"
-                  min={1}
-                  max={Math.ceil(tournamentPlayers.length / (tournament.qualifyingConfig.groupCount || 2))}
-                  value={(() => {
-                    const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
-                    const apc = fc?.advancePerGroup;
-                    return typeof apc === 'number' ? apc : 2;
-                  })()}
-                  onChange={async (e) => {
-                    const advancePerGroup = Math.max(1, Number(e.target.value) || 1);
-                    const groupCount = tournament.qualifyingConfig?.groupCount || 2;
-                    const totalAdvance = advancePerGroup * groupCount;
-                    // 2의 거듭제곱으로 본선 시작 라운드 결정
-                    let startRound = 4;
-                    while (startRound < totalAdvance) startRound *= 2;
-
-                    const existingStages = toArray(tournament.stages);
-                    const existingFinals = existingStages.find(s => s.type === 'finals');
-                    const now = Date.now();
-                    const finalsStage = existingFinals || {
-                      id: `stage_finals_${now}`,
-                      name: '본선 토너먼트',
-                      order: 1,
-                      type: 'finals' as const,
-                      format: 'single_elimination' as const,
-                      status: 'pending' as const,
-                    };
-                    const updatedFinals = { ...finalsStage, advanceCount: totalAdvance };
-                    const stages = existingFinals
-                      ? existingStages.map(s => s.id === existingFinals.id ? updatedFinals : s)
-                      : [...existingStages, updatedFinals];
-
-                    await updateTournament({
-                      stages,
-                      finalsConfig: {
-                        ...(typeof tournament.finalsConfig === 'object' && tournament.finalsConfig ? tournament.finalsConfig : {}),
-                        advancePerGroup,
-                        advanceCount: totalAdvance,
-                        format: 'single_elimination',
-                        startingRound: startRound,
-                        seedMethod: 'manual',
-                      },
-                    });
-                  }}
-                  aria-label="조당 진출 인원"
-                />
-                <span className="text-gray-400 text-sm">
-                  (총 {(() => {
-                    const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
-                    const apc = fc?.advancePerGroup;
-                    const adv = typeof apc === 'number' ? apc : 2;
-                    return adv * (tournament.qualifyingConfig?.groupCount || 2);
-                  })()}명 본선 진출)
-                </span>
-              </div>
-              {toArray(tournament.stages).find(s => s.type === 'finals') && (
-                <p className="text-green-400 text-sm">본선 설정 완료. 대진표 탭에서 조별 예선 대진 생성 → 예선 완료 후 본선 대진을 수동 편성할 수 있습니다.</p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 탑시드 지정 */}
-      {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (() => {
-        const groupCount = tournament.qualifyingConfig!.groupCount;
-        const seedLabel = (idx: number) => String.fromCharCode(65 + idx); // 0→A, 1→B, ...
-        const maxSeeds = groupCount; // 시드 수 = 조 수
+      {/* 수동 모드: 탑시드 지정 → 시드 수만큼 조 자동 생성 */}
+      {tournament.formatType === 'manual' && tournamentPlayers.length >= 4 && (() => {
+        const seedLabel = (idx: number) => String.fromCharCode(65 + idx);
+        const maxSeeds = Math.min(16, Math.floor(tournamentPlayers.length / 2));
+        const currentGroupCount = tournament.qualifyingConfig?.groupCount || 0;
         return (
           <div className="card space-y-4">
             <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
             <p className="text-gray-400 text-sm">
-              시드 선수는 해당 조에 배치됩니다 (시드 A → A조, 시드 B → B조).
-              {maxSeeds > 0 && ` 최대 ${maxSeeds}명까지 지정 가능합니다.`}
+              시드를 지정하면 시드 수만큼 조가 생성됩니다 (시드 A → A조, 시드 B → B조).
+              선수를 클릭하여 시드를 지정하세요.
             </p>
             <div className="space-y-2">
               {tournamentPlayers.map((player) => {
@@ -1228,8 +1095,171 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 );
               })}
             </div>
+            {seeds.length >= 2 && (
+              <div className="bg-cyan-900/20 rounded-lg p-3">
+                <p className="text-cyan-300 text-sm font-semibold">
+                  시드 {seeds.length}명 → {seeds.length}조 생성 (조당 약 {Math.ceil(tournamentPlayers.length / seeds.length)}명)
+                </p>
+              </div>
+            )}
+            <button
+              className="btn btn-primary w-full"
+              disabled={seeds.length < 2}
+              onClick={async () => {
+                const groupCount = seeds.length;
+                await saveSeeds();
+
+                const now = Date.now();
+                const existingStages = toArray(tournament.stages);
+                const existingQualifying = existingStages.find(s => s.type === 'qualifying');
+                const qualifyingStage = existingQualifying || {
+                  id: `stage_qualifying_${now}`,
+                  name: '조별 예선',
+                  order: 0,
+                  type: 'qualifying' as const,
+                  format: 'group_knockout' as const,
+                  groupCount,
+                  status: 'pending' as const,
+                };
+                const updatedStage = { ...qualifyingStage, groupCount };
+                const stages = existingQualifying
+                  ? existingStages.map(s => s.id === existingQualifying.id ? updatedStage : s)
+                  : [updatedStage, ...existingStages];
+                await updateTournament({
+                  seeds,
+                  stages,
+                  qualifyingConfig: {
+                    ...(tournament.qualifyingConfig || {}),
+                    groupCount,
+                    format: 'group_round_robin',
+                  },
+                });
+              }}
+              aria-label="시드 저장 및 조 생성"
+            >
+              {seeds.length < 2 ? '시드를 2명 이상 지정하세요' : `시드 저장 + ${seeds.length}조 생성`}
+            </button>
+            {currentGroupCount > 0 && (
+              <p className="text-green-400 text-sm">현재 {currentGroupCount}개 조 설정됨. 대진표 탭에서 조 편성이 가능합니다.</p>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 수동 모드: 본선 설정 (조가 있을 때) */}
+      {tournament.formatType === 'manual' && tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && (
+        <div className="card space-y-3">
+          <h4 className="text-md font-bold text-cyan-400">본선 토너먼트 설정</h4>
+          <p className="text-gray-400 text-sm">조별 예선 후 본선에 진출할 인원 수를 설정합니다.</p>
+          <div className="flex items-center gap-4">
+            <label className="text-gray-300">조당 진출 인원</label>
+            <input
+              type="number"
+              className="input w-24"
+              min={1}
+              max={Math.ceil(tournamentPlayers.length / (tournament.qualifyingConfig.groupCount || 2))}
+              value={(() => {
+                const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
+                const apc = fc?.advancePerGroup;
+                return typeof apc === 'number' ? apc : 2;
+              })()}
+              onChange={async (e) => {
+                const advancePerGroup = Math.max(1, Number(e.target.value) || 1);
+                const groupCount = tournament.qualifyingConfig?.groupCount || 2;
+                const totalAdvance = advancePerGroup * groupCount;
+                let startRound = 4;
+                while (startRound < totalAdvance) startRound *= 2;
+
+                const existingStages = toArray(tournament.stages);
+                const existingFinals = existingStages.find(s => s.type === 'finals');
+                const now = Date.now();
+                const finalsStage = existingFinals || {
+                  id: `stage_finals_${now}`,
+                  name: '본선 토너먼트',
+                  order: 1,
+                  type: 'finals' as const,
+                  format: 'single_elimination' as const,
+                  status: 'pending' as const,
+                };
+                const updatedFinals = { ...finalsStage, advanceCount: totalAdvance };
+                const stages = existingFinals
+                  ? existingStages.map(s => s.id === existingFinals.id ? updatedFinals : s)
+                  : [...existingStages, updatedFinals];
+
+                await updateTournament({
+                  stages,
+                  finalsConfig: {
+                    ...(typeof tournament.finalsConfig === 'object' && tournament.finalsConfig ? tournament.finalsConfig : {}),
+                    advancePerGroup,
+                    advanceCount: totalAdvance,
+                    format: 'single_elimination',
+                    startingRound: startRound,
+                    seedMethod: 'manual',
+                  },
+                });
+              }}
+              aria-label="조당 진출 인원"
+            />
+            <span className="text-gray-400 text-sm">
+              (총 {(() => {
+                const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
+                const apc = fc?.advancePerGroup;
+                const adv = typeof apc === 'number' ? apc : 2;
+                return adv * (tournament.qualifyingConfig?.groupCount || 2);
+              })()}명 본선 진출)
+            </span>
+          </div>
+          {toArray(tournament.stages).find(s => s.type === 'finals') && (
+            <p className="text-green-400 text-sm">본선 설정 완료. 대진표 탭에서 예선 대진 생성 → 예선 완료 후 본선 대진을 수동 편성합니다.</p>
+          )}
+        </div>
+      )}
+
+      {/* 자동 모드: 탑시드 지정 */}
+      {tournament.formatType !== 'manual' && tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (() => {
+        const groupCount = tournament.qualifyingConfig!.groupCount;
+        const seedLabel = (idx: number) => String.fromCharCode(65 + idx);
+        const maxSeeds = groupCount;
+        return (
+          <div className="card space-y-4">
+            <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
+            <p className="text-gray-400 text-sm">
+              시드 선수는 해당 조에 배치됩니다 (시드 A → A조, 시드 B → B조).
+              최대 {maxSeeds}명까지 지정 가능합니다.
+            </p>
+            <div className="space-y-2">
+              {tournamentPlayers.map((player) => {
+                const seedIdx = seeds.findIndex(s => s.playerId === player.id);
+                const hasSeed = seedIdx >= 0;
+                const label = hasSeed ? seedLabel(seedIdx) : '-';
+                return (
+                  <div key={player.id} className="flex items-center gap-3 bg-gray-800 rounded p-2">
+                    <button
+                      className={`w-8 h-8 rounded-full text-sm font-bold ${
+                        hasSeed ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
+                      }`}
+                      aria-label={hasSeed ? `${player.name} 시드 ${label} (해제하려면 클릭)` : `${player.name} 시드 지정`}
+                      onClick={() => {
+                        if (hasSeed) {
+                          toggleSeed(player.id, player.name);
+                        } else if (seeds.length < maxSeeds) {
+                          toggleSeed(player.id, player.name);
+                        }
+                      }}
+                      disabled={!hasSeed && seeds.length >= maxSeeds}
+                    >
+                      {label}
+                    </button>
+                    <span className="text-white flex-1">{player.name}</span>
+                    {hasSeed && (
+                      <span className="text-yellow-400 text-xs font-bold">시드 {label} → {label}조</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
             {seeds.length >= maxSeeds && (
-              <p className="text-gray-400 text-xs">시드가 모두 지정되었습니다 ({seeds.length}/{maxSeeds}). 해제 후 다시 지정할 수 있습니다.</p>
+              <p className="text-gray-400 text-xs">시드가 모두 지정되었습니다 ({seeds.length}/{maxSeeds}).</p>
             )}
             <button className="btn btn-primary w-full" onClick={saveSeeds} aria-label="시드 저장">시드 저장</button>
           </div>
