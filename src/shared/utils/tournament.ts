@@ -96,17 +96,22 @@ export function buildGroupAssignment(
     });
   }
 
-  // Snake draft: 시드 순서대로 조에 분배
-  // 라운드 1: A→B→C→D, 라운드 2: D→C→B→A, ...
-  const ordered = seeds && seeds.length > 0
-    ? [...seeds, ...participantIds.filter(id => !seeds.includes(id))]
-    : participantIds;
+  // 시드 선수: 시드 순서대로 해당 조에 직접 배치 (시드 A→A조, 시드 B→B조)
+  const seedSet = new Set<string>();
+  if (seeds && seeds.length > 0) {
+    for (let i = 0; i < Math.min(seeds.length, groupCount); i++) {
+      groups[i].playerIds.push(seeds[i]);
+      seedSet.add(seeds[i]);
+    }
+  }
 
-  for (let i = 0; i < ordered.length; i++) {
+  // 나머지 선수: Snake draft로 조에 분배
+  const remaining = participantIds.filter(id => !seedSet.has(id));
+  for (let i = 0; i < remaining.length; i++) {
     const round = Math.floor(i / groupCount);
     const pos = i % groupCount;
     const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
-    groups[groupIndex].playerIds.push(ordered[i]);
+    groups[groupIndex].playerIds.push(remaining[i]);
   }
 
   return groups;

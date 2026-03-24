@@ -1186,33 +1186,55 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       )}
 
       {/* 탑시드 지정 */}
-      {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
-        <div className="card space-y-4">
-          <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
-          <p className="text-gray-400 text-sm">시드 선수는 각 조에 분산 배치됩니다. 번호를 클릭하여 시드를 지정하세요.</p>
-          <div className="space-y-2">
-            {tournamentPlayers.map((player) => {
-              const seedNum = seeds.findIndex(s => s.playerId === player.id) + 1;
-              return (
-                <div key={player.id} className="flex items-center gap-3 bg-gray-800 rounded p-2">
-                  <button
-                    className={`w-8 h-8 rounded-full text-sm font-bold ${
-                      seedNum > 0 ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
-                    }`}
-                    aria-label={seedNum > 0 ? `${player.name} 시드 ${seedNum} (해제하려면 클릭)` : `${player.name} 시드 지정`}
-                    onClick={() => toggleSeed(player.id, player.name)}
-                  >
-                    {seedNum > 0 ? seedNum : '-'}
-                  </button>
-                  <span className="text-white">{player.name}</span>
-                  {seedNum > 0 && <span className="text-yellow-400 text-xs">시드 #{seedNum}</span>}
-                </div>
-              );
-            })}
+      {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (() => {
+        const groupCount = tournament.qualifyingConfig!.groupCount;
+        const seedLabel = (idx: number) => String.fromCharCode(65 + idx); // 0→A, 1→B, ...
+        const maxSeeds = groupCount; // 시드 수 = 조 수
+        return (
+          <div className="card space-y-4">
+            <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
+            <p className="text-gray-400 text-sm">
+              시드 선수는 해당 조에 배치됩니다 (시드 A → A조, 시드 B → B조).
+              {maxSeeds > 0 && ` 최대 ${maxSeeds}명까지 지정 가능합니다.`}
+            </p>
+            <div className="space-y-2">
+              {tournamentPlayers.map((player) => {
+                const seedIdx = seeds.findIndex(s => s.playerId === player.id);
+                const hasSeed = seedIdx >= 0;
+                const label = hasSeed ? seedLabel(seedIdx) : '-';
+                return (
+                  <div key={player.id} className="flex items-center gap-3 bg-gray-800 rounded p-2">
+                    <button
+                      className={`w-8 h-8 rounded-full text-sm font-bold ${
+                        hasSeed ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
+                      }`}
+                      aria-label={hasSeed ? `${player.name} 시드 ${label} (${label}조 배치, 해제하려면 클릭)` : `${player.name} 시드 지정`}
+                      onClick={() => {
+                        if (hasSeed) {
+                          toggleSeed(player.id, player.name);
+                        } else if (seeds.length < maxSeeds) {
+                          toggleSeed(player.id, player.name);
+                        }
+                      }}
+                      disabled={!hasSeed && seeds.length >= maxSeeds}
+                    >
+                      {label}
+                    </button>
+                    <span className="text-white flex-1">{player.name}</span>
+                    {hasSeed && (
+                      <span className="text-yellow-400 text-xs font-bold">시드 {label} → {label}조</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {seeds.length >= maxSeeds && (
+              <p className="text-gray-400 text-xs">시드가 모두 지정되었습니다 ({seeds.length}/{maxSeeds}). 해제 후 다시 지정할 수 있습니다.</p>
+            )}
+            <button className="btn btn-primary w-full" onClick={saveSeeds} aria-label="시드 저장">시드 저장</button>
           </div>
-          <button className="btn btn-primary w-full" onClick={saveSeeds}>시드 저장</button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 새 팀 추가 모달 */}
       {showAddTeamModal && (
@@ -1810,10 +1832,10 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     <h4 className="text-sm font-bold text-red-400 mb-2">미배정 선수 ({unassignedPlayers.length}명)</h4>
                     <div className="space-y-1">
                       {unassignedPlayers.map(player => {
-                        const seedNum = toArray(tournament.seeds).findIndex(s => s.playerId === player.id) + 1;
+                        const seedIdx = toArray(tournament.seeds).findIndex(s => s.playerId === player.id);
                         return (
                           <div key={player.id} className="flex items-center gap-2 text-sm">
-                            {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
+                            {seedIdx >= 0 && <span className="text-yellow-400 text-xs font-bold">{String.fromCharCode(65 + seedIdx)}</span>}
                             <span className="flex-1 text-gray-300">{player.name}</span>
                             <select
                               className="bg-gray-700 text-gray-200 text-xs rounded px-2 py-1 border border-gray-600"
@@ -1862,10 +1884,10 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                       <ul className="space-y-1">
                         {group.playerIds.map((pid) => {
                           const player = tournamentPlayers.find(p => p.id === pid);
-                          const seedNum = toArray(tournament.seeds).findIndex(s => s.playerId === pid) + 1;
+                          const seedIdx2 = toArray(tournament.seeds).findIndex(s => s.playerId === pid);
                           return (
                             <li key={pid} className="text-sm text-gray-300 flex items-center gap-2">
-                              {seedNum > 0 && <span className="text-yellow-400 text-xs font-bold">S{seedNum}</span>}
+                              {seedIdx2 >= 0 && <span className="text-yellow-400 text-xs font-bold">{String.fromCharCode(65 + seedIdx2)}</span>}
                               <span className="flex-1">{player?.name || pid}</span>
                               <select
                                 className="bg-gray-700 text-gray-200 text-xs rounded px-1 py-0.5 border border-gray-600"
