@@ -18,8 +18,7 @@ export default function ModeBadge({ mode }: ModeBadgeProps) {
 
   return (
     <span
-      role="status"
-      aria-label={label}
+      aria-hidden="true"
       style={{
         backgroundColor: c.bg,
         color: c.color,

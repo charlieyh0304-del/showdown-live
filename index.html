@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+    <script>
+      // Set html lang before any content renders (for screen readers)
+      (function() {
+        var lang = localStorage.getItem('showdown_language') || 'ko';
+        document.documentElement.lang = lang === 'en' ? 'en' : 'ko';
+      })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="시각장애인 스포츠 쇼다운 대회 관리 앱">

@@ -114,25 +114,27 @@ export default function PracticeSetup() {
     <div className="p-4 max-w-lg mx-auto space-y-6">
       <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>{t('referee.practice.setup.title')}</h1>
 
-      <div className="card space-y-4">
-        <h2 className="text-xl font-bold">{t('referee.practice.setup.matchType')}</h2>
-        <div className="flex gap-3">
+      <fieldset className="card space-y-4">
+        <legend className="text-xl font-bold">{t('referee.practice.setup.matchType')}</legend>
+        <div className="flex gap-3" role="radiogroup" aria-label={t('referee.practice.setup.matchType')}>
           <button
+            role="radio"
+            aria-checked={matchType === 'individual'}
             className={`btn flex-1 text-lg py-4 ${matchType === 'individual' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
             onClick={() => { setMatchType('individual'); setSetsToWin(2); }}
-            aria-pressed={matchType === 'individual'}
           >
             {t('referee.practice.setup.individual')}
           </button>
           <button
+            role="radio"
+            aria-checked={matchType === 'team'}
             className={`btn flex-1 text-lg py-4 ${matchType === 'team' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
             onClick={() => setMatchType('team')}
-            aria-pressed={matchType === 'team'}
           >
             {t('common.tournamentType.team')}
           </button>
         </div>
-      </div>
+      </fieldset>
 
       {matchType === 'individual' ? (
         <>
@@ -154,16 +156,16 @@ export default function PracticeSetup() {
               <span className="text-white font-bold">{t('referee.practice.setup.points11')}</span>
               <span className="text-gray-400 text-sm">{t('referee.practice.setup.ibsaRules')}</span>
             </div>
-            <div>
-              <label className="block mb-2 text-gray-300">{t('referee.practice.setup.setsToWin')}</label>
-              <div className="flex gap-2">
+            <fieldset>
+              <legend className="block mb-2 text-gray-300">{t('referee.practice.setup.setsToWin')}</legend>
+              <div className="flex gap-2" role="radiogroup" aria-label={t('referee.practice.setup.setsToWin')}>
                 {[1, 2, 3, 4, 5].map(v => (
-                  <button key={v} className={`btn flex-1 ${setsToWin === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setSetsToWin(v)} aria-pressed={setsToWin === v}>
+                  <button key={v} role="radio" aria-checked={setsToWin === v} className={`btn flex-1 ${setsToWin === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setSetsToWin(v)} aria-label={t('referee.practice.setup.setLabel', { count: v })}>
                     {t('referee.practice.setup.setLabel', { count: v })}
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
             <p className="text-cyan-400 font-semibold">{t('referee.practice.setup.ruleSummary', { setsToWin, maxSets: setsToWin * 2 - 1 })}</p>
           </div>
         </>
