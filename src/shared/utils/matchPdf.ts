@@ -1,26 +1,6 @@
 import type { Match, ScoreHistoryEntry, SetScore } from '../types';
 import type { TFunction } from 'i18next';
 
-// Lazy-loaded font cache
-let cachedFontBase64: string | null = null;
-
-async function loadKoreanFont(): Promise<string> {
-  if (cachedFontBase64) return cachedFontBase64;
-
-  // Fetch Noto Sans KR Regular from Google Fonts CDN
-  const res = await fetch(
-    'https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/SubsetOTF/KR/NotoSansKR-Regular.otf'
-  );
-  const buf = await res.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  cachedFontBase64 = btoa(binary);
-  return cachedFontBase64;
-}
-
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
   if (!val) return [];
   if (Array.isArray(val)) return val;
@@ -33,193 +13,80 @@ const META_TYPES = new Set([
   'match_start', 'player_rotation',
 ]);
 
-export async function generateMatchPdf(
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+export function generateMatchHtml(
   match: Match,
   tournament: { name: string; date?: string } | null,
   t: TFunction,
-): Promise<void> {
-  const { jsPDF } = await import('jspdf');
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 15;
-  const contentW = pageW - margin * 2;
-  let y = margin;
-
-  // Load and register Korean font
-  try {
-    const fontBase64 = await loadKoreanFont();
-    doc.addFileToVFS('NotoSansKR-Regular.otf', fontBase64);
-    doc.addFont('NotoSansKR-Regular.otf', 'NotoSansKR', 'normal');
-    doc.setFont('NotoSansKR');
-  } catch {
-    // Fallback to helvetica if font loading fails
-    doc.setFont('helvetica');
-  }
-
+): string {
   const isTeam = match.type === 'team';
-  const p1Name = isTeam ? (match.team1Name || 'Team 1') : (match.player1Name || 'Player 1');
-  const p2Name = isTeam ? (match.team2Name || 'Team 2') : (match.player2Name || 'Player 2');
+  const p1 = escHtml(isTeam ? (match.team1Name || 'Team 1') : (match.player1Name || 'Player 1'));
+  const p2 = escHtml(isTeam ? (match.team2Name || 'Team 2') : (match.player2Name || 'Player 2'));
   const sets: SetScore[] = toArray(match.sets);
   const history: ScoreHistoryEntry[] = toArray(match.scoreHistory);
+  const lang = t('common.appName') === '쇼다운' ? 'ko' : 'en';
 
-  function checkPage(needed: number) {
-    if (y + needed > pageH - margin) {
-      doc.addPage();
-      y = margin;
-    }
-  }
-
-  // === HEADER ===
-  doc.setFontSize(16);
-  doc.setTextColor(0);
-  const title = tournament?.name || t('common.pdf.matchScoresheet');
-  doc.text(title, pageW / 2, y, { align: 'center' });
-  y += 8;
-
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  const subtitle = t('common.pdf.matchScoresheet');
-  doc.text(subtitle, pageW / 2, y, { align: 'center' });
-  y += 8;
-
-  // === MATCH INFO ===
-  doc.setDrawColor(200);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageW - margin, y);
-  y += 5;
-
-  doc.setFontSize(9);
-  doc.setTextColor(60);
-
-  const infoLines: [string, string][] = [];
-  if (tournament?.date) infoLines.push([t('common.pdf.date'), tournament.date]);
-  if (match.scheduledDate) infoLines.push([t('common.pdf.matchDate'), `${match.scheduledDate} ${match.scheduledTime || ''}`]);
-  if (match.courtName) infoLines.push([t('common.pdf.court'), match.courtName]);
-  if (match.refereeName) infoLines.push([t('common.pdf.referee'), match.refereeName]);
-  if (match.assistantRefereeName) infoLines.push([t('common.pdf.assistantReferee'), match.assistantRefereeName]);
-  if (match.roundLabel) infoLines.push([t('common.pdf.round'), match.roundLabel]);
-
-  for (const [label, value] of infoLines) {
-    doc.setTextColor(100);
-    doc.text(`${label}:`, margin, y);
-    doc.setTextColor(0);
-    doc.text(value.trim(), margin + 30, y);
-    y += 5;
-  }
-  y += 3;
-
-  // === PLAYERS ===
-  doc.setFillColor(240, 240, 240);
-  doc.rect(margin, y, contentW, 12, 'F');
-  doc.setFontSize(12);
-  doc.setTextColor(0);
-  doc.text(p1Name, margin + contentW * 0.25, y + 8, { align: 'center' });
-  doc.setTextColor(150);
-  doc.text('vs', pageW / 2, y + 8, { align: 'center' });
-  doc.setTextColor(0);
-  doc.text(p2Name, margin + contentW * 0.75, y + 8, { align: 'center' });
-  y += 14;
+  // Match info rows
+  const infoRows: string[] = [];
+  if (tournament?.date) infoRows.push(`<dt>${escHtml(t('common.pdf.date'))}</dt><dd>${escHtml(tournament.date)}</dd>`);
+  if (match.scheduledDate) infoRows.push(`<dt>${escHtml(t('common.pdf.matchDate'))}</dt><dd>${escHtml(match.scheduledDate)} ${escHtml(match.scheduledTime || '')}</dd>`);
+  if (match.courtName) infoRows.push(`<dt>${escHtml(t('common.pdf.court'))}</dt><dd>${escHtml(match.courtName)}</dd>`);
+  if (match.refereeName) infoRows.push(`<dt>${escHtml(t('common.pdf.referee'))}</dt><dd>${escHtml(match.refereeName)}</dd>`);
+  if (match.assistantRefereeName) infoRows.push(`<dt>${escHtml(t('common.pdf.assistantReferee'))}</dt><dd>${escHtml(match.assistantRefereeName)}</dd>`);
+  if (match.roundLabel) infoRows.push(`<dt>${escHtml(t('common.pdf.round'))}</dt><dd>${escHtml(match.roundLabel)}</dd>`);
 
   // Coaches
-  const p1Coach = match.player1Coach;
-  const p2Coach = match.player2Coach;
-  if (p1Coach || p2Coach) {
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-    if (p1Coach) doc.text(`${t('common.pdf.coach')}: ${p1Coach}`, margin + contentW * 0.25, y, { align: 'center' });
-    if (p2Coach) doc.text(`${t('common.pdf.coach')}: ${p2Coach}`, margin + contentW * 0.75, y, { align: 'center' });
-    y += 5;
-  }
+  const p1Coach = match.player1Coach ? escHtml(match.player1Coach) : '';
+  const p2Coach = match.player2Coach ? escHtml(match.player2Coach) : '';
 
   // Coin toss
+  let coinTossHtml = '';
   if (match.coinTossWinner) {
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-    const tossWinner = match.coinTossWinner === 'player1' ? p1Name : p2Name;
+    const tossWinner = match.coinTossWinner === 'player1' ? p1 : p2;
     const tossChoice = match.coinTossChoice === 'serve' ? t('common.pdf.serve') : t('common.pdf.receive');
-    doc.text(`${t('common.pdf.coinToss')}: ${tossWinner} - ${tossChoice}`, pageW / 2, y, { align: 'center' });
-    y += 6;
+    coinTossHtml = `<p class="coin-toss">${escHtml(t('common.pdf.coinToss'))}: ${tossWinner} - ${escHtml(tossChoice)}</p>`;
   }
 
-  y += 2;
-
-  // === SET RESULTS TABLE ===
-  doc.setFontSize(10);
-  doc.setTextColor(0);
-  doc.text(t('common.pdf.setResults'), margin, y);
-  y += 5;
-
-  // Table header
-  const colW = contentW / 4;
-  doc.setFillColor(50, 50, 50);
-  doc.rect(margin, y, contentW, 7, 'F');
-  doc.setTextColor(255);
-  doc.setFontSize(8);
-  doc.text(t('common.pdf.setNum'), margin + colW * 0.5, y + 5, { align: 'center' });
-  doc.text(p1Name, margin + colW * 1.5, y + 5, { align: 'center' });
-  doc.text(p2Name, margin + colW * 2.5, y + 5, { align: 'center' });
-  doc.text(t('common.pdf.winner'), margin + colW * 3.5, y + 5, { align: 'center' });
-  y += 7;
-
-  doc.setTextColor(0);
-  sets.forEach((s, i) => {
-    checkPage(7);
-    const bg = i % 2 === 0 ? 250 : 240;
-    doc.setFillColor(bg, bg, bg);
-    doc.rect(margin, y, contentW, 6, 'F');
-    doc.setFontSize(8);
-    doc.text(`${i + 1}`, margin + colW * 0.5, y + 4.5, { align: 'center' });
-    doc.text(`${s.player1Score}`, margin + colW * 1.5, y + 4.5, { align: 'center' });
-    doc.text(`${s.player2Score}`, margin + colW * 2.5, y + 4.5, { align: 'center' });
+  // Set results table
+  const setRows = sets.map((s, i) => {
     const winner = s.winnerId
-      ? (s.player1Score > s.player2Score ? p1Name : p2Name)
+      ? (s.player1Score > s.player2Score ? p1 : p2)
       : '-';
-    doc.text(winner, margin + colW * 3.5, y + 4.5, { align: 'center' });
-    y += 6;
-  });
+    const winClass = s.winnerId ? ' class="winner"' : '';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td${s.player1Score > s.player2Score ? winClass : ''}>${s.player1Score}</td>
+      <td${s.player2Score > s.player1Score ? winClass : ''}>${s.player2Score}</td>
+      <td>${winner}</td>
+    </tr>`;
+  }).join('');
 
-  // Border around table
-  doc.setDrawColor(200);
-  doc.rect(margin, y - sets.length * 6 - 7, contentW, sets.length * 6 + 7);
-
-  y += 4;
-
-  // === FINAL RESULT ===
+  // Final result
+  let finalHtml = '';
   if (match.winnerId) {
-    checkPage(15);
-    const winnerName = match.winnerId === (isTeam ? match.team1Id : match.player1Id) ? p1Name : p2Name;
-
-    let p1SetWins = 0, p2SetWins = 0;
+    const winnerName = match.winnerId === (isTeam ? match.team1Id : match.player1Id) ? p1 : p2;
+    let p1Wins = 0, p2Wins = 0;
     sets.forEach(s => {
       if (s.winnerId) {
-        if (s.player1Score > s.player2Score) p1SetWins++;
-        else p2SetWins++;
+        if (s.player1Score > s.player2Score) p1Wins++;
+        else p2Wins++;
       }
     });
-
-    doc.setFillColor(34, 197, 94);
-    doc.rect(margin, y, contentW, 10, 'F');
-    doc.setTextColor(255);
-    doc.setFontSize(11);
-    doc.text(`${t('common.pdf.finalResult')}: ${winnerName}  (${p1SetWins} - ${p2SetWins})`, pageW / 2, y + 7, { align: 'center' });
-    y += 14;
+    finalHtml = `<div class="final-result" role="status" aria-label="${escHtml(t('common.pdf.finalResult'))}: ${winnerName} (${p1Wins}-${p2Wins})">
+      <strong>${escHtml(t('common.pdf.finalResult'))}:</strong> ${winnerName} (${p1Wins} - ${p2Wins})
+    </div>`;
   }
 
-  // === PLAY-BY-PLAY ===
+  // Play-by-play
   const meaningful = history.filter(h =>
     h.points > 0 || h.penaltyWarning || META_TYPES.has(h.actionType || '')
   );
 
+  let playByPlayHtml = '';
   if (meaningful.length > 0) {
-    checkPage(15);
-    doc.setTextColor(0);
-    doc.setFontSize(10);
-    doc.text(t('common.pdf.playByPlay'), margin, y);
-    y += 5;
-
-    // Group by set
     const setGroups = new Map<number, ScoreHistoryEntry[]>();
     meaningful.forEach(h => {
       const s = h.set || 1;
@@ -227,75 +94,139 @@ export async function generateMatchPdf(
       setGroups.get(s)!.push(h);
     });
 
-    const cols = [15, 50, 15, 20, 20]; // time, action, pts, p1score, p2score
-    const totalColW = cols.reduce((a, b) => a + b, 0);
-    const scale = contentW / totalColW;
-    const scaledCols = cols.map(c => c * scale);
+    const sections = Array.from(setGroups.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([setNum, entries]) => {
+        const sorted = [...entries].reverse();
+        const rows = sorted.map(h => {
+          const time = escHtml(h.time || '');
+          const action = escHtml(h.actionLabel || h.actionType || '');
+          const pts = h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
+          const p1s = h.scoreAfter ? `${h.scoreAfter.player1}` : '';
+          const p2s = h.scoreAfter ? `${h.scoreAfter.player2}` : '';
+          return `<tr>
+            <td>${time}</td>
+            <td>${action}</td>
+            <td>${pts}</td>
+            <td>${p1s}</td>
+            <td>${p2s}</td>
+          </tr>`;
+        }).join('');
 
-    for (const [setNum, entries] of Array.from(setGroups.entries()).sort((a, b) => a[0] - b[0])) {
-      checkPage(15);
+        return `<h3>${escHtml(t('common.pdf.setNum'))} ${setNum}</h3>
+        <table aria-label="${escHtml(t('common.pdf.playByPlay'))} - ${escHtml(t('common.pdf.setNum'))} ${setNum}">
+          <thead><tr>
+            <th scope="col">${escHtml(t('common.pdf.time'))}</th>
+            <th scope="col">${escHtml(t('common.pdf.action'))}</th>
+            <th scope="col">${escHtml(t('common.pdf.pts'))}</th>
+            <th scope="col">${p1}</th>
+            <th scope="col">${p2}</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      }).join('');
 
-      // Set header
-      doc.setFillColor(30, 58, 95);
-      doc.rect(margin, y, contentW, 6, 'F');
-      doc.setTextColor(255);
-      doc.setFontSize(8);
-      doc.text(`${t('common.pdf.setNum')} ${setNum}`, margin + 3, y + 4.5);
-      y += 6;
-
-      // Column headers
-      doc.setFillColor(70, 70, 70);
-      doc.rect(margin, y, contentW, 5.5, 'F');
-      doc.setTextColor(230);
-      doc.setFontSize(7);
-      let cx = margin;
-      const headers = [t('common.pdf.time'), t('common.pdf.action'), t('common.pdf.pts'), p1Name, p2Name];
-      headers.forEach((h, i) => {
-        doc.text(h, cx + scaledCols[i] / 2, y + 4, { align: 'center', maxWidth: scaledCols[i] - 2 });
-        cx += scaledCols[i];
-      });
-      y += 5.5;
-
-      // Entries (oldest first for play-by-play)
-      const sorted = [...entries].reverse();
-      sorted.forEach((h, i) => {
-        checkPage(5.5);
-        const bg = i % 2 === 0 ? 252 : 244;
-        doc.setFillColor(bg, bg, bg);
-        doc.rect(margin, y, contentW, 5, 'F');
-        doc.setTextColor(0);
-        doc.setFontSize(6.5);
-
-        cx = margin;
-        const time = h.time || '';
-        const action = h.actionLabel || h.actionType || '';
-        const pts = h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
-        const p1s = h.scoreAfter ? `${h.scoreAfter.player1}` : '';
-        const p2s = h.scoreAfter ? `${h.scoreAfter.player2}` : '';
-
-        const vals = [time, action, pts, p1s, p2s];
-        vals.forEach((v, vi) => {
-          doc.text(v, cx + scaledCols[vi] / 2, y + 3.5, { align: 'center', maxWidth: scaledCols[vi] - 2 });
-          cx += scaledCols[vi];
-        });
-        y += 5;
-      });
-
-      y += 3;
-    }
+    playByPlayHtml = `<section aria-label="${escHtml(t('common.pdf.playByPlay'))}">
+      <h2>${escHtml(t('common.pdf.playByPlay'))}</h2>
+      ${sections}
+    </section>`;
   }
 
-  // === FOOTER ===
-  checkPage(10);
-  y += 5;
-  doc.setDrawColor(200);
-  doc.line(margin, y, pageW - margin, y);
-  y += 4;
-  doc.setFontSize(7);
-  doc.setTextColor(150);
-  doc.text(`${t('common.pdf.generatedAt')}: ${new Date().toLocaleString()}`, pageW / 2, y, { align: 'center' });
+  return `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+  <meta charset="UTF-8">
+  <title>${escHtml(t('common.pdf.matchScoresheet'))} - ${p1} vs ${p2}</title>
+  <style>
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      @page { margin: 15mm; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Malgun Gothic', '맑은 고딕', 'Noto Sans KR', sans-serif;
+      max-width: 800px; margin: 0 auto; padding: 2rem;
+      color: #111; background: #fff; line-height: 1.6;
+    }
+    h1 { font-size: 1.5rem; border-bottom: 3px solid #333; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.15rem; margin-top: 1.5rem; border-bottom: 1px solid #ccc; padding-bottom: 0.25rem; }
+    h3 { font-size: 0.95rem; margin: 1rem 0 0.5rem; color: #1e3a5f; }
+    .actions { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .actions button {
+      padding: 0.5rem 1.5rem; border: none; border-radius: 0.25rem;
+      cursor: pointer; font-size: 0.9rem; color: #fff;
+    }
+    .btn-print { background: #333; }
+    .btn-print:hover { background: #555; }
+    .btn-pdf { background: #1e40af; }
+    .btn-pdf:hover { background: #1e3a8a; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; margin: 0.5rem 0 1rem; }
+    dt { font-weight: bold; color: #555; }
+    dd { margin: 0; }
+    .players {
+      display: flex; align-items: center; justify-content: center; gap: 1.5rem;
+      background: #f5f5f5; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;
+      font-size: 1.25rem; font-weight: bold;
+    }
+    .players .vs { color: #999; font-size: 1rem; }
+    .coach { font-size: 0.85rem; font-weight: normal; color: #666; }
+    .coin-toss { text-align: center; color: #555; font-size: 0.9rem; margin: 0.5rem 0; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.85rem; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: center; }
+    th { background: #f0f0f0; font-weight: bold; }
+    .winner { font-weight: bold; color: #16a34a; }
+    .final-result {
+      background: #16a34a; color: #fff; text-align: center;
+      padding: 0.75rem; border-radius: 0.5rem; font-size: 1.1rem; margin: 1rem 0;
+    }
+    footer { margin-top: 2rem; padding-top: 0.5rem; border-top: 1px solid #ccc; font-size: 0.75rem; color: #999; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="actions no-print">
+    <button class="btn-print" onclick="window.print()" aria-label="${escHtml(t('common.pdf.printButton') || 'Print')}">${escHtml(t('common.pdf.printButton') || 'Print')}</button>
+  </div>
 
-  // Download
-  const filename = `${p1Name}_vs_${p2Name}_${match.scheduledDate || 'match'}.pdf`;
-  doc.save(filename.replace(/[/\\?%*:|"<>]/g, '_'));
+  <main>
+    <h1>${escHtml(tournament?.name || t('common.pdf.matchScoresheet'))}</h1>
+    <p style="color:#666; margin-top:0;">${escHtml(t('common.pdf.matchScoresheet'))}</p>
+
+    ${infoRows.length > 0 ? `<dl>${infoRows.join('')}</dl>` : ''}
+
+    <div class="players" aria-label="${p1} vs ${p2}">
+      <div>
+        ${p1}
+        ${p1Coach ? `<div class="coach">${escHtml(t('common.pdf.coach'))}: ${p1Coach}</div>` : ''}
+      </div>
+      <span class="vs">vs</span>
+      <div>
+        ${p2}
+        ${p2Coach ? `<div class="coach">${escHtml(t('common.pdf.coach'))}: ${p2Coach}</div>` : ''}
+      </div>
+    </div>
+
+    ${coinTossHtml}
+
+    <section aria-label="${escHtml(t('common.pdf.setResults'))}">
+      <h2>${escHtml(t('common.pdf.setResults'))}</h2>
+      <table aria-label="${escHtml(t('common.pdf.setResults'))}">
+        <thead><tr>
+          <th scope="col">${escHtml(t('common.pdf.setNum'))}</th>
+          <th scope="col">${p1}</th>
+          <th scope="col">${p2}</th>
+          <th scope="col">${escHtml(t('common.pdf.winner'))}</th>
+        </tr></thead>
+        <tbody>${setRows}</tbody>
+      </table>
+    </section>
+
+    ${finalHtml}
+
+    ${playByPlayHtml}
+  </main>
+
+  <footer>${escHtml(t('common.pdf.generatedAt'))}: ${new Date().toLocaleString()}</footer>
+</body>
+</html>`;
 }
