@@ -988,13 +988,58 @@ export default function IndividualScoring() {
             </div>
           </div>
         )}
-        {/* 상세 경기 기록 */}
+        {/* 상세 경기 기록 - textarea for line-by-line screen reader navigation */}
         {history.length > 0 && (
           <div className="w-full max-w-lg mx-auto flex-1 flex flex-col min-h-0">
             <h3 className="text-lg font-bold text-gray-300 mb-2">상세 경기 기록 ({history.length})</h3>
-            <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 380px)' }}>
-              <SetGroupedHistory history={history} sets={match.sets ?? []} showAll />
-            </div>
+            <textarea
+              readOnly
+              className="w-full bg-gray-900 text-gray-200 text-sm p-4 rounded-lg border border-gray-700 font-mono leading-relaxed"
+              style={{ minHeight: '300px', maxHeight: 'calc(100vh - 380px)', resize: 'vertical' }}
+              aria-label="상세 경기 기록"
+              value={(() => {
+                const META = new Set(['pause','resume','timeout','timeout_player','timeout_medical','timeout_referee','substitution','dead_ball','walkover','coin_toss','warmup_start','match_start','player_rotation','side_change']);
+                const LABELS: Record<string, string> = { goal:'골 득점', irregular_serve:'부정 서브', centerboard:'센터보드', body_touch:'바디 터치', illegal_defense:'일리걸 디펜스', out:'아웃', ball_holding:'볼 홀딩', mask_touch:'마스크 터치', penalty_table_pushing:'테이블 푸싱', penalty_electronic:'전자기기 소리', penalty_talking:'경기 중 말하기' };
+                const sets = match.sets ?? [];
+                const groups: Record<number, ScoreHistoryEntry[]> = {};
+                history.forEach(h => {
+                  if (h.points === 0 && !META.has(h.actionType) && !h.penaltyWarning) return;
+                  if (h.actionType === 'resume') return;
+                  const s = h.set || 1;
+                  if (!groups[s]) groups[s] = [];
+                  groups[s].push(h);
+                });
+                for (const k of Object.keys(groups)) {
+                  groups[Number(k)].sort((a, b) => {
+                    const sa = a.scoreAfter ? (a.scoreAfter.player1 + a.scoreAfter.player2) : 0;
+                    const sb = b.scoreAfter ? (b.scoreAfter.player1 + b.scoreAfter.player2) : 0;
+                    return sa - sb;
+                  });
+                }
+                const lines: string[] = [];
+                for (const setNum of Object.keys(groups).map(Number).sort()) {
+                  const setScore = sets[setNum - 1];
+                  lines.push(`\n=== 세트 ${setNum} ${setScore ? `(${setScore.player1Score}:${setScore.player2Score})` : ''} ===`);
+                  for (const h of groups[setNum]) {
+                    const time = h.time?.replace(/:\d{2}$/, '') || '--:--';
+                    const score = h.scoreAfter ? (h.serverSide === 'player2' ? `${h.scoreAfter.player2}:${h.scoreAfter.player1}` : `${h.scoreAfter.player1}:${h.scoreAfter.player2}`) : '';
+                    if (h.points === 0 || h.penaltyWarning) {
+                      const desc = h.penaltyWarning ? `${h.actionPlayer} ${LABELS[h.actionType] || h.actionLabel || ''} 경고`
+                        : h.actionType === 'dead_ball' ? `${h.server} 데드볼 → 재서브`
+                        : h.actionLabel || h.actionType;
+                      lines.push(`${time}  ${desc}`);
+                    } else {
+                      const lbl = LABELS[h.actionType] || h.actionLabel || '';
+                      const desc = h.actionType === 'goal'
+                        ? `${h.scoringPlayer} 골 +${h.points}점`
+                        : `${h.actionPlayer} ${lbl} → ${h.scoringPlayer} +${h.points}점`;
+                      lines.push(`${time}  ${h.server} ${h.serveNumber || ''}회차  ${desc}  [${score}]`);
+                    }
+                  }
+                }
+                return lines.join('\n').trim();
+              })()}
+            />
           </div>
         )}
         <div className="text-center mt-4">

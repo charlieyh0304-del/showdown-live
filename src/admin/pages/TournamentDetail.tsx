@@ -2850,16 +2850,32 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
         <div className="flex gap-4 flex-wrap">
           <div>
             <label className="block text-sm text-gray-300 mb-1">날짜</label>
-            <div className="flex items-center gap-1">
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() - 1); setScheduleDate(d.toISOString().split('T')[0]); }} aria-label="날짜 1일 감소">−</button>
-              <input
-                type="date"
+            <div className="flex items-center gap-2">
+              <select
                 className="input"
-                value={scheduleDate}
-                onChange={e => setScheduleDate(e.target.value)}
-                aria-label="경기 날짜"
-              />
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() + 1); setScheduleDate(d.toISOString().split('T')[0]); }} aria-label="날짜 1일 증가">+</button>
+                value={scheduleDate.split('-')[0] || ''}
+                onChange={e => { const [, m, d] = scheduleDate.split('-'); setScheduleDate(`${e.target.value}-${m || '01'}-${d || '01'}`); }}
+                aria-label="년도"
+              >
+                {[...Array(5)].map((_, i) => { const y = new Date().getFullYear() + i - 1; return <option key={y} value={y}>{y}년</option>; })}
+              </select>
+              <select
+                className="input"
+                value={parseInt(scheduleDate.split('-')[1] || '1', 10).toString()}
+                onChange={e => { const [y, , d] = scheduleDate.split('-'); setScheduleDate(`${y}-${e.target.value.padStart(2, '0')}-${d || '01'}`); }}
+                aria-label="월"
+              >
+                {[...Array(12)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}월</option>)}
+              </select>
+              <select
+                className="input"
+                value={parseInt(scheduleDate.split('-')[2] || '1', 10).toString()}
+                onChange={e => { const [y, m] = scheduleDate.split('-'); setScheduleDate(`${y}-${m}-${e.target.value.padStart(2, '0')}`); }}
+                aria-label="일"
+              >
+                {[...Array(31)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}일</option>)}
+              </select>
+              <button type="button" className="btn px-3 py-2 text-sm" onClick={() => setScheduleDate(new Date().toISOString().split('T')[0])} aria-label="오늘 날짜로 설정">오늘</button>
             </div>
           </div>
           <div>
@@ -2879,16 +2895,20 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
           </div>
           <div>
             <label htmlFor="interval" className="block text-sm text-gray-300 mb-1">경기 간격 (분)</label>
-            <input
-              id="interval"
-              type="number"
-              className="input"
-              value={interval}
-              onChange={e => setInterval_(Number(e.target.value))}
-              min={10}
-              max={120}
-              aria-label="경기 간격"
-            />
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setInterval_(Math.max(10, interval - 5))} aria-label="경기 간격 5분 감소">−</button>
+              <input
+                id="interval"
+                type="number"
+                className="input"
+                value={interval}
+                onChange={e => setInterval_(Number(e.target.value))}
+                min={10}
+                max={120}
+                aria-label="경기 간격"
+              />
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setInterval_(Math.min(120, interval + 5))} aria-label="경기 간격 5분 증가">+</button>
+            </div>
           </div>
         </div>
         <div className="flex gap-4 flex-wrap">
@@ -2909,16 +2929,20 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
           </div>
           <div>
             <label htmlFor="rest-interval" className="block text-sm text-gray-300 mb-1">선수 휴식 시간 (분)</label>
-            <input
-              id="rest-interval"
-              type="number"
-              className="input"
-              value={restInterval}
-              onChange={e => setRestInterval(Number(e.target.value))}
-              min={10}
-              max={240}
-              aria-label="선수 휴식 시간"
-            />
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setRestInterval(Math.max(10, restInterval - 5))} aria-label="휴식 시간 5분 감소">−</button>
+              <input
+                id="rest-interval"
+                type="number"
+                className="input"
+                value={restInterval}
+                onChange={e => setRestInterval(Number(e.target.value))}
+                min={10}
+                max={240}
+                aria-label="선수 휴식 시간"
+              />
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setRestInterval(Math.min(240, restInterval + 5))} aria-label="휴식 시간 5분 증가">+</button>
+            </div>
           </div>
           <div>
             <label htmlFor="next-day-start" className="block text-sm text-gray-300 mb-1">다음날 시작 시간</label>
