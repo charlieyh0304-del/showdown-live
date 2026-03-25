@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTournament, useMatches, useFavorites, useSchedule } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
+import { parseTimeDisplay } from '@shared/utils/locale';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { requestNotificationPermission } from '@shared/utils/notifications';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
@@ -2335,15 +2336,7 @@ function PlayerMatchRow({
                   </div>
                   {entries.map((entry, i) => {
                     const isMine = entry.scoringPlayer === selectedPlayer;
-                    const timeStr = (() => {
-                      if (!entry.time) return '';
-                      if (entry.time.includes('오전') || entry.time.includes('오후') || entry.time.match(/^\d{1,2}:\d{2}/)) {
-                        return entry.time.replace(/:\d{2}$/, '');
-                      }
-                      const d = new Date(entry.time);
-                      if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-                      return entry.time;
-                    })();
+                    const timeStr = entry.time ? parseTimeDisplay(entry.time) : '';
 
                     const ACTION_LABELS: Record<string, string> = {
                       goal: t('common.scoreActions.goal'),

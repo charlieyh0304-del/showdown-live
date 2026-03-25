@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PracticeMatch, SetScore } from '@shared/types';
 import { countSetWins } from '@shared/utils/scoring';
+import { formatDateTime } from '@shared/utils/locale';
 import SetGroupedHistory from '@referee/components/SetGroupedHistory';
 
 const LIVE_KEY = 'showdown_practice_live';
@@ -154,7 +155,7 @@ export default function PracticeWatchView() {
                 const safeSets = Array.isArray(match.sets) ? match.sets : [];
                 const winnerName = match.winnerId === 'player1' ? match.player1Name : match.player2Name;
                 const setWins = countSetWins(safeSets, match.gameConfig);
-                const completedDate = match.completedAt ? new Date(match.completedAt).toLocaleString('ko-KR') : '';
+                const completedDate = match.completedAt ? formatDateTime(new Date(match.completedAt)) : '';
                 return (
                   <div key={match.id} className="card">
                     <button

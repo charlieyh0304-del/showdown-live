@@ -1,4 +1,5 @@
 import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry, Match, Tournament, TournamentStage } from '../types';
+import { formatTime } from '@shared/utils/locale';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -173,7 +174,7 @@ export function createScoreHistoryEntry(opts: {
   serverSide?: 'player1' | 'player2';
 }): ScoreHistoryEntry {
   return {
-    time: new Date().toLocaleTimeString('ko-KR'),
+    time: formatTime(),
     ...opts,
   };
 }

@@ -4,6 +4,7 @@ import { ref, onValue, set, remove, push } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { hashPin, verifyPin } from '@shared/utils/crypto';
 import { useAuth } from '@shared/hooks/useAuth';
+import { formatDate } from '@shared/utils/locale';
 import type { Admin } from '@shared/types';
 
 const SAMPLE_STORAGE_KEY = 'showdown_sample_names';
@@ -349,7 +350,7 @@ export default function AdminSettings() {
                     <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">{t('admin.settings.currentLoginBadge')}</span>
                   )}
                   <div className="text-xs text-gray-400 mt-1">
-                    {t('admin.settings.registeredDate')}: {new Date(admin.createdAt).toLocaleDateString('ko-KR')}
+                    {t('admin.settings.registeredDate')}: {formatDate(new Date(admin.createdAt))}
                   </div>
                 </div>
                 <button

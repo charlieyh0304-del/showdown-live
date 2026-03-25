@@ -15,6 +15,7 @@ import {
   createScoreHistoryEntry,
   getMaxServes,
 } from '@shared/utils/scoring';
+import { formatTime, getLocale } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
@@ -35,7 +36,7 @@ function speak(text: string) {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ko-KR';
+    utterance.lang = getLocale();
     utterance.rate = 1.2;
     window.speechSynthesis.speak(utterance);
   }
@@ -260,7 +261,7 @@ export default function IndividualScoring() {
     const serverName = firstServe === 'player1' ? p1Name : p2Name;
 
     const coinTossEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       scoringPlayer: '',
       actionPlayer: winnerName,
       actionType: 'coin_toss',
@@ -274,7 +275,7 @@ export default function IndividualScoring() {
       serverSide: firstServe,
     };
 
-    const now = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = () => formatTime();
 
     // Coach info entry (if coaches provided)
     const coachEntries: ScoreHistoryEntry[] = [];
@@ -339,7 +340,7 @@ export default function IndividualScoring() {
     const serverName = currentServe === 'player1' ? p1Name : p2Name;
 
     const warmupEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       scoringPlayer: '',
       actionPlayer: '',
       actionType: 'warmup_start',
@@ -368,14 +369,14 @@ export default function IndividualScoring() {
     setPauseReason(reason || t('referee.scoring.noReason'));
     setPauseElapsed(0);
     const pauseEntry = {
-      time: new Date().toLocaleTimeString('ko-KR'),
+      time: formatTime(),
       reason: reason || t('referee.scoring.noReason'),
       set: (match.currentSet ?? 0) + 1,
     };
     const prevPauseHistory = match.pauseHistory ?? [];
     const currentSetData = match.sets?.[match.currentSet ?? 0];
     const pauseHistoryEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: reason || t('referee.scoring.noReason'),
@@ -406,7 +407,7 @@ export default function IndividualScoring() {
     }
     const currentSetData = match.sets?.[match.currentSet ?? 0];
     const resumeHistoryEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: `${Math.floor(pauseElapsed / 60)}${t('common.time.minutes')} ${pauseElapsed % 60}${t('common.time.seconds')}`,
@@ -745,7 +746,7 @@ export default function IndividualScoring() {
       const serverName = currentServe === 'player1' ? p1Name : p2Name;
 
       const historyEntry: ScoreHistoryEntry = {
-        time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        time: formatTime(),
         scoringPlayer: '',
         actionPlayer: actorName,
         actionType: penaltyType,
@@ -806,7 +807,7 @@ export default function IndividualScoring() {
     };
 
     const timeoutEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: playerName,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ScoreHistoryEntry, SetScore } from '@shared/types';
+import { parseTimeDisplay } from '@shared/utils/locale';
 
 const ACTION_TYPE_TO_KEY: Record<string, string> = {
   goal: 'common.scoreActions.goal',
@@ -85,19 +86,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
               {entries.map((h, i) => {
                 const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
 
-                // h.time is stored as locale string (e.g. "오후 8:19:26") - use directly, don't re-parse
-                const timeStr = (() => {
-                  if (!h.time) return '--:--';
-                  // If already a short locale time string, use as-is
-                  if (h.time.includes('오전') || h.time.includes('오후') || h.time.match(/^\d{1,2}:\d{2}/)) {
-                    // Strip seconds if present (오후 8:19:26 → 오후 8:19)
-                    return h.time.replace(/:\d{2}$/, '');
-                  }
-                  // Try parsing as Date (ISO format)
-                  const d = new Date(h.time);
-                  if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-                  return h.time;
-                })();
+                const timeStr = h.time ? parseTimeDisplay(h.time) : '--:--';
 
                 // Non-scoring entries (pause, resume, timeout, substitution, dead_ball, walkover, penaltyWarning)
                 if (h.points === 0 || h.penaltyWarning) {

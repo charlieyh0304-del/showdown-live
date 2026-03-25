@@ -1,4 +1,5 @@
 import type { Tournament, Match, SetScore, Team, ScoreHistoryEntry, ScoreActionType, ScheduleSlot } from '../types';
+import { formatTime, formatTimeShort } from '@shared/utils/locale';
 
 // 가상 이름 생성용
 const LAST_NAMES = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권', '황'];
@@ -44,7 +45,7 @@ function simulateScoreHistory(
   // 코인토스 이벤트
   const coinTossTime = new Date(baseTime - 120000); // 경기 시작 2분 전
   history.push({
-    time: coinTossTime.toLocaleTimeString('ko-KR'),
+    time: formatTime(coinTossTime),
     scoringPlayer: tossWinnerName,
     actionPlayer: tossWinnerName,
     actionType: 'coin_toss' as ScoreActionType,
@@ -62,7 +63,7 @@ function simulateScoreHistory(
   if (Math.random() < 0.8) {
     const warmupTime = new Date(baseTime - 90000); // 경기 시작 1분 30초 전
     history.push({
-      time: warmupTime.toLocaleTimeString('ko-KR'),
+      time: formatTime(warmupTime),
       scoringPlayer: '',
       actionPlayer: '',
       actionType: 'warmup_start' as ScoreActionType,
@@ -100,7 +101,7 @@ function simulateScoreHistory(
     const firstServerName = server === 'player1' ? p1Name : p2Name;
     const setStartIdx = history.length; // 이 세트의 시작 인덱스 기억
     history.push({
-      time: setStartTime.toLocaleTimeString('ko-KR'),
+      time: formatTime(setStartTime),
       scoringPlayer: firstServerName,
       actionPlayer: firstServerName,
       actionType: 'match_start' as ScoreActionType,
@@ -205,7 +206,7 @@ function simulateScoreHistory(
       const entryTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + entryIndex * 30000);
 
       history.push({
-        time: entryTime.toLocaleTimeString('ko-KR'),
+        time: formatTime(entryTime),
         scoringPlayer: scoringName,
         actionPlayer: actingPlayer,
         actionType,
@@ -232,7 +233,7 @@ function simulateScoreHistory(
           sideChanged = true;
           const scTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + entryIndex * 30000);
           history.push({
-            time: scTime.toLocaleTimeString('ko-KR'),
+            time: formatTime(scTime),
             scoringPlayer: '',
             actionPlayer: '',
             actionType: 'side_change' as ScoreActionType,
@@ -273,7 +274,7 @@ function simulateScoreHistory(
             if (prevPlayerName !== nextPlayerName) {
               const rotTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + entryIndex * 30000);
               history.push({
-                time: rotTime.toLocaleTimeString('ko-KR'),
+                time: formatTime(rotTime),
                 scoringPlayer: '',
                 actionPlayer: rotTeamName,
                 actionType: 'player_rotation' as ScoreActionType,
@@ -306,7 +307,7 @@ function simulateScoreHistory(
       const timeoutTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + Math.floor(entryIndex / 2) * 30000);
 
       history.splice(insertIdx, 0, {
-        time: timeoutTime.toLocaleTimeString('ko-KR'),
+        time: formatTime(timeoutTime),
         scoringPlayer: callerName,
         actionPlayer: callerName,
         actionType: 'timeout',
@@ -587,7 +588,7 @@ function generateFinalsMatches(
       const matchId = `sim_match_${matchCounter.value}`;
 
       const scheduledTime = new Date(scheduleBaseTime.getTime() + matchCounter.value * 20 * 60 * 1000);
-      const timeStr = scheduledTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+      const timeStr = formatTimeShort(scheduledTime);
 
       const match: Omit<Match, 'id'> = {
         tournamentId: tournament.id,
@@ -693,7 +694,7 @@ function createRankingMatch(
   const courtIndex = matchCounter.value % courts.length;
   const matchId = `sim_match_${matchCounter.value}`;
   const scheduledTime = new Date(scheduleBaseTime.getTime() + matchCounter.value * 20 * 60 * 1000);
-  const timeStr = scheduledTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = formatTimeShort(scheduledTime);
 
   const match: Omit<Match, 'id'> = {
     tournamentId: tournament.id,
@@ -988,7 +989,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
 
         // 스케줄 시간 계산 (20분 간격)
         const scheduledTime = new Date(scheduleBaseTime.getTime() + matchCounter.value * 20 * 60 * 1000);
-        const timeStr = scheduledTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        const timeStr = formatTimeShort(scheduledTime);
 
         const match: Omit<Match, 'id'> = {
           tournamentId: tournament.id,

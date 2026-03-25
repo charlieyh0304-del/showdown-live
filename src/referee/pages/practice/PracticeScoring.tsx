@@ -16,6 +16,7 @@ import {
 } from '@shared/utils/scoring';
 import type { ScoreHistoryEntry } from '@shared/types';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
+import { formatTime } from '@shared/utils/locale';
 import type { SetScore, ScoreActionType, PracticeMatch } from '@shared/types';
 
 import { useCountdownTimer } from '../../hooks/useCountdownTimer';
@@ -187,7 +188,7 @@ export default function PracticeScoring() {
     setPauseReason(actualReason);
     setPauseElapsed(0);
     const pauseEntry = {
-      time: new Date().toLocaleTimeString('ko-KR'),
+      time: formatTime(),
       reason: actualReason,
       set: match.currentSet + 1,
     };
@@ -603,7 +604,7 @@ export default function PracticeScoring() {
     const winnerName = tossWinner === 'player1' ? p1Name : p2Name;
     const choiceLabel = firstServe === (tossWinner ?? 'player1') ? t('referee.scoring.serveChoice') : t('referee.scoring.receiveChoice');
     const serverName = firstServe === 'player1' ? p1Name : p2Name;
-    const now = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = () => formatTime();
     const baseMeta = {
       server: serverName, serveNumber: 1,
       scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },

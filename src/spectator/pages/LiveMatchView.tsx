@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import { countSetWins, getEffectiveGameConfig, getMaxServes } from '@shared/utils/scoring';
+import { parseTimeDisplay } from '@shared/utils/locale';
 import type { ScoreHistoryEntry } from '@shared/types';
 
 export default function LiveMatchView() {
@@ -211,12 +212,7 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
 
 function parseTimeStr(time: string | undefined): string {
   if (!time) return '';
-  if (time.includes('오전') || time.includes('오후') || time.match(/^\d{1,2}:\d{2}/)) {
-    return time.replace(/:\d{2}$/, '');
-  }
-  const d = new Date(time);
-  if (!isNaN(d.getTime())) return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  return time;
+  return parseTimeDisplay(time);
 }
 
 function HistoryBySet({ history, sets, order }: {

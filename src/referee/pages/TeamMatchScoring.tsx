@@ -14,6 +14,7 @@ import {
 } from '@shared/utils/scoring';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
+import { formatTime } from '@shared/utils/locale';
 import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
@@ -129,7 +130,7 @@ export default function TeamMatchScoring() {
 
     // Build initial history entries
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('ko-KR');
+    const timeStr = formatTime(now);
     const initialHistory: ScoreHistoryEntry[] = [
       {
         time: timeStr,
@@ -188,7 +189,7 @@ export default function TeamMatchScoring() {
   // Warmup (team: 90 seconds)
   const handleWarmup = useCallback(() => {
     if (!match || match.warmupUsed) return;
-    const timeStr = new Date().toLocaleTimeString('ko-KR');
+    const timeStr = formatTime();
     const warmupEntry: ScoreHistoryEntry = {
       time: timeStr,
       scoringPlayer: '',
@@ -221,13 +222,13 @@ export default function TeamMatchScoring() {
     setPauseElapsed(0);
     const prevHistory = match.pauseHistory ?? [];
     const newEntry = {
-      time: new Date().toLocaleTimeString('ko-KR'),
+      time: formatTime(),
       reason: reasonText,
       set: (match.currentSet ?? 0) + 1,
     };
     const currentSetData = match.sets?.[0];
     const pauseHistoryEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: reasonText,
@@ -260,7 +261,7 @@ export default function TeamMatchScoring() {
     }
     const currentSetData = match.sets?.[0];
     const resumeHistoryEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: `${Math.floor(pauseElapsed / 60)}${t('common.time.minutes')} ${pauseElapsed % 60}${t('common.time.seconds')}`,
@@ -396,7 +397,7 @@ export default function TeamMatchScoring() {
       const rotTeamName = currentServe === 'player1' ? t1Name : t2Name;
 
       const rotationEntry: ScoreHistoryEntry = {
-        time: new Date().toLocaleTimeString('ko-KR'),
+        time: formatTime(),
         scoringPlayer: '',
         actionPlayer: rotTeamName,
         actionType: 'player_rotation' as ScoreActionType,
@@ -559,7 +560,7 @@ export default function TeamMatchScoring() {
     const actionType = type === 'player' ? 'timeout_player' : type === 'medical' ? 'timeout_medical' : 'timeout_referee';
     const actionLabel = type === 'player' ? t('referee.scoring.timeoutTitle.player') : type === 'medical' ? t('referee.scoring.timeoutTitle.medical') : t('referee.scoring.timeoutTitle.referee');
     const timeoutEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: formatTime(),
       set: 1,
       scoringPlayer: '',
       actionPlayer: type === 'referee' ? '' : tName,
@@ -618,7 +619,7 @@ export default function TeamMatchScoring() {
       const scoreBefore = { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 };
       const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
       const warningEntry: ScoreHistoryEntry = {
-        time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        time: formatTime(),
         set: 1,
         scoringPlayer: '',
         actionPlayer: actorName,
