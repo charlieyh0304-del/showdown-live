@@ -31,7 +31,7 @@ export default function PracticeScoring() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addSession } = usePracticeHistory();
-  const { canAct } = useDoubleClickGuard();
+  const { canAct, startProcessing, done } = useDoubleClickGuard();
 
   const PRACTICE_DESCRIPTIVE_LABELS: Record<string, string> = {
     goal: t('referee.practice.scoring.descriptiveLabels.goal'),
@@ -218,6 +218,9 @@ export default function PracticeScoring() {
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout || showSideChange) return;
 
+    startProcessing();
+    try {
+
     const sets = [...match.sets.map(s => ({ ...s }))];
     const ci = match.currentSet;
     const cs = { ...sets[ci] };
@@ -353,7 +356,9 @@ export default function PracticeScoring() {
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory, ...rotationUpdate,
     });
-  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, sideChangeTimer, showSideChange]);
+
+    } finally { done(); }
+  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, startProcessing, done, sideChangeTimer, showSideChange]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(() => {
@@ -597,7 +602,7 @@ export default function PracticeScoring() {
       const label = `${actorName} ${penaltyLabel}`;
       handleIBSAScore(actingPlayer, penaltyType, 2, true, label);
     }
-  }, [match, canAct, handleIBSAScore, updateMatch, p1Name, p2Name, showSideChange]);
+  }, [match, canAct, startProcessing, done, handleIBSAScore, updateMatch, p1Name, p2Name, showSideChange]);
 
   // Helper: start match with full history entries (matching real match mode)
   const handleStartPracticeMatch = useCallback((firstServe: 'player1' | 'player2', withWarmup: boolean) => {

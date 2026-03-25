@@ -47,6 +47,12 @@ const STATUS_LABEL_KEYS: Record<MatchStatus, string> = {
   completed: 'common.matchStatus.completed',
 };
 
+const STATUS_ICONS: Record<MatchStatus, string> = {
+  pending: '\u23F3',
+  in_progress: '\u25B6',
+  completed: '\u2713',
+};
+
 const STATUS_COLORS: Record<MatchStatus, string> = {
   pending: 'bg-gray-600 text-white',
   in_progress: 'bg-orange-500 text-black',
@@ -1438,7 +1444,7 @@ interface BracketTabProps {
   tournamentPlayers: Player[];
   teams: Team[];
   setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<string[] | void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
+  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
   addMatch: (match: Omit<Match, 'id'>) => Promise<string | null>;
   deleteMatch: (matchId: string) => Promise<void>;
   updateTournament: (data: Record<string, unknown>) => Promise<void>;
@@ -1519,6 +1525,16 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   };
 
   const generateBracket = useCallback(async () => {
+    // Guard: need at least 2 players/teams to generate brackets
+    if (isTeamType && teams.length < 2) {
+      alert(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
+      return;
+    }
+    if (!isTeamType && tournamentPlayers.length < 2) {
+      alert(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
+      return;
+    }
+
     setGenerating(true);
     try {
       const newMatches: Omit<Match, 'id'>[] = [];
@@ -2472,7 +2488,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                    {t(STATUS_LABEL_KEYS[match.status])}
+                    {STATUS_ICONS[match.status]} {t(STATUS_LABEL_KEYS[match.status])}
                   </span>
                 </div>
               </div>
@@ -2579,7 +2595,7 @@ interface ScheduleTabProps {
   referees: { id: string; name: string }[];
   schedule: ScheduleSlot[];
   setScheduleBulk: (slots: Omit<ScheduleSlot, 'id'>[]) => Promise<void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
+  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
 }
 
 function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, updateMatch }: ScheduleTabProps) {
@@ -3041,7 +3057,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                               <div>
                                 <p className="font-semibold text-sm">{slot.label}</p>
                                 <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[slot.status]}`}>
-                                  {t(STATUS_LABEL_KEYS[slot.status])}
+                                  {STATUS_ICONS[slot.status]} {t(STATUS_LABEL_KEYS[slot.status])}
                                 </span>
                               </div>
                             ) : (
@@ -3087,7 +3103,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                       <span className="text-gray-400 text-xs">R{match.round}</span>
                       <span className="font-semibold text-sm">{matchLabel}</span>
                       <span className={`px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[match.status]}`}>
-                        {t(STATUS_LABEL_KEYS[match.status])}
+                        {STATUS_ICONS[match.status]} {t(STATUS_LABEL_KEYS[match.status])}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -3169,7 +3185,7 @@ interface StatusTabProps {
   tournament: NonNullable<ReturnType<typeof useTournament>['tournament']>;
   matches: Match[];
   updateTournament: (data: Record<string, unknown>) => Promise<void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
+  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
   isTeamType: boolean;
   tournamentPlayers: Player[];
   teams: Team[];
@@ -3589,7 +3605,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                     </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                    {t(STATUS_LABEL_KEYS[match.status])}
+                    {STATUS_ICONS[match.status]} {t(STATUS_LABEL_KEYS[match.status])}
                   </span>
                   {match.status !== 'completed' && (
                     <button

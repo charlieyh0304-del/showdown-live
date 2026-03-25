@@ -24,9 +24,9 @@ export default function RefereeHome() {
   const myRefereeId = session?.refereeId;
 
   const STATUS_LABELS: Record<MatchStatus, string> = {
-    in_progress: t('common.matchStatus.inProgress'),
-    pending: t('common.matchStatus.pending'),
-    completed: t('common.matchStatus.completed'),
+    in_progress: `\u25B6 ${t('common.matchStatus.inProgress')}`,
+    pending: `\u23F3 ${t('common.matchStatus.pending')}`,
+    completed: `\u2713 ${t('common.matchStatus.completed')}`,
   };
 
   function getMatchLabel(match: Match): string {

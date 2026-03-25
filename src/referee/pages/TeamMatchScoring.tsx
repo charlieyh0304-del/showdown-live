@@ -39,7 +39,7 @@ export default function TeamMatchScoring() {
   const gameConfig = tournament
     ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
     : DEFAULT_TEAM_CONFIG;
-  const { canAct } = useDoubleClickGuard();
+  const { canAct, startProcessing, done } = useDoubleClickGuard();
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
@@ -328,7 +328,8 @@ export default function TeamMatchScoring() {
       updateData.currentSet = 0;
     }
 
-    await updateMatch(updateData);
+    const okWo = await updateMatch(updateData);
+    if (!okWo) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
 
     setLastAction(`${t('common.scoreActions.walkover')}: ${winnerName} (${reason})`);
     setAnnouncement(`${loserName} ${reason}. ${winnerName} ${t('common.scoreActions.walkover')}`);
@@ -346,6 +347,9 @@ export default function TeamMatchScoring() {
     if (!match?.sets || match.currentSet === undefined) return;
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout) return; // GAP-2
+
+    startProcessing();
+    try {
 
     const sets = [...match.sets.map(s => ({ ...s }))];
     const cs = { ...sets[0] };
@@ -438,35 +442,40 @@ export default function TeamMatchScoring() {
       const winnerId = setWinner === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
       cs.winnerId = winnerId;
       sets[0] = cs;
-      await updateMatch({
+      const ok1 = await updateMatch({
         sets, status: 'completed', winnerId,
         currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
         ...rotationUpdate,
       });
+      if (!ok1) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
       if (tournamentId) autoBackupToLocal(tournamentId);
       return;
     }
 
     // Side change (16 points)
     if (shouldSideChange('team', cs, match.sideChangeUsed ?? false, sets, gameConfig)) {
-      await updateMatch({
+      const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
         ...rotationUpdate,
       });
+      if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
       sideChangeTimer.start(60);
       setShowSideChange(true);
       return;
     }
 
-    await updateMatch({
+    const ok3 = await updateMatch({
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
       ...rotationUpdate,
     });
+    if (!ok3) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId]);
+
+    } finally { done(); }
+  }, [match, gameConfig, updateMatch, canAct, startProcessing, done, sideChangeTimer, tournamentId]);
 
   // Undo (GAP-10: include serve info in announce)
   const handleUndo = useCallback(async () => {
@@ -615,6 +624,8 @@ export default function TeamMatchScoring() {
 
     if (totalPenaltyCount % 2 === 0) {
       // 첫 번째: 경고만
+      startProcessing();
+      try {
       const currentSetData = match.sets?.[0];
       const scoreBefore = { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 };
       const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
@@ -636,13 +647,14 @@ export default function TeamMatchScoring() {
       await updateMatch({ scoreHistory: [warningEntry, ...prevHistory] });
       setLastAction(`⚠️ ${t('common.matchHistory.warning', { player: actorName, action: penaltyLabel })}`);
       setAnnouncement(t('common.matchHistory.warning', { player: actorName, action: penaltyLabel }));
+      } finally { done(); }
     } else {
-      // 2회 이상: 2점 실점
+      // 2회 이상: 2점 실점 (handleIBSAScore has its own startProcessing/done)
       const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
       const label = `${actorName} ${penaltyLabel}`;
       handleIBSAScore(actingTeam, penaltyType, 2, true, label);
     }
-  }, [match, canAct, handleIBSAScore, updateMatch]);
+  }, [match, canAct, startProcessing, done, handleIBSAScore, updateMatch]);
 
   // Substitution helpers
   const teamSize = tournament?.teamRules?.teamSize ?? 3;

@@ -1,4 +1,4 @@
-import { ref, update } from 'firebase/database';
+import { ref, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 
 const STORAGE_KEY = 'showdown_offline_queue';
@@ -7,6 +7,7 @@ export interface PendingUpdate {
   path: string;
   data: Record<string, unknown>;
   timestamp: number;
+  queuedAt: number;
 }
 
 function loadQueue(): PendingUpdate[] {
@@ -31,7 +32,8 @@ function saveQueue(queue: PendingUpdate[]): void {
  */
 export function queueUpdate(path: string, data: Record<string, unknown>): void {
   const queue = loadQueue();
-  queue.push({ path, data, timestamp: Date.now() });
+  const now = Date.now();
+  queue.push({ path, data, timestamp: now, queuedAt: now });
   saveQueue(queue);
 }
 
@@ -54,15 +56,20 @@ export async function flushQueue(): Promise<number> {
   const remaining: PendingUpdate[] = [];
   for (const item of queue) {
     try {
+      // Check if server data is newer than when we queued the update
+      const serverSnap = await get(ref(database, `${item.path}/updatedAt`));
+      const serverUpdatedAt = serverSnap.val();
+      if (serverUpdatedAt !== null && serverUpdatedAt > item.queuedAt) {
+        // Server data is newer - skip this stale update
+        continue;
+      }
       await update(ref(database, item.path), item.data);
     } catch {
-      // Keep this and all subsequent items for retry
+      // Keep failed items for retry
       remaining.push(item);
     }
   }
 
-  // If some items failed mid-way, also keep items we haven't tried yet
-  // (the loop above already pushes failed items to remaining)
   saveQueue(remaining);
   return remaining.length;
 }

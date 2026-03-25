@@ -37,7 +37,8 @@
       "dismissAlert": "Dismiss alert",
       "saveFailed": "An error occurred while saving.",
       "authFailed": "An error occurred during authentication.",
-      "tournamentCreateFailed": "An error occurred while creating the tournament."
+      "tournamentCreateFailed": "An error occurred while creating the tournament.",
+      "networkError": "Network error. Please check your connection and try again."
     },
 
     "connection": {
@@ -830,6 +831,10 @@
       "selectRefereeAriaLabel": "Select referee: {{name}}",
       "incorrectPin": "Incorrect PIN. Please try again.",
       "pinLength4": "Please enter a 4-digit PIN.",
+      "tooManyAttempts": "Too many attempts. Please try again in {{seconds}} seconds.",
+      "lockedMessage": "Incorrect PIN. Locked for {{seconds}} seconds due to too many attempts.",
+      "retryAfter": "You can try again in {{seconds}} seconds.",
+      "locked": "Locked",
       "practiceMode": "Practice Mode (no authentication required)",
       "practiceAriaLabel": "Start referee practice mode",
       "backToModeSelect": "Back to Mode Selection",

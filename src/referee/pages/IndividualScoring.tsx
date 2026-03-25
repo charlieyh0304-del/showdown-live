@@ -111,7 +111,7 @@ export default function IndividualScoring() {
   const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
   const { tournament } = useTournament(tournamentId ?? null);
 
-  const { canAct } = useDoubleClickGuard();
+  const { canAct, startProcessing, done } = useDoubleClickGuard();
 
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
@@ -469,7 +469,8 @@ export default function IndividualScoring() {
       updateData.currentSet = 0;
     }
 
-    await updateMatch(updateData);
+    const okWo = await updateMatch(updateData);
+    if (!okWo) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
 
     setLastAction(`${t('common.scoreActions.walkover')}: ${winnerName} (${reason})`);
     setAnnouncement(`${loserName} ${reason}. ${winnerName} ${t('common.scoreActions.walkover')}`);
@@ -490,6 +491,9 @@ export default function IndividualScoring() {
     if (showSetEndConfirm) return;
     if (showSideChange) return;
     if (showWarmup && warmupTimer.isRunning) return;
+
+    startProcessing();
+    try {
 
     const sets = [...match.sets.map(s => ({ ...s }))];
     const ci = match.currentSet;
@@ -560,10 +564,11 @@ export default function IndividualScoring() {
       setShowSetEndConfirm(true);
 
       // Save state first
-      await updateMatch({
+      const ok1 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
       });
+      if (!ok1) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); setShowSetEndConfirm(false); return; }
 
       // Show dialog message after 500ms delay (dialog already blocks via showSetEndConfirm)
       setTimeout(() => {
@@ -583,21 +588,25 @@ export default function IndividualScoring() {
 
     // Side change check
     if (shouldSideChange('individual', cs, match.sideChangeUsed ?? false, sets, gameConfig) && !match.activeTimeout) {
-      await updateMatch({
+      const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
       });
+      if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
       sideChangeTimer.start(60);
       setShowSideChange(true);
       return;
     }
 
-    await updateMatch({
+    const ok3 = await updateMatch({
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
     });
+    if (!ok3) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
     if (tournamentId) autoBackupDebounced(tournamentId);
-  }, [match, gameConfig, updateMatch, canAct, sideChangeTimer, tournamentId, showSetEndConfirm, showSideChange, showWarmup, warmupTimer]);
+
+    } finally { done(); }
+  }, [match, gameConfig, updateMatch, canAct, startProcessing, done, sideChangeTimer, tournamentId, showSetEndConfirm, showSideChange, showWarmup, warmupTimer]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(async () => {

@@ -3,8 +3,11 @@
     "config": {
       "adminPin": {
         ".read": true,
-        ".write": "auth != null",
+        ".write": "auth != null && (!data.exists() || newData.exists())",
         ".validate": "newData.isString() && newData.val().length >= 10"
+      },
+      "$other": {
+        ".validate": false
       }
     },
     "admins": {
@@ -13,7 +16,8 @@
         ".write": "auth != null",
         ".validate": "newData.hasChildren(['name', 'pin'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
-        "pin": { ".validate": "newData.isString() && newData.val().length >= 10" }
+        "pin": { ".validate": "newData.isString() && newData.val().length >= 10" },
+        "$other": { ".validate": false }
       }
     },
     "tournaments": {
@@ -31,8 +35,9 @@
       "$tournamentId": {
         ".write": "auth != null",
         "$matchId": {
-          ".validate": "newData.hasChildren(['tournamentId', 'status'])",
-          "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'in_progress' || newData.val() === 'completed' || newData.val() === 'cancelled')" }
+          ".validate": "newData.hasChildren(['tournamentId', 'status']) && (!data.child('updatedAt').exists() || !newData.child('updatedAt').exists() || newData.child('updatedAt').val() > data.child('updatedAt').val())",
+          "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'in_progress' || newData.val() === 'completed')" },
+          "$other": { ".validate": true }
         }
       }
     },
@@ -57,7 +62,8 @@
       "$playerId": {
         ".write": "auth != null",
         ".validate": "newData.hasChildren(['name'])",
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" }
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "$other": { ".validate": false }
       }
     },
     "referees": {
@@ -66,7 +72,8 @@
         ".write": "auth != null",
         ".validate": "newData.hasChildren(['name', 'pin'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
-        "pin": { ".validate": "newData.isString() && newData.val().length >= 10" }
+        "pin": { ".validate": "newData.isString() && newData.val().length >= 10" },
+        "$other": { ".validate": false }
       }
     },
     "courts": {
@@ -74,7 +81,8 @@
       "$courtId": {
         ".write": "auth != null",
         ".validate": "newData.hasChildren(['name'])",
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" }
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "$other": { ".validate": false }
       }
     },
     "notifications": {

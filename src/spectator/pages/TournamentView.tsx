@@ -238,7 +238,7 @@ export default function TournamentView() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 'bold' }}>{label}</span>
                   <span style={{ color: match.status === 'completed' ? '#22c55e' : match.status === 'in_progress' ? '#ef4444' : '#d1d5db', fontWeight: 'bold', fontSize: '0.875rem' }}>
-                    {match.status === 'completed' ? `${t('common.matchStatus.completed')} →` : match.status === 'in_progress' ? `${t('common.matchStatus.inProgress')} →` : t('common.matchStatus.pending')}
+                    {match.status === 'completed' ? `\u2713 ${t('common.matchStatus.completed')} \u2192` : match.status === 'in_progress' ? `\u25B6 ${t('common.matchStatus.inProgress')} \u2192` : `\u23F3 ${t('common.matchStatus.pending')}`}
                   </span>
                 </div>
               </button>
@@ -1255,7 +1255,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
             </div>
           ) : (
             <span style={{ color: match.status === 'in_progress' ? '#ef4444' : '#9ca3af', fontWeight: 'bold' }}>
-              {match.status === 'in_progress' ? t('common.matchStatus.inProgress') : 'vs'}
+              {match.status === 'in_progress' ? `\u25B6 ${t('common.matchStatus.inProgress')}` : 'vs'}
             </span>
           )}
         </div>
@@ -1567,7 +1567,7 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
           ))
         ) : (
           <span style={{ color: '#9ca3af' }}>
-            {match.status === 'in_progress' ? t('common.matchStatus.inProgress') : 'vs'}
+            {match.status === 'in_progress' ? `\u25B6 ${t('common.matchStatus.inProgress')}` : 'vs'}
           </span>
         )}
       </div>
@@ -1618,8 +1618,8 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
   function getCellContent(p1Id: string, p2Id: string): { text: string; bg: string } {
     if (p1Id === p2Id) return { text: '-', bg: '#374151' };
     const match = resultMap.get(`${p1Id}_${p2Id}`);
-    if (!match) return { text: t('common.matchStatus.pending'), bg: 'transparent' };
-    if (match.status !== 'completed') return { text: t('common.matchStatus.inProgress'), bg: '#1e3a5f' };
+    if (!match) return { text: `\u23F3 ${t('common.matchStatus.pending')}`, bg: 'transparent' };
+    if (match.status !== 'completed') return { text: `\u25B6 ${t('common.matchStatus.inProgress')}`, bg: '#1e3a5f' };
 
     const isP1 = match.player1Id === p1Id;
     const won = match.winnerId === p1Id;
@@ -1781,7 +1781,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 color: '#fff',
                 marginLeft: '0.75rem',
               }}>
-                {match.status === 'completed' ? t('common.matchStatus.completed') : match.status === 'in_progress' ? t('common.matchStatus.inProgress') : t('common.matchStatus.pending')}
+                {match.status === 'completed' ? `\u2713 ${t('common.matchStatus.completed')}` : match.status === 'in_progress' ? `\u25B6 ${t('common.matchStatus.inProgress')}` : `\u23F3 ${t('common.matchStatus.pending')}`}
               </span>
             </div>
           </li>
@@ -2550,7 +2550,7 @@ function HistoryMatchStatusBadge({ status }: { status: string }) {
         backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#eab308', border: '1px solid rgba(234, 179, 8, 0.3)',
       }}>
         <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#eab308' }} />
-        {t('common.matchStatus.inProgress')}
+        {'\u25B6'} {t('common.matchStatus.inProgress')}
       </span>
     );
   }
@@ -2561,7 +2561,7 @@ function HistoryMatchStatusBadge({ status }: { status: string }) {
         padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
         backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)',
       }}>
-        {t('common.matchStatus.completed')}
+        {'\u2713'} {t('common.matchStatus.completed')}
       </span>
     );
   }
@@ -2571,7 +2571,7 @@ function HistoryMatchStatusBadge({ status }: { status: string }) {
       padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
       backgroundColor: 'rgba(107, 114, 128, 0.15)', color: '#9ca3af', border: '1px solid rgba(107, 114, 128, 0.3)',
     }}>
-      {t('common.matchStatus.pending')}
+      {'\u23F3'} {t('common.matchStatus.pending')}
     </span>
   );
 }

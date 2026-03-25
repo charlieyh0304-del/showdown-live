@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useTournaments, useReferees } from '@shared/hooks/useFirebase';
+import { createRateLimiter } from '@shared/utils/crypto';
 import type { Tournament, Referee, TournamentStatus } from '@shared/types';
 
 type Step = 'tournament' | 'referee' | 'pin';
@@ -28,6 +29,21 @@ export default function RefereeLogin() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  // 레이트 리미터 (5회 실패 시 30초 잠금)
+  const rateLimiter = useMemo(() => createRateLimiter(5, 30000), []);
+
+  // 잠금 타이머 업데이트
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = rateLimiter.remainingLockout();
+      setLockoutSeconds(Math.ceil(remaining / 1000));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [rateLimiter]);
+
+  const isLocked = lockoutSeconds > 0;
 
   const activeTournaments = tournaments.filter(t => t.status !== 'completed');
 
@@ -58,18 +74,33 @@ export default function RefereeLogin() {
       setError(t('referee.login.pinLength4'));
       return;
     }
+    if (!rateLimiter.canAttempt()) {
+      setError(t('referee.login.tooManyAttempts', { seconds: Math.ceil(rateLimiter.remainingLockout() / 1000) }));
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
       const success = await loginReferee(selectedReferee.id, pin, selectedTournament.id);
       if (success) {
+        rateLimiter.recordSuccess();
         navigate('/referee/games');
       } else {
-        setError(t('referee.login.incorrectPin'));
+        rateLimiter.recordFailure();
+        const remaining = rateLimiter.remainingLockout();
+        if (remaining > 0) {
+          setError(t('referee.login.lockedMessage', { seconds: Math.ceil(remaining / 1000) }));
+        } else {
+          setError(t('referee.login.incorrectPin'));
+        }
         setPin('');
       }
-    } catch {
-      setError(t('common.error.authFailed'));
+    } catch (err) {
+      if (err instanceof Error && err.message === 'NETWORK_TIMEOUT') {
+        setError(t('common.error.networkError'));
+      } else {
+        setError(t('common.error.authFailed'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -190,14 +221,20 @@ export default function RefereeLogin() {
               placeholder={t('referee.login.pinPlaceholder')}
               autoFocus
               aria-label={t('referee.login.pinAriaLabel')}
+              disabled={isLocked}
             />
+            {isLocked && (
+              <p className="text-orange-400 font-semibold text-center mb-4" role="alert">
+                {t('referee.login.retryAfter', { seconds: lockoutSeconds })}
+              </p>
+            )}
             <button
               className="btn btn-primary btn-large w-full"
               onClick={handleSubmitPin}
-              disabled={pin.length !== 4 || submitting}
+              disabled={pin.length !== 4 || submitting || isLocked}
               aria-label={t('referee.login.loginAriaLabel')}
             >
-              {submitting ? t('referee.login.authenticating') : t('referee.login.loginButton')}
+              {submitting ? t('referee.login.authenticating') : isLocked ? t('referee.login.locked') : t('referee.login.loginButton')}
             </button>
           </div>
         )}

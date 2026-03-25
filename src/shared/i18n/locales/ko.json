@@ -37,7 +37,8 @@
       "dismissAlert": "알림 닫기",
       "saveFailed": "저장 중 오류가 발생했습니다.",
       "authFailed": "인증 중 오류가 발생했습니다.",
-      "tournamentCreateFailed": "대회 생성 중 오류가 발생했습니다."
+      "tournamentCreateFailed": "대회 생성 중 오류가 발생했습니다.",
+      "networkError": "네트워크 오류입니다. 연결을 확인하고 다시 시도해주세요."
     },
 
     "connection": {
@@ -830,6 +831,10 @@
       "selectRefereeAriaLabel": "심판 선택: {{name}}",
       "incorrectPin": "PIN이 올바르지 않습니다. 다시 시도해주세요.",
       "pinLength4": "4자리 PIN을 입력해주세요.",
+      "tooManyAttempts": "너무 많은 시도가 있었습니다. {{seconds}}초 후 다시 시도해주세요.",
+      "lockedMessage": "PIN이 올바르지 않습니다. 너무 많은 시도로 {{seconds}}초간 잠금됩니다.",
+      "retryAfter": "{{seconds}}초 후 다시 시도할 수 있습니다.",
+      "locked": "잠금됨",
       "practiceMode": "연습 모드 (인증 불필요)",
       "practiceAriaLabel": "심판 연습 모드 시작",
       "backToModeSelect": "모드 선택으로",

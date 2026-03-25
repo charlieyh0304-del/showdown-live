@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, onValue, set, push, remove, update } from 'firebase/database';
+import { ref, onValue, set, push, remove, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 import { queueUpdate } from '../utils/offlineQueue';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
@@ -256,17 +256,30 @@ export function useMatches(tournamentId: string | null) {
     return newRef.key;
   }, [tournamentId]);
 
-  const updateMatch = useCallback(async (matchId: string, data: Partial<Match>) => {
-    if (!tournamentId) return;
+  const updateMatch = useCallback(async (matchId: string, data: Partial<Match>): Promise<boolean> => {
+    if (!tournamentId) return false;
     const path = `matches/${tournamentId}/${matchId}`;
-    const payload = { ...data, updatedAt: Date.now() };
+    const now = Date.now();
+    const payload = { ...data, updatedAt: now };
     try {
+      // Optimistic concurrency: check if server updatedAt matches local
+      const localUpdatedAt = matches.find(m => m.id === matchId)?.updatedAt;
+      if (localUpdatedAt !== undefined) {
+        const snap = await get(ref(database, `${path}/updatedAt`));
+        const serverUpdatedAt = snap.val();
+        if (serverUpdatedAt !== null && serverUpdatedAt !== localUpdatedAt) {
+          // Conflict: server data was modified by another client
+          return false;
+        }
+      }
       await update(ref(database, path), payload);
+      return true;
     } catch {
       // Offline or network error - queue for later sync
       queueUpdate(path, payload as Record<string, unknown>);
+      return true;
     }
-  }, [tournamentId]);
+  }, [tournamentId, matches]);
 
   const deleteMatch = useCallback(async (matchId: string) => {
     if (!tournamentId) return;
@@ -275,15 +288,17 @@ export function useMatches(tournamentId: string | null) {
 
   const setMatchesBulk = useCallback(async (newMatches: Omit<Match, 'id'>[]): Promise<string[]> => {
     if (!tournamentId) return [];
-    await remove(ref(database, `matches/${tournamentId}`));
+    // Build a single object with all matches keyed by push IDs for atomic write
+    const bulkData: Record<string, unknown> = {};
     const ids: string[] = [];
     for (const match of newMatches) {
-      // undefined 값 제거 (Firebase는 undefined를 거부)
       const clean = JSON.parse(JSON.stringify(match));
       const newRef = push(ref(database, `matches/${tournamentId}`));
-      await set(newRef, clean);
+      bulkData[newRef.key!] = clean;
       ids.push(newRef.key!);
     }
+    // Atomic: replaces entire node in one call (no remove + loop)
+    await set(ref(database, `matches/${tournamentId}`), bulkData);
     return ids;
   }, [tournamentId]);
 
@@ -311,17 +326,30 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
     return () => unsub();
   }, [tournamentId, matchId]);
 
-  const updateMatch = useCallback(async (data: Partial<Match>) => {
-    if (!tournamentId || !matchId) return;
+  const updateMatch = useCallback(async (data: Partial<Match>): Promise<boolean> => {
+    if (!tournamentId || !matchId) return false;
     const path = `matches/${tournamentId}/${matchId}`;
-    const payload = { ...data, updatedAt: Date.now() };
+    const now = Date.now();
+    const payload = { ...data, updatedAt: now };
     try {
+      // Optimistic concurrency: check if server updatedAt matches local
+      const localUpdatedAt = match?.updatedAt;
+      if (localUpdatedAt !== undefined) {
+        const snap = await get(ref(database, `${path}/updatedAt`));
+        const serverUpdatedAt = snap.val();
+        if (serverUpdatedAt !== null && serverUpdatedAt !== localUpdatedAt) {
+          // Conflict: server data was modified by another client
+          return false;
+        }
+      }
       await update(ref(database, path), payload);
+      return true;
     } catch {
       // Offline or network error - queue for later sync
       queueUpdate(path, payload as Record<string, unknown>);
+      return true;
     }
-  }, [tournamentId, matchId]);
+  }, [tournamentId, matchId, match]);
 
   return { match, loading, updateMatch };
 }
@@ -347,10 +375,12 @@ export function useTeams(tournamentId: string | null) {
 
   const setTeamsBulk = useCallback(async (newTeams: Team[]) => {
     if (!tournamentId) return;
-    await remove(ref(database, `teams/${tournamentId}`));
+    // Build a single object for atomic write (no remove + loop)
+    const bulkData: Record<string, Team> = {};
     for (const team of newTeams) {
-      await set(ref(database, `teams/${tournamentId}/${team.id}`), team);
+      bulkData[team.id] = team;
     }
+    await set(ref(database, `teams/${tournamentId}`), bulkData);
   }, [tournamentId]);
 
   return { teams, loading, setTeamsBulk };
@@ -450,11 +480,13 @@ export function useSchedule(tournamentId: string | null) {
 
   const setScheduleBulk = useCallback(async (slots: Omit<ScheduleSlot, 'id'>[]) => {
     if (!tournamentId) return;
-    await remove(ref(database, `schedule/${tournamentId}`));
+    // Build a single object for atomic write (no remove + loop)
+    const bulkData: Record<string, Omit<ScheduleSlot, 'id'>> = {};
     for (const slot of slots) {
       const newRef = push(ref(database, `schedule/${tournamentId}`));
-      await set(newRef, slot);
+      bulkData[newRef.key!] = slot;
     }
+    await set(ref(database, `schedule/${tournamentId}`), bulkData);
   }, [tournamentId]);
 
   return { schedule, loading, setScheduleBulk };
