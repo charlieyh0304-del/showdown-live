@@ -1317,6 +1317,29 @@ export default function IndividualScoring() {
           </div>
         </div>
 
+        {/* Dead Ball - both players */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-400 mb-2">🔵 {t('common.matchHistory.deadBall', { server: '' })}</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
+              onClick={() => handleDeadBall(1)}
+              aria-label={t('common.matchHistory.deadBall', { server: player1Name })}
+            >
+              {player1Name} {t('common.matchHistory.deadBall', { server: '' })}
+            </button>
+            <button
+              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
+              onClick={() => handleDeadBall(2)}
+              aria-label={t('common.matchHistory.deadBall', { server: player2Name })}
+            >
+              {player2Name} {t('common.matchHistory.deadBall', { server: '' })}
+            </button>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex gap-3">
           <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0} aria-label={t('common.cancel')}>
@@ -1387,29 +1410,6 @@ export default function IndividualScoring() {
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Dead Ball - both players */}
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">🔵 {t('common.matchHistory.deadBall', { server: '' })}</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
-              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
-              onClick={() => handleDeadBall(1)}
-              aria-label={t('common.matchHistory.deadBall', { server: player1Name })}
-            >
-              {player1Name} {t('common.matchHistory.deadBall', { server: '' })}
-            </button>
-            <button
-              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
-              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
-              onClick={() => handleDeadBall(2)}
-              aria-label={t('common.matchHistory.deadBall', { server: player2Name })}
-            >
-              {player2Name} {t('common.matchHistory.deadBall', { server: '' })}
-            </button>
           </div>
         </div>
 

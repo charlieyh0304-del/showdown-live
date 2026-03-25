@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { getLocale } from '@shared/utils/locale';
 import { usePracticeMatch } from '../../hooks/usePracticeMatch';
 import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import {
@@ -103,6 +104,17 @@ export default function PracticeScoring() {
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
   const subModalTrapRef = useFocusTrap(showSubModal);
 
+  // TTS helper
+  function speak(text: string) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = getLocale();
+      utterance.rate = 1.2;
+      window.speechSynthesis.speak(utterance);
+    }
+  }
+
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
   const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
@@ -113,6 +125,7 @@ export default function PracticeScoring() {
     if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
@@ -121,6 +134,7 @@ export default function PracticeScoring() {
     if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
@@ -128,18 +142,16 @@ export default function PracticeScoring() {
   useEffect(() => {
     if (warmupTimer.isRunning) {
       if (matchType === 'team') {
-        if (warmupTimer.seconds === 60) {
-          setLastAction('⚠️ 30');
-          setAnnouncement('30');
-        }
         if (warmupTimer.seconds === 30) {
-          setLastAction('⚠️ 30');
-          setAnnouncement('30');
+          setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
+          setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+          speak(t('referee.scoring.fifteenSecondsLeft'));
         }
       } else {
         if (warmupTimer.seconds === 15) {
-          setLastAction('⚠️ 15');
-          setAnnouncement('15');
+          setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
+          setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+          speak(t('referee.scoring.fifteenSecondsLeft'));
         }
       }
     }
@@ -571,11 +583,11 @@ export default function PracticeScoring() {
   }, [match, updateMatch, addAction, p1Name, p2Name, timeoutTimer]);
 
   // 벌점 핸들러: 경고 카운트를 scoreHistory에서 동적 계산
+  // Note: canAct() is NOT called here to avoid double-guard with handleIBSAScore
   const handlePenalty = useCallback((
     actingPlayer: 1 | 2,
     penaltyType: 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking',
   ) => {
-    if (!canAct()) return;
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout || showSideChange) return;
 
@@ -1144,6 +1156,29 @@ export default function PracticeScoring() {
           </div>
         </div>
 
+        {/* Dead Ball */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-400 mb-2">🔵 {t('common.matchHistory.deadBall', { server: '' })}</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+              onClick={() => handleDeadBall(1)}
+              aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p1Name })}
+            >
+              {p1Name} {t('common.matchHistory.deadBall', { server: '' })}
+            </button>
+            <button
+              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+              onClick={() => handleDeadBall(2)}
+              aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p2Name })}
+            >
+              {p2Name} {t('common.matchHistory.deadBall', { server: '' })}
+            </button>
+          </div>
+        </div>
+
         {/* History (set-grouped) */}
         <div>
           <button
@@ -1258,22 +1293,6 @@ export default function PracticeScoring() {
               🔄 {t('referee.practice.scoring.substitutionButton', { name: p2Name })}
             </button>
           )}
-          <button
-            className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
-            onClick={() => handleDeadBall(1)}
-            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p1Name })}
-          >
-            🔵 {t('referee.practice.scoring.deadBallButton', { name: p1Name })}
-          </button>
-          <button
-            className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
-            onClick={() => handleDeadBall(2)}
-            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p2Name })}
-          >
-            🔵 {t('referee.practice.scoring.deadBallButton', { name: p2Name })}
-          </button>
           {!isPausedLocal && (
             <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 text-sm" onClick={handlePause} aria-label={t('referee.practice.scoring.pauseAriaLabel')}>
               ⏸️ {t('referee.practice.scoring.pauseButton')}
