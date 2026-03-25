@@ -90,6 +90,12 @@ export default function RefereeHome() {
     ].filter(g => g.matches.length > 0);
   }, [myMatches]);
 
+  // Group allScheduledMatches by date (must be before early returns to satisfy hooks rules)
+  const allScheduleDateGroups = useMemo(() => {
+    const dates = [...new Set(allScheduledMatches.map(m => m.scheduledDate || ''))].sort();
+    return dates;
+  }, [allScheduledMatches]);
+
   const handleMatchClick = (match: Match) => {
     if (match.type === 'team') {
       navigate(`/referee/team/${tournamentId}/${match.id}`);
@@ -142,12 +148,6 @@ export default function RefereeHome() {
       </button>
     );
   };
-
-  // Group allScheduledMatches by date
-  const allScheduleDateGroups = useMemo(() => {
-    const dates = [...new Set(allScheduledMatches.map(m => m.scheduledDate || ''))].sort();
-    return dates;
-  }, [allScheduledMatches]);
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
