@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ModeSelector from './ModeSelector';
@@ -14,8 +14,14 @@ const RefereeRoutes = lazy(() => import('../referee/RefereeRoutes'));
 const SpectatorRoutes = lazy(() => import('../spectator/SpectatorRoutes'));
 
 function AppContent() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const routeAnnouncement = useRouteAnnouncer();
+
+  // Update page title and lang attribute when language changes
+  useEffect(() => {
+    document.title = t('common.appName') + ' - ' + t('common.appDescription');
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language, t]);
 
   return (
     <>

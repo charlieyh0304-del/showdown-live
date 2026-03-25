@@ -11,7 +11,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>쇼다운 대회 관리</title>
+    <title>Showdown</title>
     <script>
       // 1) 이전 커스텀 service-worker.js 강제 해제 (showdown-v* 캐시 사용하던 SW)
       (function() {
@@ -64,21 +64,27 @@
           manifest.rel = 'manifest';
           document.head.appendChild(manifest);
         }
+        var lang = localStorage.getItem('showdown_language') || 'ko';
+        var titles = {
+          ko: { spectator: '쇼다운 관람', referee: '쇼다운 심판', admin: '쇼다운 관리' },
+          en: { spectator: 'Showdown Spectator', referee: 'Showdown Referee', admin: 'Showdown Admin' }
+        };
+        var t = titles[lang] || titles.ko;
         if (path.indexOf('/spectator') !== -1) {
           manifest.href = base + '/manifest-spectator.json';
-          document.title = '쇼다운 관람';
+          document.title = t.spectator;
           document.querySelector('meta[name="theme-color"]').content = '#1a73e8';
-          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관람';
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = t.spectator;
         } else if (path.indexOf('/referee') !== -1) {
           manifest.href = base + '/manifest-referee.json';
-          document.title = '쇼다운 심판';
+          document.title = t.referee;
           document.querySelector('meta[name="theme-color"]').content = '#f59e0b';
-          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 심판';
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = t.referee;
         } else if (path.indexOf('/admin') !== -1) {
           manifest.href = base + '/manifest-admin.json';
-          document.title = '쇼다운 관리';
+          document.title = t.admin;
           document.querySelector('meta[name="theme-color"]').content = '#ef4444';
-          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관리';
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = t.admin;
         } else {
           // Default: use the VitePWA-generated manifest
           manifest.href = base + '/manifest.webmanifest';
