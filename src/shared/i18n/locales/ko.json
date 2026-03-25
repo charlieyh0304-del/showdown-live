@@ -957,7 +957,17 @@
         "startAriaLabel": "연습 시작",
         "history": "연습 기록",
         "historyDescription": "지금까지의 연습 기록을 확인합니다",
-        "historyAriaLabel": "연습 기록"
+        "historyAriaLabel": "연습 기록",
+        "resumeMatch": "진행중 경기 복귀",
+        "resumeDescription": "{{p1}} vs {{p2}}",
+        "resumeAriaLabel": "진행중인 연습 경기로 복귀",
+        "deleteMatch": "삭제",
+        "deleteMatchConfirm": "이 경기를 삭제하시겠습니까?",
+        "completedMatches": "완료된 연습 경기",
+        "noCompletedMatches": "완료된 연습 경기가 없습니다",
+        "matchScore": "{{score}}",
+        "deleteAll": "전체 삭제",
+        "deleteAllConfirm": "완료된 연습 경기를 모두 삭제하시겠습니까?"
       },
       "setup": {
         "title": "연습 경기 설정",

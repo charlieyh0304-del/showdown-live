@@ -957,7 +957,17 @@
         "startAriaLabel": "Start practice",
         "history": "Practice History",
         "historyDescription": "Review your practice history",
-        "historyAriaLabel": "Practice history"
+        "historyAriaLabel": "Practice history",
+        "resumeMatch": "Resume Match",
+        "resumeDescription": "{{p1}} vs {{p2}}",
+        "resumeAriaLabel": "Resume in-progress practice match",
+        "deleteMatch": "Delete",
+        "deleteMatchConfirm": "Delete this match?",
+        "completedMatches": "Completed Practice Matches",
+        "noCompletedMatches": "No completed practice matches",
+        "matchScore": "{{score}}",
+        "deleteAll": "Delete All",
+        "deleteAllConfirm": "Delete all completed practice matches?"
       },
       "setup": {
         "title": "Practice Match Setup",

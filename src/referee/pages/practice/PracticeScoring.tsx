@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { speak } from '@shared/utils/locale';
-import { usePracticeMatch } from '../../hooks/usePracticeMatch';
+import { usePracticeMatch, loadSavedPracticeMatch } from '../../hooks/usePracticeMatch';
 import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import {
   checkSetWinner,
@@ -56,13 +56,18 @@ export default function PracticeScoring() {
   const team1Members: string[] = matchType === 'team' ? JSON.parse(searchParams.get('t1m') || '[]') : [];
   const team2Members: string[] = matchType === 'team' ? JSON.parse(searchParams.get('t2m') || '[]') : [];
 
+  // Resume support: load saved match if resume=true
+  const isResume = searchParams.get('resume') === 'true';
+  const [savedMatch] = useState<PracticeMatch | null>(() => isResume ? loadSavedPracticeMatch() : null);
+
   const { match, updateMatch, startMatch, addAction } = usePracticeMatch({
-    matchType,
-    player1Name: p1Name,
-    player2Name: p2Name,
-    config,
-    team1Members,
-    team2Members,
+    matchType: savedMatch?.type || matchType,
+    player1Name: savedMatch?.player1Name || p1Name,
+    player2Name: savedMatch?.player2Name || p2Name,
+    config: savedMatch?.gameConfig || config,
+    team1Members: savedMatch?.team1Members || team1Members,
+    team2Members: savedMatch?.team2Members || team2Members,
+    resumeMatch: savedMatch,
   });
 
   const [announcement, setAnnouncement] = useState('');
