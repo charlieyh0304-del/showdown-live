@@ -28,6 +28,17 @@ import ActionToast from '../components/ActionToast';
 type PenaltyDropdownKey = 'player1' | 'player2' | null;
 type TimeoutDropdownKey = 'player1' | 'player2' | null;
 
+// TTS helper: speak text using Web Speech API
+function speak(text: string) {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ko-KR';
+    utterance.rate = 1.2;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
 // Referee timeout elapsed timer component
 function TimeoutModal({ match, player1Name, player2Name, timeoutTimer, onClose }: {
   match: { activeTimeout?: { playerId: string; startTime: number; type?: 'player' | 'medical' | 'referee' } | null; player1Id?: string };
@@ -148,6 +159,7 @@ export default function IndividualScoring() {
       timeoutAlerted.current = true;
       setLastAction('⚠️ 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
+      speak('15초 남았습니다');
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
@@ -162,6 +174,7 @@ export default function IndividualScoring() {
       sideChangeAlerted.current = true;
       setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
       setAnnouncement('15초 남았습니다');
+      speak('15초 남았습니다');
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
@@ -176,6 +189,7 @@ export default function IndividualScoring() {
       warmupAlerted.current = true;
       setLastAction('⚠️ 워밍업 15초 남았습니다');
       setAnnouncement('워밍업 15초 남았습니다');
+      speak('워밍업 15초 남았습니다');
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
@@ -670,7 +684,7 @@ export default function IndividualScoring() {
     actingPlayer: 1 | 2,
     penaltyType: 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking',
   ) => {
-    if (!canAct()) return;
+    // Note: canAct() is NOT called here to avoid double-guard with handleIBSAScore
     if (!match?.sets || match.currentSet === undefined) return;
     if (match.status !== 'in_progress' || match.isPaused) return;
     if (match.activeTimeout) return;
@@ -733,7 +747,7 @@ export default function IndividualScoring() {
     }
 
     setPenaltyDropdown(null);
-  }, [match, canAct, handleIBSAScore, updateMatch, showSetEndConfirm, showSideChange, showWarmup, warmupTimer]);
+  }, [match, handleIBSAScore, updateMatch, showSetEndConfirm, showSideChange, showWarmup, warmupTimer]);
 
   // Timeout with type
   const handleTimeout = useCallback(async (player: 1 | 2, timeoutType: 'player' | 'medical' | 'referee') => {
