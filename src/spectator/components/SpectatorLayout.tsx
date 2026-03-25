@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
-import LanguageToggle from '@shared/components/LanguageToggle';
 
 interface SpectatorLayoutProps {
   children: ReactNode;
@@ -51,7 +50,6 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
         >
           {t('spectator.layout.headerTitle')}
         </span>
-        <LanguageToggle />
       </header>
 
       {/* Main content area */}

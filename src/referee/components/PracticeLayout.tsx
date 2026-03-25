@@ -1,7 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ModeBadge from '@shared/components/ModeBadge';
-import LanguageToggle from '@shared/components/LanguageToggle';
 
 export default function PracticeLayout() {
   const { t } = useTranslation();
@@ -24,7 +23,6 @@ export default function PracticeLayout() {
       </div>
       <header className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900" role="banner">
         <ModeBadge mode="practice" />
-        <LanguageToggle />
         <button
           className="btn btn-accent"
           onClick={() => navigate('/referee')}

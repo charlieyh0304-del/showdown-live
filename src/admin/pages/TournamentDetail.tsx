@@ -93,7 +93,7 @@ export default function TournamentDetail() {
     return (
       <div className="text-center py-20">
         <p className="text-2xl text-red-500">{t('admin.tournamentDetail.notFound')}</p>
-        <button className="btn btn-primary mt-4" onClick={() => navigate('/admin')} aria-label="{t('admin.tournamentDetail.backToDashboard')}">
+        <button className="btn btn-primary mt-4" onClick={() => navigate('/admin')} aria-label={t('admin.tournamentDetail.backToDashboard')}>
           {t('admin.tournamentDetail.backToDashboard')}
         </button>
       </div>
@@ -799,7 +799,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
           <button
             className="btn btn-secondary"
             onClick={() => setShowGlobalModal(true)}
-            aria-label="{t('admin.tournamentDetail.playersTab.importFromGlobal')}"
+            aria-label={t('admin.tournamentDetail.playersTab.importFromGlobal')}
           >
             {t('admin.tournamentDetail.playersTab.importFromGlobal')}
           </button>

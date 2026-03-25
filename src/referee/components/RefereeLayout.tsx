@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useTournament } from '@shared/hooks/useFirebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
-import LanguageToggle from '@shared/components/LanguageToggle';
 
 export default function RefereeLayout() {
   const { t } = useTranslation();
@@ -31,7 +30,6 @@ export default function RefereeLayout() {
             <span className="text-gray-400 text-sm">{tournament.name}</span>
           )}
         </div>
-        <LanguageToggle />
         <button
           className="btn btn-danger"
           onClick={handleLogout}

@@ -6,7 +6,6 @@ import { hashPin, createRateLimiter } from '@shared/utils/crypto';
 import { ref, set } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
-import LanguageToggle from '@shared/components/LanguageToggle';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -76,7 +75,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {t('admin.nav.settings')}
         </NavLink>
         <div className="flex-1" />
-        <LanguageToggle />
         <button
           className="btn btn-danger"
           onClick={() => {
