@@ -372,21 +372,25 @@ export function useMatches(tournamentId: string | null) {
     }
     const payload = { ...data, updatedAt: now };
     try {
-      const localUpdatedAt = stableMatches.find(m => m.id === matchId)?.updatedAt;
       const result = await runTransaction(ref(database, path), (currentData) => {
-        if (currentData === null) return payload; // First write
-        if (localUpdatedAt !== undefined && currentData.updatedAt && currentData.updatedAt !== localUpdatedAt) {
-          return; // Abort - conflict detected
+        if (currentData === null) return payload;
+        // Merge: always apply changes on top of server's latest state
+        // For scoreHistory, append new entries from payload to server's existing history
+        const merged = { ...currentData, ...payload };
+        if (payload.scoreHistory && currentData.scoreHistory) {
+          const serverHistory = Array.isArray(currentData.scoreHistory) ? currentData.scoreHistory : Object.values(currentData.scoreHistory);
+          const newHistory = payload.scoreHistory as unknown[];
+          // Merge: use the longer/newer history (contains all entries)
+          merged.scoreHistory = newHistory.length >= serverHistory.length ? newHistory : serverHistory;
         }
-        return { ...currentData, ...payload };
+        return merged;
       });
       return result.committed;
     } catch {
-      // Offline or network error - queue for later sync
       queueUpdate(path, payload as Record<string, unknown>);
       return true;
     }
-  }, [tournamentId, stableMatches]);
+  }, [tournamentId]);
 
   const deleteMatch = useCallback(async (matchId: string) => {
     if (!tournamentId) return;
@@ -458,21 +462,23 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
     }
     const payload = { ...data, updatedAt: now };
     try {
-      const localUpdatedAt = match?.updatedAt;
       const result = await runTransaction(ref(database, path), (currentData) => {
-        if (currentData === null) return payload; // First write
-        if (localUpdatedAt !== undefined && currentData.updatedAt && currentData.updatedAt !== localUpdatedAt) {
-          return; // Abort - conflict detected
+        if (currentData === null) return payload;
+        // Merge: always apply changes on top of server's latest state
+        const merged = { ...currentData, ...payload };
+        if (payload.scoreHistory && currentData.scoreHistory) {
+          const serverHistory = Array.isArray(currentData.scoreHistory) ? currentData.scoreHistory : Object.values(currentData.scoreHistory);
+          const newHistory = payload.scoreHistory as unknown[];
+          merged.scoreHistory = newHistory.length >= serverHistory.length ? newHistory : serverHistory;
         }
-        return { ...currentData, ...payload };
+        return merged;
       });
       return result.committed;
     } catch {
-      // Offline or network error - queue for later sync
       queueUpdate(path, payload as Record<string, unknown>);
       return true;
     }
-  }, [tournamentId, matchId, match]);
+  }, [tournamentId, matchId]);
 
   return { match, loading, updateMatch };
 }
