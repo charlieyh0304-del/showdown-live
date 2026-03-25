@@ -185,6 +185,31 @@
       "group": "groups"
     },
 
+    "pdf": {
+      "download": "Scoresheet PDF",
+      "generating": "Generating PDF...",
+      "matchScoresheet": "Match Scoresheet",
+      "date": "Tournament Date",
+      "matchDate": "Match Date/Time",
+      "court": "Court",
+      "referee": "Head Referee",
+      "assistantReferee": "Asst. Referee",
+      "round": "Round",
+      "coach": "Coach",
+      "coinToss": "Coin Toss",
+      "serve": "Serve",
+      "receive": "Receive",
+      "setResults": "Set Results",
+      "setNum": "Set",
+      "winner": "Winner",
+      "finalResult": "Final Result",
+      "playByPlay": "Play-by-Play Record",
+      "time": "Time",
+      "action": "Action",
+      "pts": "Pts",
+      "generatedAt": "Generated at"
+    },
+
     "numberStepper": {
       "decrease": "Decrease {{label}}",
       "increase": "Increase {{label}}",

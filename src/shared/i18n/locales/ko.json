@@ -185,6 +185,31 @@
       "group": "조"
     },
 
+    "pdf": {
+      "download": "기록지 PDF",
+      "generating": "PDF 생성 중...",
+      "matchScoresheet": "경기 기록지",
+      "date": "대회 날짜",
+      "matchDate": "경기 일시",
+      "court": "경기장",
+      "referee": "주심",
+      "assistantReferee": "부심",
+      "round": "라운드",
+      "coach": "코치",
+      "coinToss": "동전던지기",
+      "serve": "서브",
+      "receive": "리시브",
+      "setResults": "세트 결과",
+      "setNum": "세트",
+      "winner": "승자",
+      "finalResult": "최종 결과",
+      "playByPlay": "경기 상세 기록",
+      "time": "시간",
+      "action": "내용",
+      "pts": "득점",
+      "generatedAt": "생성 시각"
+    },
+
     "numberStepper": {
       "decrease": "{{label}} 감소",
       "increase": "{{label}} 증가",

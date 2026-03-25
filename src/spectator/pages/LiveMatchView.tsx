@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import { countSetWins, getEffectiveGameConfig, getMaxServes } from '@shared/utils/scoring';
 import type { ScoreHistoryEntry } from '@shared/types';
+import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 
 export default function LiveMatchView() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
@@ -97,10 +98,11 @@ export default function LiveMatchView() {
       )}
 
       {/* 경기장/심판 */}
-      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db' }}>
+      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db', alignItems: 'center' }}>
         {match.courtName && <span>{t('spectator.liveMatch.court')}: {match.courtName}</span>}
         {match.refereeName && <span>{t('spectator.liveMatch.mainReferee')}: {match.refereeName}</span>}
         {match.assistantRefereeName && <span>{t('spectator.liveMatch.assistantReferee')}: {match.assistantRefereeName}</span>}
+        {isCompleted && <PdfDownloadButton match={match} tournament={tournament ? { name: tournament.name, date: tournament.date } : null} className="btn btn-secondary text-sm" />}
       </div>
 
       {/* 경기 기록 (최신순/시간순 토글) */}

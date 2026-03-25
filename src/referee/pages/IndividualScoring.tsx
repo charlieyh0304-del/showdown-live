@@ -25,6 +25,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
+import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import ActionToast from '../components/ActionToast';
 
 type PenaltyDropdownKey = 'player1' | 'player2' | null;
@@ -1016,8 +1017,9 @@ export default function IndividualScoring() {
             <ScoreHistoryView history={history} sets={match.sets ?? []} />
           </div>
         )}
-        <div className="text-center mt-4">
+        <div className="text-center mt-4 flex gap-3 justify-center">
           <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
+          <PdfDownloadButton match={match} tournament={tournament ? { name: tournament.name, date: tournament.date } : null} className="btn btn-secondary btn-large" />
         </div>
       </div>
     );
