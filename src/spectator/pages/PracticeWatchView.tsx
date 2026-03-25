@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import type { PracticeMatch, SetScore } from '@shared/types';
 import { countSetWins } from '@shared/utils/scoring';
 import { formatDateTime } from '@shared/utils/locale';
-import SetGroupedHistory from '@referee/components/SetGroupedHistory';
+import { useAuth } from '@shared/hooks/useAuth';
+import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 
 const LIVE_KEY = 'showdown_practice_live';
 const COMPLETED_KEY = 'showdown_practice_completed';
@@ -12,10 +13,24 @@ const COMPLETED_KEY = 'showdown_practice_completed';
 export default function PracticeWatchView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { isAdmin } = useAuth();
   const [liveMatches, setLiveMatches] = useState<PracticeMatch[]>([]);
   const [completedMatches, setCompletedMatches] = useState<PracticeMatch[]>([]);
   const [tab, setTab] = useState<'live' | 'completed'>('live');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleDeleteMatch = (matchId: string) => {
+    if (!isAdmin) return;
+    const updated = completedMatches.filter(m => m.id !== matchId);
+    setCompletedMatches(updated);
+    localStorage.setItem(COMPLETED_KEY, JSON.stringify(updated));
+  };
+
+  const handleDeleteAll = () => {
+    if (!isAdmin) return;
+    localStorage.removeItem(COMPLETED_KEY);
+    setCompletedMatches([]);
+  };
 
   useEffect(() => {
     document.title = t('spectator.practiceWatch.pageTitle');
@@ -158,6 +173,17 @@ export default function PracticeWatchView() {
                 const completedDate = match.completedAt ? formatDateTime(new Date(match.completedAt)) : '';
                 return (
                   <div key={match.id} className="card">
+                    {isAdmin && (
+                      <div className="flex justify-end px-3 pt-2">
+                        <button
+                          className="btn bg-red-900 hover:bg-red-800 text-red-300 text-xs px-2 py-1"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteMatch(match.id); }}
+                          aria-label={t('spectator.practiceWatch.deleteMatch', { p1: match.player1Name, p2: match.player2Name })}
+                        >
+                          {t('common.delete')}
+                        </button>
+                      </div>
+                    )}
                     <button
                       className="w-full text-left p-4"
                       onClick={() => setExpandedId(isExpanded ? null : match.id)}
@@ -196,7 +222,7 @@ export default function PracticeWatchView() {
                           <div>
                             <h4 className="text-sm font-bold text-gray-400 mb-2">{t('spectator.practiceWatch.historyTitle')} ({match.scoreHistory.length})</h4>
                             <div className="max-h-60 overflow-y-auto">
-                              <SetGroupedHistory history={match.scoreHistory} sets={safeSets} showAll />
+                              <ScoreHistoryView history={match.scoreHistory} sets={safeSets} />
                             </div>
                           </div>
                         )}
@@ -205,12 +231,14 @@ export default function PracticeWatchView() {
                   </div>
                 );
               })}
-              <button
-                className="btn btn-secondary w-full text-sm"
-                onClick={() => { localStorage.removeItem(COMPLETED_KEY); setCompletedMatches([]); }}
-              >
-                {t('spectator.practiceWatch.deleteCompleted')}
-              </button>
+              {isAdmin && (
+                <button
+                  className="btn btn-danger w-full text-sm"
+                  onClick={handleDeleteAll}
+                >
+                  {t('spectator.practiceWatch.deleteCompleted')}
+                </button>
+              )}
             </div>
           )}
         </div>

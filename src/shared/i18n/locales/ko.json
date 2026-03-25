@@ -1278,6 +1278,7 @@
       "collapse": "접기",
       "historyTitle": "경기 기록",
       "deleteCompleted": "완료 기록 전체 삭제",
+      "deleteMatch": "{{p1}} vs {{p2}} 기록 삭제",
       "backToTournaments": "대회 목록으로"
     }
   }

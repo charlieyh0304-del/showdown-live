@@ -111,10 +111,11 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                   const scoreStr = !hideScore ? (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })() : '';
                   const ariaText = `${timeStr}, ${desc}${scoreStr ? `, ${t('common.matchHistory.score')} ${scoreStr}` : ''}`;
                   return (
-                    <li key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2" tabIndex={0} aria-label={ariaText}>
-                      <div className="flex justify-between items-start gap-2" aria-hidden="true">
-                        <span className="break-words">{timeStr} {icon} {desc}</span>
-                        {scoreStr && <span className="whitespace-nowrap">{scoreStr}</span>}
+                    <li key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2 space-y-0.5" tabIndex={0} aria-label={ariaText}>
+                      <div aria-hidden="true">
+                        <div className="text-gray-500" style={{ fontSize: '0.6875rem' }}>{timeStr}</div>
+                        <div>{icon} {desc}</div>
+                        {scoreStr && <div className="text-gray-300">{t('common.matchHistory.score')}: {scoreStr}</div>}
                       </div>
                     </li>
                   );
@@ -134,14 +135,16 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 const ariaText = `${timeStr}, ${h.server || '?'} ${t('common.matchHistory.serve')} ${t('common.matchHistory.serveNumber', { num: h.serveNumber || '' })}, ${actionDesc}, ${t('common.matchHistory.score')} ${scoreDisplay}`;
 
                 return (
-                  <li key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2" tabIndex={0} aria-label={ariaText}>
-                    <div className="flex justify-between items-center text-gray-400 mb-1" style={{ fontSize: '0.6875rem' }} aria-hidden="true">
-                      <span>{h.server || '?'} {h.serveNumber ? t('common.matchHistory.serveNumber', { num: h.serveNumber }) : ''}</span>
-                      <span>{timeStr}</span>
-                    </div>
-                    <div className="flex justify-between items-center" aria-hidden="true">
-                      <span>{icon} {actionDesc}</span>
-                      <span className="font-bold text-green-400 ml-2 whitespace-nowrap">{scoreDisplay}</span>
+                  <li key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2 space-y-0.5" tabIndex={0} aria-label={ariaText}>
+                    <div aria-hidden="true">
+                      <div className="flex justify-between text-gray-500" style={{ fontSize: '0.6875rem' }}>
+                        <span>{h.server || '?'} {h.serveNumber ? t('common.matchHistory.serveNumber', { num: h.serveNumber }) : ''}</span>
+                        <span>{timeStr}</span>
+                      </div>
+                      <div style={{ color: h.actionType === 'goal' ? '#22c55e' : h.points >= 2 ? '#ef4444' : '#eab308' }}>
+                        {icon} {actionDesc}
+                      </div>
+                      <div className="text-gray-300">{t('common.matchHistory.score')}: {scoreDisplay}</div>
                     </div>
                   </li>
                 );

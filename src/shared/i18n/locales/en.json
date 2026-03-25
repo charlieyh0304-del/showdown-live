@@ -1278,6 +1278,7 @@
       "collapse": "Collapse",
       "historyTitle": "Match History",
       "deleteCompleted": "Delete All Completed Records",
+      "deleteMatch": "Delete {{p1}} vs {{p2}} record",
       "backToTournaments": "Back to Tournaments"
     }
   }
