@@ -110,6 +110,9 @@ export default function IndividualScoring() {
   // Coin toss
   const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
+  // Coach
+  const [player1Coach, setPlayer1Coach] = useState('');
+  const [player2Coach, setPlayer2Coach] = useState('');
   // Pause
   const [isPausedLocal, setIsPausedLocal] = useState(false);
   const [pauseElapsed, setPauseElapsed] = useState(0);
@@ -133,19 +136,7 @@ export default function IndividualScoring() {
     if (match) updateMatch({ activeTimeout: null });
   });
 
-  // 15초 안내 (타임아웃) - isRunning을 먼저 체크하여 종료 후 오발 방지
-  const timeoutAlerted = useRef(false);
-  useEffect(() => {
-    if (!timeoutTimer.isRunning) {
-      timeoutAlerted.current = false;
-      return;
-    }
-    if (timeoutTimer.seconds === 15 && !timeoutAlerted.current) {
-      timeoutAlerted.current = true;
-      setLastAction('⚠️ 15초 남았습니다');
-      setAnnouncement('15초 남았습니다');
-    }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
+  // 타임아웃 15초 알림 제거 (불필요)
 
   // 15초 안내 (사이드 체인지)
   const sideChangeAlerted = useRef(false);
@@ -161,19 +152,7 @@ export default function IndividualScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 개인전 워밍업 60초: 15초 남음 알림
-  const warmupAlerted = useRef(false);
-  useEffect(() => {
-    if (!warmupTimer.isRunning) {
-      warmupAlerted.current = false;
-      return;
-    }
-    if (warmupTimer.seconds === 15 && !warmupAlerted.current) {
-      warmupAlerted.current = true;
-      setLastAction('⚠️ 15초');
-      setAnnouncement('15초');
-    }
-  }, [warmupTimer.seconds, warmupTimer.isRunning]);
+  // 워밍업 15초 알림 제거 (불필요)
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -214,6 +193,12 @@ export default function IndividualScoring() {
     return () => clearInterval(interval);
   }, [isPausedLocal]);
 
+  // Sync coach from match
+  useEffect(() => {
+    if (match?.player1Coach && !player1Coach) setPlayer1Coach(match.player1Coach);
+    if (match?.player2Coach && !player2Coach) setPlayer2Coach(match.player2Coach);
+  }, [match?.player1Coach, match?.player2Coach]);
+
   // Sync pause state from match
   useEffect(() => {
     if (match?.isPaused && !isPausedLocal) {
@@ -225,6 +210,42 @@ export default function IndividualScoring() {
 
   const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2') => {
     if (!match) return;
+    const p1Name = match.player1Name ?? '선수1';
+    const p2Name = match.player2Name ?? '선수2';
+    const winnerName = tossWinner === 'player1' ? p1Name : p2Name;
+    const choiceLabel = firstServe === (tossWinner ?? 'player1') ? '서브' : '리시브';
+    const serverName = firstServe === 'player1' ? p1Name : p2Name;
+
+    const coinTossEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      scoringPlayer: '',
+      actionPlayer: winnerName,
+      actionType: 'coin_toss',
+      actionLabel: `동전던지기 → ${winnerName} 승리, ${choiceLabel} 선택`,
+      points: 0,
+      set: 1,
+      server: serverName,
+      serveNumber: 1,
+      scoreBefore: { player1: 0, player2: 0 },
+      scoreAfter: { player1: 0, player2: 0 },
+      serverSide: firstServe,
+    };
+
+    const matchStartEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      scoringPlayer: '',
+      actionPlayer: '',
+      actionType: 'match_start',
+      actionLabel: '경기 시작',
+      points: 0,
+      set: 1,
+      server: serverName,
+      serveNumber: 1,
+      scoreBefore: { player1: 0, player2: 0 },
+      scoreAfter: { player1: 0, player2: 0 },
+      serverSide: firstServe,
+    };
+
     await updateMatch({
       status: 'in_progress',
       sets: [createEmptySet()],
@@ -236,15 +257,41 @@ export default function IndividualScoring() {
       serveCount: 0,
       serveSelected: true,
       sideChangeUsed: false,
-      scoreHistory: [],
+      scoreHistory: [matchStartEntry, coinTossEntry],
       warmupUsed: false,
+      coinTossWinner: tossWinner ?? undefined,
+      coinTossChoice: firstServe === (tossWinner ?? 'player1') ? 'serve' : 'receive',
+      player1Coach: player1Coach || undefined,
+      player2Coach: player2Coach || undefined,
     });
-  }, [match, updateMatch]);
+  }, [match, updateMatch, tossWinner, player1Coach, player2Coach]);
 
   // Warmup
-  const handleWarmup = useCallback(() => {
+  const handleWarmup = useCallback(async () => {
     if (!match || match.warmupUsed) return;
-    updateMatch({ warmupUsed: true });
+    const currentSetData = match.sets?.[match.currentSet ?? 0];
+    const p1Name = match.player1Name ?? '선수1';
+    const p2Name = match.player2Name ?? '선수2';
+    const currentServe = match.currentServe ?? 'player1';
+    const serverName = currentServe === 'player1' ? p1Name : p2Name;
+
+    const warmupEntry: ScoreHistoryEntry = {
+      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      scoringPlayer: '',
+      actionPlayer: '',
+      actionType: 'warmup_start',
+      actionLabel: '워밍업 시작 (60초)',
+      points: 0,
+      set: (match.currentSet ?? 0) + 1,
+      server: serverName,
+      serveNumber: (match.serveCount ?? 0) + 1,
+      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
+      serverSide: currentServe,
+    };
+
+    const prevHistory = match.scoreHistory ?? [];
+    await updateMatch({ warmupUsed: true, scoreHistory: [warmupEntry, ...prevHistory] });
     warmupTimer.start(60); // Individual: 60 seconds
     setShowWarmup(true);
   }, [match, updateMatch, warmupTimer]);
@@ -616,16 +663,16 @@ export default function IndividualScoring() {
     };
     const label = penaltyLabels[penaltyType];
 
-    // Count existing warnings for this player & penalty type
-    const warningCount = (match.scoreHistory || []).filter(h =>
+    // Count ALL entries (warning + deduction) for this player & penalty type
+    const totalPenaltyCount = (match.scoreHistory || []).filter(h =>
       h.actionType === penaltyType &&
-      h.penaltyWarning === true &&
       h.actionPlayer === actorName
     ).length;
 
     // Determine if this is a warning or point deduction
+    // Cycle: warning(0) → deduction(1) → warning(2) → deduction(3) → ...
     const hasWarningPhase = penaltyType !== 'penalty_electronic'; // electronic is always immediate
-    const isWarningAction = hasWarningPhase && warningCount === 0;
+    const isWarningAction = hasWarningPhase && (totalPenaltyCount % 2 === 0);
 
     if (isWarningAction) {
       // Warning only - no points
@@ -754,6 +801,33 @@ export default function IndividualScoring() {
           <span className="text-cyan-400 font-bold">{player2Name}</span>
         </div>
         {match.courtName && <p className="text-gray-400 text-lg">코트: {match.courtName}</p>}
+
+        {/* 코치 등록 */}
+        <div className="card w-full max-w-md space-y-3">
+          <h2 className="text-lg font-bold text-center text-gray-300">코치 등록</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-yellow-400 mb-1">{player1Name} 코치</label>
+              <input
+                type="text"
+                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                placeholder="코치 이름"
+                value={player1Coach}
+                onChange={e => setPlayer1Coach(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyan-400 mb-1">{player2Name} 코치</label>
+              <input
+                type="text"
+                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                placeholder="코치 이름"
+                value={player2Coach}
+                onChange={e => setPlayer2Coach(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
 
         {coinTossStep === 'toss' && (
           <div className="card w-full max-w-md space-y-4">
@@ -990,6 +1064,9 @@ export default function IndividualScoring() {
           <h2 className={`text-xl font-bold ${leftColor}`}>
             🎾 {leftName}
           </h2>
+          {(isFlipped ? match.player2Coach : match.player1Coach) && (
+            <span className="text-xs text-gray-400">코치: {isFlipped ? match.player2Coach : match.player1Coach}</span>
+          )}
           <div key={`left-${scoreFlash}`} className={`text-7xl font-bold my-2 ${leftColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${leftName} ${leftScore}점`}>
             {leftScore}
           </div>
@@ -998,6 +1075,9 @@ export default function IndividualScoring() {
           <h2 className={`text-xl font-bold ${rightColor}`}>
             {rightName}
           </h2>
+          {(isFlipped ? match.player1Coach : match.player2Coach) && (
+            <span className="text-xs text-gray-400">코치: {isFlipped ? match.player1Coach : match.player2Coach}</span>
+          )}
           <div key={`right-${scoreFlash}`} className={`text-7xl font-bold my-2 ${rightColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${rightName} ${rightScore}점`}>
             {rightScore}
           </div>
@@ -1073,12 +1153,12 @@ export default function IndividualScoring() {
               const dropdownKey = playerNum === 1 ? 'player1' : 'player2';
               const isOpen = penaltyDropdown === dropdownKey;
 
-              // Warning counts for this player
-              const tablePushWarnings = (match.scoreHistory || []).filter(h =>
-                h.actionType === 'penalty_table_pushing' && h.penaltyWarning === true && h.actionPlayer === pName
+              // Total penalty counts for this player (warning+deduction pairs)
+              const tablePushTotal = (match.scoreHistory || []).filter(h =>
+                h.actionType === 'penalty_table_pushing' && h.actionPlayer === pName
               ).length;
-              const talkingWarnings = (match.scoreHistory || []).filter(h =>
-                h.actionType === 'penalty_talking' && h.penaltyWarning === true && h.actionPlayer === pName
+              const talkingTotal = (match.scoreHistory || []).filter(h =>
+                h.actionType === 'penalty_talking' && h.actionPlayer === pName
               ).length;
 
               return (
@@ -1102,7 +1182,7 @@ export default function IndividualScoring() {
                       >
                         <span className="text-red-300 font-semibold">테이블 푸싱</span>
                         <span className="block text-xs text-gray-400 mt-0.5">
-                          {tablePushWarnings === 0 ? '→ 경고 (0점)' : `→ ${opName} +2점 (경고 ${tablePushWarnings}회 사용)`}
+                          {tablePushTotal % 2 === 0 ? '→ 경고 (0점)' : `→ ${opName} +2점`}
                         </span>
                       </button>
                       {/* 전자기기 소리 */}
@@ -1120,7 +1200,7 @@ export default function IndividualScoring() {
                       >
                         <span className="text-red-300 font-semibold">경기 중 말하기</span>
                         <span className="block text-xs text-gray-400 mt-0.5">
-                          {talkingWarnings === 0 ? '→ 경고 (0점)' : `→ ${opName} +2점 (경고 ${talkingWarnings}회 사용)`}
+                          {talkingTotal % 2 === 0 ? '→ 경고 (0점)' : `→ ${opName} +2점`}
                         </span>
                       </button>
                     </div>

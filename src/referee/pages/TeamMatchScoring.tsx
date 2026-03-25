@@ -68,13 +68,7 @@ export default function TeamMatchScoring() {
   // Navigation guard
   useNavigationGuard(match?.status === 'in_progress');
 
-  // 15초 안내 (타임아웃)
-  useEffect(() => {
-    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
-      setLastAction('⚠️ 15초 남았습니다');
-      setAnnouncement('15초 남았습니다');
-    }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
+  // 타임아웃/워밍업 15초 알림 제거 (불필요)
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
@@ -83,20 +77,6 @@ export default function TeamMatchScoring() {
       setAnnouncement('15초 남았습니다');
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
-
-  // 팀전 워밍업 90초: 60초 남음(30초 경과), 30초 남음(60초 경과) 알림
-  useEffect(() => {
-    if (warmupTimer.isRunning) {
-      if (warmupTimer.seconds === 60) {
-        setLastAction('⚠️ 30초');
-        setAnnouncement('30초');
-      }
-      if (warmupTimer.seconds === 30) {
-        setLastAction('⚠️ 30초');
-        setAnnouncement('30초');
-      }
-    }
-  }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -624,13 +604,13 @@ export default function TeamMatchScoring() {
       return;
     }
 
-    // penalty_table_pushing, penalty_talking: 1회 경고 → 2회 2점 실점
+    // penalty_table_pushing, penalty_talking: 경고 → 실점 → 경고 → 실점 (반복 사이클)
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
-    const warningCount = prevHistory.filter(
-      h => h.actionType === penaltyType && h.actionPlayer === actorName && h.penaltyWarning === true
+    const totalPenaltyCount = prevHistory.filter(
+      h => h.actionType === penaltyType && h.actionPlayer === actorName
     ).length;
 
-    if (warningCount === 0) {
+    if (totalPenaltyCount % 2 === 0) {
       // 첫 번째: 경고만
       const currentSetData = match.sets?.[0];
       const scoreBefore = { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 };

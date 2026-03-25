@@ -342,6 +342,8 @@ export interface Match {
   player2Id?: string;
   player1Name?: string;
   player2Name?: string;
+  player1Coach?: string;
+  player2Coach?: string;
   winnerId?: string | null;
   sets?: SetScore[];
   currentSet?: number;
@@ -377,7 +379,7 @@ export interface Match {
   team2PlayerOrder?: string[];        // 팀2 선수 출전 순서 (ID)
   team1CurrentPlayerIndex?: number;   // 팀1 현재 서브 선수 인덱스
   team2CurrentPlayerIndex?: number;   // 팀2 현재 서브 선수 인덱스
-  coinTossWinner?: 'team1' | 'team2'; // 동전던지기 승자
+  coinTossWinner?: 'team1' | 'team2' | 'player1' | 'player2'; // 동전던지기 승자
   coinTossChoice?: 'serve' | 'receive'; // 승자의 선택
   // 팀전 필드
   team1Id?: string;

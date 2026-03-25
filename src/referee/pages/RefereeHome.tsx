@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useMatches } from '@shared/hooks/useFirebase';
@@ -39,7 +39,21 @@ export default function RefereeHome() {
   const refereeId = session?.refereeId;
   const { matches, loading } = useMatches(tournamentId);
 
+  const [viewMode, setViewMode] = useState<'my' | 'all'>('my');
+
   const myMatches = useMemo(() => matches.filter(m => m.refereeId === refereeId), [matches, refereeId]);
+
+  // All scheduled matches (have date or time assigned)
+  const allScheduledMatches = useMemo(() =>
+    matches.filter(m => m.scheduledDate || m.scheduledTime).sort((a, b) => {
+      const dateA = a.scheduledDate || '';
+      const dateB = b.scheduledDate || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.scheduledTime || '';
+      const timeB = b.scheduledTime || '';
+      return timeA.localeCompare(timeB);
+    }),
+  [matches]);
 
   // Sort matches by date -> time
   const sortedMyMatches = useMemo(() => {
@@ -92,11 +106,98 @@ export default function RefereeHome() {
     );
   }
 
+  const renderMatchCard = (match: Match, showReferee = false) => {
+    const score = getCurrentScore(match);
+    return (
+      <button
+        key={match.id}
+        className="card w-full text-left hover:border-yellow-400 transition-colors cursor-pointer"
+        onClick={() => handleMatchClick(match)}
+        aria-label={`${getMatchLabel(match)} - ${STATUS_LABELS[match.status]}`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {match.type === 'team' && (
+              <span className="px-2 py-0.5 rounded bg-purple-700 text-purple-100 text-xs font-bold">팀전</span>
+            )}
+            <span className="text-lg font-bold">{getMatchLabel(match)}</span>
+            {match.roundLabel && <span className="text-xs bg-gray-700 px-2 py-0.5 rounded">{match.roundLabel}</span>}
+            {match.groupId && <span className="text-xs bg-blue-900 px-2 py-0.5 rounded">{match.groupId}조</span>}
+          </div>
+          <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
+            {STATUS_LABELS[match.status]}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-gray-400 text-sm">
+          {match.courtName && <span>코트: {match.courtName}</span>}
+          {match.scheduledDate && <span>{match.scheduledDate}</span>}
+          {match.scheduledTime && <span>{match.scheduledTime}</span>}
+          {showReferee && match.refereeName && <span>심판: {match.refereeName}</span>}
+        </div>
+        {score && (
+          <div className="mt-2 text-2xl font-bold text-cyan-400" aria-live="polite">
+            {score}
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  // Group allScheduledMatches by date
+  const allScheduleDateGroups = useMemo(() => {
+    const dates = [...new Set(allScheduledMatches.map(m => m.scheduledDate || ''))].sort();
+    return dates;
+  }, [allScheduledMatches]);
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-yellow-400 mb-6">내 배정 경기</h1>
+      <h1 className="text-2xl font-bold text-yellow-400 mb-4">경기 목록</h1>
 
-      {myMatches.length === 0 ? (
+      {/* Tab buttons */}
+      <div className="flex gap-2 mb-6" role="tablist" aria-label="경기 보기 모드">
+        <button
+          role="tab"
+          aria-selected={viewMode === 'my'}
+          className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${viewMode === 'my' ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+          onClick={() => setViewMode('my')}
+        >
+          내 배정 경기 ({myMatches.length})
+        </button>
+        <button
+          role="tab"
+          aria-selected={viewMode === 'all'}
+          className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${viewMode === 'all' ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+          onClick={() => setViewMode('all')}
+        >
+          전체 스케줄 ({allScheduledMatches.length})
+        </button>
+      </div>
+
+      {/* All scheduled matches view */}
+      {viewMode === 'all' ? (
+        allScheduledMatches.length === 0 ? (
+          <div className="card text-center py-12">
+            <p className="text-xl text-gray-400">스케줄이 배정된 경기가 없습니다</p>
+            <p className="text-sm text-gray-400 mt-2">관리자가 스케줄 탭에서 자동 배정을 실행해주세요.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {allScheduleDateGroups.map(date => {
+              const dateMatches = allScheduledMatches.filter(m => (m.scheduledDate || '') === date);
+              return (
+                <div key={date || 'no-date'} className="mb-4">
+                  <h2 className="text-xl font-bold text-yellow-400 mb-3 border-b border-gray-700 pb-2">
+                    {date || '날짜 미지정'} ({dateMatches.length}경기)
+                  </h2>
+                  <div className="flex flex-col gap-3">
+                    {dateMatches.map(match => renderMatchCard(match, true))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : myMatches.length === 0 ? (
         <div className="card text-center py-12">
           <div className="space-y-3">
             <p className="text-xl text-gray-400">배정된 경기가 없습니다</p>
@@ -119,41 +220,7 @@ export default function RefereeHome() {
                   {date || '날짜 미지정'} ({dateMatches.length}경기)
                 </h2>
                 <div className="flex flex-col gap-3">
-                  {dateMatches.map(match => {
-                    const score = getCurrentScore(match);
-                    return (
-                      <button
-                        key={match.id}
-                        className="card w-full text-left hover:border-yellow-400 transition-colors cursor-pointer"
-                        onClick={() => handleMatchClick(match)}
-                        aria-label={`${getMatchLabel(match)} - ${STATUS_LABELS[match.status]}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            {match.type === 'team' && (
-                              <span className="px-2 py-0.5 rounded bg-purple-700 text-purple-100 text-xs font-bold">팀전</span>
-                            )}
-                            <span className="text-lg font-bold">{getMatchLabel(match)}</span>
-                            {match.roundLabel && <span className="text-xs bg-gray-700 px-2 py-0.5 rounded">{match.roundLabel}</span>}
-                            {match.groupId && <span className="text-xs bg-blue-900 px-2 py-0.5 rounded">{match.groupId}조</span>}
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                            {STATUS_LABELS[match.status]}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-gray-400 text-sm">
-                          {match.courtName && <span>코트: {match.courtName}</span>}
-                          {match.scheduledDate && <span>{match.scheduledDate}</span>}
-                          {match.scheduledTime && <span>{match.scheduledTime}</span>}
-                        </div>
-                        {score && (
-                          <div className="mt-2 text-2xl font-bold text-cyan-400" aria-live="polite">
-                            {score}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {dateMatches.map(match => renderMatchCard(match))}
                 </div>
               </div>
             );
@@ -182,41 +249,7 @@ export default function RefereeHome() {
                       {STATUS_LABELS[status]} ({statusMatches.length})
                     </h3>
                     <div className="flex flex-col gap-3">
-                      {statusMatches.map(match => {
-                        const score = getCurrentScore(match);
-                        return (
-                          <button
-                            key={match.id}
-                            className="card w-full text-left hover:border-yellow-400 transition-colors cursor-pointer"
-                            onClick={() => handleMatchClick(match)}
-                            aria-label={`${getMatchLabel(match)} - ${STATUS_LABELS[match.status]}`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                {match.type === 'team' && (
-                                  <span className="px-2 py-0.5 rounded bg-purple-700 text-purple-100 text-xs font-bold">팀전</span>
-                                )}
-                                <span className="text-lg font-bold">{getMatchLabel(match)}</span>
-                                {match.roundLabel && <span className="text-xs bg-gray-700 px-2 py-0.5 rounded">{match.roundLabel}</span>}
-                                {match.groupId && <span className="text-xs bg-blue-900 px-2 py-0.5 rounded">{match.groupId}조</span>}
-                              </div>
-                              <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                                {STATUS_LABELS[match.status]}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-4 text-gray-400 text-sm">
-                              {match.courtName && <span>코트: {match.courtName}</span>}
-                              {match.scheduledDate && <span>{match.scheduledDate}</span>}
-                              {match.scheduledTime && <span>{match.scheduledTime}</span>}
-                            </div>
-                            {score && (
-                              <div className="mt-2 text-2xl font-bold text-cyan-400" aria-live="polite">
-                                {score}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                      {statusMatches.map(match => renderMatchCard(match))}
                     </div>
                   </div>
                 );

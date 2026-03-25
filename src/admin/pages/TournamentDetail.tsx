@@ -2565,6 +2565,17 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [onlyUnassigned, setOnlyUnassigned] = useState(false);
 
+  // Helper: adjust HH:MM time by delta minutes
+  const adjustTime = (current: string, deltaMinutes: number): string => {
+    const [h, m] = current.split(':').map(Number);
+    let total = h * 60 + m + deltaMinutes;
+    if (total < 0) total = 0;
+    if (total > 23 * 60 + 59) total = 23 * 60 + 59;
+    const hh = Math.floor(total / 60).toString().padStart(2, '0');
+    const mm = (total % 60).toString().padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   // Manual schedule editing state
   const [manualEdits, setManualEdits] = useState<Record<string, { scheduledDate: string; scheduledTime: string; courtId: string; courtName: string }>>({});
   const [savingMatchId, setSavingMatchId] = useState<string | null>(null);
@@ -2828,24 +2839,32 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         <div className="flex gap-4 flex-wrap">
           <div>
             <label className="block text-sm text-gray-300 mb-1">날짜</label>
-            <input
-              type="date"
-              className="input"
-              value={scheduleDate}
-              onChange={e => setScheduleDate(e.target.value)}
-              aria-label="경기 날짜"
-            />
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() - 1); setScheduleDate(d.toISOString().split('T')[0]); }} aria-label="날짜 1일 감소">−</button>
+              <input
+                type="date"
+                className="input"
+                value={scheduleDate}
+                onChange={e => setScheduleDate(e.target.value)}
+                aria-label="경기 날짜"
+              />
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() + 1); setScheduleDate(d.toISOString().split('T')[0]); }} aria-label="날짜 1일 증가">+</button>
+            </div>
           </div>
           <div>
             <label htmlFor="start-time" className="block text-sm text-gray-300 mb-1">시작 시간</label>
-            <input
-              id="start-time"
-              type="time"
-              className="input"
-              value={startTime}
-              onChange={e => setStartTime(e.target.value)}
-              aria-label="시작 시간"
-            />
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setStartTime(adjustTime(startTime, -30))} aria-label="시작 시간 30분 감소">−</button>
+              <input
+                id="start-time"
+                type="time"
+                className="input"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+                aria-label="시작 시간"
+              />
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setStartTime(adjustTime(startTime, 30))} aria-label="시작 시간 30분 증가">+</button>
+            </div>
           </div>
           <div>
             <label htmlFor="interval" className="block text-sm text-gray-300 mb-1">경기 간격 (분)</label>
@@ -2864,14 +2883,18 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         <div className="flex gap-4 flex-wrap">
           <div>
             <label htmlFor="end-time" className="block text-sm text-gray-300 mb-1">마감 시간</label>
-            <input
-              id="end-time"
-              type="time"
-              className="input"
-              value={endTime}
-              onChange={e => setEndTime(e.target.value)}
-              aria-label="마감 시간"
-            />
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setEndTime(adjustTime(endTime, -30))} aria-label="마감 시간 30분 감소">−</button>
+              <input
+                id="end-time"
+                type="time"
+                className="input"
+                value={endTime}
+                onChange={e => setEndTime(e.target.value)}
+                aria-label="마감 시간"
+              />
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setEndTime(adjustTime(endTime, 30))} aria-label="마감 시간 30분 증가">+</button>
+            </div>
           </div>
           <div>
             <label htmlFor="rest-interval" className="block text-sm text-gray-300 mb-1">선수 휴식 시간 (분)</label>
@@ -2888,14 +2911,18 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
           </div>
           <div>
             <label htmlFor="next-day-start" className="block text-sm text-gray-300 mb-1">다음날 시작 시간</label>
-            <input
-              id="next-day-start"
-              type="time"
-              className="input"
-              value={nextDayStartTime}
-              onChange={e => setNextDayStartTime(e.target.value)}
-              aria-label="다음날 시작 시간"
-            />
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setNextDayStartTime(adjustTime(nextDayStartTime, -30))} aria-label="다음날 시작 시간 30분 감소">−</button>
+              <input
+                id="next-day-start"
+                type="time"
+                className="input"
+                value={nextDayStartTime}
+                onChange={e => setNextDayStartTime(e.target.value)}
+                aria-label="다음날 시작 시간"
+              />
+              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setNextDayStartTime(adjustTime(nextDayStartTime, 30))} aria-label="다음날 시작 시간 30분 증가">+</button>
+            </div>
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">

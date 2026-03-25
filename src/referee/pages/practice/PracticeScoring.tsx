@@ -110,10 +110,10 @@ export default function PracticeScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
+  // 워밍업 15초 알림
   useEffect(() => {
     if (warmupTimer.isRunning) {
       if (matchType === 'team') {
-        // 팀전 90초: 30초마다 알림 (돌아가며 연습)
         if (warmupTimer.seconds === 60) {
           setLastAction('⚠️ 30초');
           setAnnouncement('30초');
@@ -123,7 +123,6 @@ export default function PracticeScoring() {
           setAnnouncement('30초');
         }
       } else {
-        // 개인전 60초: 15초 남음 알림
         if (warmupTimer.seconds === 15) {
           setLastAction('⚠️ 15초');
           setAnnouncement('15초');
@@ -556,12 +555,12 @@ export default function PracticeScoring() {
       return;
     }
 
-    // penalty_table_pushing, penalty_talking: 1회 경고 → 2회 2점 실점
-    const warningCount = match.scoreHistory.filter(
-      h => h.actionType === penaltyType && h.actionPlayer === actorName && h.penaltyWarning === true
+    // penalty_table_pushing, penalty_talking: 경고 → 실점 → 경고 → 실점 (반복 사이클)
+    const totalPenaltyCount = match.scoreHistory.filter(
+      h => h.actionType === penaltyType && h.actionPlayer === actorName
     ).length;
 
-    if (warningCount === 0) {
+    if (totalPenaltyCount % 2 === 0) {
       // 첫 번째: 경고만
       const ci = match.currentSet;
       const cs = match.sets[ci];
