@@ -21,7 +21,7 @@ import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import TimerModal from '../components/TimerModal';
-import SetGroupedHistory from '../components/SetGroupedHistory';
+import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../components/ActionToast';
 
 const DEFAULT_TEAM_CONFIG = {
@@ -955,8 +955,8 @@ export default function TeamMatchScoring() {
         {history.length > 0 && (
           <div className="w-full max-w-lg mx-auto flex-1 flex flex-col min-h-0">
             <h3 className="text-lg font-bold text-gray-300 mb-2">{t('common.matchHistory.titleWithCount', { count: history.length })}</h3>
-            <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
-              <SetGroupedHistory history={history} sets={match.sets ?? []} showAll />
+            <div className="flex-1 min-h-0">
+              <ScoreHistoryView history={history} sets={match.sets ?? []} />
             </div>
           </div>
         )}
@@ -1427,8 +1427,8 @@ export default function TeamMatchScoring() {
             {showHistory ? `▲ ${t('common.matchHistory.title')}` : `▼ ${t('common.matchHistory.titleWithCount', { count: history.length })}`}
           </button>
           {showHistory && history.length > 0 && (
-            <div className="max-h-96 overflow-y-auto">
-              <SetGroupedHistory history={history} sets={sets} />
+            <div className="w-full">
+              <ScoreHistoryView history={history} sets={sets} />
             </div>
           )}
         </div>

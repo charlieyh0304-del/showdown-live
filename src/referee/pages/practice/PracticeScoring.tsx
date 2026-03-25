@@ -24,7 +24,6 @@ import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import TimerModal from '../../components/TimerModal';
-import SetGroupedHistory from '../../components/SetGroupedHistory';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../../components/ActionToast';
 
@@ -1195,8 +1194,8 @@ export default function PracticeScoring() {
             {showHistory ? `▲ ${t('referee.practice.scoring.historyClose')}` : `▼ ${t('referee.practice.scoring.historyToggle', { count: match.scoreHistory.length })}`}
           </button>
           {showHistory && match.scoreHistory.length > 0 && (
-            <div className="max-h-48 overflow-y-auto">
-              <SetGroupedHistory history={match.scoreHistory} sets={sets} />
+            <div className="w-full">
+              <ScoreHistoryView history={match.scoreHistory} sets={sets} />
             </div>
           )}
         </div>

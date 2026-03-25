@@ -24,7 +24,6 @@ import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import TimerModal from '../components/TimerModal';
-import SetGroupedHistory from '../components/SetGroupedHistory';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../components/ActionToast';
 
@@ -1480,8 +1479,8 @@ export default function IndividualScoring() {
             {showHistory ? `▲ ${t('common.matchHistory.title')}` : `▼ ${t('common.matchHistory.titleWithCount', { count: history.length })}`}
           </button>
           {showHistory && history.length > 0 && (
-            <div className="max-h-96 overflow-y-auto">
-              <SetGroupedHistory history={history} sets={sets} />
+            <div className="w-full">
+              <ScoreHistoryView history={history} sets={sets} />
             </div>
           )}
         </div>
