@@ -80,8 +80,8 @@ export default function PracticeScoring() {
   const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
   const [courtChangeByLoser, setCourtChangeByLoser] = useState(false);
   // Coach - read from URL params (individual: p1c/p2c, team: t1c/t2c)
-  const [player1Coach, setPlayer1Coach] = useState(searchParams.get('p1c') || '');
-  const [player2Coach, setPlayer2Coach] = useState(searchParams.get('p2c') || '');
+  const player1Coach = searchParams.get('p1c') || '';
+  const player2Coach = searchParams.get('p2c') || '';
   const t1c = searchParams.get('t1c') || '';
   const t2c = searchParams.get('t2c') || '';
   // Penalty & timeout dropdowns (same as real match mode)
@@ -713,35 +713,6 @@ export default function PracticeScoring() {
         <p className="text-gray-400">
           {matchType === 'team' ? t('referee.practice.scoring.rulesDisplayTeam') : t('referee.practice.scoring.rulesDisplay', { points: config.POINTS_TO_WIN, setsToWin: config.SETS_TO_WIN })}
         </p>
-
-        {/* {t('referee.practice.setup.coachOptional')} (개인전만 - 팀전은 설정에서 입력) */}
-        {matchType === 'individual' && coinTossStep === 'toss' && (
-          <div className="card w-full max-w-md space-y-3">
-            <h2 className="text-lg font-bold text-center text-gray-300">{t('referee.practice.setup.coachOptional')}</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-yellow-400 mb-1">{p1Name} {t('referee.practice.setup.coachOptional')}</label>
-                <input
-                  type="text"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-                  placeholder={t('referee.practice.setup.coachAriaLabel')}
-                  value={player1Coach}
-                  onChange={e => setPlayer1Coach(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-cyan-400 mb-1">{p2Name} {t('referee.practice.setup.coachOptional')}</label>
-                <input
-                  type="text"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-                  placeholder={t('referee.practice.setup.coachAriaLabel')}
-                  value={player2Coach}
-                  onChange={e => setPlayer2Coach(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-        )}
 
         {coinTossStep === 'toss' && (
           <div className="card w-full max-w-md space-y-4">
