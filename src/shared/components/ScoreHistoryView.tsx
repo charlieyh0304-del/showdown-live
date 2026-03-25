@@ -30,6 +30,10 @@ interface ScoreHistoryViewProps {
   sets?: { player1Score: number; player2Score: number; winnerId?: string | null }[];
 }
 
+/**
+ * Score history view — identical structure to the spectator LiveMatchView history.
+ * No custom ARIA attributes; relies on plain HTML semantics for screen reader compatibility.
+ */
 export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProps) {
   const [order, setOrder] = useState<'newest' | 'oldest'>('oldest');
 
@@ -42,7 +46,6 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
     return [...meaningfulHistory].reverse();
   }, [meaningfulHistory, order]);
 
-  // Group by set
   const setGroups = useMemo(() => {
     const groups = new Map<number, ScoreHistoryEntry[]>();
     sortedHistory.forEach(h => {
@@ -57,34 +60,41 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
   if (meaningfulHistory.length === 0) return null;
 
   return (
-    <div className="card" style={{ marginTop: '1rem' }}>
+    <div className="card" style={{ marginTop: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h2 style={{ fontWeight: 'bold', color: '#facc15', margin: 0, fontSize: '1.125rem' }}>
+        <h2 style={{ fontWeight: 'bold', color: '#facc15', margin: 0 }}>
           경기 기록 ({meaningfulHistory.length})
         </h2>
         <button
           className="btn"
           onClick={() => setOrder(o => o === 'newest' ? 'oldest' : 'newest')}
           style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#374151' }}
-          aria-label={order === 'newest' ? '시간순으로 정렬 변경' : '최신순으로 정렬 변경'}
         >
           {order === 'newest' ? '최신순' : '시간순'}
         </button>
       </div>
 
       <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        {order === 'oldest' && (
+          <div style={{
+            textAlign: 'center', padding: '0.5rem', marginBottom: '0.5rem',
+            background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)',
+            borderRadius: '0.5rem', color: '#93c5fd', fontSize: '0.9rem',
+          }}>
+            경기 시작
+          </div>
+        )}
         {setGroups.map(([setNum, entries]) => {
           const setData = sets?.[setNum - 1];
           return (
-            <section key={setNum} aria-label={`세트 ${setNum}`}>
-              {/* Set heading - individually focusable */}
-              <h3 tabIndex={0} style={{
+            <div key={setNum}>
+              <div style={{
                 padding: '0.5rem 0.75rem', fontWeight: 'bold', fontSize: '0.875rem',
                 color: '#60a5fa', borderBottom: '2px solid rgba(96,165,250,0.3)',
-                backgroundColor: '#111827', position: 'sticky', top: 0, zIndex: 1, margin: 0,
+                backgroundColor: '#111827', position: 'sticky', top: 0, zIndex: 1,
               }}>
                 제{setNum}세트 {setData ? `(${setData.player1Score} : ${setData.player2Score})` : ''}
-              </h3>
+              </div>
               {entries.map((h, i) => {
                 const isMeta = h.points === 0 || h.penaltyWarning === true;
                 const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' || h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' || h.actionType === 'player_rotation' || h.actionType === 'side_change' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
@@ -107,10 +117,12 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                     : h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체')
                     : h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지')
                     : (h.actionLabel || '');
+                  const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                   return (
-                    <article key={`${setNum}-${i}`} tabIndex={0} aria-label={`${timeStr} ${desc}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
-                      <span aria-hidden="true">{timeStr} {icon} {desc}</span>
-                    </article>
+                    <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
+                      <div>{timeStr} {icon} {desc}</div>
+                      {!hideScore && <div style={{ fontSize: '0.75rem' }}>점수: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}</div>}
+                    </div>
                   );
                 }
 
@@ -122,23 +134,22 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                   ? `${h.scoringPlayer || '?'} 부전승`
                   : `${h.actionPlayer} ${label} → ${h.scoringPlayer} +${h.points}점`;
                 const actionColor = isGoal ? '#22c55e' : h.points >= 2 ? '#ef4444' : '#eab308';
-                const scoreStr = (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })();
 
                 return (
-                  <article key={`${setNum}-${i}`} tabIndex={0} aria-label={`${timeStr}, ${h.server || '?'} 서브 ${h.serveNumber || ''}회차, ${actionDesc}, 스코어 ${scoreStr}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem' }}>
-                    <div aria-hidden="true" style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
-                      {h.server || '?'} 서브 {h.serveNumber ? `${h.serveNumber}회차` : ''} {timeStr && `· ${timeStr}`}
+                  <div key={`${setNum}-${i}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
+                      🎾 {h.server || '?'} 서브 {h.serveNumber ? `${h.serveNumber}회차` : ''} {timeStr && `· ${timeStr}`}
                     </div>
-                    <div aria-hidden="true" style={{ color: actionColor, fontWeight: 'bold' }}>
+                    <div style={{ color: actionColor, fontWeight: 'bold' }}>
                       {icon} {actionDesc}
                     </div>
-                    <div aria-hidden="true" style={{ fontSize: '0.8125rem', color: '#d1d5db' }}>
-                      점수: {scoreStr}
+                    <div style={{ fontSize: '0.8125rem', color: '#d1d5db' }}>
+                      점수: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}
                     </div>
-                  </article>
+                  </div>
                 );
               })}
-            </section>
+            </div>
           );
         })}
       </div>
