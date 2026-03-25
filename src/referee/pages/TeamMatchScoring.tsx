@@ -20,7 +20,6 @@ import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import TimerModal from '../components/TimerModal';
 import SetGroupedHistory from '../components/SetGroupedHistory';
-import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import ActionToast from '../components/ActionToast';
 
 const DEFAULT_TEAM_CONFIG = {
@@ -902,9 +901,8 @@ export default function TeamMatchScoring() {
             </div>
           </div>
         )}
-        <div className="text-center mt-4 flex gap-3 justify-center">
+        <div className="text-center mt-4">
           <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
-          <PdfDownloadButton match={match} tournament={tournament ? { name: tournament.name, date: tournament.date } : null} className="btn btn-secondary btn-large" />
         </div>
       </div>
     );

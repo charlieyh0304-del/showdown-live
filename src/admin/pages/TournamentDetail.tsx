@@ -16,6 +16,7 @@ import { database } from '@shared/config/firebase';
 import { createEmptySet, checkMatchWinner, checkSetWinner } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
+import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import { simulateTournament } from '@shared/utils/simulation';
 import { buildGroupAssignment } from '@shared/utils/tournament';
 import { getSampleNames } from './AdminSettings';
@@ -3624,6 +3625,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                   >
                     {t('admin.tournamentDetail.statusTab.scoreCorrection')}
                   </button>
+                  <PdfDownloadButton match={match} tournament={{ name: tournament.name, date: tournament.date }} className="btn bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1" />
                 </div>
               )}
             </div>
