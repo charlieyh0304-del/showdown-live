@@ -248,7 +248,7 @@ export default function IndividualScoring() {
     }
   }, [match?.isPaused]);
 
-  const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2') => {
+  const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2', withWarmup = false) => {
     if (!match) return;
     const p1Name = match.player1Name ?? '선수1';
     const p2Name = match.player2Name ?? '선수2';
@@ -271,20 +271,40 @@ export default function IndividualScoring() {
       serverSide: firstServe,
     };
 
+    const now = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    // Coach info entry (if coaches provided)
+    const coachEntries: ScoreHistoryEntry[] = [];
+    if (player1Coach || player2Coach) {
+      const coachInfo = [player1Coach ? `${p1Name} 코치: ${player1Coach}` : '', player2Coach ? `${p2Name} 코치: ${player2Coach}` : ''].filter(Boolean).join(', ');
+      coachEntries.push({
+        time: now(), scoringPlayer: '', actionPlayer: '', actionType: 'match_start',
+        actionLabel: `코치 등록 - ${coachInfo}`, points: 0, set: 1,
+        server: serverName, serveNumber: 1,
+        scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },
+        serverSide: firstServe,
+      });
+    }
+
     const matchStartEntry: ScoreHistoryEntry = {
-      time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      scoringPlayer: '',
-      actionPlayer: '',
-      actionType: 'match_start',
-      actionLabel: '경기 시작',
-      points: 0,
-      set: 1,
-      server: serverName,
-      serveNumber: 1,
-      scoreBefore: { player1: 0, player2: 0 },
-      scoreAfter: { player1: 0, player2: 0 },
+      time: now(), scoringPlayer: '', actionPlayer: '', actionType: 'match_start',
+      actionLabel: '경기 시작', points: 0, set: 1,
+      server: serverName, serveNumber: 1,
+      scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },
       serverSide: firstServe,
     };
+
+    // Warmup entry (if warmup requested)
+    const warmupEntries: ScoreHistoryEntry[] = [];
+    if (withWarmup) {
+      warmupEntries.push({
+        time: now(), scoringPlayer: '', actionPlayer: '', actionType: 'warmup_start',
+        actionLabel: '워밍업 시작 (60초)', points: 0, set: 1,
+        server: serverName, serveNumber: 1,
+        scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },
+        serverSide: firstServe,
+      });
+    }
 
     await updateMatch({
       status: 'in_progress',
@@ -297,8 +317,8 @@ export default function IndividualScoring() {
       serveCount: 0,
       serveSelected: true,
       sideChangeUsed: false,
-      scoreHistory: [matchStartEntry, coinTossEntry],
-      warmupUsed: false,
+      scoreHistory: [...warmupEntries, matchStartEntry, ...coachEntries, coinTossEntry],
+      warmupUsed: withWarmup,
       coinTossWinner: tossWinner ?? undefined,
       coinTossChoice: firstServe === (tossWinner ?? 'player1') ? 'serve' : 'receive',
       player1Coach: player1Coach || undefined,
@@ -909,7 +929,7 @@ export default function IndividualScoring() {
               <button
                 className="btn btn-success btn-large flex-1 text-xl py-6"
                 onClick={async () => {
-                  await handleStartMatch(pendingFirstServe);
+                  await handleStartMatch(pendingFirstServe, true);
                   warmupTimer.start(60);
                   setShowWarmup(true);
                 }}
