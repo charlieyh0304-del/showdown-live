@@ -79,7 +79,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
             <h4 className="text-sm font-bold text-blue-400 border-b border-blue-400/30 pb-1 mb-2" aria-label={`세트 ${setNum} ${setScore ? `스코어 ${setScore.player1Score} 대 ${setScore.player2Score}` : ''}`}>
               세트 {setNum} {setScore ? `(${setScore.player1Score}:${setScore.player2Score})` : ''}
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-2" role="list" aria-label={`세트 ${setNum} 기록`}>
               {entries.map((h, i) => {
                 const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
 
@@ -116,19 +116,20 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체') :
                     h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지') :
                     (h.actionLabel || '');
-                  // 타임아웃, 사이드 체인지 등은 점수 표시 없음
                   const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
+                  const scoreStr = !hideScore ? (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })() : '';
+                  const ariaText = `${timeStr}, ${desc}${scoreStr ? `, 스코어 ${scoreStr}` : ''}`;
                   return (
-                    <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2">
+                    <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2" role="listitem" aria-label={ariaText}>
                       <div className="flex justify-between items-start gap-2">
-                        <span className="break-words">{timeStr} {icon} {desc}</span>
-                        {!hideScore && <span className="whitespace-nowrap">{(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })()}</span>}
+                        <span className="break-words" aria-hidden="true">{timeStr} {icon} {desc}</span>
+                        {scoreStr && <span className="whitespace-nowrap" aria-hidden="true">{scoreStr}</span>}
                       </div>
                     </div>
                   );
                 }
 
-                // Scoring entries: two-line format with serve info
+                // Scoring entries
                 let actionDesc: string;
                 const descriptiveLabel = DESCRIPTIVE_ACTION_LABELS[h.actionType || ''];
                 if (h.actionType === 'goal') {
@@ -145,18 +146,18 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                   const labelParts = (h.actionLabel || '').split(' ').slice(1).join(' ');
                   actionDesc = `${h.actionPlayer || '?'} ${labelParts} → ${h.scoringPlayer || '?'} +${h.points}점`;
                 }
+                const scoreDisplay = (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })();
+                const ariaText = `${timeStr}, ${h.server || '?'} 서브 ${h.serveNumber || ''}회차, ${actionDesc}, 스코어 ${scoreDisplay}`;
 
                 return (
-                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2">
-                    <div className="flex justify-between items-center text-gray-400 mb-1" style={{ fontSize: '0.6875rem' }}>
-                      <span>🎾 {h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
+                  <div key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2" role="listitem" aria-label={ariaText}>
+                    <div className="flex justify-between items-center text-gray-400 mb-1" style={{ fontSize: '0.6875rem' }} aria-hidden="true">
+                      <span>{h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
                       <span>{timeStr}</span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center" aria-hidden="true">
                       <span>{icon} {actionDesc}</span>
-                      <span className="font-bold text-green-400 ml-2 whitespace-nowrap">
-                        {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })()}
-                      </span>
+                      <span className="font-bold text-green-400 ml-2 whitespace-nowrap">{scoreDisplay}</span>
                     </div>
                   </div>
                 );

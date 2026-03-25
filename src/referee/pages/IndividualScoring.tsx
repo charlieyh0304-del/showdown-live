@@ -108,8 +108,9 @@ export default function IndividualScoring() {
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
   // Coin toss
-  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
+  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
+  const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
   // Coach
   const [player1Coach, setPlayer1Coach] = useState('');
   const [player2Coach, setPlayer2Coach] = useState('');
@@ -136,7 +137,19 @@ export default function IndividualScoring() {
     if (match) updateMatch({ activeTimeout: null });
   });
 
-  // 타임아웃 15초 알림 제거 (불필요)
+  // 15초 안내 (타임아웃)
+  const timeoutAlerted = useRef(false);
+  useEffect(() => {
+    if (!timeoutTimer.isRunning) {
+      timeoutAlerted.current = false;
+      return;
+    }
+    if (timeoutTimer.seconds === 15 && !timeoutAlerted.current) {
+      timeoutAlerted.current = true;
+      setLastAction('⚠️ 15초 남았습니다');
+      setAnnouncement('15초 남았습니다');
+    }
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
   const sideChangeAlerted = useRef(false);
@@ -152,7 +165,19 @@ export default function IndividualScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 워밍업 15초 알림 제거 (불필요)
+  // 15초 안내 (워밍업)
+  const warmupAlerted = useRef(false);
+  useEffect(() => {
+    if (!warmupTimer.isRunning) {
+      warmupAlerted.current = false;
+      return;
+    }
+    if (warmupTimer.seconds === 15 && !warmupAlerted.current) {
+      warmupAlerted.current = true;
+      setLastAction('⚠️ 워밍업 15초 남았습니다');
+      setAnnouncement('워밍업 15초 남았습니다');
+    }
+  }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -849,15 +874,44 @@ export default function IndividualScoring() {
             </h2>
             <p className="text-gray-400 text-center">서브 또는 리시브를 선택하세요</p>
             <div className="flex gap-4">
-              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch(tossWinner)} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name}가 서브 선택`}>
-                🎾 서브
+              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setCoinTossStep('warmup_ask'); }} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name}가 서브 선택`}>
+                서브
               </button>
-              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => handleStartMatch(tossWinner === 'player1' ? 'player2' : 'player1')} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name}가 리시브 선택`}>
-                🏓 리시브
+              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setCoinTossStep('warmup_ask'); }} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name}가 리시브 선택`}>
+                리시브
               </button>
             </div>
             <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label="동전던지기 다시 선택" style={{ minHeight: '44px' }}>
               다시 선택
+            </button>
+          </div>
+        )}
+        {coinTossStep === 'warmup_ask' && pendingFirstServe && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">워밍업 진행</h2>
+            <p className="text-gray-400 text-center">경기 시작 전 워밍업(60초)을 진행하시겠습니까?</p>
+            <div className="flex gap-4">
+              <button
+                className="btn btn-success btn-large flex-1 text-xl py-6"
+                onClick={async () => {
+                  await handleStartMatch(pendingFirstServe);
+                  warmupTimer.start(60);
+                  setShowWarmup(true);
+                }}
+                aria-label="워밍업 진행 후 경기 시작"
+              >
+                워밍업 진행
+              </button>
+              <button
+                className="btn btn-accent btn-large flex-1 text-xl py-6"
+                onClick={() => handleStartMatch(pendingFirstServe)}
+                aria-label="워밍업 없이 경기 시작"
+              >
+                바로 시작
+              </button>
+            </div>
+            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('choice'); setPendingFirstServe(null); }} aria-label="서브 선택으로 돌아가기" style={{ minHeight: '44px' }}>
+              뒤로
             </button>
           </div>
         )}

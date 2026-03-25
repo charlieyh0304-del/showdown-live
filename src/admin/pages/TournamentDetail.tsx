@@ -459,6 +459,7 @@ export default function TournamentDetail() {
           <ScheduleTab
             matches={matches}
             courts={courts}
+            referees={referees}
             schedule={schedule}
             setScheduleBulk={setScheduleBulk}
             updateMatch={updateMatch}
@@ -2550,12 +2551,13 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 interface ScheduleTabProps {
   matches: Match[];
   courts: { id: string; name: string }[];
+  referees: { id: string; name: string }[];
   schedule: ScheduleSlot[];
   setScheduleBulk: (slots: Omit<ScheduleSlot, 'id'>[]) => Promise<void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<void>;
 }
 
-function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }: ScheduleTabProps) {
+function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, updateMatch }: ScheduleTabProps) {
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
   const [endTime, setEndTime] = useState('23:00');
@@ -2711,6 +2713,7 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
         return d.toISOString().split('T')[0];
       };
 
+      let refereeIndex = 0;
       for (const match of targetMatches) {
         const playerIds = getPlayerIds(match);
 
@@ -2772,12 +2775,20 @@ function ScheduleTab({ matches, courts, schedule, setScheduleBulk, updateMatch }
           status: match.status,
         });
 
-        await updateMatch(match.id, {
+        const matchUpdate: Partial<Match> = {
           scheduledTime: timeStr,
           scheduledDate: bestDate,
           courtId: court.courtId,
           courtName: court.courtName,
-        });
+        };
+        // Auto-assign referee round-robin (only if not already assigned)
+        if (!match.refereeId && referees.length > 0) {
+          const ref = referees[refereeIndex % referees.length];
+          matchUpdate.refereeId = ref.id;
+          matchUpdate.refereeName = ref.name;
+          refereeIndex++;
+        }
+        await updateMatch(match.id, matchUpdate);
 
         // Update court next available time
         const courtEndTime = bestTime + interval;
