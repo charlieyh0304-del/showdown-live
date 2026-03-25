@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   useTournament,
   useMatches,
@@ -31,18 +32,18 @@ function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
 
 type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'players', label: '참가자' },
-  { key: 'bracket', label: '대진표' },
-  { key: 'schedule', label: '스케줄' },
-  { key: 'status', label: '경기 현황' },
-  { key: 'ranking', label: '순위' },
+const TAB_KEYS: { key: TabKey; labelKey: string }[] = [
+  { key: 'players', labelKey: 'admin.tournamentDetail.tabs.players' },
+  { key: 'bracket', labelKey: 'admin.tournamentDetail.tabs.bracket' },
+  { key: 'schedule', labelKey: 'admin.tournamentDetail.tabs.schedule' },
+  { key: 'status', labelKey: 'admin.tournamentDetail.tabs.status' },
+  { key: 'ranking', labelKey: 'admin.tournamentDetail.tabs.ranking' },
 ];
 
-const STATUS_LABELS: Record<MatchStatus, string> = {
-  pending: '대기',
-  in_progress: '진행중',
-  completed: '완료',
+const STATUS_LABEL_KEYS: Record<MatchStatus, string> = {
+  pending: 'common.matchStatus.pending',
+  in_progress: 'common.matchStatus.inProgress',
+  completed: 'common.matchStatus.completed',
 };
 
 const STATUS_COLORS: Record<MatchStatus, string> = {
@@ -52,6 +53,7 @@ const STATUS_COLORS: Record<MatchStatus, string> = {
 };
 
 export default function TournamentDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>('players');
@@ -81,7 +83,7 @@ export default function TournamentDetail() {
   if (tLoading || mLoading || gpLoading || tpLoading) {
     return (
       <div className="flex items-center justify-center py-20" aria-live="polite">
-        <p className="text-2xl text-yellow-400 animate-pulse">로딩 중...</p>
+        <p className="text-2xl text-yellow-400 animate-pulse">{t('common.loading')}</p>
       </div>
     );
   }
@@ -89,9 +91,9 @@ export default function TournamentDetail() {
   if (!tournament) {
     return (
       <div className="text-center py-20">
-        <p className="text-2xl text-red-500">대회를 찾을 수 없습니다.</p>
-        <button className="btn btn-primary mt-4" onClick={() => navigate('/admin')} aria-label="대시보드로 돌아가기">
-          대시보드로 돌아가기
+        <p className="text-2xl text-red-500">{t('admin.tournamentDetail.notFound')}</p>
+        <button className="btn btn-primary mt-4" onClick={() => navigate('/admin')} aria-label="{t('admin.tournamentDetail.backToDashboard')}">
+          {t('admin.tournamentDetail.backToDashboard')}
         </button>
       </div>
     );
@@ -111,34 +113,34 @@ export default function TournamentDetail() {
       : (hasExistingPlayers ? tournamentPlayers.length : effectiveSimCount);
 
     if (!hasExistingTeams && !hasExistingPlayers && (!effectiveSimCount || effectiveSimCount < 2)) {
-      alert(isTeamType ? '참가 팀 수를 입력해주세요.' : '참가 인원을 입력해주세요.');
+      alert(isTeamType ? t('admin.tournamentDetail.simulation.enterTeamCount') : t('admin.tournamentDetail.simulation.enterPlayerCount'));
       return;
     }
 
     const msgParts = [
-      `시뮬레이션을 실행합니다.\n`,
+      t('admin.tournamentDetail.simulationConfirm.intro'),
       hasExistingTeams
-        ? `• 등록된 ${teams.length}개 팀으로 진행`
+        ? t('admin.tournamentDetail.simulationConfirm.existingTeams', { count: teams.length })
         : hasExistingPlayers
-          ? `• 등록된 선수 ${playerCount}명으로 진행`
-          : `• 가상 참가자 ${playerCount}명 생성`,
+          ? t('admin.tournamentDetail.simulationConfirm.existingPlayers', { count: playerCount })
+          : t('admin.tournamentDetail.simulationConfirm.virtualPlayers', { count: playerCount }),
       simAutoReferee
         ? (hasExistingReferees
-          ? `• 등록된 심판 ${referees.length}명 배정`
-          : `• 가상 심판 3명 생성`)
-        : `• 심판 자동 배정: OFF`,
+          ? t('admin.tournamentDetail.simulationConfirm.existingReferees', { count: referees.length })
+          : t('admin.tournamentDetail.simulationConfirm.virtualReferees'))
+        : t('admin.tournamentDetail.simulationConfirm.refereeOff'),
       simAutoCourt
-        ? `• 경기장 자동 배정: ON`
-        : `• 경기장 자동 배정: OFF`,
-      `• 기존 경기 데이터가 초기화됩니다`,
-      `• 대회 규칙 설정은 유지됩니다`,
-      `\n계속하시겠습니까?`,
+        ? t('admin.tournamentDetail.simulationConfirm.courtOn')
+        : t('admin.tournamentDetail.simulationConfirm.courtOff'),
+      t('admin.tournamentDetail.simulationConfirm.dataReset'),
+      t('admin.tournamentDetail.simulationConfirm.rulesKept'),
+      t('admin.tournamentDetail.simulationConfirm.confirmContinue'),
     ];
     if (!confirm(msgParts.join('\n'))) return;
 
     setSimulating(true);
     try {
-      setSimProgress('시뮬레이션 데이터 생성 중...');
+      setSimProgress(t('admin.tournamentDetail.simulation.generatingData'));
       const sampleNames = getSampleNames();
       const result = simulateTournament(tournament, playerCount, {
         // 팀전+기존팀: 선수 정보는 팀에 포함되어 있으므로 별도 전달 불필요
@@ -153,7 +155,7 @@ export default function TournamentDetail() {
       // 기존 선수/팀이 없을 때만 새로 등록 + ID 매핑 구축
       const playerIdMap = new Map<string, string>();
       if (!hasExistingPlayers && !hasExistingTeams) {
-        setSimProgress(`참가자 ${result.players.length}명 등록 중...`);
+        setSimProgress(t('admin.tournamentDetail.simulation.registeringPlayers', { count: result.players.length }));
         for (const player of result.players) {
           const newId = await addTournamentPlayer({ name: player.name });
           if (newId) playerIdMap.set(player.id, newId);
@@ -161,7 +163,7 @@ export default function TournamentDetail() {
       }
 
       if (result.teams && result.teams.length > 0 && !hasExistingTeams) {
-        setSimProgress(`팀 ${result.teams.length}개 생성 중...`);
+        setSimProgress(t('admin.tournamentDetail.simulation.creatingTeams', { count: result.teams.length }));
         // 팀의 memberIds를 실제 Firebase ID로 교체
         const remappedTeams = playerIdMap.size > 0
           ? result.teams.map(t => ({
@@ -182,7 +184,7 @@ export default function TournamentDetail() {
             courtIdMap.set(`sim_court_${idx + 1}`, court.id);
           });
         } else {
-          setSimProgress('가상 코트 생성 중...');
+          setSimProgress(t('admin.tournamentDetail.simulation.creatingCourts'));
           for (const simCourt of [{ simId: 'sim_court_1', name: '1코트' }, { simId: 'sim_court_2', name: '2코트' }]) {
             const newId = await addCourt({ name: simCourt.name, assignedReferees: [] });
             if (newId) courtIdMap.set(simCourt.simId, newId);
@@ -193,7 +195,7 @@ export default function TournamentDetail() {
       // === 가상 심판 생성 (기존 심판이 없을 때, 경기 저장 전) ===
       const refIdMap = new Map<string, string>();
       if (simAutoReferee && referees.length === 0 && result.referees && result.referees.length > 0) {
-        setSimProgress(`가상 심판 ${result.referees.length}명 생성 중...`);
+        setSimProgress(t('admin.tournamentDetail.simulation.creatingReferees', { count: result.referees.length }));
         for (const simRef of result.referees) {
           const newId = await addReferee({ name: simRef.name, role: 'main', assignedMatchIds: [] });
           if (newId) refIdMap.set(simRef.id, newId);
@@ -201,7 +203,7 @@ export default function TournamentDetail() {
       }
 
       // === 경기 데이터에서 sim_ ID를 실제 Firebase ID로 교체 후 저장 ===
-      setSimProgress(`경기 ${result.matches.length}건 생성 중...`);
+      setSimProgress(t('admin.tournamentDetail.simulation.creatingMatches', { count: result.matches.length }));
       const remapId = (id: string | null | undefined): string | undefined => {
         if (!id) return undefined;
         return playerIdMap.get(id) || id;
@@ -256,7 +258,7 @@ export default function TournamentDetail() {
 
       // === 스케줄 저장 (matchId/courtId를 실제 Firebase ID로 교체) ===
       if (result.schedule && result.schedule.length > 0) {
-        setSimProgress(`스케줄 ${result.schedule.length}건 저장 중...`);
+        setSimProgress(t('admin.tournamentDetail.simulation.savingSchedule', { count: result.schedule.length }));
         const remappedSchedule = result.schedule.map(slot => ({
           ...slot,
           matchId: matchIdMap.get(slot.matchId) || slot.matchId,
@@ -277,13 +279,13 @@ export default function TournamentDetail() {
               const refIdx = idx % refAssignments.length;
               refAssignments[refIdx].assignedMatchIds.push(matchId);
             });
-            setSimProgress(`심판 ${referees.length}명 배정 정보 저장 중...`);
+            setSimProgress(t('admin.tournamentDetail.simulation.savingRefereeAssignment', { count: referees.length }));
             await withTimeout(
               Promise.all(refAssignments.map(ra => updateReferee(ra.id, { assignedMatchIds: ra.assignedMatchIds }))),
               10000,
             );
           } else if (result.referees && result.referees.length > 0) {
-            setSimProgress(`심판 배정 정보 저장 중...`);
+            setSimProgress(t('admin.tournamentDetail.simulation.savingAssignment'));
             const refPromises = result.referees
               .map(simRef => {
                 const realRefId = refIdMap.get(simRef.id);
@@ -299,17 +301,17 @@ export default function TournamentDetail() {
         console.error('심판 배정 오류 (무시하고 계속):', refErr);
       }
 
-      setSimProgress('대회 상태 업데이트 중...');
+      setSimProgress(t('admin.tournamentDetail.simulation.updatingStatus'));
       // 모든 경기가 completed이면 대회 완료, 아니면 in_progress
       const allCompleted = result.matches.every(m => m.status === 'completed');
       await updateTournament({ status: allCompleted ? 'completed' : 'in_progress' });
 
-      setSimProgress(`시뮬레이션 완료! 경기 ${result.matches.length}건 생성, 대회 상태: ${allCompleted ? '완료' : '진행중'}`);
+      setSimProgress(t('admin.tournamentDetail.simulation.completed', { count: result.matches.length, status: allCompleted ? t('common.tournamentStatus.completed') : t('common.tournamentStatus.inProgress') }));
       // 10초 후 메시지 클리어
       setTimeout(() => setSimProgress(''), 10000);
     } catch (err) {
       console.error('시뮬레이션 오류:', err);
-      setSimProgress('시뮬레이션 중 오류 발생');
+      setSimProgress(t('admin.tournamentDetail.simulation.error'));
       // 에러 발생해도 대회 상태는 in_progress로 업데이트 시도
       try {
         await updateTournament({ status: 'in_progress' });
@@ -324,20 +326,20 @@ export default function TournamentDetail() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-yellow-400">{tournament.name}</h1>
-          <p className="text-gray-400 mt-1">{tournament.date}{tournament.endDate ? ` ~ ${tournament.endDate}` : ''} | {tournament.type === 'individual' ? '개인전' : tournament.type === 'team' ? '팀전' : '랜덤 팀리그전'}</p>
+          <p className="text-gray-400 mt-1">{tournament.date}{tournament.endDate ? ` ~ ${tournament.endDate}` : ''} | {tournament.type === 'individual' ? t('admin.tournamentDetail.header.typeIndividual') : tournament.type === 'team' ? t('admin.tournamentDetail.header.typeTeam') : t('admin.tournamentDetail.header.typeRandomTeamLeague')}</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => navigate('/admin')} aria-label="뒤로가기">
-          뒤로
+        <button className="btn btn-secondary" onClick={() => navigate('/admin')} aria-label={t('common.back')}>
+          {t('common.back')}
         </button>
       </div>
 
       {tournament.status === 'draft' && (
         <div className="card bg-purple-900/30 border-purple-500 p-4">
-          <h3 className="text-lg font-bold text-purple-400 mb-2">테스트 시뮬레이션</h3>
-          <p className="text-gray-400 text-sm mb-4">가상 참가자, 경기 결과, 순위를 자동으로 생성합니다.</p>
+          <h3 className="text-lg font-bold text-purple-400 mb-2">{t('admin.tournamentDetail.simulation.title')}</h3>
+          <p className="text-gray-400 text-sm mb-4">{t('admin.tournamentDetail.simulation.description')}</p>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              {isTeamType ? '참가 팀 수' : '참가 인원'}
+              {isTeamType ? t('admin.tournamentDetail.simulation.teamCount') : t('admin.tournamentDetail.simulation.playerCount')}
             </label>
             <input
               type="number"
@@ -345,12 +347,12 @@ export default function TournamentDetail() {
               value={simCount}
               min={2}
               max={64}
-              placeholder={isTeamType ? '팀 수 입력' : '인원 수 입력'}
+              placeholder={isTeamType ? t('admin.tournamentDetail.simulation.teamCountPlaceholder') : t('admin.tournamentDetail.simulation.playerCountPlaceholder')}
               onChange={e => setSimCount(e.target.value === '' ? '' : Number(e.target.value))}
-              aria-label={isTeamType ? '참가 팀 수' : '참가 인원'}
+              aria-label={isTeamType ? t('admin.tournamentDetail.simulation.teamCount') : t('admin.tournamentDetail.simulation.playerCount')}
             />
             {isTeamType && (
-              <p className="text-xs text-gray-400 mt-1">등록된 팀이 있으면 해당 팀으로 시뮬레이션됩니다.</p>
+              <p className="text-xs text-gray-400 mt-1">{t('admin.tournamentDetail.simulation.existingTeamNote')}</p>
             )}
           </div>
           <div className="space-y-3 mb-4">
@@ -362,8 +364,8 @@ export default function TournamentDetail() {
                 className="mt-1 w-4 h-4 accent-purple-500"
               />
               <div>
-                <span className="text-sm font-medium text-gray-200">대진표 자동 배정</span>
-                <p className="text-xs text-gray-400">조별 라운드로빈 대진을 자동으로 생성합니다.</p>
+                <span className="text-sm font-medium text-gray-200">{t('admin.tournamentDetail.simulation.autoBracket')}</span>
+                <p className="text-xs text-gray-400">{t('admin.tournamentDetail.simulation.autoBracketDescription')}</p>
               </div>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">
@@ -374,8 +376,8 @@ export default function TournamentDetail() {
                 className="mt-1 w-4 h-4 accent-purple-500"
               />
               <div>
-                <span className="text-sm font-medium text-gray-200">심판 자동 배정</span>
-                <p className="text-xs text-gray-400">가상 심판을 생성하고 경기에 배정합니다.</p>
+                <span className="text-sm font-medium text-gray-200">{t('admin.tournamentDetail.simulation.autoReferee')}</span>
+                <p className="text-xs text-gray-400">{t('admin.tournamentDetail.simulation.autoRefereeDescription')}</p>
               </div>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">
@@ -386,13 +388,13 @@ export default function TournamentDetail() {
                 className="mt-1 w-4 h-4 accent-purple-500"
               />
               <div>
-                <span className="text-sm font-medium text-gray-200">경기장 자동 배정</span>
-                <p className="text-xs text-gray-400">가상 경기장을 생성하고 스케줄에 배정합니다.</p>
+                <span className="text-sm font-medium text-gray-200">{t('admin.tournamentDetail.simulation.autoCourt')}</span>
+                <p className="text-xs text-gray-400">{t('admin.tournamentDetail.simulation.autoCourtDescription')}</p>
               </div>
             </label>
           </div>
           {simProgress && (
-            <p className={`text-sm mb-2 font-semibold ${simProgress.includes('완료') ? 'text-green-400 text-base' : simProgress.includes('오류') ? 'text-red-400' : 'text-cyan-400'}`} role="status" aria-live="polite">
+            <p className={`text-sm mb-2 font-semibold ${simProgress.includes(t('common.done')) || simProgress.includes('!') ? 'text-green-400 text-base' : simProgress.includes(t('admin.tournamentDetail.simulation.error')) ? 'text-red-400' : 'text-cyan-400'}`} role="status" aria-live="polite">
               {simProgress}
             </p>
           )}
@@ -400,15 +402,15 @@ export default function TournamentDetail() {
             className="btn bg-purple-700 hover:bg-purple-600 text-white w-full"
             onClick={handleSimulate}
             disabled={simulating}
-            aria-label="시뮬레이션 실행"
+            aria-label={t('admin.tournamentDetail.simulation.runAriaLabel')}
           >
-            {simulating ? '시뮬레이션 진행 중...' : '시뮬레이션 실행'}
+            {simulating ? t('admin.tournamentDetail.simulation.running') : t('admin.tournamentDetail.simulation.runButton')}
           </button>
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap border-b border-gray-700 pb-2" role="tablist" aria-label="대회 상세 탭" onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const idx = TABS.findIndex(t => t.key === activeTab); const next = e.key === 'ArrowRight' ? (idx + 1) % TABS.length : (idx - 1 + TABS.length) % TABS.length; setActiveTab(TABS[next].key); e.currentTarget.querySelector<HTMLElement>(`#tab-${TABS[next].key}`)?.focus(); } }}>
-        {TABS.map(tab => (
+      <div className="flex gap-2 flex-wrap border-b border-gray-700 pb-2" role="tablist" aria-label={t('admin.tournamentDetail.tabListAriaLabel')} onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const idx = TAB_KEYS.findIndex(tk => tk.key === activeTab); const next = e.key === 'ArrowRight' ? (idx + 1) % TAB_KEYS.length : (idx - 1 + TAB_KEYS.length) % TAB_KEYS.length; setActiveTab(TAB_KEYS[next].key); e.currentTarget.querySelector<HTMLElement>(`#tab-${TAB_KEYS[next].key}`)?.focus(); } }}>
+        {TAB_KEYS.map(tab => (
           <button
             key={tab.key}
             id={`tab-${tab.key}`}
@@ -419,7 +421,7 @@ export default function TournamentDetail() {
             className={`nav-link ${activeTab === tab.key ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.key)}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>
@@ -498,6 +500,9 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
   placeholder?: string;
   ariaLabel?: string;
 }) {
+  const { t: tFn } = useTranslation();
+  const tRef = useRef(tFn);
+  tRef.current = tFn;
   const containerRef = useRef<HTMLDivElement>(null);
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
@@ -517,15 +522,16 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
     input.className = 'input';
     input.style.flex = '1';
     input.style.fontSize = '0.875rem';
-    input.placeholder = placeholder || '선수 이름';
+    const t = tRef.current;
+    input.placeholder = placeholder || t('admin.tournamentDetail.koreanInput.playerNamePlaceholder');
     if (ariaLabel) input.setAttribute('aria-label', ariaLabel);
 
     const select = document.createElement('select');
     select.className = 'input';
     select.style.width = '64px';
     select.style.fontSize = '0.875rem';
-    select.setAttribute('aria-label', '성별');
-    select.innerHTML = '<option value="">성별</option><option value="male">남</option><option value="female">여</option>';
+    select.setAttribute('aria-label', t('admin.tournamentDetail.koreanInput.genderAriaLabel'));
+    select.innerHTML = `<option value="">${t('admin.tournamentDetail.koreanInput.genderLabel')}</option><option value="male">${t('admin.tournamentDetail.koreanInput.genderMale')}</option><option value="female">${t('admin.tournamentDetail.koreanInput.genderFemale')}</option>`;
 
     const btn = document.createElement('button');
     btn.className = 'btn btn-success';
@@ -533,7 +539,7 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
     btn.style.padding = '0.5rem 0.75rem';
     btn.textContent = '+';
     btn.type = 'button';
-    btn.setAttribute('aria-label', '선수 추가');
+    btn.setAttribute('aria-label', t('admin.tournamentDetail.koreanInput.addPlayerAriaLabel'));
 
     let composing = false;
 
@@ -581,6 +587,7 @@ interface PlayersTabProps {
 }
 
 function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamentPlayer, deleteTournamentPlayer, addPlayersFromGlobal, updateTournament, isTeamType, teams, setTeamsBulk }: PlayersTabProps) {
+  const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
   const [showGlobalModal, setShowGlobalModal] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -637,7 +644,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
   const handleAddTeamFromModal = useCallback(async () => {
     const nextIdx = teams.length + 1;
-    const name = newTeamName.trim() || `${nextIdx}팀`;
+    const name = newTeamName.trim() || t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: nextIdx });
     // 모달에서 입력한 멤버들을 선수로 등록하면서 팀에 추가
     const memberIds: string[] = [];
     const memberNames: string[] = [];
@@ -661,7 +668,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   }, [teams, newTeamName, newTeamMembers, addTournamentPlayer, setTeamsBulk]);
 
   const handleDeleteTeam = useCallback(async (teamId: string) => {
-    if (!confirm('이 팀을 삭제하시겠습니까?')) return;
+    if (!confirm(t('admin.tournamentDetail.playersTabInline.deleteTeamConfirm'))) return;
     await setTeamsBulk(teams.filter(t => t.id !== teamId));
   }, [teams, setTeamsBulk]);
 
@@ -737,7 +744,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         const requiredFemales = genderRatio.female * teamCount;
 
         if (males.length < requiredMales || females.length < requiredFemales) {
-          alert(`성별 비율에 맞는 선수가 부족합니다.\n필요: 남자 ${requiredMales}명, 여자 ${requiredFemales}명\n현재: 남자 ${males.length}명, 여자 ${females.length}명`);
+          alert(t('admin.tournamentDetail.playersTabInline.genderShortageAlert', { requiredMale: requiredMales, requiredFemale: requiredFemales, currentMale: males.length, currentFemale: females.length }));
           setGenerating(false);
           return;
         }
@@ -753,7 +760,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
           ];
           newTeams.push({
             id: `team_${i + 1}`,
-            name: `${i + 1}팀`,
+            name: t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: i + 1 }),
             memberIds: members.map(m => m.id),
             memberNames: members.map(m => m.name),
           });
@@ -768,7 +775,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
           if (members.length === 0) continue;
           newTeams.push({
             id: `team_${teamIdx}`,
-            name: `${teamIdx}팀`,
+            name: t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: teamIdx }),
             memberIds: members.map(m => m.id),
             memberNames: members.map(m => m.name),
           });
@@ -787,19 +794,19 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       {!isManualTeam && (
       <div className="card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-xl font-bold">대회 참가 선수 ({tournamentPlayers.length}명)</h2>
+          <h2 className="text-xl font-bold">{t('admin.tournamentDetail.playersTab.tournamentPlayers')} ({tournamentPlayers.length}{t('common.units.person')})</h2>
           <button
             className="btn btn-secondary"
             onClick={() => setShowGlobalModal(true)}
-            aria-label="전역 선수에서 가져오기"
+            aria-label="{t('admin.tournamentDetail.playersTab.importFromGlobal')}"
           >
-            전역 선수에서 가져오기
+            {t('admin.tournamentDetail.playersTab.importFromGlobal')}
           </button>
         </div>
 
         {/* 선수 추가 */}
         <div className="card space-y-4">
-          <h3 className="text-lg font-bold">선수 추가</h3>
+          <h3 className="text-lg font-bold">{t('admin.tournamentDetail.playersTab.addPlayerTitle')}</h3>
 
           {/* 개별 추가 */}
           <div className="flex gap-2">
@@ -809,8 +816,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               onChange={e => setNewPlayerName(e.target.value)}
               onCompositionStart={() => { composingRef.current = true; }}
               onCompositionEnd={() => { composingRef.current = false; }}
-              placeholder="선수 이름"
-              aria-label="선수 이름"
+              placeholder={t('admin.tournamentDetail.playersTabInline.playerNamePlaceholder')}
+              aria-label={t('admin.tournamentDetail.playersTabInline.playerNameAriaLabel')}
               onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && newPlayerName.trim()) handleAddPlayer(); }}
             />
             {isTeamType && (
@@ -818,57 +825,57 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               className="input w-24"
               value={newPlayerGender}
               onChange={e => setNewPlayerGender(e.target.value as '' | 'male' | 'female')}
-              aria-label="성별"
+              aria-label={t('admin.tournamentDetail.playersTabInline.genderAriaLabel')}
             >
-              <option value="">성별</option>
-              <option value="male">남</option>
-              <option value="female">여</option>
+              <option value="">{t('admin.tournamentDetail.playersTabInline.genderLabel')}</option>
+              <option value="male">{t('admin.tournamentDetail.playersTabInline.genderMale')}</option>
+              <option value="female">{t('admin.tournamentDetail.playersTabInline.genderFemale')}</option>
             </select>
             )}
-            <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()} aria-label="선수 추가">
-              추가
+            <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()} aria-label={t('admin.tournamentDetail.playersTabInline.addPlayerAriaLabel')}>
+              {t('admin.tournamentDetail.playersTabInline.addButton')}
             </button>
           </div>
 
           {/* 일괄 추가 */}
           <details>
-            <summary className="text-sm text-blue-400 cursor-pointer">여러 명 한번에 등록</summary>
+            <summary className="text-sm text-blue-400 cursor-pointer">{t('admin.tournamentDetail.playersTabInline.bulkAddSummary')}</summary>
             <div className="mt-2 space-y-2">
               <textarea
                 className="input w-full h-32"
                 value={bulkNames}
                 onChange={e => setBulkNames(e.target.value)}
-                placeholder={"이름을 줄바꿈으로 구분하여 입력\n홍길동\n김철수\n이영희"}
-                aria-label="일괄 등록할 선수 이름 목록"
+                placeholder={t('admin.tournamentDetail.playersTabInline.bulkAddPlaceholder')}
+                aria-label={t('admin.tournamentDetail.playersTabInline.bulkAddAriaLabel')}
               />
               <button
                 className="btn btn-success w-full"
                 onClick={handleBulkAdd}
                 disabled={!bulkNames.trim()}
               >
-                {bulkNames.trim() ? bulkNames.trim().split('\n').filter(n => n.trim()).length : 0}명 일괄 등록
+                {t('admin.tournamentDetail.playersTabInline.bulkAddButton', { count: bulkNames.trim() ? bulkNames.trim().split('\n').filter(n => n.trim()).length : 0 })}
               </button>
             </div>
           </details>
         </div>
 
         {tournamentPlayers.length === 0 ? (
-          <p className="text-gray-400">참가 선수가 없습니다. 선수를 등록해주세요.</p>
+          <p className="text-gray-400">{t('admin.tournamentDetail.playersTab.noPlayers')}</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
             {tournamentPlayers.map(p => (
               <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-600">
                 <div>
                   <span className="font-bold">{p.name}</span>
-                  {isTeamType && p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
-                  {isTeamType && p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                  {isTeamType && p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">{t('common.gender.male')}</span>}
+                  {isTeamType && p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">{t('common.gender.female')}</span>}
                   {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
                   {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
                 </div>
                 <button
                   className="text-red-400 hover:text-red-300 font-bold text-lg"
                   onClick={() => deleteTournamentPlayer(p.id)}
-                  aria-label={`${p.name} 삭제`}
+                  aria-label={t('admin.tournamentDetail.playersTabInline.deletePlayerAriaLabel', { name: p.name })}
                 >
                   x
                 </button>
@@ -882,27 +889,27 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       {isTeamType && (
         <div className="card space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <h2 className="text-xl font-bold">팀 구성 ({teams.length}팀)</h2>
+            <h2 className="text-xl font-bold">{t('admin.tournamentDetail.playersTabInline.teamCompositionTitle', { count: teams.length })}</h2>
             <div className="flex gap-2">
               {tournament.type === 'randomTeamLeague' && (
                 <button
                   className="btn btn-accent"
                   onClick={generateRandomTeams}
                   disabled={generating || tournamentPlayers.length < 3}
-                  aria-label="랜덤 팀 생성"
+                  aria-label={t('admin.tournamentDetail.playersTabInline.randomTeamAriaLabel')}
                 >
-                  {generating ? '생성 중...' : '랜덤 팀 생성'}
+                  {generating ? t('admin.tournamentDetail.playersTabInline.generating') : t('admin.tournamentDetail.playersTabInline.randomTeamGenerate')}
                 </button>
               )}
-              <button className="btn btn-success" onClick={openAddTeamModal} aria-label="새 팀 추가">
-                + 새 팀 추가
+              <button className="btn btn-success" onClick={openAddTeamModal} aria-label={t('admin.tournamentDetail.playersTabInline.addNewTeamAriaLabel')}>
+                {t('admin.tournamentDetail.playersTabInline.addNewTeam')}
               </button>
             </div>
           </div>
 
           {/* 팀 카드 목록 */}
           {teams.length === 0 ? (
-            <p className="text-gray-400">팀이 아직 생성되지 않았습니다.</p>
+            <p className="text-gray-400">{t('admin.tournamentDetail.playersTabInline.noTeams')}</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {teams.map(team => {
@@ -913,21 +920,21 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 return (
                   <div key={team.id} className="bg-gray-800 rounded-lg p-4 border border-gray-600">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-cyan-400">{team.name} ({memberCount}명){team.coachName ? ` / 코치: ${team.coachName}` : ''}</h3>
+                      <h3 className="text-lg font-bold text-cyan-400">{team.coachName ? t('admin.tournamentDetail.playersTabInline.teamHeaderWithCoach', { name: team.name, count: memberCount, coach: team.coachName }) : t('admin.tournamentDetail.playersTabInline.teamHeader', { name: team.name, count: memberCount })}</h3>
                       <div className="flex items-center gap-2">
                         <button
                           className="text-sm text-blue-400 hover:text-blue-300"
                           onClick={() => isEditing ? setEditingTeamId(null) : startEditing(team.id)}
-                          aria-label={`${team.name} ${isEditing ? '접기' : '편집'}`}
+                          aria-label={isEditing ? t('admin.tournamentDetail.playersTabInline.foldAriaLabel', { name: team.name }) : t('admin.tournamentDetail.playersTabInline.editAriaLabel', { name: team.name })}
                         >
-                          {isEditing ? '접기' : '편집'}
+                          {isEditing ? t('admin.tournamentDetail.playersTabInline.foldButton') : t('admin.tournamentDetail.playersTabInline.editButton')}
                         </button>
                         <button
                           className="text-sm text-red-400 hover:text-red-300"
                           onClick={() => handleDeleteTeam(team.id)}
-                          aria-label={`${team.name} 삭제`}
+                          aria-label={t('admin.tournamentDetail.playersTabInline.deleteAriaLabel', { name: team.name })}
                         >
-                          삭제
+                          {t('admin.tournamentDetail.playersTabInline.deleteButton')}
                         </button>
                       </div>
                     </div>
@@ -942,13 +949,13 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                           <li key={memberId} className="flex items-center justify-between bg-gray-700 rounded px-3 py-1.5">
                             <span className="text-gray-200">
                               {memberName}
-                              {player?.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
-                              {player?.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                              {player?.gender === 'male' && <span className="ml-1 text-xs text-blue-400">{t('common.gender.male')}</span>}
+                              {player?.gender === 'female' && <span className="ml-1 text-xs text-pink-400">{t('common.gender.female')}</span>}
                             </span>
                             <button
                               className="text-red-400 hover:text-red-300 font-bold text-sm"
                               onClick={() => handleRemoveMemberFromTeam(memberId, team.id)}
-                              aria-label={`${memberName} 제거`}
+                              aria-label={t('admin.tournamentDetail.playersTabInline.removeMemberAriaLabel', { name: memberName })}
                             >
                               x
                             </button>
@@ -957,13 +964,13 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       })}
                     </ul>
                     {memberCount === 0 && (
-                      <p className="text-gray-400 text-sm mt-2">선수를 추가해주세요.</p>
+                      <p className="text-gray-400 text-sm mt-2">{t('admin.tournamentDetail.playersTabInline.addMemberPlaceholder')}</p>
                     )}
                     {/* 팀 내 선수 추가 */}
                     <div className="mt-3">
                       <KoreanNameInput
-                        placeholder="선수 이름"
-                        ariaLabel={`${team.name} 선수 추가`}
+                        placeholder={t('admin.tournamentDetail.playersTabInline.playerNamePlaceholder')}
+                        ariaLabel={t('admin.tournamentDetail.playersTabInline.addMemberToTeamAriaLabel', { team: team.name })}
                         onSubmit={async (name, gender) => {
                           const id = await addTournamentPlayer({ name, gender: (gender as 'male' | 'female') || undefined });
                           if (!id) return;
@@ -979,59 +986,59 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     {/* Per-team settings editor (로컬 state로 편집, 저장 버튼으로 한번에 반영) */}
                       <div className="mt-3 pt-3 border-t border-gray-700 space-y-3">
                         <p className="text-xs text-gray-400">
-                          팀별 설정 (비워두면 대회 기본값 적용{globalMaxReserves != null || globalGenderRatio ? `: 예비 ${globalMaxReserves ?? '-'}명, 남 ${globalGenderRatio?.male ?? '-'} / 여 ${globalGenderRatio?.female ?? '-'}` : ''})
+                          {t('admin.tournamentDetail.playersTabInline.teamSettingsHint')}{globalMaxReserves != null || globalGenderRatio ? t('admin.tournamentDetail.playersTabInline.teamSettingsHintDefaults', { reserves: globalMaxReserves ?? '-', male: globalGenderRatio?.male ?? '-', female: globalGenderRatio?.female ?? '-' }) : ''})
                         </p>
                         <div>
-                          <label className="block text-sm text-gray-300 mb-1">코치</label>
+                          <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.playersTabInline.coachLabel')}</label>
                           <input
                             type="text"
                             className="input w-full"
                             value={editCoachName}
-                            placeholder="코치 이름"
+                            placeholder={t('admin.tournamentDetail.playersTabInline.coachPlaceholder')}
                             onChange={e => setEditCoachName(e.target.value)}
-                            aria-label={`${team.name} 코치`}
+                            aria-label={t('admin.tournamentDetail.playersTabInline.coachAriaLabel', { team: team.name })}
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-300 mb-1">예비 선수 수</label>
+                          <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.playersTabInline.reserveCountLabel')}</label>
                           <input
                             type="number"
                             className="input w-full"
                             min={0}
                             max={20}
                             value={editMaxReserves}
-                            placeholder={globalMaxReserves != null ? `기본값: ${globalMaxReserves}` : '미설정'}
+                            placeholder={globalMaxReserves != null ? t('admin.tournamentDetail.playersTabInline.reservePlaceholderDefault', { value: globalMaxReserves }) : t('admin.tournamentDetail.playersTabInline.reservePlaceholderNone')}
                             onChange={e => setEditMaxReserves(e.target.value)}
-                            aria-label={`${team.name} 예비 선수 수`}
+                            aria-label={t('admin.tournamentDetail.playersTabInline.reserveAriaLabel', { team: team.name })}
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-300 mb-1">성별 비율</label>
+                          <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.playersTabInline.genderRatioLabel')}</label>
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <label className="block text-xs text-gray-300 mb-0.5">남</label>
+                              <label className="block text-xs text-gray-300 mb-0.5">{t('admin.tournamentDetail.playersTabInline.maleLabel')}</label>
                               <input
                                 type="number"
                                 className="input w-full"
                                 min={0}
                                 max={20}
                                 value={editGenderMale}
-                                placeholder={globalGenderRatio ? `기본: ${globalGenderRatio.male}` : '미설정'}
+                                placeholder={globalGenderRatio ? t('admin.tournamentDetail.playersTabInline.genderPlaceholderDefault', { value: globalGenderRatio.male }) : t('admin.tournamentDetail.playersTabInline.genderPlaceholderNone')}
                                 onChange={e => setEditGenderMale(e.target.value)}
-                                aria-label={`${team.name} 남자 선수 수`}
+                                aria-label={t('admin.tournamentDetail.playersTabInline.maleAriaLabel', { team: team.name })}
                               />
                             </div>
                             <div className="flex-1">
-                              <label className="block text-xs text-gray-300 mb-0.5">여</label>
+                              <label className="block text-xs text-gray-300 mb-0.5">{t('admin.tournamentDetail.playersTabInline.femaleLabel')}</label>
                               <input
                                 type="number"
                                 className="input w-full"
                                 min={0}
                                 max={20}
                                 value={editGenderFemale}
-                                placeholder={globalGenderRatio ? `기본: ${globalGenderRatio.female}` : '미설정'}
+                                placeholder={globalGenderRatio ? t('admin.tournamentDetail.playersTabInline.genderPlaceholderDefault', { value: globalGenderRatio.female }) : t('admin.tournamentDetail.playersTabInline.genderPlaceholderNone')}
                                 onChange={e => setEditGenderFemale(e.target.value)}
-                                aria-label={`${team.name} 여자 선수 수`}
+                                aria-label={t('admin.tournamentDetail.playersTabInline.femaleAriaLabel', { team: team.name })}
                               />
                             </div>
                           </div>
@@ -1039,9 +1046,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         <button
                           className="btn btn-primary w-full"
                           onClick={saveTeamSettings}
-                          aria-label="팀 설정 저장"
+                          aria-label={t('admin.tournamentDetail.playersTabInline.saveSettingsAriaLabel')}
                         >
-                          설정 저장
+                          {t('admin.tournamentDetail.playersTabInline.saveSettingsButton')}
                         </button>
                       </div>
                     </>}
@@ -1060,10 +1067,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         const currentGroupCount = tournament.qualifyingConfig?.groupCount || 0;
         return (
           <div className="card space-y-4">
-            <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
+            <h3 className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.topSeedSection.title')}</h3>
             <p className="text-gray-400 text-sm">
-              시드를 지정하면 시드 수만큼 조가 생성됩니다 (시드 A → A조, 시드 B → B조).
-              선수를 클릭하여 시드를 지정하세요.
+              {t('admin.tournamentDetail.topSeedSection.descriptionManual')}
             </p>
             <div className="space-y-2">
               {tournamentPlayers.map((player) => {
@@ -1076,7 +1082,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       className={`w-8 h-8 rounded-full text-sm font-bold ${
                         hasSeed ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
                       }`}
-                      aria-label={hasSeed ? `${player.name} 시드 ${label} (${label}조 배치, 해제하려면 클릭)` : `${player.name} 시드 지정`}
+                      aria-label={hasSeed ? t('admin.tournamentDetail.topSeedSection.seedRemoveAriaLabel', { name: player.name, label }) : t('admin.tournamentDetail.topSeedSection.seedAssignAriaLabel', { name: player.name })}
                       onClick={() => {
                         if (hasSeed) {
                           toggleSeed(player.id, player.name);
@@ -1090,7 +1096,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     </button>
                     <span className="text-white flex-1">{player.name}</span>
                     {hasSeed && (
-                      <span className="text-yellow-400 text-xs font-bold">시드 {label} → {label}조</span>
+                      <span className="text-yellow-400 text-xs font-bold">{t('admin.tournamentDetail.topSeedSection.seedBadge', { label })}</span>
                     )}
                   </div>
                 );
@@ -1099,7 +1105,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             {seeds.length >= 2 && (
               <div className="bg-cyan-900/20 rounded-lg p-3">
                 <p className="text-cyan-300 text-sm font-semibold">
-                  시드 {seeds.length}명 → {seeds.length}조 생성 (조당 약 {Math.ceil(tournamentPlayers.length / seeds.length)}명)
+                  {t('admin.tournamentDetail.topSeedSection.seedInfoText', { count: seeds.length, perGroup: Math.ceil(tournamentPlayers.length / seeds.length) })}
                 </p>
               </div>
             )}
@@ -1115,7 +1121,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 const existingQualifying = existingStages.find(s => s.type === 'qualifying');
                 const qualifyingStage = existingQualifying || {
                   id: `stage_qualifying_${now}`,
-                  name: '조별 예선',
+                  name: t('admin.tournamentDetail.bracketTab.qualifyingStageName'),
                   order: 0,
                   type: 'qualifying' as const,
                   format: 'group_knockout' as const,
@@ -1136,12 +1142,12 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                   },
                 });
               }}
-              aria-label="시드 저장 및 조 생성"
+              aria-label={t('admin.tournamentDetail.topSeedSection.saveAndCreateGroupsAriaLabel')}
             >
-              {seeds.length < 2 ? '시드를 2명 이상 지정하세요' : `시드 저장 + ${seeds.length}조 생성`}
+              {seeds.length < 2 ? t('admin.tournamentDetail.topSeedSection.minSeedRequired') : t('admin.tournamentDetail.topSeedSection.saveAndCreateGroups', { count: seeds.length })}
             </button>
             {currentGroupCount > 0 && (
-              <p className="text-green-400 text-sm">현재 {currentGroupCount}개 조 설정됨. 대진표 탭에서 조 편성이 가능합니다.</p>
+              <p className="text-green-400 text-sm">{t('admin.tournamentDetail.topSeedSection.currentGroupCount', { count: currentGroupCount })}</p>
             )}
           </div>
         );
@@ -1150,10 +1156,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       {/* 수동 모드: 본선 설정 (조가 있을 때) */}
       {tournament.formatType === 'manual' && tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && (
         <div className="card space-y-3">
-          <h4 className="text-md font-bold text-cyan-400">본선 토너먼트 설정</h4>
-          <p className="text-gray-400 text-sm">조별 예선 후 본선에 진출할 인원 수를 설정합니다.</p>
+          <h4 className="text-md font-bold text-cyan-400">{t('admin.tournamentDetail.finalsSetup.title')}</h4>
+          <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.finalsSetup.description')}</p>
           <div className="flex items-center gap-4">
-            <label className="text-gray-300">조당 진출 인원</label>
+            <label className="text-gray-300">{t('admin.tournamentDetail.finalsSetup.advancePerGroup')}</label>
             <input
               type="number"
               className="input w-24"
@@ -1176,7 +1182,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 const now = Date.now();
                 const finalsStage = existingFinals || {
                   id: `stage_finals_${now}`,
-                  name: '본선 토너먼트',
+                  name: t('admin.tournamentDetail.bracketTab.finalsStageName'),
                   order: 1,
                   type: 'finals' as const,
                   format: 'single_elimination' as const,
@@ -1199,19 +1205,19 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                   },
                 });
               }}
-              aria-label="조당 진출 인원"
+              aria-label={t('admin.tournamentDetail.finalsSetupInline.advancePerGroupAriaLabel')}
             />
             <span className="text-gray-400 text-sm">
-              (총 {(() => {
+              {t('admin.tournamentDetail.finalsSetupInline.totalAdvance', { count: (() => {
                 const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
                 const apc = fc?.advancePerGroup;
                 const adv = typeof apc === 'number' ? apc : 2;
                 return adv * (tournament.qualifyingConfig?.groupCount || 2);
-              })()}명 본선 진출)
+              })() })}
             </span>
           </div>
           {toArray(tournament.stages).find(s => s.type === 'finals') && (
-            <p className="text-green-400 text-sm">본선 설정 완료. 대진표 탭에서 예선 대진 생성 → 예선 완료 후 본선 대진을 수동 편성합니다.</p>
+            <p className="text-green-400 text-sm">{t('admin.tournamentDetail.finalsSetupInline.finalsReady')}</p>
           )}
         </div>
       )}
@@ -1223,10 +1229,9 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         const maxSeeds = groupCount;
         return (
           <div className="card space-y-4">
-            <h3 className="text-lg font-bold text-yellow-400">탑시드 지정</h3>
+            <h3 className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.topSeedSection.title')}</h3>
             <p className="text-gray-400 text-sm">
-              시드 선수는 해당 조에 배치됩니다 (시드 A → A조, 시드 B → B조).
-              최대 {maxSeeds}명까지 지정 가능합니다.
+              {t('admin.tournamentDetail.topSeedSection.descriptionAuto', { max: maxSeeds })}
             </p>
             <div className="space-y-2">
               {tournamentPlayers.map((player) => {
@@ -1239,7 +1244,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       className={`w-8 h-8 rounded-full text-sm font-bold ${
                         hasSeed ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'
                       }`}
-                      aria-label={hasSeed ? `${player.name} 시드 ${label} (해제하려면 클릭)` : `${player.name} 시드 지정`}
+                      aria-label={hasSeed ? t('admin.tournamentDetail.topSeedSection.seedRemoveAutoAriaLabel', { name: player.name, label }) : t('admin.tournamentDetail.topSeedSection.seedAssignAriaLabel', { name: player.name })}
                       onClick={() => {
                         if (hasSeed) {
                           toggleSeed(player.id, player.name);
@@ -1253,16 +1258,16 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     </button>
                     <span className="text-white flex-1">{player.name}</span>
                     {hasSeed && (
-                      <span className="text-yellow-400 text-xs font-bold">시드 {label} → {label}조</span>
+                      <span className="text-yellow-400 text-xs font-bold">{t('admin.tournamentDetail.topSeedSection.seedBadge', { label })}</span>
                     )}
                   </div>
                 );
               })}
             </div>
             {seeds.length >= maxSeeds && (
-              <p className="text-gray-400 text-xs">시드가 모두 지정되었습니다 ({seeds.length}/{maxSeeds}).</p>
+              <p className="text-gray-400 text-xs">{t('admin.tournamentDetail.topSeedSection.seedsFull', { current: seeds.length, max: maxSeeds })}</p>
             )}
-            <button className="btn btn-primary w-full" onClick={saveSeeds} aria-label="시드 저장">시드 저장</button>
+            <button className="btn btn-primary w-full" onClick={saveSeeds} aria-label={t('admin.tournamentDetail.topSeedSection.saveSeedsAriaLabel')}>{t('admin.tournamentDetail.topSeedSection.saveSeedsButton')}</button>
           </div>
         );
       })()}
@@ -1277,10 +1282,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             aria-modal="true"
             aria-labelledby="add-team-modal-title"
           >
-            <h3 id="add-team-modal-title" className="text-xl font-bold text-yellow-400">새 팀 추가</h3>
+            <h3 id="add-team-modal-title" className="text-xl font-bold text-yellow-400">{t('admin.tournamentDetail.addTeamModal.title')}</h3>
 
             <div>
-              <label htmlFor="new-team-name" className="block text-sm text-gray-300 mb-1">팀 이름</label>
+              <label htmlFor="new-team-name" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.addTeamModal.teamNameLabel')}</label>
               <input
                 id="new-team-name"
                 className="input w-full"
@@ -1288,13 +1293,13 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 onChange={e => setNewTeamName(e.target.value)}
                 onCompositionStart={() => { composingRef.current = true; }}
                 onCompositionEnd={() => { composingRef.current = false; }}
-                placeholder={`${teams.length + 1}팀`}
+                placeholder={t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: teams.length + 1 })}
                 autoFocus
               />
             </div>
 
             <div>
-              <label htmlFor="new-team-coach" className="block text-sm text-gray-300 mb-1">코치 이름 (선택)</label>
+              <label htmlFor="new-team-coach" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.addTeamModal.coachNameLabel')}</label>
               <input
                 id="new-team-coach"
                 className="input w-full"
@@ -1302,16 +1307,16 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 onChange={e => setNewTeamCoach(e.target.value)}
                 onCompositionStart={() => { composingRef.current = true; }}
                 onCompositionEnd={() => { composingRef.current = false; }}
-                placeholder="코치 이름"
+                placeholder={t('admin.tournamentDetail.addTeamModal.coachPlaceholder')}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-gray-300 mb-2">선수 등록</label>
+              <label className="block text-sm text-gray-300 mb-2">{t('admin.tournamentDetail.addTeamModal.playerRegistration')}</label>
               <div className="mb-3">
                 <KoreanNameInput
-                  placeholder="선수 이름"
-                  ariaLabel="선수 이름"
+                  placeholder={t('admin.tournamentDetail.addTeamModal.playerNamePlaceholder')}
+                  ariaLabel={t('admin.tournamentDetail.addTeamModal.playerNameAriaLabel')}
                   onSubmit={(name, gender) => {
                     setNewTeamMembers(prev => [...prev, { name, gender: gender as '' | 'male' | 'female' }]);
                   }}
@@ -1324,13 +1329,13 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     <li key={i} className="flex items-center justify-between bg-gray-800 rounded px-3 py-2">
                       <span className="text-gray-200">
                         {m.name}
-                        {m.gender === 'male' && <span className="ml-1 text-xs text-blue-400">남</span>}
-                        {m.gender === 'female' && <span className="ml-1 text-xs text-pink-400">여</span>}
+                        {m.gender === 'male' && <span className="ml-1 text-xs text-blue-400">{t('common.gender.male')}</span>}
+                        {m.gender === 'female' && <span className="ml-1 text-xs text-pink-400">{t('common.gender.female')}</span>}
                       </span>
                       <button
                         className="text-red-400 hover:text-red-300 font-bold text-sm"
                         onClick={() => setNewTeamMembers(prev => prev.filter((_, j) => j !== i))}
-                        aria-label={`${m.name} 제거`}
+                        aria-label={t('admin.tournamentDetail.addTeamModal.removePlayerAriaLabel', { name: m.name })}
                       >
                         x
                       </button>
@@ -1339,7 +1344,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 </ul>
               )}
               {newTeamMembers.length === 0 && (
-                <p className="text-gray-400 text-sm">선수를 추가해주세요.</p>
+                <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.addTeamModal.addPlayersPrompt')}</p>
               )}
             </div>
 
@@ -1347,16 +1352,16 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <button
                 className="btn btn-success flex-1"
                 onClick={handleAddTeamFromModal}
-                aria-label="팀 생성"
+                aria-label={t('admin.tournamentDetail.addTeamModal.createTeamAriaLabel')}
               >
-                팀 생성 ({newTeamMembers.length}명)
+                {t('admin.tournamentDetail.addTeamModal.createTeamButton', { count: newTeamMembers.length })}
               </button>
               <button
                 className="btn btn-secondary flex-1"
                 onClick={() => setShowAddTeamModal(false)}
-                aria-label="취소"
+                aria-label={t('common.cancel')}
               >
-                취소
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1368,17 +1373,17 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         <div className="modal-backdrop" onClick={() => setShowGlobalModal(false)} onKeyDown={e => { if (e.key === 'Escape') setShowGlobalModal(false); }}>
           <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="global-player-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="global-player-modal-title" className="text-xl font-bold">전역 선수에서 가져오기</h2>
+              <h2 id="global-player-modal-title" className="text-xl font-bold">{t('admin.tournamentDetail.playersTab.importFromGlobal')}</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={() => setShowGlobalModal(false)}
-                aria-label="닫기"
+                aria-label={t('common.close')}
               >
                 x
               </button>
             </div>
             {globalPlayers.length === 0 ? (
-              <p className="text-gray-400">등록된 전역 선수가 없습니다.</p>
+              <p className="text-gray-400">{t('admin.tournamentDetail.globalPlayerModal.noGlobalPlayers')}</p>
             ) : (
               <div className="space-y-2 mb-4">
                 {globalPlayers.map(p => {
@@ -1389,7 +1394,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       className={`btn text-left w-full ${selected ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                       onClick={() => toggleGlobalSelect(p.id)}
                       aria-pressed={selected}
-                      aria-label={`${p.name} ${selected ? '선택됨' : '선택안됨'}`}
+                      aria-label={selected ? t('admin.tournamentDetail.globalPlayerModal.selectedAriaLabel', { name: p.name }) : t('admin.tournamentDetail.globalPlayerModal.unselectedAriaLabel', { name: p.name })}
                     >
                       <span className="font-bold">{p.name}</span>
                       {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
@@ -1404,16 +1409,16 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 className="btn btn-accent flex-1"
                 onClick={handleImportGlobal}
                 disabled={selectedGlobalIds.length === 0}
-                aria-label="선택한 선수 가져오기"
+                aria-label={t('admin.tournamentDetail.globalPlayerModal.importAriaLabel')}
               >
-                {selectedGlobalIds.length}명 가져오기
+                {t('admin.tournamentDetail.globalPlayerModal.importButton', { count: selectedGlobalIds.length })}
               </button>
               <button
                 className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
                 onClick={() => setShowGlobalModal(false)}
-                aria-label="취소"
+                aria-label={t('common.cancel')}
               >
-                취소
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1442,6 +1447,7 @@ interface BracketTabProps {
 }
 
 function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, addMatch, deleteMatch, updateTournament, referees, courts, isTeamType }: BracketTabProps) {
+  const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
   const [groupAssignment, setGroupAssignment] = useState<StageGroup[]>([]);
   const [groupEditWarning, setGroupEditWarning] = useState(false);
@@ -1613,11 +1619,15 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     }
   }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages]);
 
-  const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId', value: string) => {
+  const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId' | 'assistantRefereeId', value: string) => {
     const data: Partial<Match> = { [field]: value || undefined };
     if (field === 'refereeId') {
       const found = referees.find(r => r.id === value);
       data.refereeName = found?.name ?? undefined;
+    }
+    if (field === 'assistantRefereeId') {
+      const found = referees.find(r => r.id === value);
+      data.assistantRefereeName = found?.name ?? undefined;
     }
     if (field === 'courtId') {
       const found = courts.find(c => c.id === value);
@@ -1635,7 +1645,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       return updateMatch(match.id, { refereeId: ref.id, refereeName: ref.name });
     });
     await Promise.all(updates);
-    alert(`${unassigned.length}경기에 심판이 배정되었습니다.`);
+    alert(t('admin.tournamentDetail.bracketTab.bulkRefereeAlert', { count: unassigned.length }));
   }, [matches, referees, updateMatch]);
 
   const handleAddMatch = useCallback(async () => {
@@ -1694,7 +1704,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, addMatch]);
 
   const handleDeleteMatch = useCallback(async (matchId: string) => {
-    if (!confirm('이 경기를 삭제하시겠습니까?')) return;
+    if (!confirm(t('admin.tournamentDetail.bracketTab.deleteMatchConfirm'))) return;
     await deleteMatch(matchId);
   }, [deleteMatch]);
 
@@ -1759,24 +1769,24 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h2 className="text-xl font-bold">대진표</h2>
+        <h2 className="text-xl font-bold">{t('admin.tournamentDetail.bracketTab.title')}</h2>
         <div className="flex gap-2 flex-wrap">
           {!isManualMode && (
             <button
               className="btn btn-accent"
               onClick={generateBracket}
               disabled={generating || !canGenerate}
-              aria-label="대진표 자동 생성"
+              aria-label={t('admin.tournamentDetail.bracketTab.autoGenerateAriaLabel')}
             >
-              {generating ? '생성 중...' : (groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0) ? '조별 라운드로빈 대진 생성' : '대진표 자동 생성')}
+              {generating ? t('admin.tournamentDetail.bracketTab.generatingText') : (groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0) ? t('admin.tournamentDetail.bracketTab.groupRoundRobinGenerate') : t('admin.tournamentDetail.bracketTab.autoGenerateText'))}
             </button>
           )}
           <button
             className="btn btn-success"
             onClick={() => setShowAddForm(v => !v)}
-            aria-label="경기 추가"
+            aria-label={t('admin.tournamentDetail.bracketTab.addMatchAriaLabel')}
           >
-            경기 추가
+            {t('admin.tournamentDetail.bracketTab.addMatchButton')}
           </button>
         </div>
       </div>
@@ -1784,41 +1794,41 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {/* 경기 추가 폼 */}
       {showAddForm && (
         <div className="card space-y-3 border-green-600">
-          <h3 className="font-bold text-green-400">경기 추가</h3>
+          <h3 className="font-bold text-green-400">{t('admin.tournamentDetail.bracketTab.addMatchTitle')}</h3>
           <div className="flex gap-3 flex-wrap items-end">
             <div className="flex-1 min-w-40">
-              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
-              <select className="input w-full" value={addPlayer1} onChange={e => setAddPlayer1(e.target.value)} aria-label={isTeamType ? '팀 1 선택' : '선수 1 선택'}>
-                <option value="">선택</option>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team1Label') : t('admin.tournamentDetail.bracketTab.player1Label')}</label>
+              <select className="input w-full" value={addPlayer1} onChange={e => setAddPlayer1(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team1SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player1SelectAriaLabel')}>
+                <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                 {selectOptions.map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
             </div>
             <div className="flex-1 min-w-40">
-              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
-              <select className="input w-full" value={addPlayer2} onChange={e => setAddPlayer2(e.target.value)} aria-label={isTeamType ? '팀 2 선택' : '선수 2 선택'}>
-                <option value="">선택</option>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}</label>
+              <select className="input w-full" value={addPlayer2} onChange={e => setAddPlayer2(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team2SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player2SelectAriaLabel')}>
+                <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                 {selectOptions.map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
             </div>
             <div className="min-w-32">
-              <label className="block text-sm text-gray-300 mb-1">조 ID (선택)</label>
-              <input className="input w-full" value={addGroupId} onChange={e => setAddGroupId(e.target.value)} placeholder="예: group_1" aria-label="조 ID" />
+              <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.bracketTab.groupIdLabel')}</label>
+              <input className="input w-full" value={addGroupId} onChange={e => setAddGroupId(e.target.value)} placeholder={t('admin.tournamentDetail.bracketTab.groupIdPlaceholder')} aria-label={t('admin.tournamentDetail.bracketTab.groupIdAriaLabel')} />
             </div>
             <button
               className="btn btn-success"
               onClick={handleAddMatch}
               disabled={!addPlayer1 || !addPlayer2 || addPlayer1 === addPlayer2}
-              aria-label="추가"
+              aria-label={t('admin.tournamentDetail.bracketTab.addAriaLabel')}
             >
-              추가
+              {t('admin.tournamentDetail.bracketTab.addButton')}
             </button>
           </div>
           {addPlayer1 && addPlayer2 && addPlayer1 === addPlayer2 && (
-            <p className="text-red-400 text-sm">같은 선수/팀을 선택할 수 없습니다.</p>
+            <p className="text-red-400 text-sm">{t('admin.tournamentDetail.bracketTab.samePlayerError')}</p>
           )}
         </div>
       )}
@@ -1826,17 +1836,17 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {/* 조 편성 (조별 예선이 있을 때) */}
       {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
         <div className="card space-y-4 mb-4">
-          <h3 className="text-lg font-bold text-yellow-400">조 편성</h3>
+          <h3 className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.bracketTab.groupAssignmentTitle')}</h3>
           {isManualMode ? (
             <div className="space-y-2">
-              <button className="btn btn-primary w-full" onClick={handleAutoGroupAssignment} aria-label="시드 배치 (시드만 해당 조에 배치)">
-                시드 배치 (시드 A→A조, B→B조)
+              <button className="btn btn-primary w-full" onClick={handleAutoGroupAssignment} aria-label={t('admin.tournamentDetail.bracketTab.seedPlacementAriaLabel')}>
+                {t('admin.tournamentDetail.bracketTab.seedPlacement')}
               </button>
-              <p className="text-gray-400 text-sm">시드 선수만 해당 조에 배치됩니다. 나머지 선수는 아래에서 직접 배정하세요.</p>
+              <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.seedPlacementHint')}</p>
             </div>
           ) : (
-            <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment} aria-label="자동 편성 (Snake Draft)">
-              자동 편성 (Snake Draft)
+            <button className="btn btn-success w-full" onClick={handleAutoGroupAssignment} aria-label={t('admin.tournamentDetail.bracketTab.autoAssignmentAriaLabel')}>
+              {t('admin.tournamentDetail.bracketTab.autoAssignment')}
             </button>
           )}
 
@@ -1855,17 +1865,17 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     <span key={g.id}>
                       {i > 0 && ' | '}
                       <span className={sizes[i] !== Math.round(avgSize) && isUnbalanced ? 'text-yellow-400 font-bold' : ''}>
-                        {g.name} ({sizes[i]}명)
+                        {g.name} ({t('admin.tournamentDetail.bracketTab.personCount', { count: sizes[i] })})
                       </span>
                     </span>
                   ))}
-                  {isUnbalanced && <span className="ml-2 text-yellow-400"> -- 조별 인원이 불균형합니다</span>}
+                  {isUnbalanced && <span className="ml-2 text-yellow-400">{t('admin.tournamentDetail.bracketTab.unbalancedWarning')}</span>}
                 </div>
 
                 {/* 미배정 선수 */}
                 {unassignedPlayers.length > 0 && (
                   <div className="bg-red-900/30 border border-red-600 rounded p-3">
-                    <h4 className="text-sm font-bold text-red-400 mb-2">미배정 선수 ({unassignedPlayers.length}명)</h4>
+                    <h4 className="text-sm font-bold text-red-400 mb-2">{t('admin.tournamentDetail.bracketTab.unassignedTitle', { count: unassignedPlayers.length })}</h4>
                     <div className="space-y-1">
                       {unassignedPlayers.map(player => {
                         const seedIdx = toArray(tournament.seeds).findIndex(s => s.playerId === player.id);
@@ -1892,9 +1902,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                                   await updateTournament({ stages: updatedStages });
                                 }
                               }}
-                              aria-label={`${player.name} 조 배정`}
+                              aria-label={t('admin.tournamentDetail.bracketTab.assignGroupAriaLabel', { name: player.name })}
                             >
-                              <option value="">조 선택</option>
+                              <option value="">{t('admin.tournamentDetail.bracketTab.selectGroupPlaceholder')}</option>
                               {groupAssignment.map(g => (
                                 <option key={g.id} value={g.id}>{g.name}</option>
                               ))}
@@ -1909,14 +1919,14 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                 {/* Warning after manual edit */}
                 {groupEditWarning && (
                   <div className="text-sm px-3 py-2 rounded bg-orange-900/50 border border-orange-600 text-orange-300">
-                    조 편성이 수동으로 변경되었습니다. 대진표를 다시 생성해야 변경 사항이 반영됩니다.
+                    {t('admin.tournamentDetail.bracketTab.groupEditWarning')}
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
                   {groupAssignment.map(group => (
                     <div key={group.id} className="bg-gray-800 rounded p-3">
-                      <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name} ({group.playerIds.length}명)</h4>
+                      <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name} ({t('admin.tournamentDetail.bracketTab.personCount', { count: group.playerIds.length })})</h4>
                       <ul className="space-y-1">
                         {group.playerIds.map((pid) => {
                           const player = tournamentPlayers.find(p => p.id === pid);
@@ -1929,7 +1939,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                                 className="bg-gray-700 text-gray-200 text-xs rounded px-1 py-0.5 border border-gray-600"
                                 value={group.id}
                                 onChange={e => handleMovePlayer(pid, group.id, e.target.value)}
-                                aria-label={`${player?.name || pid} 조 이동`}
+                                aria-label={t('admin.tournamentDetail.bracketTab.moveGroupAriaLabel', { name: player?.name || pid })}
                               >
                                 {groupAssignment.map(g => (
                                   <option key={g.id} value={g.id}>{g.name}</option>
@@ -1950,21 +1960,21 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
       {!canGenerate && (
         <p className="text-gray-400">
-          {isTeamType ? '팀이 2개 이상 필요합니다.' : '참가 선수가 2명 이상 필요합니다.'}
+          {isTeamType ? t('admin.tournamentDetail.bracketTab.needMoreTeams') : t('admin.tournamentDetail.bracketTab.needMorePlayers')}
         </p>
       )}
 
       {matches.length > 0 && referees.length > 0 && (
         <div className="card p-4 space-y-3">
-          <h3 className="font-bold">일괄 심판 배정</h3>
-          <p className="text-gray-400 text-sm">심판을 선택하면 배정되지 않은 모든 경기에 순서대로 배정됩니다.</p>
+          <h3 className="font-bold">{t('admin.tournamentDetail.bracketTab.bulkRefereeTitle')}</h3>
+          <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.bulkRefereeDescription')}</p>
           <div className="flex gap-2 flex-wrap">
             <button
               className="btn btn-primary"
               onClick={handleBulkAssignReferees}
-              aria-label="심판 자동 배정 (라운드로빈)"
+              aria-label={t('admin.tournamentDetail.bracketTab.bulkRefereeAutoAssignAriaLabel')}
             >
-              자동 배정 (라운드로빈)
+              {t('admin.tournamentDetail.bracketTab.bulkRefereeAutoAssign')}
             </button>
           </div>
         </div>
@@ -2036,20 +2046,20 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
         return (
           <div className="card space-y-4 border-cyan-600">
-            <h3 className="text-lg font-bold text-cyan-400">본선 대진 생성</h3>
+            <h3 className="text-lg font-bold text-cyan-400">{t('admin.tournamentDetail.bracketTab.finalsTitle')}</h3>
 
             {!hasQualifyingMatches ? (
-              <p className="text-gray-400 text-sm">먼저 조별 예선 대진을 생성하세요.</p>
+              <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.finalsNoQualifying')}</p>
             ) : (
               <>
                 <div className="text-sm text-gray-400">
-                  예선 진행: {completedCount}/{totalCount}경기 완료 | 조당 {advancePerGroup}명 진출 (총 {totalAdvance}명) | 본선 {matchCount}경기
+                  {t('admin.tournamentDetail.bracketTab.finalsProgress', { completed: completedCount, total: totalCount, advancePerGroup, totalAdvance, matchCount })}
                 </div>
 
                 {/* 조별 순위 현황 */}
                 {completedCount > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-sm font-bold text-gray-300">조별 순위 현황</h4>
+                    <h4 className="text-sm font-bold text-gray-300">{t('admin.tournamentDetail.bracketTab.groupRankTitle')}</h4>
                     <div className="grid grid-cols-2 gap-2">
                       {qualifyingGroups.map(group => {
                         const groupPlayerRankings = Array.from(groupRankings.entries())
@@ -2060,9 +2070,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                             <h5 className="text-xs font-bold text-cyan-400 mb-1">{group.name}</h5>
                             {groupPlayerRankings.map(([pid, info]) => (
                               <div key={pid} className={`text-xs flex gap-1 ${info.rank <= advancePerGroup ? 'text-green-400' : 'text-gray-400'}`}>
-                                <span className="w-6">{info.rank}위</span>
+                                <span className="w-6">{info.rank}{t('admin.tournamentDetail.bracketTab.rankSuffix')}</span>
                                 <span>{idToName.get(pid) || pid}</span>
-                                {info.rank <= advancePerGroup && <span className="text-green-500 ml-auto">진출</span>}
+                                {info.rank <= advancePerGroup && <span className="text-green-500 ml-auto">{t('admin.tournamentDetail.bracketTab.advanceLabel')}</span>}
                               </div>
                             ))}
                           </div>
@@ -2087,8 +2097,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                         stageId: finalsStage.id,
                         player1Id: '',
                         player2Id: '',
-                        player1Name: '미정',
-                        player2Name: '미정',
+                        player1Name: t('admin.tournamentDetail.bracketTab.undecided'),
+                        player2Name: t('admin.tournamentDetail.bracketTab.undecided'),
                         sets: [createEmptySet()],
                         currentSet: 0,
                         player1Timeouts: 0,
@@ -2099,11 +2109,11 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     }
                     await setMatchesBulk(newMatches);
                   }}
-                  aria-label="본선 대진 슬롯 생성"
+                  aria-label={t('admin.tournamentDetail.bracketTab.createFinalsSlotsAriaLabel')}
                 >
-                  본선 {matchCount}경기 슬롯 생성 (이후 수동 편성)
+                  {t('admin.tournamentDetail.bracketTab.createFinalsSlots', { count: matchCount })}
                 </button>
-                <p className="text-gray-400 text-xs">슬롯 생성 후 각 경기에 조/순위별 선수를 직접 배정할 수 있습니다.</p>
+                <p className="text-gray-400 text-xs">{t('admin.tournamentDetail.bracketTab.createFinalsSlotsHint')}</p>
               </>
             )}
           </div>
@@ -2176,7 +2186,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         const getLabel = (pid: string) => {
           const info = groupRankings.get(pid);
           const name = idToName.get(pid) || pid;
-          if (info) return `${info.groupName} ${info.rank}위: ${name}`;
+          if (info) return `${info.groupName} ${info.rank}${t('admin.tournamentDetail.bracketTab.rankSuffix')}: ${name}`;
           return name;
         };
 
@@ -2231,7 +2241,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             };
             await updateMatch(sortedFinals[i].id, matchData);
           }
-          alert('본선 대진이 변경되었습니다.');
+          alert(t('admin.tournamentDetail.bracketTab.finalsArranged'));
         };
 
         const handleSlotChange = async (matchId: string, slot: 'player1' | 'player2', newId: string) => {
@@ -2256,26 +2266,26 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
         return (
           <div className="card space-y-4 border-yellow-600">
-            <h3 className="text-lg font-bold text-yellow-400">본선 대진 편성</h3>
+            <h3 className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.bracketTab.finalsArrangement')}</h3>
 
             {/* Preset buttons (자동 모드만) */}
             {!isManualMode && (
               <div className="flex gap-2 flex-wrap">
-                <button className="btn btn-primary" onClick={() => applyArrangement('cross')} aria-label="교차 편성">
-                  교차 편성
+                <button className="btn btn-primary" onClick={() => applyArrangement('cross')} aria-label={t('admin.tournamentDetail.bracketTab.crossArrangementAriaLabel')}>
+                  {t('admin.tournamentDetail.bracketTab.crossArrangement')}
                 </button>
-                <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label="순차 편성">
-                  순차 편성
+                <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label={t('admin.tournamentDetail.bracketTab.sequentialArrangementAriaLabel')}>
+                  {t('admin.tournamentDetail.bracketTab.sequentialArrangement')}
                 </button>
               </div>
             )}
             {isManualMode && (
-              <p className="text-gray-400 text-sm">각 경기에서 조와 순위를 직접 선택하여 수동으로 대진을 편성하세요.</p>
+              <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.manualArrangementHint')}</p>
             )}
 
             {/* Manual arrangement: group+rank selectors per match */}
             <div className="space-y-2">
-              <p className="text-gray-400 text-sm">각 경기에서 조와 순위를 직접 선택하여 편성할 수 있습니다.</p>
+              <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.arrangementSelectHint')}</p>
               {sortedFinals.map((m, i) => {
                 const p1Id = isTeamType ? m.team1Id : m.player1Id;
                 const p2Id = isTeamType ? m.team2Id : m.player2Id;
@@ -2298,9 +2308,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                           if (pid) handleSlotChange(m.id, slot, pid);
                         }}
                         disabled={m.status !== 'pending'}
-                        aria-label={`경기${i + 1} ${slot === 'player1' ? '선수1' : '선수2'} 조 선택`}
+                        aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' ' + (slot === 'player1' ? 'P1' : 'P2') + ' group'}
                       >
-                        <option value="">조</option>
+                        <option value="">{t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder')}</option>
                         {groupNames.map(gn => (
                           <option key={gn} value={gn}>{gn}</option>
                         ))}
@@ -2317,14 +2327,14 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                           }
                         }}
                         disabled={m.status !== 'pending' || !groupVal}
-                        aria-label={`경기${i + 1} ${slot === 'player1' ? '선수1' : '선수2'} 순위 선택`}
+                        aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' ' + (slot === 'player1' ? 'P1' : 'P2') + ' rank'}
                       >
-                        <option value="">순위</option>
+                        <option value="">{t('admin.tournamentDetail.bracketTab.rankSelectPlaceholder')}</option>
                         {Array.from({ length: maxRank }, (_, k) => k + 1).map(r => {
                           const pid = groupVal ? findByGroupRank(groupVal, r) : null;
                           return (
                             <option key={r} value={r} disabled={!pid}>
-                              {r}위{pid ? ` (${idToName.get(pid) || ''})` : ''}
+                              {r}{t('admin.tournamentDetail.bracketTab.rankSuffix')}{pid ? ` (${idToName.get(pid) || ''})` : ''}
                             </option>
                           );
                         })}
@@ -2336,7 +2346,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                 return (
                   <div key={m.id} className="bg-gray-800 rounded-lg p-3 space-y-2">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-gray-400 text-sm font-mono w-16">경기{i + 1}</span>
+                      <span className="text-gray-400 text-sm font-mono w-16">{t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 })}</span>
                       {groupNames.length > 0 ? (
                         <>
                           {makeGroupRankSelector('player1', p1Id, p1Info)}
@@ -2350,9 +2360,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                             value={p1Id || ''}
                             onChange={e => handleSlotChange(m.id, 'player1', e.target.value)}
                             disabled={m.status !== 'pending'}
-                            aria-label={`경기${i + 1} 선수1 선택`}
+                            aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' P1'}
                           >
-                            <option value="">선택</option>
+                            <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                             {advancedList.map(pid => (
                               <option key={pid} value={pid}>{getLabel(pid)}</option>
                             ))}
@@ -2363,9 +2373,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                             value={p2Id || ''}
                             onChange={e => handleSlotChange(m.id, 'player2', e.target.value)}
                             disabled={m.status !== 'pending'}
-                            aria-label={`경기${i + 1} 선수2 선택`}
+                            aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' P2'}
                           >
-                            <option value="">선택</option>
+                            <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                             {advancedList.map(pid => (
                               <option key={pid} value={pid}>{getLabel(pid)}</option>
                             ))}
@@ -2376,11 +2386,11 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     {/* Show current assignment summary */}
                     {(p1Id || p2Id) && (
                       <div className="text-xs text-gray-400 ml-16">
-                        {p1Id ? getLabel(p1Id) : '미정'} vs {p2Id ? getLabel(p2Id) : '미정'}
+                        {p1Id ? getLabel(p1Id) : t('admin.tournamentDetail.bracketTab.undecided')} vs {p2Id ? getLabel(p2Id) : t('admin.tournamentDetail.bracketTab.undecided')}
                       </div>
                     )}
                     {m.status !== 'pending' && (
-                      <span className="text-xs text-orange-400 ml-16">진행중/완료 경기는 변경 불가</span>
+                      <span className="text-xs text-orange-400 ml-16">{t('admin.tournamentDetail.bracketTab.inProgressCannotChange')}</span>
                     )}
                   </div>
                 );
@@ -2392,9 +2402,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
       {matches.length === 0 ? (
         <div className="card text-center py-8">
-          <p className="text-gray-400">생성된 대진표가 없습니다.</p>
+          <p className="text-gray-400">{t('admin.tournamentDetail.bracketTab.noBracket')}</p>
           {isManualMode && (
-            <p className="text-yellow-400 text-sm mt-2">상단 "경기 추가" 버튼으로 경기를 하나씩 등록하세요.</p>
+            <p className="text-yellow-400 text-sm mt-2">{t('admin.tournamentDetail.bracketTab.manualAddHint')}</p>
           )}
         </div>
       ) : (
@@ -2409,7 +2419,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                       className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => handleSwapRound(match.id, 'up')}
                       disabled={matchIdx === 0}
-                      aria-label="순서 위로"
+                      aria-label={t('admin.tournamentDetail.bracketTab.orderUpAriaLabel')}
                     >
                       &uarr;
                     </button>
@@ -2417,7 +2427,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                       className="text-xs text-gray-400 hover:text-white leading-none px-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => handleSwapRound(match.id, 'down')}
                       disabled={matchIdx === matches.length - 1}
-                      aria-label="순서 아래로"
+                      aria-label={t('admin.tournamentDetail.bracketTab.orderDownAriaLabel')}
                     >
                       &darr;
                     </button>
@@ -2441,55 +2451,69 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     <button
                       className="text-xs text-blue-400 hover:text-blue-300 border border-blue-600 rounded px-2 py-1"
                       onClick={() => openEditModal(match)}
-                      aria-label="경기 수정"
+                      aria-label={t('admin.tournamentDetail.bracketTab.editMatchAriaLabel')}
                     >
-                      수정
+                      {t('admin.tournamentDetail.bracketTab.editMatchButton')}
                     </button>
                   )}
                   {match.status === 'pending' && (
                     <button
                       className="text-red-500 hover:text-red-400 font-bold text-lg leading-none px-1"
                       onClick={() => handleDeleteMatch(match.id)}
-                      aria-label="경기 삭제"
+                      aria-label={t('admin.tournamentDetail.bracketTab.deleteMatchAriaLabel')}
                     >
                       &times;
                     </button>
                   )}
                   {match.walkover && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
-                      부전승
+                      {t('admin.tournamentDetail.bracketTab.walkoverBadge')}
                     </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                    {STATUS_LABELS[match.status]}
+                    {t(STATUS_LABEL_KEYS[match.status])}
                   </span>
                 </div>
               </div>
 
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48">
-                  <label className="block text-sm text-gray-300 mb-1">심판</label>
+                  <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.bracketTab.refereeLabel')}</label>
                   <select
                     className="input"
                     value={match.refereeId ?? ''}
                     onChange={e => handleAssign(match.id, 'refereeId', e.target.value)}
-                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} 심판 배정`}
+                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} ${t('admin.tournamentDetail.bracketTab.refereeLabel')}`}
                   >
-                    <option value="">미배정</option>
+                    <option value="">{t('admin.tournamentDetail.bracketTab.refereeUnassigned')}</option>
                     {referees.map(r => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
                 </div>
                 <div className="flex-1 min-w-48">
-                  <label className="block text-sm text-gray-300 mb-1">경기장</label>
+                  <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.bracketTab.assistantRefereeLabel')}</label>
+                  <select
+                    className="input"
+                    value={match.assistantRefereeId ?? ''}
+                    onChange={e => handleAssign(match.id, 'assistantRefereeId', e.target.value)}
+                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} ${t('admin.tournamentDetail.bracketTab.assistantRefereeLabel')}`}
+                  >
+                    <option value="">{t('admin.tournamentDetail.bracketTab.assistantRefereeNone')}</option>
+                    {referees.filter(r => r.id !== match.refereeId).map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-48">
+                  <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.bracketTab.courtLabel')}</label>
                   <select
                     className="input"
                     value={match.courtId ?? ''}
                     onChange={e => handleAssign(match.id, 'courtId', e.target.value)}
-                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} 경기장 배정`}
+                    aria-label={`${match.type === 'individual' ? (match.player1Name ?? '?') + ' vs ' + (match.player2Name ?? '?') : (match.team1Name ?? '?') + ' vs ' + (match.team2Name ?? '?')} ${t('admin.tournamentDetail.bracketTab.courtLabel')}`}
                   >
-                    <option value="">미배정</option>
+                    <option value="">{t('admin.tournamentDetail.bracketTab.refereeUnassigned')}</option>
                     {courts.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
@@ -2505,37 +2529,37 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {editingMatchId && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingMatchId(null)} onKeyDown={e => { if (e.key === 'Escape') setEditingMatchId(null); }}>
           <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-4 border border-gray-700" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="edit-match-modal-title">
-            <h3 id="edit-match-modal-title" className="text-lg font-bold text-yellow-400">경기 수정</h3>
+            <h3 id="edit-match-modal-title" className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.bracketTab.editMatchModalTitle')}</h3>
             <div>
-              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 1' : '선수 1'}</label>
-              <select className="input w-full" value={editPlayer1} onChange={e => setEditPlayer1(e.target.value)} aria-label={isTeamType ? '팀 1 변경' : '선수 1 변경'}>
-                <option value="">선택</option>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team1Label') : t('admin.tournamentDetail.bracketTab.player1Label')}</label>
+              <select className="input w-full" value={editPlayer1} onChange={e => setEditPlayer1(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team1Label') : t('admin.tournamentDetail.bracketTab.player1Label')}>
+                <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                 {selectOptions.map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? '팀 2' : '선수 2'}</label>
-              <select className="input w-full" value={editPlayer2} onChange={e => setEditPlayer2(e.target.value)} aria-label={isTeamType ? '팀 2 변경' : '선수 2 변경'}>
-                <option value="">선택</option>
+              <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}</label>
+              <select className="input w-full" value={editPlayer2} onChange={e => setEditPlayer2(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}>
+                <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                 {selectOptions.map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
             </div>
             {editPlayer1 && editPlayer2 && editPlayer1 === editPlayer2 && (
-              <p className="text-red-400 text-sm">같은 선수/팀을 선택할 수 없습니다.</p>
+              <p className="text-red-400 text-sm">{t('admin.tournamentDetail.bracketTab.samePlayerError')}</p>
             )}
             <div className="flex gap-3 justify-end">
-              <button className="btn btn-secondary" onClick={() => setEditingMatchId(null)} aria-label="취소">취소</button>
+              <button className="btn btn-secondary" onClick={() => setEditingMatchId(null)} aria-label={t('common.cancel')}>{t('common.cancel')}</button>
               <button
                 className="btn btn-primary"
                 onClick={handleEditMatch}
                 disabled={!editPlayer1 || !editPlayer2 || editPlayer1 === editPlayer2}
-                aria-label="저장"
+                aria-label={t('common.save')}
               >
-                저장
+                {t('common.save')}
               </button>
             </div>
           </div>
@@ -2558,6 +2582,7 @@ interface ScheduleTabProps {
 }
 
 function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, updateMatch }: ScheduleTabProps) {
+  const { t } = useTranslation();
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
   const [endTime, setEndTime] = useState('23:00');
@@ -2567,16 +2592,6 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [onlyUnassigned, setOnlyUnassigned] = useState(false);
 
-  // Helper: adjust HH:MM time by delta minutes
-  const adjustTime = (current: string, deltaMinutes: number): string => {
-    const [h, m] = current.split(':').map(Number);
-    let total = h * 60 + m + deltaMinutes;
-    if (total < 0) total = 0;
-    if (total > 23 * 60 + 59) total = 23 * 60 + 59;
-    const hh = Math.floor(total / 60).toString().padStart(2, '0');
-    const mm = (total % 60).toString().padStart(2, '0');
-    return `${hh}:${mm}`;
-  };
 
   // Manual schedule editing state
   const [manualEdits, setManualEdits] = useState<Record<string, { scheduledDate: string; scheduledTime: string; courtId: string; courtName: string }>>({});
@@ -2643,7 +2658,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
   }, [manualEdits, matches, schedule, setScheduleBulk, updateMatch]);
 
   const handleResetSchedule = useCallback(async () => {
-    if (!confirm('모든 경기의 스케줄(날짜, 시간)을 초기화하시겠습니까?')) return;
+    if (!confirm(t('admin.tournamentDetail.scheduleTab.resetConfirm'))) return;
     setResettingSchedule(true);
     try {
       for (const match of matches) {
@@ -2846,117 +2861,129 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
   return (
     <div className="space-y-6">
       <div className="card space-y-4">
-        <h2 className="text-xl font-bold">스케줄 설정</h2>
+        <h2 className="text-xl font-bold">{t('admin.tournamentDetail.scheduleTab.title')}</h2>
         <div className="flex gap-4 flex-wrap">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">날짜</label>
+            <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.dateLabel')}</label>
             <div className="flex items-center gap-2">
               <select
                 className="input"
                 value={scheduleDate.split('-')[0] || ''}
                 onChange={e => { const [, m, d] = scheduleDate.split('-'); setScheduleDate(`${e.target.value}-${m || '01'}-${d || '01'}`); }}
-                aria-label="년도"
+                aria-label={t('admin.tournamentDetail.scheduleTab.dateLabel')}
               >
-                {[...Array(5)].map((_, i) => { const y = new Date().getFullYear() + i - 1; return <option key={y} value={y}>{y}년</option>; })}
+                {[...Array(5)].map((_, i) => { const y = new Date().getFullYear() + i - 1; return <option key={y} value={y}>{y}</option>; })}
               </select>
               <select
                 className="input"
                 value={parseInt(scheduleDate.split('-')[1] || '1', 10).toString()}
                 onChange={e => { const [y, , d] = scheduleDate.split('-'); setScheduleDate(`${y}-${e.target.value.padStart(2, '0')}-${d || '01'}`); }}
-                aria-label="월"
+                aria-label={t('admin.tournamentDetail.scheduleTab.dateLabel')}
               >
-                {[...Array(12)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}월</option>)}
+                {[...Array(12)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
               </select>
               <select
                 className="input"
                 value={parseInt(scheduleDate.split('-')[2] || '1', 10).toString()}
                 onChange={e => { const [y, m] = scheduleDate.split('-'); setScheduleDate(`${y}-${m}-${e.target.value.padStart(2, '0')}`); }}
-                aria-label="일"
+                aria-label={t('admin.tournamentDetail.scheduleTab.dateLabel')}
               >
-                {[...Array(31)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}일</option>)}
+                {[...Array(31)].map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
               </select>
-              <button type="button" className="btn px-3 py-2 text-sm" onClick={() => setScheduleDate(new Date().toISOString().split('T')[0])} aria-label="오늘 날짜로 설정">오늘</button>
+              <button type="button" className="btn px-3 py-2 text-sm" onClick={() => setScheduleDate(new Date().toISOString().split('T')[0])} aria-label={t('admin.tournamentDetail.scheduleTab.todayButton')}>{t('admin.tournamentDetail.scheduleTab.todayButton')}</button>
             </div>
           </div>
           <div>
-            <label htmlFor="start-time" className="block text-sm text-gray-300 mb-1">시작 시간</label>
+            <label htmlFor="start-time" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.startTimeLabel')}</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setStartTime(adjustTime(startTime, -30))} aria-label="시작 시간 30분 감소">−</button>
-              <input
-                id="start-time"
-                type="time"
+              <select
                 className="input"
-                value={startTime}
-                onChange={e => setStartTime(e.target.value)}
-                aria-label="시작 시간"
-              />
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setStartTime(adjustTime(startTime, 30))} aria-label="시작 시간 30분 증가">+</button>
+                value={startTime.split(':')[0]}
+                onChange={e => setStartTime(`${e.target.value}:${startTime.split(':')[1]}`)}
+                aria-label={t('admin.tournamentDetail.scheduleTab.startTimeLabel')}
+              >
+                {[...Array(24)].map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i}:00</option>)}
+              </select>
+              <select
+                className="input"
+                value={startTime.split(':')[1]}
+                onChange={e => setStartTime(`${startTime.split(':')[0]}:${e.target.value}`)}
+                aria-label={t('admin.tournamentDetail.scheduleTab.startTimeLabel')}
+              >
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m.toString().padStart(2, '0')}>{m}</option>)}
+              </select>
             </div>
           </div>
           <div>
-            <label htmlFor="interval" className="block text-sm text-gray-300 mb-1">경기 간격 (분)</label>
+            <label htmlFor="interval" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.intervalLabel')}</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setInterval_(Math.max(10, interval - 5))} aria-label="경기 간격 5분 감소">−</button>
-              <input
+              <select
                 id="interval"
-                type="number"
                 className="input"
                 value={interval}
                 onChange={e => setInterval_(Number(e.target.value))}
-                min={10}
-                max={120}
-                aria-label="경기 간격"
-              />
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setInterval_(Math.min(120, interval + 5))} aria-label="경기 간격 5분 증가">+</button>
+                aria-label={t('admin.tournamentDetail.scheduleTab.intervalLabel')}
+              >
+                {[10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 110, 120].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
           </div>
         </div>
         <div className="flex gap-4 flex-wrap">
           <div>
-            <label htmlFor="end-time" className="block text-sm text-gray-300 mb-1">마감 시간</label>
+            <label htmlFor="end-time" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.endTimeLabel')}</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setEndTime(adjustTime(endTime, -30))} aria-label="마감 시간 30분 감소">−</button>
-              <input
-                id="end-time"
-                type="time"
+              <select
                 className="input"
-                value={endTime}
-                onChange={e => setEndTime(e.target.value)}
-                aria-label="마감 시간"
-              />
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setEndTime(adjustTime(endTime, 30))} aria-label="마감 시간 30분 증가">+</button>
+                value={endTime.split(':')[0]}
+                onChange={e => setEndTime(`${e.target.value}:${endTime.split(':')[1]}`)}
+                aria-label={t('admin.tournamentDetail.scheduleTab.endTimeLabel')}
+              >
+                {[...Array(24)].map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i}:00</option>)}
+              </select>
+              <select
+                className="input"
+                value={endTime.split(':')[1]}
+                onChange={e => setEndTime(`${endTime.split(':')[0]}:${e.target.value}`)}
+                aria-label={t('admin.tournamentDetail.scheduleTab.endTimeLabel')}
+              >
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m.toString().padStart(2, '0')}>{m}</option>)}
+              </select>
             </div>
           </div>
           <div>
-            <label htmlFor="rest-interval" className="block text-sm text-gray-300 mb-1">선수 휴식 시간 (분)</label>
+            <label htmlFor="rest-interval" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.restIntervalLabel')}</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setRestInterval(Math.max(10, restInterval - 5))} aria-label="휴식 시간 5분 감소">−</button>
-              <input
+              <select
                 id="rest-interval"
-                type="number"
                 className="input"
                 value={restInterval}
                 onChange={e => setRestInterval(Number(e.target.value))}
-                min={10}
-                max={240}
-                aria-label="선수 휴식 시간"
-              />
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setRestInterval(Math.min(240, restInterval + 5))} aria-label="휴식 시간 5분 증가">+</button>
+                aria-label={t('admin.tournamentDetail.scheduleTab.restIntervalLabel')}
+              >
+                {[10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 110, 120, 150, 180, 210, 240].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
           </div>
           <div>
-            <label htmlFor="next-day-start" className="block text-sm text-gray-300 mb-1">다음날 시작 시간</label>
+            <label htmlFor="next-day-start" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.nextDayStartLabel')}</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setNextDayStartTime(adjustTime(nextDayStartTime, -30))} aria-label="다음날 시작 시간 30분 감소">−</button>
-              <input
-                id="next-day-start"
-                type="time"
+              <select
                 className="input"
-                value={nextDayStartTime}
-                onChange={e => setNextDayStartTime(e.target.value)}
-                aria-label="다음날 시작 시간"
-              />
-              <button type="button" className="btn px-3 py-2 text-lg" onClick={() => setNextDayStartTime(adjustTime(nextDayStartTime, 30))} aria-label="다음날 시작 시간 30분 증가">+</button>
+                value={nextDayStartTime.split(':')[0]}
+                onChange={e => setNextDayStartTime(`${e.target.value}:${nextDayStartTime.split(':')[1]}`)}
+                aria-label={t('admin.tournamentDetail.scheduleTab.nextDayStartLabel')}
+              >
+                {[...Array(24)].map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i}:00</option>)}
+              </select>
+              <select
+                className="input"
+                value={nextDayStartTime.split(':')[1]}
+                onChange={e => setNextDayStartTime(`${nextDayStartTime.split(':')[0]}:${e.target.value}`)}
+                aria-label={t('admin.tournamentDetail.scheduleTab.nextDayStartLabel')}
+              >
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m.toString().padStart(2, '0')}>{m}</option>)}
+              </select>
             </div>
           </div>
         </div>
@@ -2965,38 +2992,38 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
             type="checkbox"
             checked={onlyUnassigned}
             onChange={e => setOnlyUnassigned(e.target.checked)}
-            aria-label="미배정 경기만 배정"
+            aria-label={t('admin.tournamentDetail.scheduleTab.onlyUnassigned')}
           />
-          미배정 경기만 배정 (기존 스케줄 유지)
+          {t('admin.tournamentDetail.scheduleTab.onlyUnassigned')}
         </label>
         <button
           className="btn btn-accent"
           onClick={generateSchedule}
           disabled={generating || courts.length === 0 || matches.length === 0}
-          aria-label="스케줄 자동 배정"
+          aria-label={t('admin.tournamentDetail.scheduleTab.generateButton')}
         >
-          {generating ? '배정 중...' : '스케줄 자동 배정'}
+          {generating ? t('admin.tournamentDetail.scheduleTab.generating') : t('admin.tournamentDetail.scheduleTab.generateButton')}
         </button>
-        {courts.length === 0 && <p className="text-gray-400">경기장을 먼저 등록해주세요.</p>}
+        {courts.length === 0 && <p className="text-gray-400">{t('admin.tournamentDetail.scheduleTab.noCourts')}</p>}
       </div>
 
       {timeSlotsByDate.length > 0 && timeSlotsByDate.some(d => d.rows.length > 0) && (
         <div className="card overflow-x-auto">
-          <h2 className="text-xl font-bold mb-4">스케줄 표</h2>
+          <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.scheduleTab.scheduleGridTitle')}</h2>
           {timeSlotsByDate.map(({ date, rows }) => {
             if (rows.length === 0) return null;
             return (
               <div key={date || 'no-date'} className="mb-6">
                 {hasMultipleDates && (
                   <h3 className="text-lg font-bold text-yellow-400 mb-2">
-                    {date || '날짜 미지정'}
+                    {date || t('admin.tournamentDetail.scheduleTab.dateUnspecified')}
                   </h3>
                 )}
-                <table className="w-full border-collapse mb-4" aria-label={`스케줄 그리드${date ? ` - ${date}` : ''}`}>
+                <table className="w-full border-collapse mb-4" aria-label={t('admin.tournamentDetail.scheduleTab.scheduleGridTitle') + (date ? ` - ${date}` : '')}>
                   <thead>
                     <tr>
-                      {hasMultipleDates && <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">날짜</th>}
-                      <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">시간</th>
+                      {hasMultipleDates && <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">{t('admin.tournamentDetail.scheduleTab.dateColumnHeader')}</th>}
+                      <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">{t('admin.tournamentDetail.scheduleTab.timeColumnHeader')}</th>
                       {courts.map(c => (
                         <th scope="col" key={c.id} className="border border-gray-600 p-3 text-center bg-gray-800">{c.name}</th>
                       ))}
@@ -3013,7 +3040,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                               <div>
                                 <p className="font-semibold text-sm">{slot.label}</p>
                                 <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[slot.status]}`}>
-                                  {STATUS_LABELS[slot.status]}
+                                  {t(STATUS_LABEL_KEYS[slot.status])}
                                 </span>
                               </div>
                             ) : (
@@ -3035,14 +3062,14 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
       {matches.length > 0 && (
         <div className="card space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <h2 className="text-xl font-bold">개별 경기 스케줄</h2>
+            <h2 className="text-xl font-bold">{t('admin.tournamentDetail.scheduleTab.individualScheduleTitle')}</h2>
             <button
               className="btn bg-red-700 hover:bg-red-600 text-white"
               onClick={handleResetSchedule}
               disabled={resettingSchedule || matches.length === 0}
-              aria-label="스케줄 초기화"
+              aria-label={t('admin.tournamentDetail.scheduleTab.resetScheduleButton')}
             >
-              {resettingSchedule ? '초기화 중...' : '스케줄 초기화'}
+              {resettingSchedule ? t('admin.tournamentDetail.scheduleTab.resetting') : t('admin.tournamentDetail.scheduleTab.resetScheduleButton')}
             </button>
           </div>
           <div className="space-y-3">
@@ -3059,46 +3086,57 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                       <span className="text-gray-400 text-xs">R{match.round}</span>
                       <span className="font-semibold text-sm">{matchLabel}</span>
                       <span className={`px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[match.status]}`}>
-                        {STATUS_LABELS[match.status]}
+                        {t(STATUS_LABEL_KEYS[match.status])}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-gray-400">
                       {match.scheduledDate && <span>{match.scheduledDate}</span>}
                       {match.scheduledTime && <span>{match.scheduledTime}</span>}
                       {match.courtName && <span>/ {match.courtName}</span>}
-                      {!match.scheduledDate && !match.scheduledTime && <span className="text-gray-400">미배정</span>}
+                      {!match.scheduledDate && !match.scheduledTime && <span className="text-gray-400">{t('admin.tournamentDetail.scheduleTab.unassignedLabel')}</span>}
                     </div>
                   </div>
                   <div className="flex gap-3 flex-wrap items-end">
                     <div>
-                      <label className="block text-xs text-gray-300 mb-1">날짜</label>
+                      <label className="block text-xs text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.scheduleDateLabel')}</label>
                       <input
                         type="date"
                         className="input text-sm"
                         value={edit.scheduledDate}
                         onChange={e => setManualEdit(match.id, 'scheduledDate', e.target.value)}
-                        aria-label={`${matchLabel} 날짜`}
+                        aria-label={`${matchLabel} ${t('admin.tournamentDetail.scheduleTab.scheduleDateLabel')}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-300 mb-1">시간</label>
-                      <input
-                        type="time"
-                        className="input text-sm"
-                        value={edit.scheduledTime}
-                        onChange={e => setManualEdit(match.id, 'scheduledTime', e.target.value)}
-                        aria-label={`${matchLabel} 시간`}
-                      />
+                      <label className="block text-xs text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.scheduleTimeLabel')}</label>
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="input text-sm"
+                          value={(edit.scheduledTime || '09:00').split(':')[0]}
+                          onChange={e => setManualEdit(match.id, 'scheduledTime', `${e.target.value}:${(edit.scheduledTime || '09:00').split(':')[1]}`)}
+                          aria-label={`${matchLabel} ${t('admin.tournamentDetail.scheduleTab.scheduleTimeLabel')}`}
+                        >
+                          {[...Array(24)].map((_, i) => <option key={i} value={i.toString().padStart(2, '0')}>{i}:00</option>)}
+                        </select>
+                        <select
+                          className="input text-sm"
+                          value={(edit.scheduledTime || '09:00').split(':')[1]}
+                          onChange={e => setManualEdit(match.id, 'scheduledTime', `${(edit.scheduledTime || '09:00').split(':')[0]}:${e.target.value}`)}
+                          aria-label={`${matchLabel} ${t('admin.tournamentDetail.scheduleTab.scheduleTimeLabel')}`}
+                        >
+                          {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m.toString().padStart(2, '0')}>{m}</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-300 mb-1">경기장</label>
+                      <label className="block text-xs text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.courtLabel')}</label>
                       <select
                         className="input text-sm"
                         value={edit.courtId}
                         onChange={e => setManualEdit(match.id, 'courtId', e.target.value)}
-                        aria-label={`${matchLabel} 경기장`}
+                        aria-label={`${matchLabel} ${t('admin.tournamentDetail.scheduleTab.courtLabel')}`}
                       >
-                        <option value="">미배정</option>
+                        <option value="">{t('admin.tournamentDetail.bracketTab.refereeUnassigned')}</option>
                         {courts.map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
@@ -3108,9 +3146,9 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                       className="btn btn-accent text-sm px-4 py-2"
                       onClick={() => handleSaveManualEdit(match.id)}
                       disabled={!hasEdits || savingMatchId === match.id}
-                      aria-label={`${matchLabel} 스케줄 저장`}
+                      aria-label={`${matchLabel} ${t('common.save')}`}
                     >
-                      {savingMatchId === match.id ? '저장 중...' : '저장'}
+                      {savingMatchId === match.id ? t('admin.tournamentDetail.scheduleTab.savingButton') : t('admin.tournamentDetail.scheduleTab.saveButton')}
                     </button>
                   </div>
                 </div>
@@ -3137,6 +3175,7 @@ interface StatusTabProps {
 }
 
 function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
   const [correctionMatch, setCorrectionMatch] = useState<Match | null>(null);
   const [correctionSets, setCorrectionSets] = useState<SetScore[]>([]);
@@ -3219,7 +3258,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
       if (i + 1 >= advancedIds.length) break;
       const p1 = advancedIds[i];
       const p2 = advancedIds[i + 1];
-      const roundLabel = bracketSize >= 16 ? '16강' : bracketSize >= 8 ? '8강' : '4강';
+      const roundLabel = bracketSize >= 16 ? t('admin.tournamentDetail.rankingTab.roundLabel16') : bracketSize >= 8 ? t('admin.tournamentDetail.rankingTab.roundLabel8') : t('admin.tournamentDetail.rankingTab.roundLabel4');
 
       finalsMatches.push({
         tournamentId: tournament.id,
@@ -3253,7 +3292,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
     }
 
     await updateTournament({ currentStageId: finalsStageId });
-    alert(`본선 대진표 생성 완료! ${finalsMatches.length}경기가 생성되었습니다.`);
+    alert(t('admin.tournamentDetail.statusTab.advanceToFinalsAlert', { count: finalsMatches.length }));
   };
 
   const openCorrectionModal = (match: Match) => {
@@ -3298,7 +3337,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         scoringPlayer: '',
         actionPlayer: 'admin',
         actionType: 'correction',
-        actionLabel: `점수 수정: ${correctionReason.trim()}`,
+        actionLabel: `${t('admin.tournamentDetail.statusTab.scoreCorrection')}: ${correctionReason.trim()}`,
         points: 0,
         set: 0,
         server: '',
@@ -3321,11 +3360,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         scoreHistory: [...existingHistory, historyEntry],
       });
 
-      alert('점수가 수정되었습니다.');
+      alert(t('admin.tournamentDetail.statusTab.scoreCorrected'));
       closeCorrectionModal();
     } catch (err) {
       console.error('점수 수정 오류:', err);
-      alert('점수 수정 중 오류가 발생했습니다.');
+      alert(t('admin.tournamentDetail.statusTab.scoreCorrectionError'));
     } finally {
       setCorrectionSaving(false);
     }
@@ -3352,7 +3391,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         scoringPlayer: '',
         actionPlayer: 'admin',
         actionType: 'walkover',
-        actionLabel: `부전승: ${walkoverReason.trim()}`,
+        actionLabel: `${t('admin.tournamentDetail.statusTab.walkoverBadge')}: ${walkoverReason.trim()}`,
         points: 0,
         set: 0,
         server: '',
@@ -3372,11 +3411,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         scoreHistory: [...existingHistory, historyEntry],
       } as Partial<Match>);
 
-      alert('부전승 처리가 완료되었습니다.');
+      alert(t('admin.tournamentDetail.statusTab.walkoverProcessed'));
       closeWalkoverModal();
     } catch (err) {
       console.error('부전승 처리 오류:', err);
-      alert('부전승 처리 중 오류가 발생했습니다.');
+      alert(t('admin.tournamentDetail.statusTab.walkoverError'));
     } finally {
       setWalkoverSaving(false);
     }
@@ -3385,7 +3424,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
   return (
     <div className="space-y-6">
       <div className="card flex items-center gap-4 flex-wrap">
-        <span className="font-semibold text-lg">대회 상태:</span>
+        <span className="font-semibold text-lg">{t('admin.tournamentDetail.statusTab.tournamentStatus')}</span>
         <span className={`px-3 py-1 rounded-full font-bold ${
           tournament.status === 'draft' ? 'bg-gray-600 text-white' :
           tournament.status === 'registration' ? 'bg-blue-600 text-white' :
@@ -3393,10 +3432,10 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
           tournament.status === 'paused' ? 'bg-red-600 text-white' :
           'bg-green-600 text-white'
         }`}>
-          {tournament.status === 'draft' ? '초안' :
-           tournament.status === 'registration' ? '접수중' :
-           tournament.status === 'in_progress' ? '진행중' :
-           tournament.status === 'paused' ? '일시정지' : '완료'}
+          {tournament.status === 'draft' ? t('admin.tournamentDetail.statusTab.statusDraft') :
+           tournament.status === 'registration' ? t('admin.tournamentDetail.statusTab.statusRegistration') :
+           tournament.status === 'in_progress' ? t('admin.tournamentDetail.statusTab.statusInProgress') :
+           tournament.status === 'paused' ? t('admin.tournamentDetail.statusTab.statusPaused') : t('admin.tournamentDetail.statusTab.statusCompleted')}
         </span>
 
         <div className="flex gap-2 flex-wrap">
@@ -3405,36 +3444,36 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
               className="btn btn-accent"
               onClick={() => handleStatusChange('in_progress')}
               disabled={matches.length === 0}
-              aria-label="대회 시작"
+              aria-label={t('admin.tournamentDetail.statusTab.startTournament')}
             >
-              대회 시작
+              {t('admin.tournamentDetail.statusTab.startTournament')}
             </button>
           )}
           {tournament.status === 'in_progress' && (
             <button
               className="btn btn-danger"
               onClick={() => handleStatusChange('paused')}
-              aria-label="대회 일시정지"
+              aria-label={t('admin.tournamentDetail.statusTab.pauseTournament')}
             >
-              일시정지
+              {t('admin.tournamentDetail.statusTab.pauseTournament')}
             </button>
           )}
           {tournament.status === 'paused' && (
             <button
               className="btn btn-success"
               onClick={() => handleStatusChange('in_progress')}
-              aria-label="대회 재개"
+              aria-label={t('admin.tournamentDetail.statusTab.resumeTournament')}
             >
-              재개
+              {t('admin.tournamentDetail.statusTab.resumeTournament')}
             </button>
           )}
           {(tournament.status === 'in_progress' || tournament.status === 'paused') && (
             <button
               className="btn btn-success"
               onClick={() => handleStatusChange('completed')}
-              aria-label="대회 완료"
+              aria-label={t('admin.tournamentDetail.statusTab.completeTournament')}
             >
-              대회 완료
+              {t('admin.tournamentDetail.statusTab.completeTournament')}
             </button>
           )}
         </div>
@@ -3443,7 +3482,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
       {/* 대회 단계 관리 */}
       {toArray(tournament.stages).length > 0 && (
         <div className="card space-y-4">
-          <h3 className="text-xl font-bold text-yellow-400">대회 단계 관리</h3>
+          <h3 className="text-xl font-bold text-yellow-400">{t('admin.tournamentDetail.statusTab.stageManagement')}</h3>
           {toArray(tournament.stages).map((stage) => {
             const stageMatches = matches.filter(m =>
               m.stageId === stage.id ||
@@ -3464,7 +3503,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold">{completed}/{total}</p>
-                    <p className="text-xs text-gray-400">경기 완료</p>
+                    <p className="text-xs text-gray-400">{t('admin.tournamentDetail.statusTab.matchesComplete')}</p>
                   </div>
                 </div>
                 {/* 진행률 바 */}
@@ -3473,14 +3512,14 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 </div>
                 {allDone && stage.type === 'qualifying' && (
                   <div className="mt-3 space-y-2">
-                    <p className="text-green-400 text-sm font-semibold">예선 완료 - 본선 진출자가 결정되었습니다</p>
-                    <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} aria-label="본선 대진표 생성">
-                      본선 대진표 생성
+                    <p className="text-green-400 text-sm font-semibold">{t('admin.tournamentDetail.statusTab.qualifyingDone')}</p>
+                    <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} aria-label={t('admin.tournamentDetail.statusTab.createFinalsBracket')}>
+                      {t('admin.tournamentDetail.statusTab.createFinalsBracket')}
                     </button>
                   </div>
                 )}
                 {allDone && stage.type === 'finals' && (
-                  <p className="text-green-400 text-sm font-semibold">본선 완료</p>
+                  <p className="text-green-400 text-sm font-semibold">{t('admin.tournamentDetail.statusTab.finalsDone')}</p>
                 )}
               </div>
             );
@@ -3493,40 +3532,40 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
           className={`btn ${filter === 'all' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
           onClick={() => setFilter('all')}
           aria-pressed={filter === 'all'}
-          aria-label="전체 경기 필터"
+          aria-label={t('admin.tournamentDetail.statusTab.filterAll', { count: '' })}
         >
-          전체 ({matches.length})
+          {t('admin.tournamentDetail.statusTab.filterAll', { count: matches.length })}
         </button>
         <button
           className={`btn ${filter === 'pending' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
           onClick={() => setFilter('pending')}
           aria-pressed={filter === 'pending'}
-          aria-label="대기 경기 필터"
+          aria-label={t('admin.tournamentDetail.statusTab.filterPending', { count: '' })}
         >
-          대기 ({counts.pending})
+          {t('admin.tournamentDetail.statusTab.filterPending', { count: counts.pending })}
         </button>
         <button
           className={`btn ${filter === 'in_progress' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
           onClick={() => setFilter('in_progress')}
           aria-pressed={filter === 'in_progress'}
-          aria-label="진행중 경기 필터"
+          aria-label={t('admin.tournamentDetail.statusTab.filterInProgress', { count: '' })}
         >
-          진행중 ({counts.in_progress})
+          {t('admin.tournamentDetail.statusTab.filterInProgress', { count: counts.in_progress })}
         </button>
         <button
           className={`btn ${filter === 'completed' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
           onClick={() => setFilter('completed')}
           aria-pressed={filter === 'completed'}
-          aria-label="완료 경기 필터"
+          aria-label={t('admin.tournamentDetail.statusTab.filterCompleted', { count: '' })}
         >
-          완료 ({counts.completed})
+          {t('admin.tournamentDetail.statusTab.filterCompleted', { count: counts.completed })}
         </button>
       </div>
 
       <div className="space-y-3" aria-live="polite">
         {filtered.length === 0 ? (
           <div className="card text-center py-8">
-            <p className="text-gray-400">표시할 경기가 없습니다.</p>
+            <p className="text-gray-400">{t('admin.tournamentDetail.statusTab.noMatches')}</p>
           </div>
         ) : (
           filtered.map(match => (
@@ -3545,19 +3584,19 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                   {match.scheduledTime && <span className="text-sm text-cyan-400">{match.scheduledTime}</span>}
                   {match.walkover && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
-                      부전승
+                      {t('admin.tournamentDetail.bracketTab.walkoverBadge')}
                     </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
-                    {STATUS_LABELS[match.status]}
+                    {t(STATUS_LABEL_KEYS[match.status])}
                   </span>
                   {match.status !== 'completed' && (
                     <button
                       className="btn bg-orange-600 hover:bg-orange-500 text-white text-xs px-3 py-1"
                       onClick={() => openWalkoverModal(match)}
-                      aria-label="부전승 처리"
+                      aria-label={t('admin.tournamentDetail.statusTab.walkoverButton')}
                     >
-                      부전승
+                      {t('admin.tournamentDetail.statusTab.walkoverButton')}
                     </button>
                   )}
                 </div>
@@ -3565,7 +3604,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
 
               {match.status === 'completed' && match.walkover && match.walkoverReason && (
                 <div className="text-sm text-orange-300 mt-1">
-                  부전승 사유: {match.walkoverReason}
+                  {t('admin.tournamentDetail.statusTab.walkoverReason', { reason: match.walkoverReason })}
                 </div>
               )}
 
@@ -3581,9 +3620,9 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                   <button
                     className="btn bg-yellow-700 hover:bg-yellow-600 text-white text-xs px-3 py-1"
                     onClick={() => openCorrectionModal(match)}
-                    aria-label="점수 수정"
+                    aria-label={t('admin.tournamentDetail.statusTab.scoreCorrection')}
                   >
-                    점수 수정
+                    {t('admin.tournamentDetail.statusTab.scoreCorrection')}
                   </button>
                 </div>
               )}
@@ -3597,11 +3636,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         <div className="modal-backdrop" onClick={closeCorrectionModal} onKeyDown={e => { if (e.key === 'Escape') closeCorrectionModal(); }}>
           <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="correction-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="correction-modal-title" className="text-xl font-bold">점수 수정</h2>
+              <h2 id="correction-modal-title" className="text-xl font-bold">{t('admin.tournamentDetail.correctionModal.title')}</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={closeCorrectionModal}
-                aria-label="닫기"
+                aria-label={t('common.close')}
               >
                 x
               </button>
@@ -3629,7 +3668,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                       className="input w-20 text-center"
                       value={s.player1Score}
                       onChange={e => handleCorrectionSetScore(i, 'player1Score', parseInt(e.target.value) || 0)}
-                      aria-label={`세트 ${i + 1} ${correctionMatch.player1Name ?? 'P1'} 점수`}
+                      aria-label={`Set ${i + 1} ${correctionMatch.player1Name ?? 'P1'}`}
                     />
                     <span className="text-gray-400">-</span>
                     <input
@@ -3638,7 +3677,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                       className="input w-20 text-center"
                       value={s.player2Score}
                       onChange={e => handleCorrectionSetScore(i, 'player2Score', parseInt(e.target.value) || 0)}
-                      aria-label={`세트 ${i + 1} ${correctionMatch.player2Name ?? 'P2'} 점수`}
+                      aria-label={`Set ${i + 1} ${correctionMatch.player2Name ?? 'P2'}`}
                     />
                     <label className="text-sm text-gray-300">
                       {correctionMatch.type === 'individual' ? (correctionMatch.player2Name ?? 'P2') : (correctionMatch.team2Name ?? 'T2')}
@@ -3649,25 +3688,25 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
             </div>
 
             <div className="mb-4 p-3 bg-gray-800 rounded-lg">
-              <span className="text-sm text-gray-400">자동 계산 승자: </span>
+              <span className="text-sm text-gray-400">{t('admin.tournamentDetail.correctionModal.autoWinnerLabel')}</span>
               <span className="font-bold text-yellow-400">
                 {correctionWinner === 1
                   ? (correctionMatch.type === 'individual' ? correctionMatch.player1Name : correctionMatch.team1Name) ?? 'P1'
                   : correctionWinner === 2
                   ? (correctionMatch.type === 'individual' ? correctionMatch.player2Name : correctionMatch.team2Name) ?? 'P2'
-                  : '미정 (세트 승수 부족)'}
+                  : t('admin.tournamentDetail.correctionModal.undecided')}
               </span>
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-1">수정 사유 (필수)</label>
+              <label className="block text-sm font-semibold mb-1">{t('admin.tournamentDetail.correctionModal.reasonLabel')}</label>
               <input
                 type="text"
                 className="input w-full"
                 value={correctionReason}
                 onChange={e => setCorrectionReason(e.target.value)}
-                placeholder="예: 심판 기록 오류 수정"
-                aria-label="수정 사유"
+                placeholder={t('admin.tournamentDetail.correctionModal.reasonPlaceholder')}
+                aria-label={t('admin.tournamentDetail.correctionModal.reasonLabel')}
               />
             </div>
 
@@ -3676,16 +3715,16 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 className="btn btn-accent flex-1"
                 onClick={handleSaveCorrection}
                 disabled={!correctionReason.trim() || correctionSaving}
-                aria-label="점수 수정 저장"
+                aria-label={t('admin.tournamentDetail.correctionModal.saveButton')}
               >
-                {correctionSaving ? '저장 중...' : '저장'}
+                {correctionSaving ? t('admin.tournamentDetail.correctionModal.savingButton') : t('admin.tournamentDetail.correctionModal.saveButton')}
               </button>
               <button
                 className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
                 onClick={closeCorrectionModal}
-                aria-label="취소"
+                aria-label={t('common.cancel')}
               >
-                취소
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -3697,11 +3736,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         <div className="modal-backdrop" onClick={closeWalkoverModal} onKeyDown={e => { if (e.key === 'Escape') closeWalkoverModal(); }}>
           <div className="card max-w-md w-full" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="walkover-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="walkover-modal-title" className="text-xl font-bold text-orange-400">부전승 처리</h2>
+              <h2 id="walkover-modal-title" className="text-xl font-bold text-orange-400">{t('admin.tournamentDetail.walkoverModal.title')}</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={closeWalkoverModal}
-                aria-label="닫기"
+                aria-label={t('common.close')}
               >
                 x
               </button>
@@ -3716,28 +3755,28 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-2">승자 선택</label>
+              <label className="block text-sm font-semibold mb-2">{t('admin.tournamentDetail.walkoverModal.selectWinner')}</label>
               <div className="flex gap-2">
                 {(() => {
                   const p1Id = walkoverMatch.player1Id || walkoverMatch.team1Id || '';
-                  const p1Name = walkoverMatch.type === 'individual' ? (walkoverMatch.player1Name ?? '선수1') : (walkoverMatch.team1Name ?? '팀1');
+                  const p1Name = walkoverMatch.type === 'individual' ? (walkoverMatch.player1Name ?? t('admin.tournamentDetail.walkoverModal.player1Default')) : (walkoverMatch.team1Name ?? t('admin.tournamentDetail.walkoverModal.team1Default'));
                   const p2Id = walkoverMatch.player2Id || walkoverMatch.team2Id || '';
-                  const p2Name = walkoverMatch.type === 'individual' ? (walkoverMatch.player2Name ?? '선수2') : (walkoverMatch.team2Name ?? '팀2');
+                  const p2Name = walkoverMatch.type === 'individual' ? (walkoverMatch.player2Name ?? t('admin.tournamentDetail.walkoverModal.player2Default')) : (walkoverMatch.team2Name ?? t('admin.tournamentDetail.walkoverModal.team2Default'));
                   return (
                     <>
                       <button
                         className={`btn flex-1 ${walkoverWinnerId === p1Id ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                         onClick={() => setWalkoverWinnerId(p1Id)}
-                        aria-label={`${p1Name} 승`}
+                        aria-label={t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p1Name })}
                       >
-                        {p1Name} 승
+                        {t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p1Name })}
                       </button>
                       <button
                         className={`btn flex-1 ${walkoverWinnerId === p2Id ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                         onClick={() => setWalkoverWinnerId(p2Id)}
-                        aria-label={`${p2Name} 승`}
+                        aria-label={t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p2Name })}
                       >
-                        {p2Name} 승
+                        {t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p2Name })}
                       </button>
                     </>
                   );
@@ -3746,14 +3785,14 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-1">사유 (필수)</label>
+              <label className="block text-sm font-semibold mb-1">{t('admin.tournamentDetail.walkoverModal.reasonLabel')}</label>
               <input
                 type="text"
                 className="input w-full"
                 value={walkoverReason}
                 onChange={e => setWalkoverReason(e.target.value)}
-                placeholder="예: 기권, 부상, 노쇼"
-                aria-label="부전승 사유"
+                placeholder={t('admin.tournamentDetail.walkoverModal.reasonPlaceholder')}
+                aria-label={t('admin.tournamentDetail.walkoverModal.reasonLabel')}
               />
             </div>
 
@@ -3762,16 +3801,16 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 className="btn bg-orange-600 hover:bg-orange-500 text-white flex-1"
                 onClick={handleSaveWalkover}
                 disabled={!walkoverWinnerId || !walkoverReason.trim() || walkoverSaving}
-                aria-label="부전승 확인"
+                aria-label={t('admin.tournamentDetail.walkoverModal.confirmButton')}
               >
-                {walkoverSaving ? '처리 중...' : '확인'}
+                {walkoverSaving ? t('admin.tournamentDetail.walkoverModal.processing') : t('admin.tournamentDetail.walkoverModal.confirmButton')}
               </button>
               <button
                 className="btn bg-gray-700 text-white hover:bg-gray-600 flex-1"
                 onClick={closeWalkoverModal}
-                aria-label="취소"
+                aria-label={t('common.cancel')}
               >
-                취소
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -3791,6 +3830,7 @@ interface RankingTabProps {
 }
 
 function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
+  const { t } = useTranslation();
   const [copySuccess, setCopySuccess] = useState(false);
   const completedMatches = matches.filter(m => m.status === 'completed');
   const totalPoints = completedMatches.reduce((sum, m) => {
@@ -3805,31 +3845,31 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
 
   const handleExportCSV = () => {
     const csv = exportResultsCSV(tournament as Parameters<typeof exportResultsCSV>[0], matches, [], []);
-    const filename = `${tournament.name}_결과_${tournament.date || 'export'}.csv`;
+    const filename = `${tournament.name}_${t('admin.tournamentDetail.tabs.ranking')}_${tournament.date || 'export'}.csv`;
     downloadCSV(csv, filename);
   };
 
   const handleCopyResults = async () => {
     const lines: string[] = [];
-    lines.push(`[${tournament.name}] 결과`);
-    lines.push(`날짜: ${tournament.date}${tournament.endDate ? ` ~ ${tournament.endDate}` : ''}`);
-    lines.push(`유형: ${isTeamType ? '팀전' : '개인전'}`);
+    lines.push(`[${tournament.name}] ${t('admin.tournamentDetail.rankingTab.resultText')}`);
+    lines.push(`${tournament.date}${tournament.endDate ? ` ~ ${tournament.endDate}` : ''}`);
+    lines.push(`${isTeamType ? t('admin.tournamentDetail.rankingTab.typeTeam') : t('admin.tournamentDetail.rankingTab.typeIndividual')}`);
     lines.push('');
 
     if (isTeamType) {
       const teamRankings = calculateTeamRanking(matches);
       teamRankings.forEach(r => {
-        lines.push(`${r.rank}위: ${r.teamName || r.teamId} (${r.wins}승 ${r.losses}패, 득실차 ${formatDiff(r.pointsFor - r.pointsAgainst)})`);
+        lines.push(`${r.rank}: ${r.teamName || r.teamId} (${r.wins}W ${r.losses}L, ${formatDiff(r.pointsFor - r.pointsAgainst)})`);
       });
     } else {
       const indivRankings = calculateIndividualRanking(matches);
       indivRankings.forEach(r => {
-        lines.push(`${r.rank}위: ${r.playerName || r.playerId} (${r.wins}승 ${r.losses}패)`);
+        lines.push(`${r.rank}: ${r.playerName || r.playerId} (${r.wins}W ${r.losses}L)`);
       });
     }
 
     lines.push('');
-    lines.push(`총 ${completedMatches.length}/${matches.length} 경기 완료`);
+    lines.push(t('admin.tournamentDetail.rankingTab.totalCompleted', { completed: completedMatches.length, total: matches.length }));
 
     try {
       await navigator.clipboard.writeText(lines.join('\n'));
@@ -3850,22 +3890,22 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
 
   const exportButtons = (
     <div className="card flex items-center gap-3 flex-wrap">
-      <span className="font-semibold text-gray-300">내보내기</span>
+      <span className="font-semibold text-gray-300">{t('admin.tournamentDetail.rankingTab.exportLabel')}</span>
       <button
         className="btn btn-secondary"
         onClick={handleExportCSV}
         disabled={completedMatches.length === 0}
-        aria-label="CSV 내보내기"
+        aria-label={t('admin.tournamentDetail.rankingTab.csvExport')}
       >
-        CSV 내보내기
+        {t('admin.tournamentDetail.rankingTab.csvExport')}
       </button>
       <button
         className="btn btn-secondary"
         onClick={handleCopyResults}
         disabled={completedMatches.length === 0}
-        aria-label="결과 복사"
+        aria-label={t('admin.tournamentDetail.rankingTab.copyResults')}
       >
-        {copySuccess ? '복사됨!' : '결과 복사'}
+        {copySuccess ? t('admin.tournamentDetail.rankingTab.copied') : t('admin.tournamentDetail.rankingTab.copyResults')}
       </button>
     </div>
   );
@@ -3879,30 +3919,30 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
         {/* Summary stats */}
         <div className="card flex gap-6 flex-wrap">
           <div>
-            <span className="text-gray-400 text-sm">경기 진행</span>
+            <span className="text-gray-400 text-sm">{t('admin.tournamentDetail.rankingTab.matchProgress')}</span>
             <p className="text-lg font-bold">{completedMatches.length} / {matches.length}</p>
           </div>
           <div>
-            <span className="text-gray-400 text-sm">평균 득점 (경기당)</span>
+            <span className="text-gray-400 text-sm">{t('admin.tournamentDetail.rankingTab.avgPointsPerMatch')}</span>
             <p className="text-lg font-bold">{avgPointsPerMatch}</p>
           </div>
         </div>
 
         <div className="card overflow-x-auto">
-          <h2 className="text-xl font-bold mb-4">팀 순위</h2>
+          <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.teamRankingTitle')}</h2>
           {rankings.length === 0 ? (
-            <p className="text-gray-400">완료된 경기가 없습니다.</p>
+            <p className="text-gray-400">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
           ) : (
-            <table className="w-full border-collapse" aria-label="팀 순위표">
+            <table className="w-full border-collapse" aria-label={t('admin.tournamentDetail.rankingTab.teamRankingAriaLabel')}>
               <thead>
                 <tr>
-                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
-                  <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">팀명</th>
-                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
-                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
-                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">득실점</th>
-                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.rankHeader')}</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">{t('admin.tournamentDetail.rankingTab.teamNameHeader')}</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.matchCountHeader')}</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.winsHeader')}</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.lossesHeader')}</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.pointsHeader')}</th>
+                  <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.pointDiffHeader')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3925,7 +3965,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
         {/* Completed matches list (most recent first) */}
         {completedMatchesSorted.length > 0 && (
           <div className="card">
-            <h2 className="text-xl font-bold mb-4">완료된 경기</h2>
+            <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
             <div className="space-y-2">
               {completedMatchesSorted.map(match => (
                 <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
@@ -3952,32 +3992,32 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
       {/* Summary stats */}
       <div className="card flex gap-6 flex-wrap">
         <div>
-          <span className="text-gray-400 text-sm">경기 진행</span>
+          <span className="text-gray-400 text-sm">{t('admin.tournamentDetail.rankingTab.matchProgress')}</span>
           <p className="text-lg font-bold">{completedMatches.length} / {matches.length}</p>
         </div>
         <div>
-          <span className="text-gray-400 text-sm">평균 득점 (경기당)</span>
+          <span className="text-gray-400 text-sm">{t('admin.tournamentDetail.rankingTab.avgPointsPerMatch')}</span>
           <p className="text-lg font-bold">{avgPointsPerMatch}</p>
         </div>
       </div>
 
       <div className="card overflow-x-auto">
-        <h2 className="text-xl font-bold mb-4">개인 순위</h2>
+        <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.individualRankingTitle')}</h2>
         {rankings.length === 0 ? (
-          <p className="text-gray-400">완료된 경기가 없습니다.</p>
+          <p className="text-gray-400">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
         ) : (
-          <table className="w-full border-collapse" aria-label="개인 순위표">
+          <table className="w-full border-collapse" aria-label={t('admin.tournamentDetail.rankingTab.individualRankingAriaLabel')}>
             <thead>
               <tr>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">순위</th>
-                <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">이름</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">경기수</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">승</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">패</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">세트득실</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">세트차</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">포인트득실</th>
-                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">득실차</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.rankHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-left bg-gray-800">{t('admin.tournamentDetail.rankingTab.nameHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.matchCountHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.winsHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.lossesHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.setWonLostHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.setDiffHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.pointWonLostHeader')}</th>
+                <th scope="col" className="border border-gray-600 p-3 text-center bg-gray-800">{t('admin.tournamentDetail.rankingTab.pointDiffHeader')}</th>
               </tr>
             </thead>
             <tbody>
@@ -4002,7 +4042,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
       {/* Completed matches list (most recent first) */}
       {completedMatchesSorted.length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-bold mb-4">완료된 경기</h2>
+          <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
           <div className="space-y-2">
             {completedMatchesSorted.map(match => (
               <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">

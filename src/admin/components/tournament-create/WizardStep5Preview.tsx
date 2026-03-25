@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type {
   TournamentType,
   BracketFormatType,
@@ -61,62 +62,17 @@ export type WizardAction =
 
 // ===== 헬퍼 =====
 
-function getTypeLabel(type: TournamentType): string {
-  switch (type) {
-    case 'individual': return '개인전';
-    case 'team': return '팀전';
-    case 'randomTeamLeague': return '랜덤 팀리그전';
-    default: return type;
-  }
-}
+// Helper functions that need t() are now inside the component or receive t as param
 
-function getFormatLabel(format: BracketFormatType): string {
-  const map: Record<BracketFormatType, string> = {
-    round_robin: '풀리그 (라운드로빈)',
-    single_elimination: '싱글 엘리미네이션',
-    double_elimination: '더블 엘리미네이션',
-    swiss: '스위스 시스템',
-    group_knockout: '조별리그 + 토너먼트',
-    manual: '완전 수동 설정',
-  };
-  return map[format] || format;
-}
-
-function getStartingRoundLabel(round: number): string {
+function getStartingRoundLabel(round: number, t: (key: string) => string): string {
   switch (round) {
-    case 2: return '결승';
-    case 4: return '4강';
-    case 8: return '8강';
-    case 16: return '16강';
-    case 32: return '32강';
-    default: return `${round}강`;
+    case 2: return t('admin.tournamentCreate.finals.final');
+    case 4: return t('admin.tournamentCreate.finals.round4');
+    case 8: return t('admin.tournamentCreate.finals.round8');
+    case 16: return t('admin.tournamentCreate.finals.round16');
+    case 32: return t('admin.tournamentCreate.finals.round32');
+    default: return `${round}`;
   }
-}
-
-function getSeedMethodLabel(method: string): string {
-  switch (method) {
-    case 'ranking': return '순위 기반';
-    case 'manual': return '수동 배정';
-    case 'custom': return '커스텀 배정';
-    default: return method;
-  }
-}
-
-function getBracketArrangementLabel(arrangement: string): string {
-  switch (arrangement) {
-    case 'cross_group': return '교차 배정';
-    case 'sequential': return '순차 배치';
-    case 'custom': return '커스텀 배정';
-    default: return arrangement;
-  }
-}
-
-function formatScoringRules(rules: ScoringRules): string {
-  return `${rules.winScore}점 | ${rules.setsToWin}세트 선승 | 최대 ${rules.maxSets}세트 | ${rules.minLead}점차${rules.deuceEnabled ? ' | 듀스' : ''}`;
-}
-
-function formatMatchRules(rules: MatchRules): string {
-  return `타임아웃 ${rules.timeoutsPerPlayer}회 / ${rules.timeoutDurationSeconds}초`;
 }
 
 // ===== 컴포넌트 =====
@@ -131,10 +87,12 @@ function SectionHeader({
   title,
   step,
   dispatch,
+  t,
 }: {
   title: string;
   step: 1 | 2 | 3 | 4;
   dispatch: React.Dispatch<WizardAction>;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
     <div className="flex items-center justify-between mb-3">
@@ -142,9 +100,9 @@ function SectionHeader({
       <button
         className="text-sm text-cyan-400 hover:text-cyan-300 underline"
         onClick={() => dispatch({ type: 'GO_TO_STEP', step })}
-        aria-label={`${title} 수정 (${step}단계로 이동)`}
+        aria-label={t('admin.preview.editAriaLabel', { title, step })}
       >
-        수정
+        {t('admin.preview.editButton')}
       </button>
     </div>
   );
@@ -160,6 +118,7 @@ function SummaryRow({ label, value }: { label: string; value: string | number })
 }
 
 export default function WizardStep5Preview({ state, dispatch, onSubmit }: WizardStep5Props) {
+  const { t } = useTranslation();
   // 풀리그 단독 형식: 조별 예선 없이 라운드로빈만 진행
   const isRoundRobinOnly = state.tournamentMode === 'full_league_all' || (state.formatType === 'round_robin' && !state.hasGroupStage);
 
@@ -168,7 +127,47 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
   const effectiveCount = state.type === 'randomTeamLeague'
     ? Math.floor(state.participantCount / (state.teamRules?.teamSize ?? 3))
     : state.participantCount;
-  const unitLabel = isTeamType ? '팀' : '명';
+  const unitLabel = isTeamType ? t('common.units.team') : t('common.units.person');
+
+  // Helper functions using t()
+  const getTypeLabel = (type: TournamentType): string => {
+    return t(`common.tournamentType.${type}`);
+  };
+
+  const getFormatLabel = (format: BracketFormatType): string => {
+    const map: Record<BracketFormatType, string> = {
+      round_robin: t('admin.preview.fullLeagueRoundRobin'),
+      single_elimination: t('admin.tournamentCreate.finals.singleElimination'),
+      double_elimination: t('admin.tournamentCreate.finals.doubleElimination'),
+      swiss: 'Swiss',
+      group_knockout: t('admin.tournamentCreate.tournamentMode.groupTournament'),
+      manual: t('admin.tournamentCreate.manualMode.title'),
+    };
+    return map[format] || format;
+  };
+
+  const getSeedMethodLabel = (method: string): string => {
+    return t(`admin.preview.seedMethod.${method}`) || method;
+  };
+
+  const getBracketArrangementLabel = (arrangement: string): string => {
+    switch (arrangement) {
+      case 'cross_group': return t('admin.tournamentCreate.finals.crossGroup');
+      case 'sequential': return t('admin.tournamentCreate.finals.sequential');
+      case 'custom': return t('admin.tournamentCreate.finals.customArrangement');
+      default: return arrangement;
+    }
+  };
+
+  const formatScoringRules = (rules: ScoringRules): string => {
+    return rules.deuceEnabled
+      ? t('admin.preview.scoringRulesWithDeuce', { winScore: rules.winScore, setsToWin: rules.setsToWin, maxSets: rules.maxSets, minLead: rules.minLead })
+      : t('admin.preview.scoringRulesSummary', { winScore: rules.winScore, setsToWin: rules.setsToWin, maxSets: rules.maxSets, minLead: rules.minLead });
+  };
+
+  const formatMatchRules = (rules: MatchRules): string => {
+    return t('admin.preview.timeoutSummary', { count: rules.timeoutsPerPlayer, duration: rules.timeoutDurationSeconds });
+  };
 
   const matchCounts = calculateMatchCount(
     effectiveCount,
@@ -186,51 +185,51 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-yellow-400">설정 확인 및 미리보기</h2>
+      <h2 className="text-2xl font-bold text-yellow-400">{t('admin.preview.title')}</h2>
 
       {/* 수동 모드 배너 */}
       {state.tournamentMode === 'manual' && (
         <div className="card p-4 bg-yellow-900/20 border-2 border-yellow-500/40">
-          <p className="text-yellow-400 font-bold text-lg">완전 수동 모드</p>
+          <p className="text-yellow-400 font-bold text-lg">{t('admin.preview.manualModeBanner')}</p>
           <p className="text-gray-300 text-sm mt-1">
-            조 편성과 대진 배정을 대회 상세에서 직접 수행합니다.
+            {t('admin.preview.manualModeDescription')}
           </p>
         </div>
       )}
 
       {/* 1. 대회 기본 정보 */}
-      <section className="card p-5" aria-label="대회 기본 정보">
-        <SectionHeader title="대회 기본 정보" step={1} dispatch={dispatch} />
+      <section className="card p-5" aria-label={t('admin.preview.basicInfo')}>
+        <SectionHeader title={t('admin.preview.basicInfo')} step={1} dispatch={dispatch} t={t} />
         <dl>
-          <SummaryRow label="대회명" value={state.name || '(미입력)'} />
-          <SummaryRow label="날짜" value={state.date} />
-          <SummaryRow label="유형" value={getTypeLabel(state.type)} />
-          <SummaryRow label={isTeamType ? '팀 수' : '참가자 수'} value={`${effectiveCount}${unitLabel}`} />
+          <SummaryRow label={t('admin.preview.tournamentName')} value={state.name || t('admin.preview.notEntered')} />
+          <SummaryRow label={t('admin.preview.date')} value={state.date} />
+          <SummaryRow label={t('admin.preview.type')} value={getTypeLabel(state.type)} />
+          <SummaryRow label={isTeamType ? t('admin.preview.teamCount') : t('admin.preview.participantCount')} value={`${effectiveCount}${unitLabel}`} />
         </dl>
       </section>
 
       {/* 2. 대회 구조 시각화 */}
-      <section className="card p-5" aria-label="대회 구조">
-        <h3 className="text-lg font-bold text-yellow-400 mb-4">대회 구조</h3>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2" role="list" aria-label="스테이지 흐름">
+      <section className="card p-5" aria-label={t('admin.preview.structure')}>
+        <h3 className="text-lg font-bold text-yellow-400 mb-4">{t('admin.preview.structure')}</h3>
+        <div className="flex items-center gap-2 overflow-x-auto pb-2" role="list" aria-label={t('admin.preview.stageFlow')}>
           {state.hasGroupStage && (
             <>
               <div
                 className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
                 role="listitem"
               >
-                <div className="text-sm text-cyan-400 font-semibold">예선{state.tournamentMode === 'manual' ? ' (수동)' : ''}</div>
+                <div className="text-sm text-cyan-400 font-semibold">{state.tournamentMode === 'manual' ? t('admin.preview.qualifyingManual') : t('admin.preview.qualifying')}</div>
                 <div className="text-white font-bold mt-1">
                   {state.groupCount > 1
-                    ? `${state.groupCount}조 조별리그`
-                    : '풀리그'}
+                    ? t('admin.preview.groupLeague', { count: state.groupCount })
+                    : t('admin.preview.fullLeague')}
                 </div>
                 <div className="text-gray-400 text-sm mt-1">
                   {effectiveCount}{unitLabel}
                 </div>
                 {state.groupCount > 1 && (
                   <div className="text-gray-400 text-xs mt-0.5">
-                    조당 ~{perGroup}{unitLabel}
+                    {t('admin.preview.perGroupCount')} ~{perGroup}{unitLabel}
                   </div>
                 )}
               </div>
@@ -246,12 +245,12 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                 className="flex-shrink-0 rounded-lg border-2 border-yellow-500 bg-gray-800 p-3 text-center min-w-[140px]"
                 role="listitem"
               >
-                <div className="text-sm text-yellow-400 font-semibold">본선{state.tournamentMode === 'manual' ? ' (수동)' : ''}</div>
+                <div className="text-sm text-yellow-400 font-semibold">{state.tournamentMode === 'manual' ? t('admin.preview.finalsManual') : t('admin.preview.finals')}</div>
                 <div className="text-white font-bold mt-1">
-                  {getStartingRoundLabel(state.startingRound)} 토너먼트
+                  {getStartingRoundLabel(state.startingRound, t)} {t('admin.preview.tournament')}
                 </div>
                 <div className="text-gray-400 text-sm mt-1">
-                  {state.advanceCount}{unitLabel} 진출
+                  {t('admin.preview.advance', { count: state.advanceCount, unit: unitLabel })}
                 </div>
               </div>
 
@@ -262,13 +261,13 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                     className="flex-shrink-0 rounded-lg border-2 border-orange-500 bg-gray-800 p-3 text-center min-w-[140px]"
                     role="listitem"
                   >
-                    <div className="text-sm text-orange-400 font-semibold">순위결정전</div>
+                    <div className="text-sm text-orange-400 font-semibold">{t('admin.preview.rankingMatchSection')}</div>
                     <div className="text-white font-bold mt-1">
                       {state.rankingMatch.thirdPlace && state.rankingMatch.fifthToEighth
-                        ? '3-8위'
+                        ? t('admin.preview.rankThirdEighth')
                         : state.rankingMatch.thirdPlace
-                          ? '3-4위'
-                          : '순위전'}
+                          ? t('admin.preview.rankThirdFourth')
+                          : t('admin.preview.rankingGeneral')}
                     </div>
                     <div className="text-gray-400 text-sm mt-1">
                       {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthToEighth ? 4 : 0)}{unitLabel}
@@ -284,8 +283,8 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
               className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
               role="listitem"
             >
-              <div className="text-sm text-cyan-400 font-semibold">풀리그</div>
-              <div className="text-white font-bold mt-1">라운드로빈</div>
+              <div className="text-sm text-cyan-400 font-semibold">{t('admin.preview.fullLeague')}</div>
+              <div className="text-white font-bold mt-1">{t('admin.tournamentCreate.finals.roundRobin')}</div>
               <div className="text-gray-400 text-sm mt-1">{effectiveCount}{unitLabel}</div>
             </div>
           )}
@@ -295,7 +294,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
               className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
               role="listitem"
             >
-              <div className="text-sm text-cyan-400 font-semibold">단일 스테이지</div>
+              <div className="text-sm text-cyan-400 font-semibold">{t('admin.preview.singleStage')}</div>
               <div className="text-white font-bold mt-1">{getFormatLabel(state.formatType)}</div>
               <div className="text-gray-400 text-sm mt-1">{effectiveCount}{unitLabel}</div>
             </div>
@@ -305,64 +304,64 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
 
       {/* 3. 예선 설정 요약 */}
       {state.hasGroupStage && (
-        <section className="card p-5" aria-label="예선 설정">
-          <SectionHeader title="예선 설정" step={2} dispatch={dispatch} />
+        <section className="card p-5" aria-label={t('admin.preview.qualifyingSettings')}>
+          <SectionHeader title={t('admin.preview.qualifyingSettings')} step={2} dispatch={dispatch} t={t} />
           <dl>
-            <SummaryRow label="형식" value={state.groupCount > 1 ? '조별 라운드로빈' : '풀리그'} />
+            <SummaryRow label={t('admin.preview.format')} value={state.groupCount > 1 ? t('admin.preview.groupRoundRobin') : t('admin.preview.fullLeague')} />
             {state.groupCount > 1 && (
               <>
-                <SummaryRow label="조 수" value={`${state.groupCount}조`} />
-                <SummaryRow label={isTeamType ? '조당 팀 수' : '조당 인원'} value={`~${perGroup}${unitLabel}`} />
-                <SummaryRow label={isTeamType ? '조별 진출 수' : '조별 진출 수'} value={`${state.advancePerGroup}${unitLabel}`} />
+                <SummaryRow label={t('admin.preview.groupCountLabel')} value={`${state.groupCount}${t('common.units.group')}`} />
+                <SummaryRow label={isTeamType ? t('admin.preview.perGroupTeamCount') : t('admin.preview.perGroupCount')} value={`~${perGroup}${unitLabel}`} />
+                <SummaryRow label={t('admin.preview.advancePerGroup')} value={`${state.advancePerGroup}${unitLabel}`} />
               </>
             )}
             {state.tournamentMode === 'manual' && (
-              <SummaryRow label="조 편성" value="수동 배정" />
+              <SummaryRow label={t('admin.preview.groupArrangement')} value={t('admin.preview.manualAssignment')} />
             )}
-            <SummaryRow label="경기 규칙" value={formatScoringRules(state.qualifyingScoringRules)} />
-            <SummaryRow label="타임아웃" value={formatMatchRules(state.qualifyingMatchRules)} />
-            <SummaryRow label="예상 경기 수" value={`${matchCounts.qualifying}경기`} />
+            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(state.qualifyingScoringRules)} />
+            <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(state.qualifyingMatchRules)} />
+            <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.qualifying}${t('common.units.match')}`} />
           </dl>
         </section>
       )}
 
       {/* 4. 본선 설정 요약 */}
       {state.hasFinalsStage && !isRoundRobinOnly && (
-        <section className="card p-5" aria-label="본선 설정">
-          <SectionHeader title="본선 설정" step={3} dispatch={dispatch} />
+        <section className="card p-5" aria-label={t('admin.preview.finalsSettings')}>
+          <SectionHeader title={t('admin.preview.finalsSettings')} step={3} dispatch={dispatch} t={t} />
           <dl>
             <SummaryRow
-              label="형식"
-              value={state.finalsFormat === 'single_elimination' ? '싱글 엘리미네이션' : '더블 엘리미네이션'}
+              label={t('admin.preview.format')}
+              value={state.finalsFormat === 'single_elimination' ? t('admin.tournamentCreate.finals.singleElimination') : t('admin.tournamentCreate.finals.doubleElimination')}
             />
-            <SummaryRow label="시작" value={getStartingRoundLabel(state.startingRound)} />
-            <SummaryRow label="편성 방식" value={state.tournamentMode === 'manual' ? '수동 배정' : getSeedMethodLabel(state.seedMethod)} />
-            <SummaryRow label="경기 규칙" value={formatScoringRules(state.finalsScoringRules)} />
-            <SummaryRow label="타임아웃" value={formatMatchRules(state.finalsMatchRules)} />
-            <SummaryRow label="대진 편성" value={getBracketArrangementLabel(state.bracketArrangement)} />
+            <SummaryRow label={t('admin.preview.start')} value={getStartingRoundLabel(state.startingRound, t)} />
+            <SummaryRow label={t('admin.preview.arrangementMethod')} value={state.tournamentMode === 'manual' ? t('admin.preview.manualAssignment') : getSeedMethodLabel(state.seedMethod)} />
+            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(state.finalsScoringRules)} />
+            <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(state.finalsMatchRules)} />
+            <SummaryRow label={t('admin.preview.bracketArrangement')} value={getBracketArrangementLabel(state.bracketArrangement)} />
             {state.hasRoundScoringOverride && state.roundOverrideFromRound && state.roundOverrideSetsToWin && state.roundOverrideMaxSets && (
               <div
                 className="flex justify-between py-1.5 border-b border-gray-700"
-                aria-label={`라운드별 세트 수: 기본 ${state.finalsScoringRules.maxSets}세트 ${state.finalsScoringRules.setsToWin}세트 선승, ${getStartingRoundLabel(state.roundOverrideFromRound)}부터 ${state.roundOverrideMaxSets}세트 ${state.roundOverrideSetsToWin}세트 선승`}
+                aria-label={t('admin.preview.setsPerRoundAriaLabel', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: getStartingRoundLabel(state.roundOverrideFromRound, t), overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
               >
-                <dt className="text-gray-400">세트 수</dt>
+                <dt className="text-gray-400">{t('admin.preview.setsPerRound')}</dt>
                 <dd className="font-semibold text-white text-right">
-                  기본: {state.finalsScoringRules.maxSets}세트 ({state.finalsScoringRules.setsToWin}세트 선승) | {getStartingRoundLabel(state.roundOverrideFromRound)}~: {state.roundOverrideMaxSets}세트 ({state.roundOverrideSetsToWin}세트 선승)
+                  {t('admin.preview.setsPerRoundDetail', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: getStartingRoundLabel(state.roundOverrideFromRound, t), overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
                 </dd>
               </div>
             )}
-            <SummaryRow label="3/4위 결정전" value={state.hasThirdPlaceMatch ? '있음' : '없음'} />
-            <SummaryRow label="예상 경기 수" value={`${matchCounts.finals}경기`} />
+            <SummaryRow label={t('admin.preview.thirdPlaceMatch')} value={state.hasThirdPlaceMatch ? t('admin.preview.exists') : t('admin.preview.none')} />
+            <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.finals}${t('common.units.match')}`} />
           </dl>
 
           {/* 커스텀 대진 목록 */}
           {state.customPairings && state.customPairings.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-sm font-semibold text-gray-400 mb-2">커스텀 대진</h4>
+              <h4 className="text-sm font-semibold text-gray-400 mb-2">{t('admin.preview.customPairings')}</h4>
               <ul role="list" className="space-y-1">
                 {state.customPairings.map((pairing) => (
                   <li key={pairing.position} className="text-sm text-white">
-                    경기{pairing.position}: {pairing.slot1} vs {pairing.slot2}
+                    {t('admin.preview.matchNumber', { position: pairing.position })}: {pairing.slot1} vs {pairing.slot2}
                   </li>
                 ))}
               </ul>
@@ -373,85 +372,84 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
 
       {/* 4-1. 풀리그 설정 요약 (라운드로빈 단독) */}
       {isRoundRobinOnly && (
-        <section className="card p-5" aria-label="대회 형식">
-          <SectionHeader title="대회 형식" step={3} dispatch={dispatch} />
+        <section className="card p-5" aria-label={t('admin.preview.tournamentFormat')}>
+          <SectionHeader title={t('admin.preview.tournamentFormat')} step={3} dispatch={dispatch} t={t} />
           <dl>
-            <SummaryRow label="형식" value="풀리그 (라운드로빈)" />
-            <SummaryRow label={isTeamType ? '팀 수' : '참가자 수'} value={`${effectiveCount}${unitLabel}`} />
-            <SummaryRow label="경기 규칙" value={formatScoringRules(state.finalsScoringRules)} />
-            <SummaryRow label="타임아웃" value={formatMatchRules(state.finalsMatchRules)} />
-            <SummaryRow label="예상 경기 수" value={`${matchCounts.total}경기`} />
+            <SummaryRow label={t('admin.preview.format')} value={t('admin.preview.fullLeagueRoundRobin')} />
+            <SummaryRow label={isTeamType ? t('admin.preview.teamCount') : t('admin.preview.participantCount')} value={`${effectiveCount}${unitLabel}`} />
+            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(state.finalsScoringRules)} />
+            <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(state.finalsMatchRules)} />
+            <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.total}${t('common.units.match')}`} />
           </dl>
         </section>
       )}
 
       {/* 5. 순위결정전 요약 */}
       {state.hasFinalsStage && !isRoundRobinOnly && state.rankingMatch.enabled && (
-        <section className="card p-5" aria-label="순위결정전 설정">
-          <SectionHeader title="순위결정전" step={3} dispatch={dispatch} />
+        <section className="card p-5" aria-label={t('admin.preview.rankingSettings')}>
+          <SectionHeader title={t('admin.preview.rankingMatchSection')} step={3} dispatch={dispatch} t={t} />
           <dl>
             <SummaryRow
-              label="순위 범위"
+              label={t('admin.preview.rankRange')}
               value={
                 state.rankingMatch.thirdPlace && state.rankingMatch.fifthToEighth
-                  ? '3위~8위'
+                  ? t('admin.preview.rank3to8')
                   : state.rankingMatch.thirdPlace
-                    ? '3위~4위'
-                    : '순위결정전'
+                    ? t('admin.preview.rank3to4')
+                    : t('admin.preview.rankGeneral')
               }
             />
-            <SummaryRow label="3/4위전" value={state.rankingMatch.thirdPlace ? '진행' : '미진행'} />
-            <SummaryRow label="5~8위전" value={
+            <SummaryRow label={t('admin.preview.thirdFourthMatch')} value={state.rankingMatch.thirdPlace ? t('admin.preview.proceed') : t('admin.preview.notProceed')} />
+            <SummaryRow label={t('admin.preview.fifthEighthMatch')} value={
               state.rankingMatch.fifthToEighth
-                ? state.rankingMatch.fifthToEighthFormat === 'simple' ? '간소화 (2경기)'
-                  : state.rankingMatch.fifthToEighthFormat === 'full' ? '교차전 (4경기)'
-                  : '풀리그 (6경기)'
-                : '미진행'
+                ? state.rankingMatch.fifthToEighthFormat === 'simple' ? t('admin.preview.simplified')
+                  : state.rankingMatch.fifthToEighthFormat === 'full' ? t('admin.preview.crossMatch')
+                  : t('admin.preview.fullLeagueMatch')
+                : t('admin.preview.notProceed')
             } />
             {state.rankingMatch.classificationGroups && (
-              <SummaryRow label="하위 순위 그룹" value={`${state.rankingMatch.classificationGroupSize}${unitLabel}씩 풀리그`} />
+              <SummaryRow label={t('admin.preview.lowerRankGroup')} value={t('admin.preview.lowerRankGroupLabel', { size: state.rankingMatch.classificationGroupSize, unit: unitLabel })} />
             )}
-            <SummaryRow label="예상 경기 수" value={`${matchCounts.ranking}경기`} />
+            <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.ranking}${t('common.units.match')}`} />
           </dl>
         </section>
       )}
 
       {/* 6. 총 예상 경기 수 */}
-      <section className="card p-5 bg-gray-800 border-2 border-yellow-500" aria-label="총 경기 수 요약">
+      <section className="card p-5 bg-gray-800 border-2 border-yellow-500" aria-label={t('admin.preview.totalExpectedMatches')}>
         <div className="flex justify-between items-center">
-          <h3 className="text-xl font-bold text-yellow-400">총 예상 경기 수</h3>
-          <span className="text-3xl font-bold text-white">{matchCounts.total}경기</span>
+          <h3 className="text-xl font-bold text-yellow-400">{t('admin.preview.totalExpectedMatches')}</h3>
+          <span className="text-3xl font-bold text-white">{matchCounts.total}{t('common.units.match')}</span>
         </div>
         {(state.hasGroupStage || state.hasFinalsStage) && !isRoundRobinOnly && (
           <div className="flex gap-4 mt-2 text-sm text-gray-400">
-            {state.hasGroupStage && <span>예선: {matchCounts.qualifying}</span>}
-            {state.hasFinalsStage && <span>본선: {matchCounts.finals}</span>}
-            {matchCounts.ranking > 0 && <span>순위결정전: {matchCounts.ranking}</span>}
+            {state.hasGroupStage && <span>{t('admin.preview.qualifyingCount', { count: matchCounts.qualifying })}</span>}
+            {state.hasFinalsStage && <span>{t('admin.preview.finalsCount', { count: matchCounts.finals })}</span>}
+            {matchCounts.ranking > 0 && <span>{t('admin.preview.rankingCount', { count: matchCounts.ranking })}</span>}
           </div>
         )}
       </section>
 
       {/* 7. 스케줄 안내 */}
       {state.tournamentMode === 'manual' ? (
-        <section className="card p-4 bg-blue-900/20 border border-blue-500/40" role="note" aria-label="다음 단계 안내">
-          <p className="text-blue-400 font-bold">&#8505; 다음 단계 안내</p>
+        <section className="card p-4 bg-blue-900/20 border border-blue-500/40" role="note" aria-label={t('admin.preview.nextStepGuide')}>
+          <p className="text-blue-400 font-bold">&#8505; {t('admin.preview.nextStepGuide')}</p>
           <p className="text-gray-300 text-sm mt-2">
-            대회 생성 후 [대회 상세] 페이지에서:
+            {t('admin.preview.manualNextStepDescription')}
           </p>
           <ul className="text-gray-300 text-sm mt-1 list-disc list-inside">
-            <li>조 편성 (수동 배정)</li>
-            <li>대진표 설정</li>
-            <li>경기장/심판 배정</li>
-            <li>스케줄 설정</li>
+            <li>{t('admin.preview.manualStep1')}</li>
+            <li>{t('admin.preview.manualStep2')}</li>
+            <li>{t('admin.preview.manualStep3')}</li>
+            <li>{t('admin.preview.manualStep4')}</li>
           </ul>
-          <p className="text-gray-300 text-sm mt-1">을 진행할 수 있습니다.</p>
+          <p className="text-gray-300 text-sm mt-1">{t('admin.preview.manualNextStepSuffix')}</p>
         </section>
       ) : (
-        <section className="card p-4 bg-blue-900/20 border border-blue-500/40" role="note" aria-label="스케줄 안내">
-          <p className="text-blue-400 font-bold">&#8505; 스케줄 안내</p>
+        <section className="card p-4 bg-blue-900/20 border border-blue-500/40" role="note" aria-label={t('admin.preview.scheduleGuide')}>
+          <p className="text-blue-400 font-bold">&#8505; {t('admin.preview.scheduleGuide')}</p>
           <p className="text-gray-300 text-sm mt-2">
-            대회 생성 후 [대회 상세 &gt; 스케줄] 탭에서
-            경기장, 심판 배정, 시간 설정을 할 수 있습니다.
+            {t('admin.preview.scheduleDescription')}
           </p>
         </section>
       )}
@@ -460,9 +458,9 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       <button
         className="btn btn-success btn-large w-full text-xl py-4"
         onClick={onSubmit}
-        aria-label="대회 생성"
+        aria-label={t('admin.preview.createTournament')}
       >
-        대회 생성
+        {t('admin.preview.createTournament')}
       </button>
     </div>
   );

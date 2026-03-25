@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useTournament, useMatches, useFavorites, useSchedule } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
@@ -9,31 +10,28 @@ import type { Match, PlayerRanking, TeamRanking } from '@shared/types';
 
 type TabId = 'live' | 'bracket' | 'groups' | 'ranking' | 'players' | 'history';
 
-const TAB_LABELS: Record<TabId, string> = {
-  live: '실시간',
-  bracket: '대진표',
-  groups: '조 목록',
-  ranking: '순위',
-  players: '선수',
-  history: '히스토리',
-};
+const TAB_IDS: TabId[] = ['live', 'bracket', 'groups', 'ranking', 'players', 'history'];
 
-function getTournamentTypeLabel(type: string): string {
-  switch (type) {
-    case 'individual': return '개인전';
-    case 'team': return '팀전';
-    case 'randomTeamLeague': return '랜덤팀리그전';
-    default: return type;
-  }
-}
+const TAB_LABEL_KEYS: Record<TabId, string> = {
+  live: 'spectator.tournament.tabs.live',
+  bracket: 'spectator.tournament.tabs.bracket',
+  groups: 'spectator.tournament.tabs.groups',
+  ranking: 'spectator.tournament.tabs.ranking',
+  players: 'spectator.tournament.tabs.players',
+  history: 'spectator.tournament.tabs.history',
+};
 
 export default function TournamentView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { tournament, loading: tLoading } = useTournament(id || null);
   const { matches, loading: mLoading } = useMatches(id || null);
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
   const { schedule } = useSchedule(id || null);
+
+  const getTabLabel = (tab: TabId) => t(TAB_LABEL_KEYS[tab]);
+  const getTournamentTypeLabel = (type: string) => t(`common.tournamentType.${type}`);
 
   useMatchNotifications(favoriteIds, matches, schedule);
 
@@ -55,11 +53,11 @@ export default function TournamentView() {
   // Set document title for screen readers
   useEffect(() => {
     if (tournament) {
-      document.title = `${tournament.name} - 대회 관람`;
+      document.title = t('spectator.tournament.pageTitle', { name: tournament.name });
     } else {
-      document.title = '대회 관람 - 쇼다운';
+      document.title = t('spectator.tournament.defaultPageTitle');
     }
-  }, [tournament]);
+  }, [tournament, t]);
 
   useEffect(() => {
     if (selectedPlayer && playerPanelRef.current) {
@@ -179,7 +177,7 @@ export default function TournamentView() {
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
-        <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
+        <p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p>
       </div>
     );
   }
@@ -187,9 +185,9 @@ export default function TournamentView() {
   if (!tournament) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="alert">
-        <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>대회를 찾을 수 없습니다</p>
+        <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>{t('spectator.tournament.notFound')}</p>
         <button className="btn btn-primary" onClick={() => navigate('/spectator')} style={{ marginTop: '1rem' }}>
-          목록으로 돌아가기
+          {t('spectator.tournament.backToList')}
         </button>
       </div>
     );
@@ -214,21 +212,21 @@ export default function TournamentView() {
           style={{ width: '100%' }}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="선수 또는 팀 이름 검색"
-          aria-label="선수 검색"
+          placeholder={t('spectator.tournament.searchPlaceholder')}
+          aria-label={t('spectator.tournament.searchAriaLabel')}
         />
       </div>
 
       {searchResults && (
         <div style={{ marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
-            검색 결과: {searchResults.length}건
+            {t('spectator.tournament.searchResults', { count: searchResults.length })}
           </h2>
           {searchResults.map(match => {
             const isIndividual = match.type === 'individual';
             const label = isIndividual
-              ? `${match.player1Name || '선수1'} vs ${match.player2Name || '선수2'}`
-              : `${match.team1Name || '팀1'} vs ${match.team2Name || '팀2'}`;
+              ? `${match.player1Name || t('referee.home.player1Default')} vs ${match.player2Name || t('referee.home.player2Default')}`
+              : `${match.team1Name || t('referee.home.team1Default')} vs ${match.team2Name || t('referee.home.team2Default')}`;
             return (
               <button
                 key={match.id}
@@ -239,7 +237,7 @@ export default function TournamentView() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 'bold' }}>{label}</span>
                   <span style={{ color: match.status === 'completed' ? '#22c55e' : match.status === 'in_progress' ? '#ef4444' : '#d1d5db', fontWeight: 'bold', fontSize: '0.875rem' }}>
-                    {match.status === 'completed' ? '완료 →' : match.status === 'in_progress' ? '진행중 →' : '대기'}
+                    {match.status === 'completed' ? `${t('common.matchStatus.completed')} →` : match.status === 'in_progress' ? `${t('common.matchStatus.inProgress')} →` : t('common.matchStatus.pending')}
                   </span>
                 </div>
               </button>
@@ -254,7 +252,7 @@ export default function TournamentView() {
           ref={playerPanelRef}
           tabIndex={-1}
           role="dialog"
-          aria-label={`${selectedPlayer} 경기 기록`}
+          aria-label={t('spectator.tournament.playerRecord.title', { player: selectedPlayer })}
           aria-modal="true"
           className="card"
           style={{ marginBottom: '1.5rem', border: '2px solid #facc15', outline: 'none' }}
@@ -263,16 +261,16 @@ export default function TournamentView() {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{selectedPlayer} 경기 기록</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{t('spectator.tournament.playerRecord.title', { player: selectedPlayer })}</h2>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 className="btn btn-primary"
                 style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }}
                 onClick={() => navigate(`/spectator/player/${id}/${encodeURIComponent(selectedPlayer)}`)}
               >
-                프로필
+                {t('common.profile')}
               </button>
-              <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => handleSelectPlayer(null)}>닫기</button>
+              <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => handleSelectPlayer(null)}>{t('common.close')}</button>
             </div>
           </div>
           {playerStats && (() => {
@@ -287,22 +285,22 @@ export default function TournamentView() {
                   const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '0.375rem 0', borderBottom: '1px solid #374151' } as const;
                   return (<>
                     <div style={rowStyle}>
-                      <dt style={{ color: '#d1d5db' }}>전적</dt>
-                      <dd style={{ margin: 0 }}><span style={{ color: '#22c55e', fontWeight: 'bold' }}>{playerStats.wins}승</span>{' '}<span style={{ color: '#ef4444', fontWeight: 'bold' }}>{playerStats.losses}패</span>{' '}<span style={{ color: '#9ca3af' }}>({completedCount}경기)</span></dd>
+                      <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.record')}</dt>
+                      <dd style={{ margin: 0 }}><span style={{ color: '#22c55e', fontWeight: 'bold' }}>{t('spectator.tournament.playerRecord.wins', { count: playerStats.wins })}</span>{' '}<span style={{ color: '#ef4444', fontWeight: 'bold' }}>{t('spectator.tournament.playerRecord.losses', { count: playerStats.losses })}</span>{' '}<span style={{ color: '#9ca3af' }}>{t('spectator.tournament.playerRecord.matchCount', { count: completedCount })}</span></dd>
                     </div>
                     <div style={rowStyle}>
-                      <dt style={{ color: '#d1d5db' }}>승률</dt>
+                      <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.winRate')}</dt>
                       <dd style={{ margin: 0, fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</dd>
                     </div>
                     {!isTeamTournament && (
                       <div style={rowStyle}>
-                        <dt style={{ color: '#d1d5db' }}>세트 득실</dt>
+                        <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.setDiff')}</dt>
                         <dd style={{ margin: 0, fontWeight: 'bold', color: setDiff > 0 ? '#22c55e' : setDiff < 0 ? '#ef4444' : '#9ca3af' }}>{setDiff > 0 ? '+' : ''}{setDiff}</dd>
                       </div>
                     )}
                     <div style={{ ...rowStyle, borderBottom: 'none' }}>
-                      <dt style={{ color: '#d1d5db' }}>골 득실</dt>
-                      <dd style={{ margin: 0, fontWeight: 'bold', color: goalDiff > 0 ? '#22c55e' : goalDiff < 0 ? '#ef4444' : '#9ca3af' }}>{goalDiff > 0 ? '+' : ''}{goalDiff} ({playerStats.pointsFor}득 {playerStats.pointsAgainst}실)</dd>
+                      <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.goalDiff')}</dt>
+                      <dd style={{ margin: 0, fontWeight: 'bold', color: goalDiff > 0 ? '#22c55e' : goalDiff < 0 ? '#ef4444' : '#9ca3af' }}>{goalDiff > 0 ? '+' : ''}{goalDiff} ({t('spectator.tournament.playerRecord.scored', { 'for': playerStats.pointsFor })} {t('spectator.tournament.playerRecord.conceded', { against: playerStats.pointsAgainst })})</dd>
                     </div>
                   </>);
                 })()}
@@ -321,7 +319,7 @@ export default function TournamentView() {
             {/* 예선 경기 */}
             {playerMatches.filter(m => m.groupId).length > 0 && (
               <div>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.25rem' }}>예선</h4>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.qualifyingStage')}</h4>
                 {playerMatches.filter(m => m.groupId).map(m => (
                   <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
@@ -330,7 +328,7 @@ export default function TournamentView() {
             {/* 본선 경기 */}
             {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).length > 0 && (
               <div>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem', marginTop: '0.25rem' }}>본선</h4>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.finalsStage')}</h4>
                 {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).map(m => (
                   <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
@@ -339,7 +337,7 @@ export default function TournamentView() {
             {/* 순위결정전 */}
             {playerMatches.filter(m => m.stageId?.includes('ranking')).length > 0 && (
               <div>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.25rem', marginTop: '0.25rem' }}>순위결정전</h4>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.rankingStage')}</h4>
                 {playerMatches.filter(m => m.stageId?.includes('ranking')).map(m => (
                   <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
                 ))}
@@ -349,7 +347,7 @@ export default function TournamentView() {
             {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).length > 0 && (
               <div>
                 {(playerMatches.some(m => m.groupId) || playerMatches.some(m => m.stageId?.includes('finals'))) && (
-                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.25rem', marginTop: '0.25rem' }}>기타</h4>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.otherStage')}</h4>
                 )}
                 {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).map(m => (
                   <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
@@ -363,12 +361,12 @@ export default function TournamentView() {
 
       {/* Stage filter - 풀리그 전용 대회에서는 예선/본선 구분 불필요 */}
       {!isFullLeagueOnly && (stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto' }} role="group" aria-label="경기 단계 필터">
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto' }} role="group" aria-label={t('spectator.tournament.stageFilter.label')}>
           {([
-            { key: 'all' as const, label: '전체', count: matches.length },
-            { key: 'qualifying' as const, label: '예선', count: stageMap.qualifying.length },
-            { key: 'finals' as const, label: '본선', count: stageMap.finals.length },
-            { key: 'ranking' as const, label: '순위결정전', count: stageMap.ranking.length },
+            { key: 'all' as const, label: t('spectator.tournament.stageFilter.all'), count: matches.length },
+            { key: 'qualifying' as const, label: t('spectator.tournament.stageFilter.qualifying'), count: stageMap.qualifying.length },
+            { key: 'finals' as const, label: t('spectator.tournament.stageFilter.finals'), count: stageMap.finals.length },
+            { key: 'ranking' as const, label: t('spectator.tournament.stageFilter.ranking'), count: stageMap.ranking.length },
           ] as const).filter(s => s.count > 0 || s.key === 'all').map(s => (
             <button
               key={s.key}
@@ -390,8 +388,8 @@ export default function TournamentView() {
       {/* Tab navigation */}
       <div
         role="tablist"
-        aria-label="대회 관람 탭"
-        onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const vt = (Object.keys(TAB_LABELS) as TabId[]).filter(t => t !== 'groups' || hasGroupStage); const ci = vt.indexOf(activeTab); const ni = e.key === 'ArrowRight' ? (ci + 1) % vt.length : (ci - 1 + vt.length) % vt.length; setActiveTab(vt[ni]); e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[ni]?.focus(); } }}
+        aria-label={t('spectator.tournament.tabAriaLabel')}
+        onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const vt = TAB_IDS.filter(tab => tab !== 'groups' || hasGroupStage); const ci = vt.indexOf(activeTab); const ni = e.key === 'ArrowRight' ? (ci + 1) % vt.length : (ci - 1 + vt.length) % vt.length; setActiveTab(vt[ni]); e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[ni]?.focus(); } }}
         style={{
           display: 'flex',
           gap: '0.25rem',
@@ -401,7 +399,7 @@ export default function TournamentView() {
           padding: '0.25rem',
         }}
       >
-        {(Object.keys(TAB_LABELS) as TabId[]).filter((tab) => {
+        {TAB_IDS.filter((tab) => {
           if (tab === 'groups') {
             return hasGroupStage;
           }
@@ -423,13 +421,13 @@ export default function TournamentView() {
               backgroundColor: activeTab === tab ? undefined : 'transparent',
             }}
           >
-            {TAB_LABELS[tab]}
+            {getTabLabel(tab)}
           </button>
         ))}
       </div>
 
       {/* Tab panels */}
-      <div role="tabpanel" id={`panel-${activeTab}`} aria-label={TAB_LABELS[activeTab]}>
+      <div role="tabpanel" id={`panel-${activeTab}`} aria-label={getTabLabel(activeTab)}>
         {activeTab === 'live' && (
           <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
@@ -515,10 +513,10 @@ function LiveTab({
           const p1Diff = currentSetData.player1Score - prevParts[0];
           const p2Diff = currentSetData.player2Score - prevParts[1];
           let scorer = '';
-          if (p1Diff > 0) scorer = `${match.player1Name || '선수1'} +${p1Diff}`;
-          else if (p2Diff > 0) scorer = `${match.player2Name || '선수2'} +${p2Diff}`;
+          if (p1Diff > 0) scorer = `${match.player1Name || t('referee.home.player1Default')} +${p1Diff}`;
+          else if (p2Diff > 0) scorer = `${match.player2Name || t('referee.home.player2Default')} +${p2Diff}`;
 
-          const announcementText = `${match.player1Name || '선수1'} ${currentSetData.player1Score}점, ${match.player2Name || '선수2'} ${currentSetData.player2Score}점, 제${match.currentSet}세트`;
+          const announcementText = t('spectator.tournament.view.scoreAnnouncement', { p1: match.player1Name || t('referee.home.player1Default'), p1Score: currentSetData.player1Score, p2: match.player2Name || t('referee.home.player2Default'), p2Score: currentSetData.player2Score, set: match.currentSet });
           setAnnouncement(announcementText);
           setToast({ message: scorer || announcementText, key: Date.now() });
           setChangedMatchId(match.id);
@@ -540,10 +538,10 @@ function LiveTab({
           const p1Diff = setData.player1Score - prevParts[0];
           const p2Diff = setData.player2Score - prevParts[1];
           let scorer = '';
-          if (p1Diff > 0) scorer = `${match.team1Name || '팀1'} +${p1Diff}`;
-          else if (p2Diff > 0) scorer = `${match.team2Name || '팀2'} +${p2Diff}`;
+          if (p1Diff > 0) scorer = `${match.team1Name || t('referee.home.team1Default')} +${p1Diff}`;
+          else if (p2Diff > 0) scorer = `${match.team2Name || t('referee.home.team2Default')} +${p2Diff}`;
 
-          const announcementText = `${match.team1Name || '팀1'} ${setData.player1Score}점, ${match.team2Name || '팀2'} ${setData.player2Score}점`;
+          const announcementText = t('spectator.tournament.view.teamScoreAnnouncement', { p1: match.team1Name || t('referee.home.team1Default'), p1Score: setData.player1Score, p2: match.team2Name || t('referee.home.team2Default'), p2Score: setData.player2Score });
           setAnnouncement(announcementText);
           setToast({ message: scorer || announcementText, key: Date.now() });
           setChangedMatchId(match.id);
@@ -565,10 +563,12 @@ function LiveTab({
     return () => clearTimeout(timer);
   }, [changedMatchId]);
 
+  const { t } = useTranslation();
+
   if (liveMatches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">현재 진행 중인 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">{t('spectator.tournament.live.noLiveMatches')}</p>
       </div>
     );
   }
@@ -624,8 +624,8 @@ function LiveTab({
               }}
               aria-label={
                 match.type === 'individual'
-                  ? `${match.player1Name} 대 ${match.player2Name}, 진행중`
-                  : `${match.team1Name} 대 ${match.team2Name}, 진행중`
+                  ? t('spectator.tournament.view.matchAriaLive', { p1: match.player1Name, p2: match.player2Name })
+                  : t('spectator.tournament.view.matchAriaLive', { p1: match.team1Name, p2: match.team2Name })
               }
             >
               {/* Status indicator */}
@@ -641,7 +641,7 @@ function LiveTab({
                   }}
                   aria-hidden="true"
                 />
-                <span style={{ color: '#ef4444', fontWeight: 'bold' }}>진행중</span>
+                <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{t('common.matchStatus.inProgress')}</span>
                 {match.courtName && (
                   <span style={{ color: '#d1d5db', marginLeft: 'auto' }}>{match.courtName}</span>
                 )}
@@ -658,9 +658,11 @@ function LiveTab({
                 <TeamMatchCard match={match} justChanged={changedMatchId === match.id} />
               )}
 
-              {match.refereeName && (
+              {(match.refereeName || match.assistantRefereeName) && (
                 <p style={{ color: '#d1d5db', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-                  심판: {match.refereeName}
+                  {match.refereeName && `${t('common.refereeRole.main')}: ${match.refereeName}`}
+                  {match.refereeName && match.assistantRefereeName && ' / '}
+                  {match.assistantRefereeName && `${t('common.refereeRole.assistant')}: ${match.assistantRefereeName}`}
                 </p>
               )}
             </button>
@@ -682,6 +684,7 @@ function IndividualMatchCard({
   toggleFavorite: (id: string) => void;
   justChanged?: boolean;
 }) {
+  const { t } = useTranslation();
   const safeSets = Array.isArray(match.sets) ? match.sets : [];
   const currentSetData = safeSets.length > 0 && match.currentSet != null
     ? safeSets[match.currentSet - 1] ?? null
@@ -696,11 +699,11 @@ function IndividualMatchCard({
         {/* Player 1 */}
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player1Name || '선수1'}</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player1Name || t('referee.home.player1Default')}</span>
             {match.player1Id && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player1Id!); }}
-                aria-label={isFavorite(match.player1Id) ? `${match.player1Name} 즐겨찾기 해제` : `${match.player1Name} 즐겨찾기 추가`}
+                aria-label={isFavorite(match.player1Id) ? t('spectator.favorites.removeAriaLabel', { name: match.player1Name }) : `${match.player1Name} ☆`}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--color-primary)', padding: '0.25rem' }}
               >
                 {isFavorite(match.player1Id) ? '★' : '☆'}
@@ -721,8 +724,8 @@ function IndividualMatchCard({
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-secondary)' }}>{currentSetData?.player2Score ?? 0}</span>
           </div>
           <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
-            세트 {setWins.player1} - {setWins.player2}
-            {match.currentSet && ` (제${match.currentSet}세트)`}
+            {t('spectator.tournament.view.setScoreDisplay', { p1: setWins.player1, p2: setWins.player2 })}
+            {match.currentSet && ` ${t('spectator.tournament.view.currentSet', { set: match.currentSet })}`}
           </div>
         </div>
 
@@ -732,13 +735,13 @@ function IndividualMatchCard({
             {match.player2Id && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player2Id!); }}
-                aria-label={isFavorite(match.player2Id) ? `${match.player2Name} 즐겨찾기 해제` : `${match.player2Name} 즐겨찾기 추가`}
+                aria-label={isFavorite(match.player2Id) ? t('spectator.favorites.removeAriaLabel', { name: match.player2Name }) : `${match.player2Name} ☆`}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--color-primary)', padding: '0.25rem' }}
               >
                 {isFavorite(match.player2Id) ? '★' : '☆'}
               </button>
             )}
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player2Name || '선수2'}</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player2Name || t('referee.home.player2Default')}</span>
           </div>
         </div>
       </div>
@@ -747,6 +750,7 @@ function IndividualMatchCard({
 }
 
 function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boolean }) {
+  const { t } = useTranslation();
   const safeSets = Array.isArray(match.sets) ? match.sets : [];
   const setData = safeSets.length > 0 ? safeSets[0] : null;
   const team1Score = setData?.player1Score ?? 0;
@@ -757,8 +761,8 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team1Name || '팀1'}</span>
-          {match.team1?.coachName && <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>코치: {match.team1.coachName}</div>}
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team1Name || t('referee.home.team1Default')}</span>
+          {match.team1?.coachName && <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>{t('spectator.tournament.view.coachLabel')}: {match.team1.coachName}</div>}
         </div>
         <div
           key={scoreKey}
@@ -771,12 +775,12 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-secondary)' }}>{team2Score}</span>
           </div>
           <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
-            31점 경기
+            {t('spectator.tournament.view.teamMatchPoints')}
           </div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team2Name || '팀2'}</span>
-          {match.team2?.coachName && <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>코치: {match.team2.coachName}</div>}
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.team2Name || t('referee.home.team2Default')}</span>
+          {match.team2?.coachName && <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>{t('spectator.tournament.view.coachLabel')}: {match.team2.coachName}</div>}
         </div>
       </div>
     </div>
@@ -785,6 +789,7 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
 
 // ===== Bracket Tab =====
 function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Match[]; tournamentType: string; onSelectPlayer: (name: string) => void }) {
+  const { t } = useTranslation();
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
   const hasGroups = matches.some(m => m.groupId);
   const hasFinalsMatches = matches.some(m =>
@@ -798,7 +803,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>대진표 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.tabs.bracket')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -835,7 +840,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
         {finalsMatches.length > 0 && (
           <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '1rem', borderBottom: '2px solid rgba(74, 222, 128, 0.3)', paddingBottom: '0.5rem' }}>
-              본선
+              {t('spectator.tournament.stageFilter.finals')}
             </h2>
             <FinalsView matches={finalsMatches} onSelectPlayer={onSelectPlayer} />
           </div>
@@ -843,7 +848,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
         {rankingMatches.length > 0 && (
           <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '1rem', borderBottom: '2px solid rgba(192, 132, 252, 0.3)', paddingBottom: '0.5rem' }}>
-              순위결정전
+              {t('spectator.tournament.stageFilter.ranking')}
             </h2>
             <RankingMatchesView matches={rankingMatches} onSelectPlayer={onSelectPlayer} />
           </div>
@@ -861,12 +866,13 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
 
 // ===== Finals View =====
 function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const { t } = useTranslation();
   const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
 
   const rounds = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
-      const label = m.roundLabel || `라운드 ${m.round || '?'}`;
+      const label = m.roundLabel || t('spectator.tournament.view.roundLabel', { round: m.round || '?' });
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(m);
     });
@@ -883,7 +889,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>본선 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.stageFilter.finals')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -1162,7 +1168,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                                 backgroundColor: '#eab308',
                                 animation: 'pulse 2s infinite',
                               }} />
-                              진행중
+                              {t('common.matchStatus.inProgress')}
                             </span>
                           )}
                           {!isCompleted && !isInProgress && (
@@ -1170,7 +1176,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                               fontSize: '0.6875rem',
                               color: '#9ca3af',
                             }}>
-                              대기
+                              {t('common.matchStatus.pending')}
                             </span>
                           )}
                         </div>
@@ -1188,6 +1194,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
 }
 
 function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlayer?: (name: string) => void }) {
+  const { t } = useTranslation();
   const p1 = match.player1Name || match.team1Name || '?';
   const p2 = match.player2Name || match.team2Name || '?';
   const isP1Winner = match.winnerId === (match.player1Id || match.team1Id);
@@ -1247,7 +1254,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
             </div>
           ) : (
             <span style={{ color: match.status === 'in_progress' ? '#ef4444' : '#9ca3af', fontWeight: 'bold' }}>
-              {match.status === 'in_progress' ? '진행중' : 'vs'}
+              {match.status === 'in_progress' ? t('common.matchStatus.inProgress') : 'vs'}
             </span>
           )}
         </div>
@@ -1266,10 +1273,11 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
 
 // ===== Ranking Matches View =====
 function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const { t } = useTranslation();
   const rounds = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
-      const label = m.roundLabel || '순위결정전';
+      const label = m.roundLabel || t('spectator.tournament.view.rankingMatchLabel');
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(m);
     });
@@ -1279,7 +1287,7 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>순위결정전 경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.stageFilter.ranking')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -1311,6 +1319,7 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
 
 // ===== Group Stage View =====
 function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+  const { t } = useTranslation();
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
@@ -1326,7 +1335,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
       {groups.map(([groupId, groupMatches]) => (
         <div key={groupId} className="card">
           <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15', marginBottom: '1rem' }}>
-            {groupId === 'default' ? '경기' : `${groupId}조`}
+            {groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}
           </h3>
 
           {/* 조별 순위표 */}
@@ -1334,7 +1343,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
 
           {/* 조별 경기 결과 */}
           <div style={{ marginTop: '1rem' }}>
-            <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.5rem' }}>경기 결과</h4>
+            <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.5rem' }}>{t('spectator.tournament.view.matchResult')}</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {groupMatches.map(m => (
                 <MatchResultRow key={m.id} match={m} onSelectPlayer={onSelectPlayer} />
@@ -1349,6 +1358,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
 
 // ===== Groups Tab =====
 function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; isFullLeague?: boolean }) {
+  const { t } = useTranslation();
   const groupMatches = useMemo(() => matches.filter(m => m.groupId), [matches]);
 
   const groups = useMemo(() => {
@@ -1364,7 +1374,7 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = fal
   if (groups.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>조 편성 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.tabs.groups')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -1375,7 +1385,7 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = fal
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-        {isFullLeague ? `경기 ${totalCompleted}/${totalMatches} 완료` : `총 ${groups.length}개 조 | 예선 경기 ${totalCompleted}/${totalMatches} 완료`}
+        {isFullLeague ? t('spectator.tournament.view.fullLeagueProgress', { completed: totalCompleted, total: totalMatches }) : t('spectator.tournament.view.groupProgress', { groups: groups.length, completed: totalCompleted, total: totalMatches })}
       </p>
       {groups.map(([groupId, gMatches]) => {
         const completed = gMatches.filter(m => m.status === 'completed').length;
@@ -1384,12 +1394,12 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = fal
           <div key={groupId} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>
-                {groupId === 'default' ? '경기' : `${groupId}조`}
+                {groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}
               </h3>
               <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                {completed}/{gMatches.length} 완료
+                {completed}/{gMatches.length} {t('common.matchStatus.completed')}
                 {inProgress > 0 && (
-                  <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>{inProgress} 진행중</span>
+                  <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>{inProgress} {t('common.matchStatus.inProgress')}</span>
                 )}
               </span>
             </div>
@@ -1402,6 +1412,7 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = fal
 }
 
 function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+  const { t } = useTranslation();
   const rankings = useMemo(() => {
     const stats = new Map<string, {
       name: string; played: number; wins: number; losses: number;
@@ -1456,18 +1467,18 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.875rem' }}>
-        <caption className="sr-only">조별 순위표</caption>
+        <caption className="sr-only">{t('spectator.tournament.tabs.groups')}</caption>
         <thead>
           <tr style={{ borderBottom: '2px solid #374151' }}>
-            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>순위</th>
-            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>이름</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>경기</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>승</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>패</th>
-            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트 승패</th>}
-            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>세트차</th>}
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>점수득실</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>득실차</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.rankLabel')}</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.nameLabel')}</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.matchesLabel')}</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.winsLabel')}</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.lossesLabel')}</th>
+            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.setWinsLosses')}</th>}
+            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.setDiff')}</th>}
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.pointsDiff')}</th>
+            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.goalDiff')}</th>
           </tr>
         </thead>
         <tbody>
@@ -1497,14 +1508,14 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                     padding: '0.125rem 0.375rem',
                     borderRadius: '0.25rem',
                   }}>
-                    진출
+                    {t('spectator.tournament.view.advanceBadge')}
                   </span>
                 )}
               </td>
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.played}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}>{r.wins}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{r.losses}</td>
-              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.setsWon}승 {r.setsLost}패</td>}
+              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem' }}>{t('spectator.tournament.view.setWL', { w: r.setsWon, l: r.setsLost })}</td>}
               {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>}
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
               <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
@@ -1517,6 +1528,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
 }
 
 function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlayer?: (name: string) => void }) {
+  const { t } = useTranslation();
   const p1 = match.player1Name || match.team1Name || '?';
   const p2 = match.player2Name || match.team2Name || '?';
   const isP1Winner = match.winnerId === (match.player1Id || match.team1Id);
@@ -1554,7 +1566,7 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
           ))
         ) : (
           <span style={{ color: '#9ca3af' }}>
-            {match.status === 'in_progress' ? '진행중' : 'vs'}
+            {match.status === 'in_progress' ? t('common.matchStatus.inProgress') : 'vs'}
           </span>
         )}
       </div>
@@ -1579,6 +1591,7 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
 }
 
 function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const { t } = useTranslation();
   // Collect unique players
   const players = useMemo(() => {
     const playerMap = new Map<string, string>();
@@ -1604,8 +1617,8 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
   function getCellContent(p1Id: string, p2Id: string): { text: string; bg: string } {
     if (p1Id === p2Id) return { text: '-', bg: '#374151' };
     const match = resultMap.get(`${p1Id}_${p2Id}`);
-    if (!match) return { text: '미진행', bg: 'transparent' };
-    if (match.status !== 'completed') return { text: '진행중', bg: '#1e3a5f' };
+    if (!match) return { text: t('common.matchStatus.pending'), bg: 'transparent' };
+    if (match.status !== 'completed') return { text: t('common.matchStatus.inProgress'), bg: '#1e3a5f' };
 
     const isP1 = match.player1Id === p1Id;
     const won = match.winnerId === p1Id;
@@ -1614,24 +1627,24 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
       const myWins = isP1 ? setWins.player1 : setWins.player2;
       const oppWins = isP1 ? setWins.player2 : setWins.player1;
       return {
-        text: `${won ? '승' : '패'} ${myWins}-${oppWins}`,
+        text: `${won ? t('spectator.tournament.view.win') : t('spectator.tournament.view.loss')} ${myWins}-${oppWins}`,
         bg: won ? '#14532d' : '#7f1d1d',
       };
     }
-    return { text: won ? '승' : '패', bg: won ? '#14532d' : '#7f1d1d' };
+    return { text: won ? t('spectator.tournament.view.win') : t('spectator.tournament.view.loss'), bg: won ? '#14532d' : '#7f1d1d' };
   }
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: `${players.length * 80 + 120}px` }}>
-        <caption className="sr-only">개인전 대진표</caption>
+        <caption className="sr-only">{t('spectator.tournament.tabs.bracket')}</caption>
         <thead>
           <tr>
             <th
               scope="col"
               style={{ padding: '0.5rem', borderBottom: '2px solid #374151', textAlign: 'left', color: 'var(--color-primary)' }}
             >
-              선수
+              {t('spectator.tournament.view.playerLabel')}
             </th>
             {players.map((p) => (
               <th
@@ -1704,6 +1717,7 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
 }
 
 function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const { t } = useTranslation();
   return (
     <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {matches.map((match) => {
@@ -1715,16 +1729,16 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
             key={match.id}
             className="card"
             style={{ border: match.status === 'completed' ? '2px solid #16a34a' : '1px solid #1f2937' }}
-            aria-label={`${match.team1Name || '팀1'} 대 ${match.team2Name || '팀2'}, ${match.status === 'completed' ? '완료' : match.status === 'in_progress' ? '진행중' : '대기'}`}
+            aria-label={t('spectator.tournament.view.matchAriaTeam', { p1: match.team1Name || t('referee.home.team1Default'), p2: match.team2Name || t('referee.home.team2Default'), status: t(`common.matchStatus.${match.status === 'in_progress' ? 'inProgress' : match.status}`) })}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '1.25rem', fontWeight: 'bold', flex: 1 }}>
                 <button
                   className="text-left hover:underline hover:text-yellow-400"
-                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(match.team1Name || '팀1'); }}
+                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(match.team1Name || t('referee.home.team1Default')); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0 }}
                 >
-                  {match.team1Name || '팀1'}
+                  {match.team1Name || t('referee.home.team1Default')}
                 </button>
                 {match.team1 && (match.team1 as any).memberNames && (
                   <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem' }}>
@@ -1746,10 +1760,10 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
               <span style={{ fontSize: '1.25rem', fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
                 <button
                   className="hover:underline hover:text-yellow-400"
-                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(match.team2Name || '팀2'); }}
+                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(match.team2Name || t('referee.home.team2Default')); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0 }}
                 >
-                  {match.team2Name || '팀2'}
+                  {match.team2Name || t('referee.home.team2Default')}
                 </button>
                 {match.team2 && (match.team2 as any).memberNames && (
                   <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem', textAlign: 'right' }}>
@@ -1766,7 +1780,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 color: '#fff',
                 marginLeft: '0.75rem',
               }}>
-                {match.status === 'completed' ? '완료' : match.status === 'in_progress' ? '진행중' : '대기'}
+                {match.status === 'completed' ? t('common.matchStatus.completed') : match.status === 'in_progress' ? t('common.matchStatus.inProgress') : t('common.matchStatus.pending')}
               </span>
             </div>
           </li>
@@ -1784,6 +1798,7 @@ function TournamentResultsSummary({
   matches: Match[];
   tournamentType: string;
 }) {
+  const { t } = useTranslation();
   const summary = useMemo((): {
     top3: { name: string; rank: number }[];
     totalMatches: number;
@@ -1846,7 +1861,7 @@ function TournamentResultsSummary({
     }}>
       {/* Status badge */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af' }}>대회 결과 요약</span>
+        <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#9ca3af' }}>{t('spectator.tournament.view.tournamentSummary')}</span>
         <span style={{
           fontSize: '0.75rem',
           fontWeight: 'bold',
@@ -1855,7 +1870,7 @@ function TournamentResultsSummary({
           backgroundColor: summary.isFinished ? '#16a34a' : '#d97706',
           color: '#fff',
         }}>
-          {summary.isFinished ? '완료' : '진행중'}
+          {summary.isFinished ? t('common.matchStatus.completed') : t('common.matchStatus.inProgress')}
         </span>
       </div>
 
@@ -1904,26 +1919,26 @@ function TournamentResultsSummary({
           <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#60a5fa' }}>
             {summary.completedCount}/{summary.totalMatches}
           </p>
-          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>경기 완료</p>
+          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>{t('spectator.tournament.view.matchesCompleted')}</p>
         </div>
         <div>
           <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#c084fc' }}>
             {summary.totalSets}
           </p>
-          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>총 세트</p>
+          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>{t('spectator.tournament.view.totalSets')}</p>
         </div>
         <div>
           <p style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#f472b6' }}>
             {summary.highestMatch ? summary.highestMatch.totalPoints : '-'}
           </p>
-          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>최고 득점</p>
+          <p style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>{t('spectator.tournament.view.highestScore')}</p>
         </div>
       </div>
 
       {/* Highest scoring match detail */}
       {summary.highestMatch && (
         <p style={{ fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center', marginTop: '0.375rem' }}>
-          최고 득점 경기: {summary.highestMatch.name} ({summary.highestMatch.totalPoints}점)
+          {t('spectator.tournament.view.highestMatchInfo', { name: summary.highestMatch.name, points: summary.highestMatch.totalPoints })}
         </p>
       )}
     </div>
@@ -1973,6 +1988,7 @@ function RankingTab({
 }
 
 function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+  const { t } = useTranslation();
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
@@ -1986,7 +2002,7 @@ function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches
   if (groups.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>예선 순위 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.stageFilter.qualifying')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -1996,7 +2012,7 @@ function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches
       {groups.map(([groupId, groupMatches]) => (
         <div key={groupId} className="card">
           <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem' }}>
-            {groupId === 'default' ? '순위' : `${groupId}조 순위`}
+            {groupId === 'default' ? t('spectator.tournament.view.overallRanking') : t('spectator.tournament.view.groupRanking', { id: groupId })}
           </h3>
           <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
         </div>
@@ -2014,12 +2030,13 @@ function IndividualRankingTable({
   isFavorite: (id: string) => boolean;
   onSelectPlayer: (name: string) => void;
 }) {
+  const { t } = useTranslation();
   const rankings: PlayerRanking[] = useMemo(() => calculateIndividualRanking(matches), [matches]);
 
   if (rankings.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>순위 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.tabs.ranking')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -2027,18 +2044,18 @@ function IndividualRankingTable({
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <caption className="sr-only">개인전 순위표</caption>
+        <caption className="sr-only">{t('spectator.tournament.tabs.ranking')}</caption>
         <thead>
           <tr style={{ backgroundColor: '#1f2937' }}>
-            <th scope="col" style={thStyle}>순위</th>
-            <th scope="col" style={{ ...thStyle, textAlign: 'left' }}>선수명</th>
-            <th scope="col" style={thStyle}>경기수</th>
-            <th scope="col" style={thStyle}>승</th>
-            <th scope="col" style={thStyle}>패</th>
-            <th scope="col" style={thStyle}>세트 승패</th>
-            <th scope="col" style={thStyle}>세트차</th>
-            <th scope="col" style={thStyle}>포인트</th>
-            <th scope="col" style={thStyle}>득실차</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.rankLabel')}</th>
+            <th scope="col" style={{ ...thStyle, textAlign: 'left' }}>{t('spectator.tournament.view.nameLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.matchesLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.winsLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.lossesLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.setWinsLosses')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.setDiff')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.pointsDiff')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.goalDiff')}</th>
           </tr>
         </thead>
         <tbody>
@@ -2063,7 +2080,7 @@ function IndividualRankingTable({
               <td style={tdStyle}>{r.played}</td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}>{r.wins}</td>
               <td style={{ ...tdStyle, color: 'var(--color-danger)' }}>{r.losses}</td>
-              <td style={tdStyle}>{r.setsWon}승 {r.setsLost}패</td>
+              <td style={tdStyle}>{t('spectator.tournament.view.setWL', { w: r.setsWon, l: r.setsLost })}</td>
               <td style={{ ...tdStyle, color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>
               <td style={tdStyle}>{r.pointsFor}/{r.pointsAgainst}</td>
               <td style={{ ...tdStyle, color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
@@ -2076,12 +2093,13 @@ function IndividualRankingTable({
 }
 
 function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+  const { t } = useTranslation();
   const rankings: TeamRanking[] = useMemo(() => calculateTeamRanking(matches), [matches]);
 
   if (rankings.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>순위 정보가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.tabs.ranking')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -2089,15 +2107,15 @@ function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSel
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <caption className="sr-only">팀전 순위표</caption>
+        <caption className="sr-only">{t('spectator.tournament.tabs.ranking')}</caption>
         <thead>
           <tr style={{ backgroundColor: '#1f2937' }}>
-            <th scope="col" style={thStyle}>순위</th>
-            <th scope="col" style={{ ...thStyle, textAlign: 'left' }}>팀명</th>
-            <th scope="col" style={thStyle}>승</th>
-            <th scope="col" style={thStyle}>패</th>
-            <th scope="col" style={thStyle}>득점</th>
-            <th scope="col" style={thStyle}>실점</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.rankLabel')}</th>
+            <th scope="col" style={{ ...thStyle, textAlign: 'left' }}>{t('spectator.tournament.view.nameLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.winsLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.lossesLabel')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.pointsDiff')}</th>
+            <th scope="col" style={thStyle}>{t('spectator.tournament.view.goalDiff')}</th>
           </tr>
         </thead>
         <tbody>
@@ -2163,10 +2181,11 @@ function PlayerMatchRow({
   expandedMatchId: string | null;
   onToggleExpand: (id: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const isP1 = m.player1Name === selectedPlayer || m.team1Name === selectedPlayer;
   const opponentName = isP1
-    ? (m.player2Name || m.team2Name || '상대 미정')
-    : (m.player1Name || m.team1Name || '상대 미정');
+    ? (m.player2Name || m.team2Name || t('common.unknown'))
+    : (m.player1Name || m.team1Name || t('common.unknown'));
   const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
   const isWin = m.status === 'completed' && m.winnerId === myId;
   const isCompleted = m.status === 'completed';
@@ -2193,7 +2212,7 @@ function PlayerMatchRow({
   }, [m.scoreHistory]);
 
   return (
-    <div style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', marginBottom: '0.25rem', overflow: 'hidden' }} aria-label={`${selectedPlayer} vs ${opponentName}${isCompleted ? (isWin ? ' 승' : ' 패') : ''}`}>
+    <div style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', marginBottom: '0.25rem', overflow: 'hidden' }} aria-label={`${selectedPlayer} vs ${opponentName}${isCompleted ? (isWin ? ` ${t('spectator.playerProfile.win')}` : ` ${t('spectator.playerProfile.loss')}`) : ''}`}>
       {/* Main row - clickable to expand/collapse */}
       <div
         style={{ padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer' }}
@@ -2214,20 +2233,20 @@ function PlayerMatchRow({
                 fontWeight: 'bold',
                 fontSize: '0.75rem',
               }}>
-                {isWin ? '승' : '패'}
+                {isWin ? t('spectator.playerProfile.win') : t('spectator.playerProfile.loss')}
               </span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {duration && (
-              <span style={{ color: '#9ca3af', fontSize: '0.6875rem' }}>{duration}분</span>
+              <span style={{ color: '#9ca3af', fontSize: '0.6875rem' }}>{duration}{t('common.time.minutes')}</span>
             )}
             <button
               onClick={(e) => { e.stopPropagation(); navigate(`/spectator/match/${tournamentId}/${m.id}`); }}
               style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              aria-label={`${selectedPlayer} vs ${opponentName} 경기 상세 보기`}
+              aria-label={`${selectedPlayer} vs ${opponentName} ${t('spectator.favorites.viewMatch')}`}
             >
-              {m.status === 'completed' ? '경기 상세 보기' : '실시간 보기'}
+              {m.status === 'completed' ? t('spectator.favorites.viewMatch') : t('spectator.liveMatch.liveStatus')}
             </button>
           </div>
         </div>
@@ -2250,7 +2269,7 @@ function PlayerMatchRow({
                   borderRadius: '9999px',
                   fontVariantNumeric: 'tabular-nums',
                 }}>
-                  {i + 1}세트 {myScore}-{oppScore}
+                  {t('common.matchHistory.setLabel', { num: i + 1 })} {myScore}-{oppScore}
                 </span>
               );
             })}
@@ -2260,7 +2279,7 @@ function PlayerMatchRow({
         {/* Total points summary */}
         {isCompleted && Array.isArray(m.sets) && m.sets.length > 0 && (
           <div style={{ color: '#9ca3af', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-            득점 {matchPointsFor} / 실점 {matchPointsAgainst} (차이 {matchPointsFor - matchPointsAgainst > 0 ? '+' : ''}{matchPointsFor - matchPointsAgainst})
+            {t('spectator.tournament.playerRecord.scored', { 'for': matchPointsFor })} / {t('spectator.tournament.playerRecord.conceded', { against: matchPointsAgainst })} ({matchPointsFor - matchPointsAgainst > 0 ? '+' : ''}{matchPointsFor - matchPointsAgainst})
           </div>
         )}
       </div>
@@ -2297,11 +2316,11 @@ function PlayerMatchRow({
             maxHeight: '14rem',
             overflowY: 'auto',
           }}>
-            <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.375rem' }}>득점 타임라인</p>
+            <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.375rem' }}>{t('spectator.tournament.view.scoreTimeline')}</p>
             {/* Set score summary line */}
             {Array.isArray(m.sets) && m.sets.length > 0 && (
               <p style={{ fontSize: '0.6875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
-                {m.sets.map((s, i) => `${i + 1}세트: ${isP1 ? s.player1Score : s.player2Score}-${isP1 ? s.player2Score : s.player1Score}`).join(', ')}
+                {m.sets.map((s, i) => `${t('common.matchHistory.setLabel', { num: i + 1 })}: ${isP1 ? s.player1Score : s.player2Score}-${isP1 ? s.player2Score : s.player1Score}`).join(', ')}
               </p>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
@@ -2312,7 +2331,7 @@ function PlayerMatchRow({
                     padding: '0.25rem 0', marginTop: setNum > 1 ? '0.25rem' : 0,
                     borderTop: setNum > 1 ? '1px solid #1f2937' : 'none',
                   }}>
-                    제{setNum}세트
+                    {t('common.matchHistory.setLabel', { num: setNum })}
                   </div>
                   {entries.map((entry, i) => {
                     const isMine = entry.scoringPlayer === selectedPlayer;
@@ -2327,16 +2346,16 @@ function PlayerMatchRow({
                     })();
 
                     const ACTION_LABELS: Record<string, string> = {
-                      goal: '골 득점',
-                      irregular_serve: '부정 서브',
-                      centerboard: '센터보드 터치',
-                      body_touch: '바디 터치',
-                      illegal_defense: '일리걸 디펜스',
-                      out: '아웃',
-                      ball_holding: '볼 홀딩',
-                      mask_touch: '마스크/고글 터치',
-                      penalty: '기타 벌점',
-                      walkover: '부전승',
+                      goal: t('common.scoreActions.goal'),
+                      irregular_serve: t('common.scoreActions.irregularServe'),
+                      centerboard: t('common.scoreActions.centerboard'),
+                      body_touch: t('common.scoreActions.bodyTouch'),
+                      illegal_defense: t('common.scoreActions.illegalDefense'),
+                      out: t('common.scoreActions.out'),
+                      ball_holding: t('common.scoreActions.ballHolding'),
+                      mask_touch: t('common.scoreActions.maskTouch'),
+                      penalty: t('common.scoreActions.penalty'),
+                      walkover: t('common.scoreActions.walkover'),
                     };
 
                     // Meta events (0 points)
@@ -2362,9 +2381,9 @@ function PlayerMatchRow({
                     const icon = entry.actionType === 'goal' ? '⚽' : entry.actionType === 'walkover' ? '⚪' : entry.points >= 2 ? '🔴' : '🟡';
                     const label = ACTION_LABELS[entry.actionType || ''] || entry.actionType || '';
                     const desc = entry.actionType === 'goal'
-                      ? `${entry.scoringPlayer} 골 +${entry.points}`
+                      ? `${entry.scoringPlayer} ${t('common.scoreActions.goal')} +${entry.points}`
                       : entry.actionType === 'walkover'
-                      ? `${entry.scoringPlayer || '?'} 부전승`
+                      ? `${entry.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
                       : `${entry.actionPlayer} ${label} → ${entry.scoringPlayer} +${entry.points}`;
 
                     return (
@@ -2402,7 +2421,7 @@ function PlayerMatchRow({
           padding: '0.5rem 0.75rem',
           backgroundColor: '#111827',
         }}>
-          <p style={{ fontSize: '0.75rem', color: '#d1d5db', textAlign: 'center' }}>상세 득점 기록이 없습니다</p>
+          <p style={{ fontSize: '0.75rem', color: '#d1d5db', textAlign: 'center' }}>{t('common.matchHistory.noDetailedHistory')}</p>
         </div>
       )}
     </div>
@@ -2411,6 +2430,7 @@ function PlayerMatchRow({
 
 // ===== Players Tab =====
 function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+  const { t } = useTranslation();
   const [playerSearch, setPlayerSearch] = useState('');
 
   const playerList = useMemo(() => {
@@ -2463,7 +2483,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
   if (playerList.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>등록된 선수가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.tabs.players')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -2476,12 +2496,12 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
           style={{ width: '100%' }}
           value={playerSearch}
           onChange={e => setPlayerSearch(e.target.value)}
-          placeholder="선수 이름 검색"
-          aria-label="선수 이름 검색"
+          placeholder={t('spectator.tournament.searchPlaceholder')}
+          aria-label={t('spectator.tournament.searchAriaLabel')}
         />
       </div>
       <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-        총 {filteredPlayers.length}명{playerSearch.trim() ? ` (검색: "${playerSearch.trim()}")` : ''}
+        {t('spectator.tournament.view.playerCount', { count: filteredPlayers.length })}{playerSearch.trim() ? ` (${t('spectator.tournament.searchAriaLabel')}: "${playerSearch.trim()}")` : ''}
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {filteredPlayers.map(p => (
@@ -2505,10 +2525,10 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
                   {(p.wins + p.losses) > 0 ? Math.round((p.wins / (p.wins + p.losses)) * 100) : 0}%
                 </span>
                 {!isTeam && <span style={{ color: p.setsWon - p.setsLost > 0 ? '#22c55e' : p.setsWon - p.setsLost < 0 ? '#ef4444' : '#9ca3af' }}>
-                  세트 {p.setsWon - p.setsLost > 0 ? '+' : ''}{p.setsWon - p.setsLost}
+                  {t('common.units.set')} {p.setsWon - p.setsLost > 0 ? '+' : ''}{p.setsWon - p.setsLost}
                 </span>}
                 <span style={{ color: p.pointsFor - p.pointsAgainst > 0 ? '#22c55e' : p.pointsFor - p.pointsAgainst < 0 ? '#ef4444' : '#9ca3af' }}>
-                  골 {p.pointsFor - p.pointsAgainst > 0 ? '+' : ''}{p.pointsFor - p.pointsAgainst}
+                  {t('spectator.tournament.playerRecord.goalDiff')} {p.pointsFor - p.pointsAgainst > 0 ? '+' : ''}{p.pointsFor - p.pointsAgainst}
                 </span>
               </div>
             </div>
@@ -2516,7 +2536,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
         ))}
         {filteredPlayers.length === 0 && playerSearch.trim() && (
           <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-            <p style={{ color: '#d1d5db' }}>"{playerSearch.trim()}"에 해당하는 선수가 없습니다</p>
+            <p style={{ color: '#d1d5db' }}>{t('spectator.tournament.view.noSearchResults', { query: playerSearch.trim() })}</p>
           </div>
         )}
       </div>
@@ -2528,6 +2548,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
 const HISTORY_ITEMS_PER_PAGE = 30;
 
 function HistoryMatchStatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   if (status === 'in_progress') {
     return (
       <span style={{
@@ -2536,7 +2557,7 @@ function HistoryMatchStatusBadge({ status }: { status: string }) {
         backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#eab308', border: '1px solid rgba(234, 179, 8, 0.3)',
       }}>
         <span className="animate-pulse" style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#eab308' }} />
-        진행중
+        {t('common.matchStatus.inProgress')}
       </span>
     );
   }
@@ -2547,7 +2568,7 @@ function HistoryMatchStatusBadge({ status }: { status: string }) {
         padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
         backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)',
       }}>
-        완료
+        {t('common.matchStatus.completed')}
       </span>
     );
   }
@@ -2557,7 +2578,7 @@ function HistoryMatchStatusBadge({ status }: { status: string }) {
       padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold',
       backgroundColor: 'rgba(107, 114, 128, 0.15)', color: '#9ca3af', border: '1px solid rgba(107, 114, 128, 0.3)',
     }}>
-      예정
+      {t('common.matchStatus.pending')}
     </span>
   );
 }
@@ -2571,9 +2592,10 @@ function HistoryMatchCard({
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
 }) {
+  const { t } = useTranslation();
   const isIndividual = match.type === 'individual';
-  const p1 = isIndividual ? (match.player1Name || '선수1') : (match.team1Name || '팀1');
-  const p2 = isIndividual ? (match.player2Name || '선수2') : (match.team2Name || '팀2');
+  const p1 = isIndividual ? (match.player1Name || t('referee.home.player1Default')) : (match.team1Name || t('referee.home.team1Default'));
+  const p2 = isIndividual ? (match.player2Name || t('referee.home.player2Default')) : (match.team2Name || t('referee.home.team2Default'));
   const isCompleted = match.status === 'completed';
   const isP1Winner = isCompleted && match.winnerId === (match.player1Id || match.team1Id);
   const isP2Winner = isCompleted && match.winnerId === (match.player2Id || match.team2Id);
@@ -2586,11 +2608,11 @@ function HistoryMatchCard({
   const scoreText = (() => {
     if (sets.length === 0 || match.status === 'pending') return null;
     if (isIndividual && setWins) {
-      const setScoreDetails = sets.map((s, i) => `${i + 1}세트: ${s.player1Score}-${s.player2Score}`).join(', ');
-      return { p1Score: String(setWins.player1), p2Score: String(setWins.player2), label: '세트', detail: setScoreDetails };
+      const setScoreDetails = sets.map((s, i) => `${t('common.matchHistory.setLabel', { num: i + 1 })}: ${s.player1Score}-${s.player2Score}`).join(', ');
+      return { p1Score: String(setWins.player1), p2Score: String(setWins.player2), label: t('common.units.set'), detail: setScoreDetails };
     }
     if (!isIndividual && sets.length > 0) {
-      return { p1Score: String(sets[0].player1Score), p2Score: String(sets[0].player2Score), label: '점수', detail: null };
+      return { p1Score: String(sets[0].player1Score), p2Score: String(sets[0].player2Score), label: t('common.matchHistory.score'), detail: null };
     }
     return null;
   })();
@@ -2650,7 +2672,12 @@ function HistoryMatchCard({
         )}
         {match.refereeName && (
           <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-            심판: {match.refereeName}
+            {t('common.refereeRole.main')}: {match.refereeName}
+          </span>
+        )}
+        {match.assistantRefereeName && (
+          <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+            {t('common.refereeRole.assistant')}: {match.assistantRefereeName}
           </span>
         )}
       </div>
@@ -2669,6 +2696,7 @@ function HistoryStageSectionHeader({
   completedCount: number;
   totalCount: number;
 }) {
+  const { t } = useTranslation();
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -2676,7 +2704,7 @@ function HistoryStageSectionHeader({
     }}>
       <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color }}>{title}</h3>
       <span style={{ fontSize: '0.8125rem', color: '#9ca3af' }}>
-        {completedCount}/{totalCount} 완료
+        {completedCount}/{totalCount} {t('common.matchStatus.completed')}
       </span>
     </div>
   );
@@ -2691,6 +2719,7 @@ function HistoryTab({
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
 }) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
 
   // Classify matches into stages
@@ -2731,7 +2760,7 @@ function HistoryTab({
     const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
     const map = new Map<string, Match[]>();
     stageGroups.finals.forEach(m => {
-      const label = m.roundLabel || `라운드 ${m.round || '?'}`;
+      const label = m.roundLabel || t('spectator.tournament.view.roundLabel', { round: m.round || '?' });
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(m);
     });
@@ -2749,7 +2778,7 @@ function HistoryTab({
   const rankingRounds = useMemo(() => {
     const map = new Map<string, Match[]>();
     stageGroups.ranking.forEach(m => {
-      const label = m.roundLabel || '순위결정전';
+      const label = m.roundLabel || t('spectator.tournament.view.rankingMatchLabel');
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(m);
     });
@@ -2767,7 +2796,7 @@ function HistoryTab({
   if (matches.length === 0) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>경기가 없습니다</p>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }}>{t('spectator.tournament.tabs.history')} - {t('common.matchStatus.pending')}</p>
       </div>
     );
   }
@@ -2777,14 +2806,14 @@ function HistoryTab({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-        전체 {matches.length}경기 | 완료 {completedCount}경기 | 진행중 {inProgressCount}경기 | 대기 {pendingCount}경기
+        {t('spectator.tournament.view.historySummary', { total: matches.length, completed: completedCount, inProgress: inProgressCount, pending: pendingCount })}
       </p>
 
       {/* Qualifying (Group stage) */}
       {stageGroups.qualifying.length > 0 && (
         <div>
           <HistoryStageSectionHeader
-            title="예선 (조별리그)"
+            title={t('spectator.tournament.view.qualifyingGroupLeague')}
             color="#60a5fa"
             completedCount={countCompleted(stageGroups.qualifying)}
             totalCount={stageGroups.qualifying.length}
@@ -2797,7 +2826,7 @@ function HistoryTab({
                   marginBottom: '0.5rem', paddingLeft: '0.25rem',
                 }}>
                   <h4 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#facc15' }}>
-                    {groupId === 'default' ? '경기' : `${groupId}조`}
+                    {groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}
                   </h4>
                   <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                     {countCompleted(gMatches)}/{gMatches.length}
@@ -2818,7 +2847,7 @@ function HistoryTab({
       {stageGroups.finals.length > 0 && (
         <div>
           <HistoryStageSectionHeader
-            title="본선 (토너먼트)"
+            title={t('spectator.tournament.view.finalsTournament')}
             color="#4ade80"
             completedCount={countCompleted(stageGroups.finals)}
             totalCount={stageGroups.finals.length}
@@ -2852,7 +2881,7 @@ function HistoryTab({
       {stageGroups.ranking.length > 0 && (
         <div>
           <HistoryStageSectionHeader
-            title="순위결정전"
+            title={t('spectator.tournament.stageFilter.ranking')}
             color="#c084fc"
             completedCount={countCompleted(stageGroups.ranking)}
             totalCount={stageGroups.ranking.length}
@@ -2887,7 +2916,7 @@ function HistoryTab({
         <div>
           {(stageGroups.qualifying.length > 0 || stageGroups.finals.length > 0 || stageGroups.ranking.length > 0) && (
             <HistoryStageSectionHeader
-              title="기타"
+              title={t('spectator.tournament.playerRecord.otherStage')}
               color="#9ca3af"
               completedCount={countCompleted(stageGroups.other)}
               totalCount={stageGroups.other.length}
@@ -2903,9 +2932,9 @@ function HistoryTab({
 
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-          <button className="btn btn-sm btn-secondary" disabled={safePage === 1} onClick={() => setPage(p => p - 1)}>이전</button>
+          <button className="btn btn-sm btn-secondary" disabled={safePage === 1} onClick={() => setPage(p => p - 1)}>{t('common.previous')}</button>
           <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{safePage} / {totalPages}</span>
-          <button className="btn btn-sm btn-secondary" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}>다음</button>
+          <button className="btn btn-sm btn-secondary" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
         </div>
       )}
     </div>

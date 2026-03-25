@@ -1,5 +1,6 @@
 import { useState, useCallback, useReducer, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useTournaments } from '@shared/hooks/useFirebase';
 import { WIZARD_PRESETS } from '@shared/constants/presets';
 import { buildStagesFromWizard, mapToLegacyFormat } from '@shared/utils/tournament';
@@ -320,17 +321,18 @@ function reducer(state: WizardState, action: Action): WizardState {
   }
 }
 
-function nearestBracketRound(count: number): string {
-  if (count >= 32) return '32강';
-  if (count >= 16) return '16강';
-  if (count >= 8) return '8강';
-  if (count >= 4) return '4강';
-  return '결승';
+function nearestBracketRoundKey(count: number): string {
+  if (count >= 32) return 'admin.tournamentCreate.finals.round32';
+  if (count >= 16) return 'admin.tournamentCreate.finals.round16';
+  if (count >= 8) return 'admin.tournamentCreate.finals.round8';
+  if (count >= 4) return 'admin.tournamentCreate.finals.round4';
+  return 'admin.tournamentCreate.finals.final';
 }
 
 // ===== Component =====
 
 export default function TournamentCreate() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { addTournament } = useTournaments();
   const [state, dispatch] = useReducer(reducer, defaultState);
@@ -338,14 +340,14 @@ export default function TournamentCreate() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const stepLabels = ['기본 정보', '참가자 설정', '대회 형식', '미리보기'];
+  const stepLabels = [t('admin.tournamentCreate.stepLabels.basicInfo'), t('admin.tournamentCreate.stepLabels.participants'), t('admin.tournamentCreate.stepLabels.format'), t('admin.tournamentCreate.stepLabels.preview')];
   const stepRef = useRef<HTMLDivElement>(null);
 
   const validateStep = useCallback((step: number): Record<string, string> => {
     const errors: Record<string, string> = {};
     if (step === 1) {
       if (!state.name.trim()) {
-        errors.name = '대회명을 입력해주세요.';
+        errors.name = t('admin.tournamentCreate.basicInfo.tournamentNameRequired');
       }
     }
     return errors;
@@ -371,7 +373,7 @@ export default function TournamentCreate() {
 
   const handleSubmit = useCallback(async () => {
     if (!state.name.trim()) {
-      setError('대회명을 입력해주세요.');
+      setError(t('admin.tournamentCreate.basicInfo.tournamentNameRequired'));
       return;
     }
     setSaving(true);
@@ -493,7 +495,7 @@ export default function TournamentCreate() {
       if (id) navigate(`/admin/tournament/${id}`);
     } catch (err) {
       console.error('대회 생성 오류:', err);
-      setError('대회 생성 중 오류가 발생했습니다.');
+      setError(t('common.error.tournamentCreateFailed'));
     } finally {
       setSaving(false);
     }
@@ -509,7 +511,7 @@ export default function TournamentCreate() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6" ref={stepRef} tabIndex={-1} style={{ outline: 'none' }}>
-      <h1 className="text-3xl font-bold text-yellow-400">새 대회 만들기</h1>
+      <h1 className="text-3xl font-bold text-yellow-400">{t('admin.tournamentCreate.title')}</h1>
       <StepIndicator currentStep={state.step} totalSteps={4} labels={stepLabels} />
 
       {/* Step 1: 기본 정보 */}
@@ -517,7 +519,7 @@ export default function TournamentCreate() {
         <div className="space-y-6">
           <div className="card space-y-4">
             <div>
-              <label htmlFor="name" className="block mb-2 font-semibold text-lg">대회명</label>
+              <label htmlFor="name" className="block mb-2 font-semibold text-lg">{t('admin.tournamentCreate.basicInfo.tournamentName')}</label>
               <input
                 id="name"
                 className={`input ${fieldErrors.name ? 'border-red-500 border-2' : ''}`}
@@ -526,8 +528,8 @@ export default function TournamentCreate() {
                   dispatch({ type: 'SET_FIELD', field: 'name', value: e.target.value });
                   if (fieldErrors.name) setFieldErrors(prev => { const next = { ...prev }; delete next.name; return next; });
                 }}
-                placeholder="대회명을 입력하세요"
-                aria-label="대회명"
+                placeholder={t('admin.tournamentCreate.basicInfo.tournamentNamePlaceholder')}
+                aria-label={t('admin.tournamentCreate.basicInfo.tournamentNameAriaLabel')}
                 aria-invalid={!!fieldErrors.name}
                 aria-describedby={fieldErrors.name ? 'name-error' : undefined}
               />
@@ -536,7 +538,7 @@ export default function TournamentCreate() {
               )}
             </div>
             <div>
-              <label htmlFor="date" className="block mb-2 font-semibold text-lg">대회 기간</label>
+              <label htmlFor="date" className="block mb-2 font-semibold text-lg">{t('admin.tournamentCreate.basicInfo.tournamentPeriod')}</label>
               <div className="flex gap-2 items-center">
                 <input
                   id="date"
@@ -544,7 +546,7 @@ export default function TournamentCreate() {
                   className="input flex-1"
                   value={state.date}
                   onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })}
-                  aria-label="시작 날짜"
+                  aria-label={t('admin.tournamentCreate.basicInfo.startDate')}
                 />
                 <span className="text-gray-400">~</span>
                 <input
@@ -553,15 +555,15 @@ export default function TournamentCreate() {
                   value={state.endDate}
                   min={state.date}
                   onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: e.target.value })}
-                  aria-label="종료 날짜"
+                  aria-label={t('admin.tournamentCreate.basicInfo.endDate')}
                 />
               </div>
-              <p className="text-gray-400 text-xs mt-1">1일 대회는 종료 날짜를 비워두세요</p>
+              <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.basicInfo.oneDayHint')}</p>
             </div>
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">유형 선택</h2>
+            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.basicInfo.typeSelection')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -569,7 +571,7 @@ export default function TournamentCreate() {
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: 'individual' })}
                 aria-pressed={state.type === 'individual'}
               >
-                개인전
+                {t('admin.tournamentCreate.basicInfo.individual')}
               </button>
               <button
                 type="button"
@@ -577,16 +579,16 @@ export default function TournamentCreate() {
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: 'team' })}
                 aria-pressed={state.type === 'team' || state.type === 'randomTeamLeague'}
               >
-                팀전
+                {t('admin.tournamentCreate.basicInfo.team')}
               </button>
             </div>
             {(state.type === 'team' || state.type === 'randomTeamLeague') && (
               <label className="flex items-center justify-between cursor-pointer mt-2">
-                <span className="text-lg font-semibold">랜덤 팀 구성</span>
+                <span className="text-lg font-semibold">{t('admin.tournamentCreate.basicInfo.randomTeamComposition')}</span>
                 <button
                   role="switch"
                   aria-checked={state.type === 'randomTeamLeague'}
-                  aria-label="랜덤 팀 구성"
+                  aria-label={t('admin.tournamentCreate.basicInfo.randomTeamComposition')}
                   className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.type === 'randomTeamLeague' ? 'bg-green-600' : 'bg-gray-600'}`}
                   onClick={() => dispatch({ type: 'SET_FIELD', field: 'type', value: state.type === 'randomTeamLeague' ? 'team' : 'randomTeamLeague' })}
                 >
@@ -597,13 +599,13 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">설정 방식</h2>
+            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.presets.title')}</h2>
             {state.type !== 'individual' && (
               <p className="text-gray-400 text-sm">
-                프리셋을 선택하면 바로 확인 화면으로 이동합니다. 직접 설정하면 세부 옵션을 조정할 수 있습니다.
+                {t('admin.tournamentCreate.presets.presetHint')}
               </p>
             )}
-            <div className="space-y-3" role="radiogroup" aria-label="설정 방식 선택">
+            <div className="space-y-3" role="radiogroup" aria-label={t('admin.tournamentCreate.presets.title')}>
               {state.type !== 'individual' && filteredPresets.map(preset => (
                 <button
                   key={preset.id}
@@ -631,8 +633,8 @@ export default function TournamentCreate() {
                 className="card w-full text-left p-6 border-2 border-dashed border-yellow-400 hover:bg-gray-800"
                 onClick={() => tryAdvanceStep({ type: 'NEXT_STEP' })}
               >
-                <h3 className="text-lg font-bold text-yellow-400">⚙ 직접 설정 (커스텀)</h3>
-                <p className="text-gray-400 text-sm mt-1">참가자 수, 조 편성, 예선/본선 규칙 등을 자유롭게 설정합니다</p>
+                <h3 className="text-lg font-bold text-yellow-400">⚙ {t('admin.tournamentCreate.presets.customTitle')}</h3>
+                <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.presets.customDescription')}</p>
               </button>
             </div>
           </div>
@@ -644,15 +646,15 @@ export default function TournamentCreate() {
         <div className="space-y-6">
           <div className="card space-y-6">
             <h2 className="text-xl font-bold">
-              {state.type === 'team' ? '팀 수' : state.type === 'randomTeamLeague' ? '선수 수 (자동 팀 편성)' : '참가자 수'}
+              {state.type === 'team' ? t('admin.tournamentCreate.participants.teamCount') : state.type === 'randomTeamLeague' ? t('admin.tournamentCreate.participants.playerCount') : t('admin.tournamentCreate.participants.participantCount')}
             </h2>
             <NumberStepper
-              label={state.type === 'team' ? '팀 수' : state.type === 'randomTeamLeague' ? '선수 수' : '참가자 수'}
+              label={state.type === 'team' ? t('admin.tournamentCreate.participants.teamCount') : state.type === 'randomTeamLeague' ? t('admin.tournamentCreate.participants.playerCount') : t('admin.tournamentCreate.participants.participantCount')}
               value={state.participantCount}
               min={4}
               max={128}
               onChange={v => dispatch({ type: 'SET_FIELD', field: 'participantCount', value: v })}
-              ariaLabel={state.type === 'team' ? '팀 수' : state.type === 'randomTeamLeague' ? '선수 수' : '참가자 수'}
+              ariaLabel={state.type === 'team' ? t('admin.tournamentCreate.participants.teamCount') : state.type === 'randomTeamLeague' ? t('admin.tournamentCreate.participants.playerCount') : t('admin.tournamentCreate.participants.participantCount')}
             />
             <div className="flex gap-2 flex-wrap">
               {[4, 8, 16, 32, 64].map(v => (
@@ -661,23 +663,23 @@ export default function TournamentCreate() {
                   className={`btn flex-1 min-w-[60px] ${state.participantCount === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                   onClick={() => dispatch({ type: 'SET_FIELD', field: 'participantCount', value: v })}
                 >
-                  {v}{state.type === 'team' ? '팀' : '명'}
+                  {v}{state.type === 'team' ? t('common.units.team') : t('common.units.person')}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">대회 방식</h2>
-            <div className="space-y-2" role="radiogroup" aria-label="대회 방식 선택">
+            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.tournamentMode.title')}</h2>
+            <div className="space-y-2" role="radiogroup" aria-label={t('admin.tournamentCreate.tournamentMode.selectionAriaLabel')}>
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'full_league_all'}
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'full_league_all' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'full_league_all' })}
               >
-                <h3 className="text-lg font-bold">풀리그 (전체 라운드로빈)</h3>
-                <p className="text-gray-400 text-sm mt-1">모든 참가자가 서로 한 번씩 경기합니다. 조 편성 없음.</p>
+                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.fullLeague')}</h3>
+                <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.fullLeagueDescription')}</p>
               </button>
               <button
                 role="radio"
@@ -685,8 +687,8 @@ export default function TournamentCreate() {
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'group_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'group_tournament' })}
               >
-                <h3 className="text-lg font-bold">조별 예선 + 토너먼트</h3>
-                <p className="text-gray-400 text-sm mt-1">조별 라운드로빈 후 본선 토너먼트를 진행합니다.</p>
+                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.groupTournament')}</h3>
+                <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.groupTournamentDescription')}</p>
               </button>
               <button
                 role="radio"
@@ -694,8 +696,8 @@ export default function TournamentCreate() {
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'direct_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'direct_tournament' })}
               >
-                <h3 className="text-lg font-bold">토너먼트 (직접 대진)</h3>
-                <p className="text-gray-400 text-sm mt-1">싱글/더블 엘리미네이션 토너먼트만 진행합니다.</p>
+                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.directTournament')}</h3>
+                <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.directTournamentDescription')}</p>
               </button>
               <button
                 role="radio"
@@ -703,8 +705,8 @@ export default function TournamentCreate() {
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'manual' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'manual' })}
               >
-                <h3 className="text-lg font-bold">완전 수동 설정</h3>
-                <p className="text-gray-400 text-sm mt-1">참가자만 등록하고, 대진표와 스케줄을 직접 설정합니다.</p>
+                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.manual')}</h3>
+                <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.manualDescription')}</p>
               </button>
             </div>
 
@@ -712,14 +714,14 @@ export default function TournamentCreate() {
               const effectiveCount = state.type === 'randomTeamLeague'
                 ? Math.floor(state.participantCount / state.teamSize)
                 : state.participantCount;
-              const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+              const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? t('common.units.team') : t('common.units.person');
               return (
                 <div className="bg-cyan-900/30 rounded-lg p-4 mt-2">
                   <p className="text-cyan-300 font-semibold">
-                    {state.type === 'team' ? '모든 팀이 서로 경기합니다.' : '모든 참가자가 서로 경기합니다.'}
+                    {state.type === 'team' ? t('admin.tournamentCreate.tournamentMode.allTeamsPlay') : t('admin.tournamentCreate.tournamentMode.allPlayersPlay')}
                   </p>
                   <p className="text-cyan-200/70 text-lg font-bold mt-1">
-                    총 {effectiveCount * (effectiveCount - 1) / 2}경기
+                    {t('admin.tournamentCreate.tournamentMode.totalMatches', { count: effectiveCount * (effectiveCount - 1) / 2 })}
                   </p>
                   <p className="text-gray-400 text-sm mt-1">
                     {effectiveCount}{unitLabel} × {effectiveCount - 1} ÷ 2
@@ -731,22 +733,22 @@ export default function TournamentCreate() {
 
           {state.tournamentMode === 'manual' && (
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold text-yellow-400">수동 대회 구성</h2>
+            <h2 className="text-xl font-bold text-yellow-400">{t('admin.tournamentCreate.manualMode.title')}</h2>
             <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3" role="note">
-              <p className="text-yellow-300 text-sm font-semibold">모든 편성을 직접 수행합니다</p>
-              <p className="text-gray-400 text-xs mt-1">조 편성, 대진 배정, 경기장, 스케줄을 대회 상세에서 수동으로 설정합니다.</p>
+              <p className="text-yellow-300 text-sm font-semibold">{t('admin.tournamentCreate.manualMode.allManualNote')}</p>
+              <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.manualMode.allManualDescription')}</p>
             </div>
 
             {/* 예선 토글 */}
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-lg font-semibold">예선 (조별 리그)</span>
-                <p className="text-gray-400 text-sm">조별 라운드로빈 예선을 진행합니다</p>
+                <span className="text-lg font-semibold">{t('admin.tournamentCreate.manualMode.qualifyingToggle')}</span>
+                <p className="text-gray-400 text-sm">{t('admin.tournamentCreate.manualMode.qualifyingDescription')}</p>
               </div>
               <button
                 role="switch"
                 aria-checked={state.hasGroupStage}
-                aria-label="예선 포함"
+                aria-label={t('admin.tournamentCreate.manualMode.qualifyingInclude')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasGroupStage ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasGroupStage', value: !state.hasGroupStage })}
               >
@@ -758,34 +760,34 @@ export default function TournamentCreate() {
               const effectiveCount = state.type === 'randomTeamLeague'
                 ? Math.floor(state.participantCount / state.teamSize)
                 : state.participantCount;
-              const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+              const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? t('common.units.team') : t('common.units.person');
               const perGroup = Math.floor(effectiveCount / state.groupCount);
               return (
                 <div className="space-y-4 pl-4 border-l-2 border-cyan-400">
                   <NumberStepper
-                    label="조 수"
+                    label={t('admin.tournamentCreate.manualMode.groupCount')}
                     value={state.groupCount}
                     min={2}
                     max={16}
                     onChange={v => dispatch({ type: 'SET_FIELD', field: 'groupCount', value: v })}
-                    ariaLabel="조 수"
+                    ariaLabel={t('admin.tournamentCreate.manualMode.groupCount')}
                   />
                   <p className="text-cyan-400 text-sm">
-                    조당 약 {perGroup}{unitLabel} ({effectiveCount}{unitLabel} ÷ {state.groupCount}조)
+                    {t('admin.tournamentCreate.manualMode.perGroupInfo', { count: perGroup, unit: unitLabel, total: effectiveCount, groups: state.groupCount })}
                   </p>
                   <NumberStepper
-                    label={`조당 진출 ${unitLabel === '팀' ? '팀 수' : '인원'}`}
+                    label={t('admin.tournamentCreate.manualMode.advancePerGroup')}
                     value={state.advancePerGroup}
                     min={1}
                     max={Math.max(1, perGroup)}
                     onChange={v => dispatch({ type: 'SET_FIELD', field: 'advancePerGroup', value: v })}
-                    ariaLabel={`조당 진출 ${unitLabel === '팀' ? '팀 수' : '인원'}`}
+                    ariaLabel={t('admin.tournamentCreate.manualMode.advancePerGroup')}
                   />
                   <div className="bg-cyan-900/20 rounded-lg p-3">
                     <p className="text-cyan-300 text-sm font-semibold">
-                      {state.groupCount}조 × {state.advancePerGroup}{unitLabel} = 총 {state.advancePerGroup * state.groupCount}{unitLabel} 진출
+                      {t('admin.tournamentCreate.manualMode.totalAdvance', { groups: state.groupCount, perGroup: state.advancePerGroup, unit: unitLabel, total: state.advancePerGroup * state.groupCount })}
                     </p>
-                    <p className="text-gray-400 text-xs mt-1">조 편성은 대회 상세에서 직접 배정합니다</p>
+                    <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.manualMode.groupAssignmentNote')}</p>
                   </div>
                 </div>
               );
@@ -794,13 +796,13 @@ export default function TournamentCreate() {
             {/* 본선 토글 */}
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-lg font-semibold">본선 (토너먼트)</span>
-                <p className="text-gray-400 text-sm">{state.hasGroupStage ? '예선 후' : ''} 토너먼트 본선을 진행합니다</p>
+                <span className="text-lg font-semibold">{t('admin.tournamentCreate.manualMode.finalsToggle')}</span>
+                <p className="text-gray-400 text-sm">{t('admin.tournamentCreate.manualMode.finalsDescription')}</p>
               </div>
               <button
                 role="switch"
                 aria-checked={state.hasFinalsStage}
-                aria-label="본선 포함"
+                aria-label={t('admin.tournamentCreate.manualMode.finalsInclude')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasFinalsStage ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasFinalsStage', value: !state.hasFinalsStage })}
               >
@@ -810,14 +812,14 @@ export default function TournamentCreate() {
 
             {state.hasFinalsStage && (
               <div className="space-y-3 pl-4 border-l-2 border-yellow-400">
-                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="본선 형식">
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('admin.tournamentCreate.finals.formatTitle')}>
                   <button
                     role="radio"
                     aria-checked={state.finalsFormat === 'single_elimination'}
                     className={`btn py-3 ${state.finalsFormat === 'single_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'single_elimination' })}
                   >
-                    싱글 엘리미네이션
+                    {t('admin.tournamentCreate.finals.singleElimination')}
                   </button>
                   <button
                     role="radio"
@@ -825,17 +827,17 @@ export default function TournamentCreate() {
                     className={`btn py-3 ${state.finalsFormat === 'double_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'double_elimination' })}
                   >
-                    더블 엘리미네이션
+                    {t('admin.tournamentCreate.finals.doubleElimination')}
                   </button>
                 </div>
                 {state.hasGroupStage && (
                   <p className="text-yellow-300 text-sm">
-                    본선 {state.finalsStartRound}강 시작 (진출 {state.advancePerGroup * state.groupCount}명 기준)
+                    {t('admin.tournamentCreate.groupQualifying.finalsRoundInfo', { round: state.finalsStartRound, count: state.advancePerGroup * state.groupCount, unit: t('common.units.person') })}
                   </p>
                 )}
                 {!state.hasGroupStage && (
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-400 mb-2">본선 시작 라운드</h4>
+                    <h4 className="text-sm font-semibold text-gray-400 mb-2">{t('admin.tournamentCreate.groupQualifying.finalsStartRoundLabel')}</h4>
                     <div className="grid grid-cols-4 gap-2">
                       {[4, 8, 16, 32].filter(v => v <= state.participantCount).map(v => (
                         <button
@@ -844,23 +846,23 @@ export default function TournamentCreate() {
                           onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: v })}
                           aria-pressed={state.finalsStartRound === v}
                         >
-                          {v === 4 ? '4강' : v === 8 ? '8강' : v === 16 ? '16강' : '32강'}
+                          {v === 4 ? t('admin.tournamentCreate.finals.round4') : v === 8 ? t('admin.tournamentCreate.finals.round8') : v === 16 ? t('admin.tournamentCreate.finals.round16') : t('admin.tournamentCreate.finals.round32')}
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
-                <p className="text-gray-400 text-xs">대진 배정은 대회 상세에서 직접 수행합니다</p>
+                <p className="text-gray-400 text-xs">{t('admin.tournamentCreate.manualMode.bracketNote')}</p>
               </div>
             )}
 
             {/* 경기 규칙 (수동 모드) */}
             <div className="space-y-4 mt-4">
-              <h3 className="text-lg font-bold text-cyan-400">경기 규칙</h3>
+              <h3 className="text-lg font-bold text-cyan-400">{t('admin.tournamentCreate.matchRules.title')}</h3>
               <fieldset className="space-y-4">
-                <legend className="sr-only">경기 규칙 설정</legend>
+                <legend className="sr-only">{t('admin.tournamentCreate.matchRules.title')}</legend>
                 <NumberStepper
-                  label={`예선 세트 수: ${state.qualifyingScoringRules.maxSets}세트 (${state.qualifyingScoringRules.setsToWin}세트 선승)`}
+                  label={t('admin.tournamentCreate.matchRules.qualifyingSets', { maxSets: state.qualifyingScoringRules.maxSets, setsToWin: state.qualifyingScoringRules.setsToWin })}
                   value={state.qualifyingScoringRules.setsToWin}
                   min={1}
                   max={5}
@@ -870,13 +872,13 @@ export default function TournamentCreate() {
                       dispatch({ type: 'SET_FIELD', field: 'finalsScoringRules', value: { ...state.finalsScoringRules, setsToWin: v, maxSets: v * 2 - 1 } });
                     }
                   }}
-                  ariaLabel="예선 세트 선승 수"
+                  ariaLabel={t('admin.tournamentCreate.matchRules.qualifyingSets', { maxSets: state.qualifyingScoringRules.maxSets, setsToWin: state.qualifyingScoringRules.setsToWin })}
                 />
 
                 {state.hasFinalsStage && (
                   <>
                     <NumberStepper
-                      label={`본선 기본 세트 수: ${state.finalsScoringRules.maxSets}세트 (${state.finalsScoringRules.setsToWin}세트 선승)`}
+                      label={t('admin.tournamentCreate.matchRules.finalsSets', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin })}
                       value={state.finalsScoringRules.setsToWin}
                       min={1}
                       max={5}
@@ -884,7 +886,7 @@ export default function TournamentCreate() {
                         dispatch({ type: 'SET_FIELD', field: 'finalsScoringRules', value: { ...state.finalsScoringRules, setsToWin: v, maxSets: v * 2 - 1 } });
                         dispatch({ type: 'SET_FIELD', field: 'sameRulesAsQualifying', value: false });
                       }}
-                      ariaLabel="본선 기본 세트 선승 수"
+                      ariaLabel={t('admin.tournamentCreate.matchRules.finalsSets', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin })}
                     />
 
                     {/* 라운드별 세트 수 오버라이드 */}
@@ -893,7 +895,7 @@ export default function TournamentCreate() {
                       let r = state.finalsStartRound;
                       while (r >= 2) {
                         if (r < state.finalsStartRound) {
-                          availableRounds.push({ value: r, label: r === 2 ? '결승' : `${r}강` });
+                          availableRounds.push({ value: r, label: r === 2 ? t('admin.tournamentCreate.finals.final') : r === 4 ? t('admin.tournamentCreate.finals.round4') : r === 8 ? t('admin.tournamentCreate.finals.round8') : r === 16 ? t('admin.tournamentCreate.finals.round16') : t('admin.tournamentCreate.finals.round32') });
                         }
                         r = Math.floor(r / 2);
                       }
@@ -901,11 +903,11 @@ export default function TournamentCreate() {
                       return (
                         <div>
                           <label className="flex items-center justify-between cursor-pointer">
-                            <span className="font-semibold">후반 라운드에서 세트 수 변경</span>
+                            <span className="font-semibold">{t('admin.tournamentCreate.matchRules.roundScoringOverride')}</span>
                             <button
                               role="switch"
                               aria-checked={state.hasRoundScoringOverride}
-                              aria-label="후반 라운드 세트 수 변경"
+                              aria-label={t('admin.tournamentCreate.matchRules.roundScoringOverride')}
                               className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.hasRoundScoringOverride ? 'bg-green-600' : 'bg-gray-600'}`}
                               onClick={() => dispatch({ type: 'SET_FIELD', field: 'hasRoundScoringOverride', value: !state.hasRoundScoringOverride })}
                             >
@@ -915,13 +917,13 @@ export default function TournamentCreate() {
                           {state.hasRoundScoringOverride && (
                             <div className="mt-3 p-3 bg-gray-800 rounded-lg space-y-3">
                               <div className="flex items-center gap-3">
-                                <label htmlFor="manual-round-from" className="text-sm text-gray-400">시작</label>
+                                <label htmlFor="manual-round-from" className="text-sm text-gray-400">{t('admin.tournamentCreate.matchRules.overrideStart')}</label>
                                 <select
                                   id="manual-round-from"
                                   className="input bg-gray-600 text-white py-1 px-2 rounded"
                                   value={state.roundOverrideFromRound}
                                   onChange={e => dispatch({ type: 'SET_FIELD', field: 'roundOverrideFromRound', value: Number(e.target.value) })}
-                                  aria-label="세트 수 변경 시작 라운드"
+                                  aria-label={t('admin.tournamentCreate.matchRules.roundScoringOverride')}
                                 >
                                   {availableRounds.map(r => (
                                     <option key={r.value} value={r.value}>{r.label}</option>
@@ -929,7 +931,7 @@ export default function TournamentCreate() {
                                 </select>
                               </div>
                               <NumberStepper
-                                label={`변경 세트 수: ${state.roundOverrideMaxSets}세트 (${state.roundOverrideSetsToWin}세트 선승)`}
+                                label={t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: state.roundOverrideMaxSets, setsToWin: state.roundOverrideSetsToWin })}
                                 value={state.roundOverrideSetsToWin}
                                 min={state.finalsScoringRules.setsToWin + 1}
                                 max={5}
@@ -937,10 +939,10 @@ export default function TournamentCreate() {
                                   dispatch({ type: 'SET_FIELD', field: 'roundOverrideSetsToWin', value: v });
                                   dispatch({ type: 'SET_FIELD', field: 'roundOverrideMaxSets', value: v * 2 - 1 });
                                 }}
-                                ariaLabel="변경 세트 선승 수"
+                                ariaLabel={t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: state.roundOverrideMaxSets, setsToWin: state.roundOverrideSetsToWin })}
                               />
                               <p aria-live="polite" className="text-sm text-cyan-400">
-                                {state.finalsStartRound === 2 ? '결승' : `${state.finalsStartRound}강`}~{state.roundOverrideFromRound * 2 === 2 ? '결승' : `${state.roundOverrideFromRound * 2}강`}: {state.finalsScoringRules.maxSets}세트 | {state.roundOverrideFromRound === 2 ? '결승' : `${state.roundOverrideFromRound}강`}~결승: {state.roundOverrideMaxSets}세트
+                                {t('admin.preview.setsPerRoundDetail', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: availableRounds.find(r => r.value === state.roundOverrideFromRound)?.label || '', overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
                               </p>
                             </div>
                           )}
@@ -955,7 +957,7 @@ export default function TournamentCreate() {
             {!state.hasGroupStage && !state.hasFinalsStage && (
               <div className="bg-gray-800 rounded-lg p-3">
                 <p className="text-gray-400 text-sm">
-                  스테이지를 선택하지 않으면 참가자만 등록되고, 모든 설정은 대회 상세에서 진행합니다.
+                  {t('admin.tournamentCreate.manualMode.noStageNote')}
                 </p>
               </div>
             )}
@@ -964,45 +966,45 @@ export default function TournamentCreate() {
 
           {state.tournamentMode === 'group_tournament' && (
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">조별 예선 설정</h2>
+            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.groupQualifying.title')}</h2>
 
             <div className="space-y-4 mt-4 pl-4 border-l-2 border-yellow-400">
                 <NumberStepper
-                  label="조 수"
+                  label={t('admin.tournamentCreate.groupQualifying.groupCount')}
                   value={state.groupCount}
                   min={2}
                   max={16}
                   onChange={v => dispatch({ type: 'SET_FIELD', field: 'groupCount', value: v })}
-                  ariaLabel="조 수"
+                  ariaLabel={t('admin.tournamentCreate.groupQualifying.groupCount')}
                 />
 
                 {(() => {
                   const effectiveCount = state.type === 'randomTeamLeague'
                     ? Math.floor(state.participantCount / state.teamSize)
                     : state.participantCount;
-                  const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+                  const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? t('common.units.team') : t('common.units.person');
                   const perGroup = Math.floor(effectiveCount / state.groupCount);
                   const remainder = effectiveCount % state.groupCount;
                   return (
                     <div className="space-y-2">
                       {remainder === 0 ? (
                         <p className="text-cyan-400 font-semibold text-lg">
-                          조당 {perGroup}{unitLabel} (균등 배분)
+                          {t('admin.tournamentCreate.groupQualifying.perGroupEqual', { count: perGroup, unit: unitLabel })}
                         </p>
                       ) : (
                         <div className="bg-gray-800 rounded p-3 text-sm space-y-1">
-                          <p className="text-yellow-400 font-semibold">불균등 배분 안내</p>
+                          <p className="text-yellow-400 font-semibold">{t('admin.tournamentCreate.groupQualifying.unevenDistribution')}</p>
                           <p className="text-gray-300">
-                            {remainder}개 조는 {perGroup + 1}{unitLabel}, 나머지 {state.groupCount - remainder}개 조는 {perGroup}{unitLabel}
+                            {t('admin.tournamentCreate.groupQualifying.unevenDetail', { remainder, larger: perGroup + 1, unit: unitLabel, rest: state.groupCount - remainder, smaller: perGroup })}
                           </p>
                           <p className="text-gray-400 text-xs">
-                            Snake draft 방식으로 공정하게 배분됩니다
+                            {t('admin.tournamentCreate.groupQualifying.snakeDraft')}
                           </p>
                         </div>
                       )}
                       {perGroup < 2 && (
                         <p className="text-red-500 text-sm font-bold">
-                          조당 {unitLabel === '팀' ? '팀 수가' : '인원이'} 너무 적습니다. 조 수를 줄이거나 {unitLabel === '팀' ? '팀 수를' : '참가자 수를'} 늘려주세요.
+                          {t('admin.tournamentCreate.groupQualifying.perGroupTooFew', { unit: unitLabel, participantUnit: unitLabel })}
                         </p>
                       )}
                     </div>
@@ -1010,11 +1012,11 @@ export default function TournamentCreate() {
                 })()}
 
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-lg font-semibold">탑시드 배정</span>
+                  <span className="text-lg font-semibold">{t('admin.tournamentCreate.groupQualifying.topSeedToggle')}</span>
                   <button
                     role="switch"
                     aria-checked={state.useTopSeed}
-                    aria-label="탑시드 배정"
+                    aria-label={t('admin.tournamentCreate.groupQualifying.topSeedToggle')}
                     className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.useTopSeed ? 'bg-green-600' : 'bg-gray-600'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'useTopSeed', value: !state.useTopSeed })}
                   >
@@ -1024,12 +1026,12 @@ export default function TournamentCreate() {
 
                 {state.useTopSeed && (
                   <NumberStepper
-                    label="시드 수"
+                    label={t('admin.tournamentCreate.groupQualifying.seedCount')}
                     value={state.seedCount}
                     min={1}
                     max={Math.min(state.participantCount, state.groupCount * 2)}
                     onChange={v => dispatch({ type: 'SET_FIELD', field: 'seedCount', value: v })}
-                    ariaLabel="시드 수"
+                    ariaLabel={t('admin.tournamentCreate.groupQualifying.seedCount')}
                   />
                 )}
 
@@ -1037,17 +1039,17 @@ export default function TournamentCreate() {
                   const effectiveCount = state.type === 'randomTeamLeague'
                     ? Math.floor(state.participantCount / state.teamSize)
                     : state.participantCount;
-                  const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? '팀' : '명';
+                  const unitLabel = (state.type === 'team' || state.type === 'randomTeamLeague') ? t('common.units.team') : t('common.units.person');
                   const perGroup = Math.floor(effectiveCount / state.groupCount);
                   return (
                     <>
                       <NumberStepper
-                        label={`조당 진출 ${unitLabel === '팀' ? '팀 수' : '인원'}`}
+                        label={t('admin.tournamentCreate.groupQualifying.advancePerGroupLabel', { unit: unitLabel })}
                         value={state.advancePerGroup}
                         min={1}
                         max={perGroup}
                         onChange={v => dispatch({ type: 'SET_FIELD', field: 'advancePerGroup', value: v })}
-                        ariaLabel={`각 조에서 본선에 진출하는 ${unitLabel === '팀' ? '팀 수' : '인원 수'}`}
+                        ariaLabel={t('admin.tournamentCreate.groupQualifying.advancePerGroupAriaLabel', { unit: unitLabel })}
                       />
 
                       {(() => {
@@ -1059,29 +1061,29 @@ export default function TournamentCreate() {
                           <>
                             <div className="bg-blue-900/30 rounded-lg p-4 space-y-2">
                               <p className="text-blue-300 font-semibold text-lg">
-                                조별 진출: {state.groupCount}조 × {state.advancePerGroup}{unitLabel} = {directAdvance}{unitLabel}
+                                {t('admin.tournamentCreate.groupQualifying.groupAdvanceSummary', { groups: state.groupCount, perGroup: state.advancePerGroup, unit: unitLabel, total: directAdvance })}
                               </p>
                               {wildcardCount > 0 && (
                                 <div className="bg-yellow-900/30 rounded p-3 mt-2">
                                   <p className="text-yellow-300 font-semibold">
-                                    와일드카드 {wildcardCount}{unitLabel} 추가 진출
+                                    {t('admin.tournamentCreate.groupQualifying.wildcardAdvance', { count: wildcardCount, unit: unitLabel })}
                                   </p>
                                   <p className="text-yellow-200/70 text-sm">
-                                    각 조 {state.advancePerGroup + 1}위 중 성적이 가장 좋은 {wildcardCount}{unitLabel}{unitLabel === '팀' ? '이' : '이'} 본선에 진출합니다
+                                    {t('admin.tournamentCreate.groupQualifying.wildcardExplanation', { count: wildcardCount, unit: unitLabel, rank: state.advancePerGroup + 1 })}
                                   </p>
                                 </div>
                               )}
                               <p className="text-white font-bold text-lg">
-                                본선 총 진출: {directAdvance + wildcardCount}{unitLabel}
+                                {t('admin.tournamentCreate.groupQualifying.finalsTotalAdvance', { count: directAdvance + wildcardCount, unit: unitLabel })}
                               </p>
                               <p className="text-gray-400 text-sm">
-                                본선 {nearestBracketRound(directAdvance + wildcardCount)} 시작
+                                {t('admin.tournamentCreate.groupQualifying.finalsStartFrom', { round: t(nearestBracketRoundKey(directAdvance + wildcardCount)) })}
                               </p>
                             </div>
 
                             {/* 본선 시작 라운드 */}
                             <div className="mt-4">
-                              <h3 className="text-lg font-semibold mb-2">본선 시작 라운드</h3>
+                              <h3 className="text-lg font-semibold mb-2">{t('admin.tournamentCreate.groupQualifying.finalsStartRoundLabel')}</h3>
                               <div className="grid grid-cols-4 gap-2">
                                 {[4, 8, 16, 32].filter(v => v >= directAdvance).map(v => (
                                   <button
@@ -1090,7 +1092,7 @@ export default function TournamentCreate() {
                                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: v })}
                                     aria-pressed={state.finalsStartRound === v}
                                   >
-                                    {v === 4 ? '4강' : v === 8 ? '8강' : v === 16 ? '16강' : '32강'}
+                                    {v === 4 ? t('admin.tournamentCreate.finals.round4') : v === 8 ? t('admin.tournamentCreate.finals.round8') : v === 16 ? t('admin.tournamentCreate.finals.round16') : t('admin.tournamentCreate.finals.round32')}
                                   </button>
                                 ))}
                               </div>
@@ -1107,33 +1109,33 @@ export default function TournamentCreate() {
 
           {(state.type === 'team' || state.type === 'randomTeamLeague') && (
             <div className="card space-y-4">
-              <h2 className="text-xl font-bold">팀 설정</h2>
+              <h2 className="text-xl font-bold">{t('admin.tournamentCreate.teamSettings.title')}</h2>
               <NumberStepper
-                label="기본 팀 인원"
+                label={t('admin.tournamentCreate.teamSettings.teamSize')}
                 value={state.teamSize}
                 min={2}
                 max={6}
                 onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamSize', value: v })}
-                ariaLabel="기본 팀 인원"
+                ariaLabel={t('admin.tournamentCreate.teamSettings.teamSizeAriaLabel')}
               />
-              <p className="text-gray-400 text-sm">대회 상세에서 팀별로 인원을 다르게 구성할 수 있습니다</p>
+              <p className="text-gray-400 text-sm">{t('admin.tournamentCreate.teamSettings.teamSizeHint')}</p>
               <NumberStepper
-                label="예비 선수"
+                label={t('admin.tournamentCreate.teamSettings.reserves')}
                 value={state.teamRules.maxReserves ?? 1}
                 min={0}
                 max={2}
                 onChange={v => dispatch({ type: 'SET_FIELD', field: 'teamRules', value: { ...state.teamRules, maxReserves: v } })}
-                ariaLabel="예비 선수 수"
+                ariaLabel={t('admin.tournamentCreate.teamSettings.reservesAriaLabel')}
               />
               <p className="text-cyan-400 text-sm font-semibold">
-                출전 {state.teamSize}명 + 예비 {state.teamRules.maxReserves ?? 1}명 = 총 {state.teamSize + (state.teamRules.maxReserves ?? 1)}명
+                {t('admin.tournamentCreate.teamSettings.teamCompositionSummary', { active: state.teamSize, reserve: state.teamRules.maxReserves ?? 1, total: state.teamSize + (state.teamRules.maxReserves ?? 1) })}
               </p>
               {/* 성별 비율 */}
               <div className="space-y-2">
-                <label className="block font-semibold">성별 비율</label>
+                <label className="block font-semibold">{t('admin.tournamentCreate.teamSettings.genderRatio')}</label>
                 <div className="flex gap-3 items-center">
                   <div className="flex items-center gap-1">
-                    <span className="text-blue-400">남</span>
+                    <span className="text-blue-400">{t('admin.tournamentCreate.teamSettings.male')}</span>
                     <NumberStepper
                       label=""
                       value={state.teamRules.genderRatio?.male ?? 2}
@@ -1143,16 +1145,16 @@ export default function TournamentCreate() {
                         ...state.teamRules,
                         genderRatio: { male: v, female: state.teamSize - v }
                       }})}
-                      ariaLabel="남성 인원"
+                      ariaLabel={t('admin.tournamentCreate.teamSettings.maleAriaLabel')}
                     />
                   </div>
                   <span className="text-gray-400">:</span>
                   <div className="flex items-center gap-1">
-                    <span className="text-pink-400">여</span>
+                    <span className="text-pink-400">{t('admin.tournamentCreate.teamSettings.female')}</span>
                     <span className="text-lg font-bold">{state.teamSize - (state.teamRules.genderRatio?.male ?? 2)}</span>
                   </div>
                 </div>
-                <p className="text-gray-400 text-sm">팀당 남 {state.teamRules.genderRatio?.male ?? 2}명, 여 {state.teamSize - (state.teamRules.genderRatio?.male ?? 2)}명</p>
+                <p className="text-gray-400 text-sm">{t('admin.tournamentCreate.teamSettings.genderRatioSummary', { male: state.teamRules.genderRatio?.male ?? 2, female: state.teamSize - (state.teamRules.genderRatio?.male ?? 2) })}</p>
               </div>
             </div>
           )}
@@ -1176,31 +1178,31 @@ export default function TournamentCreate() {
           <button
             className="btn btn-secondary flex-1"
             onClick={() => dispatch({ type: 'PREV_STEP' })}
-            aria-label="이전 단계"
+            aria-label={t('common.back')}
           >
-            이전
+            {t('common.previous')}
           </button>
         )}
         {state.step < 4 ? (
           <button
             className="btn btn-primary flex-1"
             onClick={() => tryAdvanceStep({ type: 'NEXT_STEP' })}
-            aria-label="다음 단계"
+            aria-label={t('common.next')}
           >
-            다음
+            {t('common.next')}
           </button>
         ) : (
           <button
             className="btn btn-success flex-1"
             onClick={handleSubmit}
             disabled={saving}
-            aria-label="대회 생성"
+            aria-label={t('admin.preview.createTournament')}
           >
-            {saving ? '생성 중...' : '대회 생성'}
+            {saving ? t('common.creating') : t('admin.preview.createTournament')}
           </button>
         )}
-        <button className="btn btn-accent" onClick={() => navigate('/admin')} aria-label="취소">
-          취소
+        <button className="btn btn-accent" onClick={() => navigate('/admin')} aria-label={t('common.cancel')}>
+          {t('common.cancel')}
         </button>
       </div>
     </div>

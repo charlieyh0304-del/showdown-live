@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface TimerModalProps {
@@ -9,7 +10,9 @@ interface TimerModalProps {
   closeLabel?: string;
 }
 
-export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel = '닫기' }: TimerModalProps) {
+export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel }: TimerModalProps) {
+  const { t } = useTranslation();
+  const effectiveCloseLabel = closeLabel || t('common.close');
   const trapRef = useFocusTrap(true, onClose);
 
   const minutes = Math.floor(seconds / 60);
@@ -25,13 +28,13 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
         <div
           className={`text-8xl font-bold my-4 ${isWarning ? 'animate-pulse text-red-400' : 'text-white'}`}
           aria-live="polite"
-          aria-label={`남은 시간 ${display}`}
+          aria-label={t('common.time.remaining', { display })}
         >
           {display}
         </div>
         {subtitle && <p className="text-xl text-gray-300">{subtitle}</p>}
-        <button className="btn btn-danger btn-large" onClick={onClose} aria-label={closeLabel}>
-          {closeLabel}
+        <button className="btn btn-danger btn-large" onClick={onClose} aria-label={effectiveCloseLabel}>
+          {effectiveCloseLabel}
         </button>
       </div>
     </div>

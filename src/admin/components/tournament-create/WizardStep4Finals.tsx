@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import NumberStepper from './NumberStepper';
 
 interface WizardStep4FinalsProps {
@@ -35,40 +36,16 @@ interface WizardStep4FinalsProps {
   dispatch: (action: { type: 'SET_FIELD'; field: string; value: unknown }) => void;
 }
 
-const FORMAT_CARDS: {
-  value: 'single_elimination' | 'double_elimination' | 'round_robin';
-  label: string;
-  icon: string;
-  description: string;
-}[] = [
-  {
-    value: 'single_elimination',
-    label: '싱글 엘리미네이션',
-    icon: '🏆',
-    description: '패배 시 즉시 탈락. 빠르고 긴장감 있는 진행.',
-  },
-  {
-    value: 'double_elimination',
-    label: '더블 엘리미네이션',
-    icon: '🔄',
-    description: '2패 시 탈락. 한 번의 패배로 기회를 잃지 않습니다.',
-  },
-  {
-    value: 'round_robin',
-    label: '라운드 로빈',
-    icon: '🔁',
-    description: '모든 참가자(팀)가 서로 경기. 가장 공정한 방식.',
-  },
+const FORMAT_CARD_KEYS = [
+  { value: 'single_elimination' as const, icon: '🏆', labelKey: 'admin.tournamentCreate.finals.singleElimination', descKey: 'admin.tournamentCreate.finals.singleEliminationDescription' },
+  { value: 'double_elimination' as const, icon: '🔄', labelKey: 'admin.tournamentCreate.finals.doubleElimination', descKey: 'admin.tournamentCreate.finals.doubleEliminationDescription' },
+  { value: 'round_robin' as const, icon: '🔁', labelKey: 'admin.tournamentCreate.finals.roundRobin', descKey: 'admin.tournamentCreate.finals.roundRobinDescription' },
 ];
 
-const ARRANGEMENT_OPTIONS: {
-  value: 'cross_group' | 'sequential' | 'custom';
-  label: string;
-  description: string;
-}[] = [
-  { value: 'cross_group', label: '조 교차', description: 'A조 1위 vs B조 2위 형태로 교차 배치' },
-  { value: 'sequential', label: '순차 배치', description: '전체 순위 기준 1위 vs 마지막, 2위 vs 마지막-1' },
-  { value: 'custom', label: '커스텀 배정', description: '각 경기의 대진을 직접 지정' },
+const ARRANGEMENT_OPTION_KEYS = [
+  { value: 'cross_group' as const, labelKey: 'admin.tournamentCreate.finals.crossGroup', descKey: 'admin.tournamentCreate.finals.crossGroupDescription' },
+  { value: 'sequential' as const, labelKey: 'admin.tournamentCreate.finals.sequential', descKey: 'admin.tournamentCreate.finals.sequentialDescription' },
+  { value: 'custom' as const, labelKey: 'admin.tournamentCreate.finals.customArrangement', descKey: 'admin.tournamentCreate.finals.customArrangementDescription' },
 ];
 
 // ===== Helper functions =====
@@ -168,17 +145,27 @@ function generateSequentialPreview(
     if (topSeed >= bottomSeed && i > 0) break;
     pairings.push({
       match: i + 1,
-      slot1: `${topSeed}위`,
-      slot2: `${bottomSeed}위`,
+      slot1: `#${topSeed}`,
+      slot2: `#${bottomSeed}`,
     });
   }
 
   return pairings;
 }
 
-function getRoundLabel(round: number): string {
-  if (round === 2) return '결승';
-  return `${round}강`;
+function getRoundLabel(round: number, t?: (key: string) => string): string {
+  if (t) {
+    switch (round) {
+      case 2: return t('admin.tournamentCreate.finals.final');
+      case 4: return t('admin.tournamentCreate.finals.round4');
+      case 8: return t('admin.tournamentCreate.finals.round8');
+      case 16: return t('admin.tournamentCreate.finals.round16');
+      case 32: return t('admin.tournamentCreate.finals.round32');
+      default: return `${round}`;
+    }
+  }
+  if (round === 2) return 'Final';
+  return `Round of ${round}`;
 }
 
 // ===== Toggle Switch component =====
@@ -209,11 +196,12 @@ function ToggleSwitch({
 // ===== Main Component =====
 
 export default function WizardStep4Finals({ state, dispatch }: WizardStep4FinalsProps) {
+  const { t } = useTranslation();
   const advanceCount = state.advanceCount || 8;
   const groupCount = state.groupCount || 2;
   const advancePerGroup = state.advancePerGroup || 2;
   const isTeamType = state.type === 'team' || state.type === 'randomTeamLeague';
-  const unitLabel = isTeamType ? '팀' : '명';
+  const unitLabel = isTeamType ? t('common.units.team') : t('common.units.person');
 
   const setField = (field: string, value: unknown) => {
     dispatch({ type: 'SET_FIELD', field, value });
@@ -267,7 +255,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
     let r = state.finalsStartRound;
     while (r >= 2) {
       if (r < state.finalsStartRound) {
-        rounds.push({ value: r, label: getRoundLabel(r) });
+        rounds.push({ value: r, label: getRoundLabel(r, t) });
       }
       r = Math.floor(r / 2);
     }
@@ -278,8 +266,8 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
   const scoringSummary = useMemo(() => {
     if (!state.hasRoundScoringOverride || !state.roundOverrideFromRound) return null;
     const fromRound = state.roundOverrideFromRound;
-    const earlyPart = `${getRoundLabel(state.finalsStartRound)}~${getRoundLabel(fromRound * 2)}: ${maxSets}세트`;
-    const latePart = `${getRoundLabel(fromRound)}~결승: ${overrideMaxSets}세트`;
+    const earlyPart = `${getRoundLabel(state.finalsStartRound, t)}~${getRoundLabel(fromRound * 2, t)}: ${t('admin.tournamentCreate.matchRules.finalsSets', { maxSets, setsToWin })}`;
+    const latePart = `${getRoundLabel(fromRound, t)}~${getRoundLabel(2, t)}: ${t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: overrideMaxSets, setsToWin: overrideSetsToWin })}`;
     return `${earlyPart} | ${latePart}`;
   }, [state.hasRoundScoringOverride, state.roundOverrideFromRound, state.finalsStartRound, maxSets, overrideMaxSets]);
 
@@ -314,13 +302,13 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
     <div className="space-y-6">
       {/* Format selection */}
       <div className="card space-y-4">
-        <h2 className="text-xl font-bold">{state.hasGroupStage ? '본선 형식' : '대회 형식'}</h2>
+        <h2 className="text-xl font-bold">{state.hasGroupStage ? t('admin.tournamentCreate.finals.formatTitle') : t('admin.tournamentCreate.finals.tournamentFormat')}</h2>
         <div
           className="grid grid-cols-1 sm:grid-cols-3 gap-3"
           role="radiogroup"
-          aria-label="본선 형식 선택"
+          aria-label={t('admin.tournamentCreate.finals.formatTitle')}
         >
-          {FORMAT_CARDS.map((fmt) => (
+          {FORMAT_CARD_KEYS.map((fmt) => (
             <button
               key={fmt.value}
               role="radio"
@@ -331,13 +319,13 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   : 'border-transparent hover:border-gray-600'
               }`}
               onClick={() => setField('finalsFormat', fmt.value)}
-              aria-label={fmt.label}
+              aria-label={t(fmt.labelKey)}
             >
               <div className="text-2xl mb-1" aria-hidden="true">
                 {fmt.icon}
               </div>
-              <h3 className="text-lg font-bold">{fmt.label}</h3>
-              <p className="text-gray-400 text-sm">{fmt.description}</p>
+              <h3 className="text-lg font-bold">{t(fmt.labelKey)}</h3>
+              <p className="text-gray-400 text-sm">{t(fmt.descKey)}</p>
             </button>
           ))}
         </div>
@@ -346,13 +334,13 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {/* Start round */}
       {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
-          <h3 className="text-lg font-semibold mb-2">본선 시작 라운드</h3>
+          <h3 className="text-lg font-semibold mb-2">{t('admin.tournamentCreate.finals.startRound')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { value: 32, label: '32강' },
-              { value: 16, label: '16강' },
-              { value: 8, label: '8강' },
-              { value: 4, label: '4강' },
+              { value: 32, label: t('admin.tournamentCreate.finals.round32') },
+              { value: 16, label: t('admin.tournamentCreate.finals.round16') },
+              { value: 8, label: t('admin.tournamentCreate.finals.round8') },
+              { value: 4, label: t('admin.tournamentCreate.finals.round4') },
             ]
               .filter((opt) => {
                 const ac = state.advanceCount || state.participantCount || 8;
@@ -371,9 +359,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
           </div>
           {advanceCount < state.finalsStartRound && (
             <p className="text-yellow-500 text-sm mt-2">
-              진출 {advanceCount}
-              {unitLabel} / {state.finalsStartRound}강 → {state.finalsStartRound - advanceCount}
-              {unitLabel}은 부전승(BYE) 처리됩니다
+              {t('admin.tournamentCreate.finals.byeInfo', { advance: advanceCount, unit: unitLabel, round: state.finalsStartRound, bye: state.finalsStartRound - advanceCount })}
             </p>
           )}
         </div>
@@ -383,9 +369,9 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {state.hasGroupStage && state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
           <fieldset>
-            <legend className="text-xl font-bold mb-4">대진 편성 방식</legend>
-            <div className="space-y-3" role="radiogroup" aria-label="대진 편성 방식 선택">
-              {ARRANGEMENT_OPTIONS.map((opt) => (
+            <legend className="text-xl font-bold mb-4">{t('admin.tournamentCreate.finals.bracketArrangement')}</legend>
+            <div className="space-y-3" role="radiogroup" aria-label={t('admin.tournamentCreate.finals.bracketArrangement')}>
+              {ARRANGEMENT_OPTION_KEYS.map((opt) => (
                 <button
                   key={opt.value}
                   role="radio"
@@ -396,10 +382,10 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                       : 'border-transparent hover:border-gray-600'
                   }`}
                   onClick={() => setField('bracketArrangement', opt.value)}
-                  aria-label={`${opt.label}: ${opt.description}`}
+                  aria-label={`${t(opt.labelKey)}: ${t(opt.descKey)}`}
                 >
-                  <h3 className="text-lg font-bold">{opt.label}</h3>
-                  <p className="text-gray-400 text-sm">{opt.description}</p>
+                  <h3 className="text-lg font-bold">{t(opt.labelKey)}</h3>
+                  <p className="text-gray-400 text-sm">{t(opt.descKey)}</p>
                 </button>
               ))}
             </div>
@@ -408,7 +394,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
             {(state.bracketArrangement === 'cross_group' || state.bracketArrangement === 'sequential') &&
               bracketPreview.length > 0 && (
                 <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-400 mb-3">대진 미리보기</h4>
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">{t('admin.tournamentCreate.finals.bracketPreview')}</h4>
                   {/* Visual preview */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     {bracketPreview.map((p) => (
@@ -416,7 +402,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                         key={p.match}
                         className="flex items-center justify-between bg-gray-700 rounded px-3 py-2"
                       >
-                        <span className="text-xs text-gray-400">경기{p.match}</span>
+                        <span className="text-xs text-gray-400">{t('admin.preview.matchNumber', { position: p.match })}</span>
                         <span className="font-bold text-yellow-400">{p.slot1}</span>
                         <span className="text-gray-500 text-sm">vs</span>
                         <span className="font-bold text-cyan-400">{p.slot2}</span>
@@ -424,10 +410,10 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                     ))}
                   </div>
                   {/* Accessible text list */}
-                  <div role="list" aria-label="대진 편성 목록" className="sr-only">
+                  <div role="list" aria-label={t('admin.tournamentCreate.finals.bracketListAriaLabel')} className="sr-only">
                     {bracketPreview.map((p) => (
                       <div key={p.match} role="listitem">
-                        경기 {p.match}: {p.slot1} 대 {p.slot2}
+                        {t('admin.preview.matchNumber', { position: p.match })}: {p.slot1} vs {p.slot2}
                       </div>
                     ))}
                   </div>
@@ -438,21 +424,21 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
             {state.bracketArrangement === 'custom' && slotLabels.length > 0 && (
               <div className="mt-4 p-4 bg-gray-800 rounded-lg space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-gray-400">커스텀 대진 배정</h4>
+                  <h4 className="text-sm font-semibold text-gray-400">{t('admin.tournamentCreate.finals.customPairingTitle')}</h4>
                   <div className="flex gap-2">
                     <button
                       className="btn bg-blue-600 text-white text-sm px-3 py-1"
                       onClick={applyCrossDefault}
-                      aria-label="교차 기본값 적용"
+                      aria-label={t('admin.tournamentCreate.finals.applyCrossDefault')}
                     >
-                      교차 기본값 적용
+                      {t('admin.tournamentCreate.finals.applyCrossDefault')}
                     </button>
                     <button
                       className="btn bg-gray-600 text-white text-sm px-3 py-1"
                       onClick={resetCustomPairings}
-                      aria-label="대진 초기화"
+                      aria-label={t('admin.tournamentCreate.finals.resetPairings')}
                     >
-                      초기화
+                      {t('admin.tournamentCreate.finals.resetPairings')}
                     </button>
                   </div>
                 </div>
@@ -460,9 +446,9 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                 {/* Unassigned counter */}
                 <p aria-live="polite" className="text-sm">
                   {unassignedCount > 0 ? (
-                    <span className="text-yellow-400">미배정: {unassignedCount}개 슬롯</span>
+                    <span className="text-yellow-400">{t('admin.tournamentCreate.finals.unassignedSlots', { count: unassignedCount })}</span>
                   ) : (
-                    <span className="text-green-400">모든 슬롯이 배정되었습니다</span>
+                    <span className="text-green-400">{t('admin.tournamentCreate.finals.allSlotsAssigned')}</span>
                   )}
                 </p>
 
@@ -488,14 +474,14 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                         key={i}
                         className="flex items-center gap-2 bg-gray-700 rounded px-3 py-2"
                       >
-                        <span className="text-xs text-gray-400 w-12 shrink-0">경기{i + 1}</span>
+                        <span className="text-xs text-gray-400 w-12 shrink-0">{t('admin.preview.matchNumber', { position: i + 1 })}</span>
                         <select
                           className="input bg-gray-600 text-white py-1 px-2 rounded flex-1"
                           value={pairing.slot1}
                           onChange={(e) => handleCustomPairingChange(i, 'slot1', e.target.value)}
-                          aria-label={`경기 ${i + 1} 홈 선수`}
+                          aria-label={t('admin.tournamentCreate.finals.homePlayer', { num: i + 1 })}
                         >
-                          <option value="">선택</option>
+                          <option value="">{t('admin.tournamentCreate.finals.selectSlot')}</option>
                           {slotLabels.map((label) => (
                             <option
                               key={label}
@@ -503,7 +489,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                               disabled={slot1Taken.has(label)}
                             >
                               {label}
-                              {slot1Taken.has(label) ? ' (배정됨)' : ''}
+                              {slot1Taken.has(label) ? ` (${t('admin.tournamentCreate.finals.assigned')})` : ''}
                             </option>
                           ))}
                         </select>
@@ -512,9 +498,9 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                           className="input bg-gray-600 text-white py-1 px-2 rounded flex-1"
                           value={pairing.slot2}
                           onChange={(e) => handleCustomPairingChange(i, 'slot2', e.target.value)}
-                          aria-label={`경기 ${i + 1} 어웨이 선수`}
+                          aria-label={t('admin.tournamentCreate.finals.awayPlayer', { num: i + 1 })}
                         >
-                          <option value="">선택</option>
+                          <option value="">{t('admin.tournamentCreate.finals.selectSlot')}</option>
                           {slotLabels.map((label) => (
                             <option
                               key={label}
@@ -522,7 +508,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                               disabled={slot2Taken.has(label)}
                             >
                               {label}
-                              {slot2Taken.has(label) ? ' (배정됨)' : ''}
+                              {slot2Taken.has(label) ? ` (${t('admin.tournamentCreate.finals.assigned')})` : ''}
                             </option>
                           ))}
                         </select>
@@ -534,7 +520,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                 {/* Validation error */}
                 {unassignedCount > 0 && customPairings.length > 0 && (
                   <p role="alert" className="text-red-400 text-sm">
-                    모든 슬롯을 배정해주세요. 미배정 슬롯이 {unassignedCount}개 남아있습니다.
+                    {t('admin.tournamentCreate.finals.assignAllSlots', { count: unassignedCount })}
                   </p>
                 )}
               </div>
@@ -543,11 +529,11 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
             {/* Same group avoidance */}
             {state.bracketArrangement !== 'custom' && (
               <label className="flex items-center justify-between cursor-pointer mt-4">
-                <span className="text-lg font-semibold">같은 조 회피 편성</span>
+                <span className="text-lg font-semibold">{t('admin.tournamentCreate.finals.avoidSameGroup')}</span>
                 <ToggleSwitch
                   checked={state.avoidSameGroup}
                   onChange={() => setField('avoidSameGroup', !state.avoidSameGroup)}
-                  ariaLabel="같은 조 회피 편성"
+                  ariaLabel={t('admin.tournamentCreate.finals.avoidSameGroup')}
                 />
               </label>
             )}
@@ -566,10 +552,10 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               : rawCount;
           return (
             <div className="card p-4 bg-blue-900/20 border border-blue-500/30">
-              <p className="text-blue-300 font-semibold">전체 풀리그</p>
+              <p className="text-blue-300 font-semibold">{t('admin.tournamentCreate.finals.fullLeagueTitle')}</p>
               <p className="text-gray-400 text-sm mt-1">
-                {isTeamType ? '모든 팀이' : '모든 참가자가'} 서로 한 번씩 경기합니다. 총{' '}
-                {(n * (n - 1)) / 2}경기가 진행됩니다.
+                {isTeamType ? t('admin.tournamentCreate.finals.allTeamsPlay') : t('admin.tournamentCreate.finals.allPlayersPlay')}{' '}
+                {t('admin.tournamentCreate.finals.totalMatchesLabel', { count: (n * (n - 1)) / 2 })}
               </p>
             </div>
           );
@@ -579,10 +565,10 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
           <fieldset>
-            <legend className="text-xl font-bold mb-4">경기 규칙</legend>
+            <legend className="text-xl font-bold mb-4">{t('admin.tournamentCreate.matchRules.title')}</legend>
 
             <NumberStepper
-              label={`기본 세트 수: ${maxSets}세트 (${setsToWin}세트 선승)`}
+              label={t('admin.tournamentCreate.matchRules.finalsSets', { maxSets, setsToWin })}
               value={setsToWin}
               min={1}
               max={5}
@@ -593,18 +579,18 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   maxSets: v * 2 - 1,
                 });
               }}
-              ariaLabel="기본 세트 선승 수"
+              ariaLabel={t('admin.tournamentCreate.matchRules.finalsSets', { maxSets, setsToWin })}
             />
 
             {/* Round override toggle */}
             {availableRounds.length > 0 && (
               <div className="mt-6">
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-lg font-semibold">후반 라운드에서 세트 수 변경</span>
+                  <span className="text-lg font-semibold">{t('admin.tournamentCreate.matchRules.roundScoringOverride')}</span>
                   <ToggleSwitch
                     checked={!!state.hasRoundScoringOverride}
                     onChange={() => setField('hasRoundScoringOverride', !state.hasRoundScoringOverride)}
-                    ariaLabel="후반 라운드 세트 수 변경"
+                    ariaLabel={t('admin.tournamentCreate.matchRules.roundScoringOverride')}
                   />
                 </label>
 
@@ -612,14 +598,14 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   <div className="mt-4 p-4 bg-gray-800 rounded-lg space-y-4">
                     <div className="flex items-center gap-4">
                       <label className="font-semibold text-sm text-gray-400" htmlFor="round-override-from">
-                        변경 시작
+                        {t('admin.tournamentCreate.matchRules.overrideStart')}
                       </label>
                       <select
                         id="round-override-from"
                         className="input bg-gray-600 text-white py-2 px-3 rounded"
                         value={state.roundOverrideFromRound || (availableRounds[0]?.value ?? 4)}
                         onChange={(e) => setField('roundOverrideFromRound', Number(e.target.value))}
-                        aria-label="세트 수 변경 시작 라운드"
+                        aria-label={t('admin.tournamentCreate.matchRules.roundScoringOverride')}
                       >
                         {availableRounds.map((r) => (
                           <option key={r.value} value={r.value}>
@@ -630,7 +616,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                     </div>
 
                     <NumberStepper
-                      label={`변경 세트 수: ${overrideMaxSets}세트 (${overrideSetsToWin}세트 선승)`}
+                      label={t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: overrideMaxSets, setsToWin: overrideSetsToWin })}
                       value={overrideSetsToWin}
                       min={setsToWin + 1}
                       max={5}
@@ -638,7 +624,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                         setField('roundOverrideSetsToWin', v);
                         setField('roundOverrideMaxSets', v * 2 - 1);
                       }}
-                      ariaLabel="변경 세트 선승 수"
+                      ariaLabel={t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: overrideMaxSets, setsToWin: overrideSetsToWin })}
                     />
 
                     {/* Summary */}
@@ -659,11 +645,11 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {state.finalsFormat !== 'round_robin' && (
         <div className="card">
           <label className="flex items-center justify-between cursor-pointer">
-            <span className="text-lg font-semibold">3/4위 결정전</span>
+            <span className="text-lg font-semibold">{t('admin.tournamentCreate.ranking.thirdPlaceMatch')}</span>
             <ToggleSwitch
               checked={state.thirdPlaceMatch}
               onChange={() => setField('thirdPlaceMatch', !state.thirdPlaceMatch)}
-              ariaLabel="3/4위 결정전"
+              ariaLabel={t('admin.tournamentCreate.ranking.thirdPlaceMatch')}
             />
           </label>
         </div>
@@ -672,13 +658,13 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {/* Ranking match */}
       {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
-          <h2 className="text-xl font-bold">순위결정전</h2>
+          <h2 className="text-xl font-bold">{t('admin.tournamentCreate.finals.rankingMatchTitle')}</h2>
           <label className="flex items-center justify-between cursor-pointer">
-            <span className="text-lg font-semibold">순위결정전 진행</span>
+            <span className="text-lg font-semibold">{t('admin.tournamentCreate.finals.rankingMatchToggle')}</span>
             <ToggleSwitch
               checked={state.hasRankingMatch}
               onChange={() => setField('hasRankingMatch', !state.hasRankingMatch)}
-              ariaLabel="순위결정전 진행"
+              ariaLabel={t('admin.tournamentCreate.finals.rankingMatchToggle')}
             />
           </label>
 
@@ -686,30 +672,30 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
             <div className="space-y-4 mt-4 p-4 bg-gray-800 rounded-lg">
               {/* 5~8th */}
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="font-semibold">5~8위 결정전</span>
+                <span className="font-semibold">{t('admin.tournamentCreate.finals.fifthToEighthTitle')}</span>
                 <ToggleSwitch
                   checked={state.fifthToEighth}
                   onChange={() => setField('fifthToEighth', !state.fifthToEighth)}
-                  ariaLabel="5~8위 결정전"
+                  ariaLabel={t('admin.tournamentCreate.finals.fifthToEighthTitle')}
                 />
               </label>
 
               {state.fifthToEighth && (
                 <div className="ml-4 space-y-2">
-                  <h4 className="text-sm font-semibold text-gray-400">결정 방식</h4>
+                  <h4 className="text-sm font-semibold text-gray-400">{t('admin.tournamentCreate.finals.fifthToEighthTitle')}</h4>
                   <div
                     className="grid grid-cols-3 gap-2"
                     role="radiogroup"
-                    aria-label="5~8위 결정 방식"
+                    aria-label={t('admin.tournamentCreate.finals.fifthToEighthTitle')}
                   >
                     {(
                       [
-                        { value: 'simple' as const, label: '간소화 (2경기)', desc: '5vs8, 6vs7' },
-                        { value: 'full' as const, label: '교차전 (4경기)', desc: '교차 → 순위전' },
+                        { value: 'simple' as const, label: t('admin.preview.simplified'), desc: t('admin.tournamentCreate.finals.fifthToEighthSimpleDesc') },
+                        { value: 'full' as const, label: t('admin.preview.crossMatch'), desc: t('admin.tournamentCreate.finals.fifthToEighthFullDesc') },
                         {
                           value: 'round_robin' as const,
-                          label: '풀리그 (6경기)',
-                          desc: '4명 라운드로빈',
+                          label: t('admin.preview.fullLeagueMatch'),
+                          desc: t('admin.tournamentCreate.finals.fifthToEighthRoundRobinDesc'),
                         },
                       ] as const
                     ).map((opt) => {
@@ -742,13 +728,13 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                     })}
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    현재 선택:{' '}
+                    {t('admin.tournamentCreate.finals.currentSelection')}{' '}
                     <span className="text-yellow-400 font-bold">
                       {state.fifthToEighthFormat === 'simple'
-                        ? '간소화 (2경기)'
+                        ? t('admin.preview.simplified')
                         : state.fifthToEighthFormat === 'full'
-                          ? '교차전 (4경기)'
-                          : '풀리그 (6경기)'}
+                          ? t('admin.preview.crossMatch')
+                          : t('admin.preview.fullLeagueMatch')}
                     </span>
                   </p>
                 </div>
@@ -756,36 +742,36 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
 
               {/* IBSA classification groups */}
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="font-semibold">하위 순위 그룹 결정전 (IBSA 방식)</span>
+                <span className="font-semibold">{t('admin.tournamentCreate.finals.classificationGroups')}</span>
                 <ToggleSwitch
                   checked={state.classificationGroups}
                   onChange={() => setField('classificationGroups', !state.classificationGroups)}
-                  ariaLabel="하위 순위 그룹 결정전"
+                  ariaLabel={t('admin.tournamentCreate.finals.classificationGroups')}
                 />
               </label>
               {state.classificationGroups && (
                 <div className="ml-4">
                   <NumberStepper
-                    label="그룹 크기"
+                    label={t('admin.tournamentCreate.finals.groupSizeLabel')}
                     value={state.classificationGroupSize}
                     min={3}
                     max={8}
                     onChange={(v) => setField('classificationGroupSize', v)}
-                    ariaLabel="하위 순위 그룹 크기"
+                    ariaLabel={t('admin.tournamentCreate.finals.classificationGroupSizeAriaLabel')}
                   />
                 </div>
               )}
 
-              <h3 className="text-lg font-bold text-cyan-400 mt-4">순위결정전 형식</h3>
+              <h3 className="text-lg font-bold text-cyan-400 mt-4">{t('admin.tournamentCreate.finals.rankingFormatTitle')}</h3>
               <div
                 className="grid grid-cols-2 gap-3"
                 role="radiogroup"
-                aria-label="순위결정전 형식 선택"
+                aria-label={t('admin.tournamentCreate.finals.rankingFormatAriaLabel')}
               >
                 {(
                   [
-                    { value: 'round_robin' as const, label: '라운드 로빈' },
-                    { value: 'single_elimination' as const, label: '싱글 엘리미네이션' },
+                    { value: 'round_robin' as const, labelKey: 'admin.tournamentCreate.finals.rankingRoundRobin' },
+                    { value: 'single_elimination' as const, labelKey: 'admin.tournamentCreate.finals.rankingSingleElimination' },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -796,9 +782,9 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                       state.rankingFormat === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'
                     }`}
                     onClick={() => setField('rankingFormat', opt.value)}
-                    aria-label={`순위결정전 ${opt.label}`}
+                    aria-label={t(opt.labelKey)}
                   >
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </button>
                 ))}
               </div>

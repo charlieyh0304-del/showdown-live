@@ -1,7 +1,10 @@
 import { Outlet, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ModeBadge from '@shared/components/ModeBadge';
+import LanguageToggle from '@shared/components/LanguageToggle';
 
 export default function PracticeLayout() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -17,16 +20,17 @@ export default function PracticeLayout() {
           fontWeight: 'bold',
         }}
       >
-        연습 모드 - 실제 대회에 영향 없음
+        {t('referee.practice.layout.banner')}
       </div>
       <header className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900" role="banner">
         <ModeBadge mode="practice" />
+        <LanguageToggle />
         <button
           className="btn btn-accent"
           onClick={() => navigate('/referee')}
-          aria-label="연습 모드 나가기"
+          aria-label={t('referee.practice.layout.exitAriaLabel')}
         >
-          나가기
+          {t('referee.practice.layout.exitButton')}
         </button>
       </header>
       <main id="main-content" className="flex-1">

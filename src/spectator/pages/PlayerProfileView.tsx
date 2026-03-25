@@ -1,5 +1,6 @@
 import { useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMatches, useTournament, usePlayers } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
 import type { Match } from '@shared/types';
@@ -7,6 +8,7 @@ import type { Match } from '@shared/types';
 export default function PlayerProfileView() {
   const { tournamentId, playerName } = useParams<{ tournamentId: string; playerName: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { tournament, loading: tLoading } = useTournament(tournamentId || null);
   const { matches, loading: mLoading } = useMatches(tournamentId || null);
   const { players, loading: pLoading } = usePlayers();
@@ -70,13 +72,13 @@ export default function PlayerProfileView() {
   const loading = tLoading || mLoading || pLoading;
 
   useEffect(() => {
-    document.title = decodedName ? `${decodedName} 프로필 - 쇼다운 관람` : '선수 프로필 - 쇼다운 관람';
-  }, [decodedName]);
+    document.title = decodedName ? t('spectator.playerProfile.pageTitle', { name: decodedName }) : t('spectator.playerProfile.defaultPageTitle');
+  }, [decodedName, t]);
 
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
-        <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
+        <p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p>
       </div>
     );
   }
@@ -84,9 +86,9 @@ export default function PlayerProfileView() {
   if (!tournament) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="alert">
-        <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>대회를 찾을 수 없습니다</p>
+        <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>{t('spectator.playerProfile.notFound')}</p>
         <button className="btn btn-primary" onClick={() => navigate('/spectator')} style={{ marginTop: '1rem' }}>
-          목록으로 돌아가기
+          {t('spectator.playerProfile.backToList')}
         </button>
       </div>
     );
@@ -95,16 +97,16 @@ export default function PlayerProfileView() {
   function getOpponent(m: Match): string {
     const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
     if (m.type === 'team') {
-      return isP1 ? (m.team2Name || '팀2') : (m.team1Name || '팀1');
+      return isP1 ? (m.team2Name || t('referee.home.team2Default')) : (m.team1Name || t('referee.home.team1Default'));
     }
-    return isP1 ? (m.player2Name || '선수2') : (m.player1Name || '선수1');
+    return isP1 ? (m.player2Name || t('referee.home.player2Default')) : (m.player1Name || t('referee.home.player1Default'));
   }
 
   function getMatchResult(m: Match): string | null {
     if (m.status !== 'completed') return null;
     const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
     const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
-    return m.winnerId === myId ? '승' : '패';
+    return m.winnerId === myId ? t('spectator.playerProfile.win') : t('spectator.playerProfile.loss');
   }
 
   // Group upcoming by date
@@ -126,9 +128,9 @@ export default function PlayerProfileView() {
           className="btn"
           onClick={() => navigate(-1)}
           style={{ marginBottom: '0.5rem', fontSize: '0.875rem', padding: '0.25rem 0.75rem' }}
-          aria-label="뒤로가기"
+          aria-label={t('spectator.playerProfile.backButton')}
         >
-          뒤로
+          {t('spectator.playerProfile.backButton')}
         </button>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#facc15' }}>{decodedName}</h1>
         {playerInfo && (
@@ -145,7 +147,7 @@ export default function PlayerProfileView() {
             )}
             {playerInfo.gender && (
               <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#d1d5db' }}>
-                {playerInfo.gender === 'male' ? '남성' : '여성'}
+                {playerInfo.gender === 'male' ? t('common.gender.maleLabel') : t('common.gender.femaleLabel')}
               </span>
             )}
           </div>
@@ -156,19 +158,19 @@ export default function PlayerProfileView() {
       {/* Stats */}
       {completedMatches.length > 0 && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>전적</h2>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>{t('spectator.playerProfile.record')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{stats.wins}</p>
-              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>승</p>
+              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>{t('spectator.playerProfile.wins')}</p>
             </div>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444' }}>{stats.losses}</p>
-              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>패</p>
+              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>{t('spectator.playerProfile.losses')}</p>
             </div>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22d3ee' }}>{stats.setsWon}-{stats.setsLost}</p>
-              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>세트 득실</p>
+              <p style={{ fontSize: '0.75rem', color: '#d1d5db' }}>{t('spectator.playerProfile.setDiff')}</p>
             </div>
           </div>
         </div>
@@ -177,17 +179,17 @@ export default function PlayerProfileView() {
       {/* Upcoming matches */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem' }}>
-          예정된 경기 ({upcomingMatches.length})
+          {t('spectator.playerProfile.upcomingCount', { count: upcomingMatches.length })}
         </h2>
         {upcomingMatches.length === 0 ? (
-          <p style={{ color: '#d1d5db' }}>예정된 경기가 없습니다</p>
+          <p style={{ color: '#d1d5db' }}>{t('spectator.playerProfile.noUpcoming')}</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {hasMultipleUpcomingDates ? (
               upcomingDateGroups.map(({ date, matches: dateMatches }) => (
                 <div key={date || 'no-date'}>
                   <h3 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.5rem' }}>
-                    {date || '날짜 미지정'}
+                    {date || t('spectator.playerProfile.dateUnspecified')}
                   </h3>
                   {dateMatches.map(m => (
                     <ScheduleMatchCard
@@ -218,10 +220,10 @@ export default function PlayerProfileView() {
       {/* Completed matches */}
       <div className="card">
         <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#22c55e', marginBottom: '0.75rem' }}>
-          완료된 경기 ({completedMatches.length})
+          {t('spectator.playerProfile.completedCount', { count: completedMatches.length })}
         </h2>
         {completedMatches.length === 0 ? (
-          <p style={{ color: '#d1d5db' }}>완료된 경기가 없습니다</p>
+          <p style={{ color: '#d1d5db' }}>{t('spectator.playerProfile.noCompleted')}</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {completedMatches.map(m => {
@@ -256,12 +258,12 @@ export default function PlayerProfileView() {
                         <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>
                       )}
                       {m.groupId && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}조</span>
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}{t('common.units.group')}</span>
                       )}
                     </div>
                     <span style={{
                       fontWeight: 'bold',
-                      color: result === '승' ? '#22c55e' : '#ef4444',
+                      color: result === t('spectator.playerProfile.win') ? '#22c55e' : '#ef4444',
                     }}>
                       {result} ({mySetWins}-{oppSetWins})
                     </span>
@@ -297,6 +299,7 @@ function ScheduleMatchCard({
   navigate: ReturnType<typeof import('react-router-dom').useNavigate>;
   tournamentId: string;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={() => navigate(`/spectator/match/${tournamentId}/${m.id}`)}
@@ -321,7 +324,7 @@ function ScheduleMatchCard({
             <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>
           )}
           {m.groupId && (
-            <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}조</span>
+            <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}{t('common.units.group')}</span>
           )}
         </div>
         <span style={{
@@ -329,7 +332,7 @@ function ScheduleMatchCard({
           fontSize: '0.75rem',
           color: m.status === 'in_progress' ? '#ef4444' : '#facc15',
         }}>
-          {m.status === 'in_progress' ? '진행중' : '대기'}
+          {m.status === 'in_progress' ? t('common.matchStatus.inProgress') : t('common.matchStatus.pending')}
         </span>
       </div>
       <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#d1d5db', fontSize: '0.75rem' }}>

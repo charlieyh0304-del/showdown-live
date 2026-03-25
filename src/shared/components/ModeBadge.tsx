@@ -1,21 +1,25 @@
+import { useTranslation } from 'react-i18next';
+
 interface ModeBadgeProps {
   mode: 'admin' | 'referee' | 'spectator' | 'practice';
 }
 
-const CONFIG = {
-  admin: { label: '관리자 모드', bg: '#422006', color: '#ffff00', border: '#ffff00' },
-  referee: { label: '심판 모드', bg: '#042f2e', color: '#00ffff', border: '#00ffff' },
-  spectator: { label: '관람 모드', bg: '#052e16', color: '#00ff00', border: '#00ff00' },
-  practice: { label: '연습 모드', bg: '#2e1065', color: '#c084fc', border: '#7c3aed' },
+const STYLE_CONFIG = {
+  admin: { bg: '#422006', color: '#ffff00', border: '#ffff00' },
+  referee: { bg: '#042f2e', color: '#00ffff', border: '#00ffff' },
+  spectator: { bg: '#052e16', color: '#00ff00', border: '#00ff00' },
+  practice: { bg: '#2e1065', color: '#c084fc', border: '#7c3aed' },
 };
 
 export default function ModeBadge({ mode }: ModeBadgeProps) {
-  const c = CONFIG[mode];
+  const { t } = useTranslation();
+  const c = STYLE_CONFIG[mode];
+  const label = t(`common.modeBadge.${mode}`);
 
   return (
     <span
       role="status"
-      aria-label={c.label}
+      aria-label={label}
       style={{
         backgroundColor: c.bg,
         color: c.color,
@@ -27,7 +31,7 @@ export default function ModeBadge({ mode }: ModeBadgeProps) {
         whiteSpace: 'nowrap',
       }}
     >
-      {c.label}
+      {label}
     </span>
   );
 }

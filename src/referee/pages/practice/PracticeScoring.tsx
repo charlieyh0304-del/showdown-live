@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { usePracticeMatch } from '../../hooks/usePracticeMatch';
 import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import {
@@ -13,21 +14,9 @@ import {
   createScoreHistoryEntry,
   getMaxServes,
 } from '@shared/utils/scoring';
+import type { ScoreHistoryEntry } from '@shared/types';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType, PracticeMatch } from '@shared/types';
-
-// Practice mode descriptive labels for learning referees
-const PRACTICE_DESCRIPTIVE_LABELS: Record<string, string> = {
-  goal: '골 득점 (공이 상대 골라인 통과)',
-  irregular_serve: '부정 서브 (서브 규칙 위반)',
-  centerboard: '센터보드 터치 (공이 센터보드 접촉)',
-  body_touch: '바디 터치 (선수 몸에 공 접촉)',
-  illegal_defense: '일리걸 디펜스 (수비 규칙 위반)',
-  out: '아웃 (공이 경기장 밖으로)',
-  ball_holding: '볼 홀딩 (2초 이상 공 보유)',
-  mask_touch: '마스크/고글 터치 (경기 중 장비 접촉)',
-  penalty: '기타 벌점 (규정 위반)',
-};
 
 import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
@@ -37,15 +26,27 @@ import SetGroupedHistory from '../../components/SetGroupedHistory';
 import ActionToast from '../../components/ActionToast';
 
 export default function PracticeScoring() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addSession } = usePracticeHistory();
   const { canAct } = useDoubleClickGuard();
 
+  const PRACTICE_DESCRIPTIVE_LABELS: Record<string, string> = {
+    goal: t('referee.practice.scoring.descriptiveLabels.goal'),
+    irregular_serve: t('referee.practice.scoring.descriptiveLabels.irregularServe'),
+    centerboard: t('referee.practice.scoring.descriptiveLabels.centerboard'),
+    body_touch: t('referee.practice.scoring.descriptiveLabels.bodyTouch'),
+    illegal_defense: t('referee.practice.scoring.descriptiveLabels.illegalDefense'),
+    out: t('referee.practice.scoring.descriptiveLabels.out'),
+    ball_holding: t('referee.practice.scoring.descriptiveLabels.ballHolding'),
+    mask_touch: t('referee.practice.scoring.descriptiveLabels.maskTouch'),
+    penalty: t('referee.practice.scoring.descriptiveLabels.penalty'),
+  };
 
   const matchType = (searchParams.get('type') || 'individual') as 'individual' | 'team';
-  const p1Name = searchParams.get('p1') || '연습선수A';
-  const p2Name = searchParams.get('p2') || '연습선수B';
+  const p1Name = searchParams.get('p1') || t('referee.practice.setup.practicePlayerA');
+  const p2Name = searchParams.get('p2') || t('referee.practice.setup.practicePlayerB');
   const defaultConfig = matchType === 'team'
     ? { SETS_TO_WIN: 1, MAX_SETS: 1, POINTS_TO_WIN: 31, MIN_POINT_DIFF: 2 }
     : { SETS_TO_WIN: 2, MAX_SETS: 3, POINTS_TO_WIN: 11, MIN_POINT_DIFF: 2 };
@@ -72,10 +73,16 @@ export default function PracticeScoring() {
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
   // Coin toss
-  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
+  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
   const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
-  const [showWarmupChoice, setShowWarmupChoice] = useState(false);
+  // Coach
+  const [player1Coach, setPlayer1Coach] = useState('');
+  const [player2Coach, setPlayer2Coach] = useState('');
+
+  // Read coach from URL params (team mode)
+  const t1c = searchParams.get('t1c') || '';
+  const t2c = searchParams.get('t2c') || '';
   // Pause
   const [isPausedLocal, setIsPausedLocal] = useState(false);
   const [rotationInfo, setRotationInfo] = useState('');
@@ -97,16 +104,16 @@ export default function PracticeScoring() {
   // 15초 안내 (타임아웃)
   useEffect(() => {
     if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
-      setLastAction('⚠️ 15초 남았습니다');
-      setAnnouncement('15초 남았습니다');
+      setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
+      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
     if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
-      setLastAction('⚠️ 사이드 체인지 15초 남았습니다');
-      setAnnouncement('15초 남았습니다');
+      setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
+      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
@@ -115,17 +122,17 @@ export default function PracticeScoring() {
     if (warmupTimer.isRunning) {
       if (matchType === 'team') {
         if (warmupTimer.seconds === 60) {
-          setLastAction('⚠️ 30초');
-          setAnnouncement('30초');
+          setLastAction('⚠️ 30');
+          setAnnouncement('30');
         }
         if (warmupTimer.seconds === 30) {
-          setLastAction('⚠️ 30초');
-          setAnnouncement('30초');
+          setLastAction('⚠️ 30');
+          setAnnouncement('30');
         }
       } else {
         if (warmupTimer.seconds === 15) {
-          setLastAction('⚠️ 15초');
-          setAnnouncement('15초');
+          setLastAction('⚠️ 15');
+          setAnnouncement('15');
         }
       }
     }
@@ -173,9 +180,9 @@ export default function PracticeScoring() {
   // Pause
   const handlePause = useCallback(() => {
     if (match.status !== 'in_progress' || isPausedLocal) return;
-    const reason = prompt('일시정지 사유를 입력하세요:\n(예: 부상, 장비 문제, 기타)');
+    const reason = prompt(t('referee.scoring.pausePrompt'));
     if (reason === null) return;
-    const actualReason = reason || '사유 없음';
+    const actualReason = reason || t('referee.scoring.noReason');
     setIsPausedLocal(true);
     setPauseReason(actualReason);
     setPauseElapsed(0);
@@ -259,7 +266,7 @@ export default function PracticeScoring() {
         scoringPlayer: '',
         actionPlayer: rotTeamName,
         actionType: 'player_rotation',
-        actionLabel: nextPlayerName ? `선수 교체: ${prevPlayerName} → ${nextPlayerName} (${rotTeamName})` : `선수 로테이션 (${rotTeamName})`,
+        actionLabel: nextPlayerName ? `${t('common.matchHistory.substitution')}: ${prevPlayerName} → ${nextPlayerName} (${rotTeamName})` : `${t('common.matchHistory.playerRotation')} (${rotTeamName})`,
         points: 0,
         set: ci + 1,
         server: nextServe === 'player1' ? p1Name : p2Name,
@@ -272,7 +279,7 @@ export default function PracticeScoring() {
         ? { team1CurrentPlayerIndex: nextRotIdx }
         : { team2CurrentPlayerIndex: nextRotIdx };
       if (nextPlayerName && prevPlayerName !== nextPlayerName) {
-        rotationAnnounce = `${rotTeamName} 선수 교체: ${prevPlayerName} → ${nextPlayerName}`;
+        rotationAnnounce = `${rotTeamName} ${t('common.matchHistory.substitution')}: ${prevPlayerName} → ${nextPlayerName}`;
         setRotationInfo(rotationAnnounce);
         setTimeout(() => setRotationInfo(''), 4000);
       }
@@ -282,7 +289,7 @@ export default function PracticeScoring() {
       ? [rotationEntry, historyEntry, ...match.scoreHistory]
       : [historyEntry, ...match.scoreHistory];
 
-    addAction({ type: 'score', player: actingPlayer, detail: `${label} (${points}점)` });
+    addAction({ type: 'score', player: actingPlayer, detail: `${label} (${points}${t('common.units.point')})` });
     setScoreFlash(f => f + 1);
 
     const pName = scoringPlayer === 1 ? p1Name : p2Name;
@@ -290,15 +297,15 @@ export default function PracticeScoring() {
     const nextServerName = nextServe === 'player1' ? p1Name : p2Name;
 
     const actionDesc = toOpponent
-      ? `${actorName} ${label.split(' ').slice(1).join(' ')} → ${pName} +${points}점`
-      : `${pName} 골! +${points}점`;
+      ? `${actorName} ${label.split(' ').slice(1).join(' ')} → ${pName} +${points}${t('common.units.point')}`
+      : `${pName} ${t('common.scoreActions.goal')}! +${points}${t('common.units.point')}`;
     setLastAction(rotationAnnounce
       ? `${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2} | ${rotationAnnounce}`
       : `${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2}`);
 
     const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
     const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
-    const announceBase = `${pName} ${points}점. 스코어 ${serverScore} 대 ${receiverScore}. ${nextServerName} ${nextCount + 1}번째 서브`;
+    const announceBase = `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${t('referee.scoring.firstServe', { name: nextServerName })}`;
     setAnnouncement(rotationAnnounce ? `${announceBase}. ${rotationAnnounce}` : announceBase);
 
     // Set winner check with confirmation
@@ -320,10 +327,10 @@ export default function PracticeScoring() {
         if (matchWinner) {
           const winnerName = matchWinner === 1 ? p1Name : p2Name;
           const setWinsCalc = countSetWins(sets, config);
-          setSetEndMessage(`경기 종료!\n\n${winnerName} 승리! (세트 ${setWinsCalc.player1}:${setWinsCalc.player2})\n현재 점수: ${cs.player1Score} - ${cs.player2Score}`);
+          setSetEndMessage(`${winnerName}! (${t('common.units.set')} ${setWinsCalc.player1}:${setWinsCalc.player2})\n${t('common.matchHistory.score')}: ${cs.player1Score} - ${cs.player2Score}`);
         } else {
           const setWinsCalc = countSetWins(sets, config);
-          setSetEndMessage(`세트 ${ci + 1}을(를) 종료하시겠습니까?\n\n현재 점수: ${cs.player1Score} - ${cs.player2Score}\n세트 스코어: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
+          setSetEndMessage(`${t('common.matchHistory.setLabel', { num: ci + 1 })}?\n\n${t('common.matchHistory.score')}: ${cs.player1Score} - ${cs.player2Score}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
         }
         setShowSetEndConfirm(true);
       }, 500);
@@ -402,7 +409,7 @@ export default function PracticeScoring() {
 
     updateMatch({ sets, currentServe, serveCount, scoreHistory: match.scoreHistory.slice(1) });
     const serverAfterUndo = currentServe === 'player1' ? p1Name : p2Name;
-    const msg = `취소됨. ${p1Name} ${cs.player1Score}, ${p2Name} ${cs.player2Score}. ${serverAfterUndo} 서브`;
+    const msg = `${p1Name} ${cs.player1Score}, ${p2Name} ${cs.player2Score}. ${serverAfterUndo} ${t('common.matchHistory.serve')}`;
     setAnnouncement(msg);
     setLastAction(`↩️ ${msg}`);
   }, [match, updateMatch, p1Name, p2Name, matchType]);
@@ -414,7 +421,7 @@ export default function PracticeScoring() {
       serveCount: 0,
     });
     const newServer = match.currentServe === 'player1' ? p2Name : p1Name;
-    setAnnouncement(`서브권 변경: ${newServer}`);
+    setAnnouncement(`${t('common.matchHistory.serve')}: ${newServer}`);
   }, [match, updateMatch, p1Name, p2Name]);
 
   // Dead Ball - 양쪽 모두 가능
@@ -430,7 +437,7 @@ export default function PracticeScoring() {
       scoringPlayer: '',
       actionPlayer: actionName,
       actionType: 'dead_ball',
-      actionLabel: `${actionName} 데드볼 → 재서브`,
+      actionLabel: `${actionName} ${t('common.matchHistory.deadBall', { server: '' })}`,
       points: 0,
       set: ci + 1,
       server: sName,
@@ -440,8 +447,8 @@ export default function PracticeScoring() {
       serverSide: match.currentServe,
     });
     updateMatch({ scoreHistory: [entry, ...match.scoreHistory] });
-    setLastAction(`${actionName} 데드볼 - ${sName} 재서브`);
-    setAnnouncement(`${actionName} 데드볼. ${sName} 재서브`);
+    setLastAction(`${actionName} ${t('common.matchHistory.deadBall', { server: sName })}`);
+    setAnnouncement(`${actionName} ${t('common.matchHistory.deadBall', { server: sName })}`);
   }, [match, updateMatch, p1Name, p2Name]);
 
   const handleSubstitution = useCallback(() => {
@@ -459,7 +466,7 @@ export default function PracticeScoring() {
       scoringPlayer: '',
       actionPlayer: teamName,
       actionType: 'substitution',
-      actionLabel: `선수 교체: ${outName} → ${inName} (${teamName})`,
+      actionLabel: `${t('common.matchHistory.substitution')}: ${outName} → ${inName} (${teamName})`,
       points: 0,
       set: match.currentSet + 1,
       server: match.currentServe === 'player1' ? p1Name : p2Name,
@@ -483,8 +490,8 @@ export default function PracticeScoring() {
     }
     updateMatch(update);
 
-    setLastAction(`${teamName} 선수 교체: ${outName} → ${inName}`);
-    setAnnouncement(`${teamName} 선수 교체. ${outName} 퇴장, ${inName} 입장`);
+    setLastAction(`${teamName} ${t('common.matchHistory.substitution')}: ${outName} → ${inName}`);
+    setAnnouncement(`${teamName} ${t('common.matchHistory.substitution')}. ${outName} → ${inName}`);
     setShowSubModal(false);
     setSubTeam(null);
     setSubOutIdx(null);
@@ -505,7 +512,7 @@ export default function PracticeScoring() {
       if (medUsed >= 1) return;
     }
     const actionType = type === 'player' ? 'timeout_player' : type === 'medical' ? 'timeout_medical' : 'timeout_referee';
-    const actionLabel = type === 'player' ? '선수 타임아웃' : type === 'medical' ? '메디컬 타임아웃' : '레프리 타임아웃';
+    const actionLabel = type === 'player' ? t('referee.scoring.timeoutTitle.player') : type === 'medical' ? t('referee.scoring.timeoutTitle.medical') : t('referee.scoring.timeoutTitle.referee');
     const pName = type === 'referee' ? '' : (player === 1 ? p1Name : p2Name);
     const ci = match.currentSet;
     const cs = match.sets[ci];
@@ -550,7 +557,7 @@ export default function PracticeScoring() {
 
     // penalty_electronic은 즉시 2점
     if (penaltyType === 'penalty_electronic') {
-      const label = `${actorName} 전자기기 소리`;
+      const label = `${actorName} ${t('common.scoreActions.penaltyElectronic')}`;
       handleIBSAScore(actingPlayer, penaltyType, 2, true, label);
       return;
     }
@@ -565,7 +572,7 @@ export default function PracticeScoring() {
       const ci = match.currentSet;
       const cs = match.sets[ci];
       const scoreBefore = { player1: cs?.player1Score ?? 0, player2: cs?.player2Score ?? 0 };
-      const penaltyLabel = penaltyType === 'penalty_table_pushing' ? '테이블 푸싱' : '경기 중 말하기';
+      const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
       const warningEntry = createScoreHistoryEntry({
         scoringPlayer: '',
         actionPlayer: actorName,
@@ -581,33 +588,124 @@ export default function PracticeScoring() {
       });
       warningEntry.penaltyWarning = true;
       updateMatch({ scoreHistory: [warningEntry, ...match.scoreHistory] });
-      setLastAction(`⚠️ ${actorName} ${penaltyLabel} 경고 (1회)`);
-      setAnnouncement(`${actorName} ${penaltyLabel} 경고`);
+      setLastAction(`⚠️ ${actorName} ${t('common.matchHistory.warning', { player: actorName, action: penaltyLabel })}`);
+      setAnnouncement(`${actorName} ${t('common.matchHistory.warning', { player: actorName, action: penaltyLabel })}`);
     } else {
       // 2회 이상: 2점 실점
-      const penaltyLabel = penaltyType === 'penalty_table_pushing' ? '테이블 푸싱' : '경기 중 말하기';
+      const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
       const label = `${actorName} ${penaltyLabel}`;
       handleIBSAScore(actingPlayer, penaltyType, 2, true, label);
     }
   }, [match, canAct, handleIBSAScore, updateMatch, p1Name, p2Name, showSideChange]);
 
+  // Helper: start match with full history entries (matching real match mode)
+  const handleStartPracticeMatch = useCallback((firstServe: 'player1' | 'player2', withWarmup: boolean) => {
+    const winnerName = tossWinner === 'player1' ? p1Name : p2Name;
+    const choiceLabel = firstServe === (tossWinner ?? 'player1') ? t('referee.scoring.serveChoice') : t('referee.scoring.receiveChoice');
+    const serverName = firstServe === 'player1' ? p1Name : p2Name;
+    const now = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const baseMeta = {
+      server: serverName, serveNumber: 1,
+      scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },
+      serverSide: firstServe as 'player1' | 'player2',
+    };
+
+    const coinTossEntry: ScoreHistoryEntry = {
+      time: now(), scoringPlayer: '', actionPlayer: winnerName,
+      actionType: 'coin_toss',
+      actionLabel: t('referee.scoring.coinTossWinner', { winner: winnerName, choice: choiceLabel }),
+      points: 0, set: 1, ...baseMeta,
+    };
+
+    // Effective coach values (team mode uses URL params, individual uses local state)
+    const c1 = matchType === 'team' ? t1c : player1Coach;
+    const c2 = matchType === 'team' ? t2c : player2Coach;
+
+    const coachEntries: ScoreHistoryEntry[] = [];
+    if (c1 || c2) {
+      const coachInfo = [c1 ? `${p1Name}: ${c1}` : '', c2 ? `${p2Name}: ${c2}` : ''].filter(Boolean).join(', ');
+      coachEntries.push({
+        time: now(), scoringPlayer: '', actionPlayer: '', actionType: 'match_start',
+        actionLabel: coachInfo, points: 0, set: 1, ...baseMeta,
+      });
+    }
+
+    const matchStartEntry: ScoreHistoryEntry = {
+      time: now(), scoringPlayer: '', actionPlayer: '', actionType: 'match_start',
+      actionLabel: t('referee.scoring.matchStartLabel'), points: 0, set: 1, ...baseMeta,
+    };
+
+    const warmupEntries: ScoreHistoryEntry[] = [];
+    if (withWarmup) {
+      const warmupDuration = matchType === 'team' ? 90 : 60;
+      warmupEntries.push({
+        time: now(), scoringPlayer: '', actionPlayer: '', actionType: 'warmup_start',
+        actionLabel: `${t('referee.scoring.warmupStart')} (${warmupDuration}${t('common.time.seconds')})`, points: 0, set: 1, ...baseMeta,
+      });
+    }
+
+    startMatch(firstServe);
+    updateMatch({
+      scoreHistory: [...warmupEntries, matchStartEntry, ...coachEntries, coinTossEntry],
+      warmupUsed: withWarmup,
+      coinTossWinner: tossWinner === 'player1' ? 'team1' : 'team2',
+      coinTossChoice: firstServe === (tossWinner ?? 'player1') ? 'serve' : 'receive',
+      player1Coach: c1 || undefined,
+      player2Coach: c2 || undefined,
+    });
+
+    if (withWarmup) {
+      warmupTimer.start(matchType === 'team' ? 90 : 60);
+      setShowWarmup(true);
+    }
+  }, [tossWinner, p1Name, p2Name, matchType, player1Coach, player2Coach, t1c, t2c, startMatch, updateMatch, warmupTimer]);
+
   // ===== PENDING =====
   if (match.status === 'pending') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 p-4">
-        <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>연습 경기</h1>
+        <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>{t('referee.practice.home.title')}</h1>
         <div className="flex items-center gap-8 text-2xl">
           <span className="text-yellow-400 font-bold">{p1Name}</span>
           <span className="text-gray-400">vs</span>
           <span className="text-cyan-400 font-bold">{p2Name}</span>
         </div>
         <p className="text-gray-400">
-          {matchType === 'team' ? '31점 단판 | 서브 3회 교대' : `${config.POINTS_TO_WIN}점 | ${config.SETS_TO_WIN}세트 선승`}
+          {matchType === 'team' ? t('referee.practice.scoring.rulesDisplayTeam') : t('referee.practice.scoring.rulesDisplay', { points: config.POINTS_TO_WIN, setsToWin: config.SETS_TO_WIN })}
         </p>
 
-        {!showWarmupChoice && coinTossStep === 'toss' && (
+        {/* {t('referee.practice.setup.coachOptional')} (개인전만 - 팀전은 설정에서 입력) */}
+        {matchType === 'individual' && coinTossStep === 'toss' && (
+          <div className="card w-full max-w-md space-y-3">
+            <h2 className="text-lg font-bold text-center text-gray-300">{t('referee.practice.setup.coachOptional')}</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-yellow-400 mb-1">{p1Name} {t('referee.practice.setup.coachOptional')}</label>
+                <input
+                  type="text"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                  placeholder={t('referee.practice.setup.coachAriaLabel')}
+                  value={player1Coach}
+                  onChange={e => setPlayer1Coach(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-cyan-400 mb-1">{p2Name} {t('referee.practice.setup.coachOptional')}</label>
+                <input
+                  type="text"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                  placeholder={t('referee.practice.setup.coachAriaLabel')}
+                  value={player2Coach}
+                  onChange={e => setPlayer2Coach(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {coinTossStep === 'toss' && (
           <div className="card w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-center">동전던지기 승자</h2>
+            <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
             <div className="flex gap-4">
               <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player1'); setCoinTossStep('choice'); }}>
                 {p1Name}
@@ -618,51 +716,45 @@ export default function PracticeScoring() {
             </div>
           </div>
         )}
-        {!showWarmupChoice && coinTossStep === 'choice' && tossWinner && (
+        {coinTossStep === 'choice' && tossWinner && (
           <div className="card w-full max-w-md space-y-4">
             <h2 className="text-xl font-bold text-center">
-              {tossWinner === 'player1' ? p1Name : p2Name} 승리!
+              {tossWinner === 'player1' ? p1Name : p2Name} !
             </h2>
-            <p className="text-gray-400 text-center">서브 또는 리시브를 선택하세요</p>
+            <p className="text-gray-400 text-center">{t('referee.scoring.serveChoice')} / {t('referee.scoring.receiveChoice')}</p>
             <div className="flex gap-4">
-              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setShowWarmupChoice(true); setCoinTossStep('toss'); }}>
-                🎾 서브
+              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setCoinTossStep('warmup_ask'); }} aria-label={`${tossWinner === 'player1' ? p1Name : p2Name} ${t('referee.scoring.serveChoice')}`}>
+                {t('referee.scoring.serveChoice')}
               </button>
-              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setShowWarmupChoice(true); setCoinTossStep('toss'); }}>
-                🏓 리시브
+              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setCoinTossStep('warmup_ask'); }} aria-label={`${tossWinner === 'player1' ? p1Name : p2Name} ${t('referee.scoring.receiveChoice')}`}>
+                {t('referee.scoring.receiveChoice')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }}>
-              다시 선택
+            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('referee.practice.scoring.coinTossBackAriaLabel')} style={{ minHeight: '44px' }}>
+              {t('common.back')}
             </button>
           </div>
         )}
-
-        {showWarmupChoice && pendingFirstServe && (
+        {coinTossStep === 'warmup_ask' && pendingFirstServe && (
           <div className="card w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-center">워밍업</h2>
-            <p className="text-gray-400 text-center">{matchType === 'team' ? '90초' : '60초'} 워밍업을 진행하시겠습니까?</p>
+            <h2 className="text-xl font-bold text-center">{t('referee.scoring.warmupStart')}</h2>
+            <p className="text-gray-400 text-center">{t('referee.practice.scoring.coinTossWarmupAsk', { duration: matchType === 'team' ? `90${t('common.time.seconds')}` : `60${t('common.time.seconds')}` })}</p>
             <div className="flex gap-4">
               <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => {
-                startMatch(pendingFirstServe);
-                updateMatch({ warmupUsed: true });
-                warmupTimer.start(matchType === 'team' ? 90 : 60);
-                setShowWarmup(true);
-                setShowWarmupChoice(false);
+                handleStartPracticeMatch(pendingFirstServe, true);
               }}>
-                🔥 워밍업 시작
+                {t('referee.scoring.warmupStart')}
               </button>
               <button className="btn btn-secondary btn-large flex-1 text-xl py-6" onClick={() => {
-                startMatch(pendingFirstServe);
-                setShowWarmupChoice(false);
+                handleStartPracticeMatch(pendingFirstServe, false);
               }}>
-                건너뛰기
+                {t('referee.scoring.matchStartLabel')}
               </button>
             </div>
           </div>
         )}
 
-        <button className="btn btn-accent" onClick={() => navigate('/referee/practice/setup')}>설정으로</button>
+        <button className="btn btn-accent" onClick={() => navigate('/referee/practice/setup')}>{t('common.back')}</button>
       </div>
     );
   }
@@ -673,22 +765,22 @@ export default function PracticeScoring() {
     const setWins = countSetWins(match.sets, config);
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 p-4">
-        <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>연습 경기 종료</h1>
-        <div className="text-4xl font-bold text-green-400" role="status" aria-live="assertive">🏆 {winnerName} 승리!</div>
-        <div className="text-2xl text-gray-300" aria-label={`세트 스코어 ${setWins.player1} 대 ${setWins.player2}`}>세트 스코어: {setWins.player1} - {setWins.player2}</div>
+        <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>{t('referee.practice.scoring.matchEnd')} - {t('referee.practice.home.title')}</h1>
+        <div className="text-4xl font-bold text-green-400" role="status" aria-live="assertive">🏆 {winnerName} !</div>
+        <div className="text-2xl text-gray-300" aria-label={t('referee.practice.scoring.setScoreAriaLabel', { p1: setWins.player1, p2: setWins.player2 })}>{t('referee.practice.scoring.setScoreResult', { p1: setWins.player1, p2: setWins.player2 })}</div>
         {match.sets.map((s: SetScore, i: number) => {
           const winner = s.player1Score > s.player2Score ? p1Name : p2Name;
           return (
             <div key={i} className="text-lg text-gray-400">
-              세트 {i + 1}: {s.player1Score} - {s.player2Score} ({winner} 승)
+              {t('referee.practice.scoring.setResultDetail', { num: i + 1, p1Score: s.player1Score, p2Score: s.player2Score, winner })}
             </div>
           );
         })}
-        <p className="text-gray-400">총 조작: {match.actionLog.length}회 | 소요시간: {Math.floor((match.completedAt! - match.startedAt) / 1000)}초</p>
+        <p className="text-gray-400">{t('referee.practice.scoring.totalActions', { count: match.actionLog.length, seconds: Math.floor((match.completedAt! - match.startedAt) / 1000) })}</p>
 
         {match.scoreHistory.length > 0 && (
           <div className="w-full max-w-lg">
-            <h3 className="text-lg font-bold text-gray-300 mb-2">경기 기록 ({match.scoreHistory.length})</h3>
+            <h3 className="text-lg font-bold text-gray-300 mb-2">{t('referee.practice.scoring.historyToggle', { count: match.scoreHistory.length })}</h3>
             <div className="max-h-60 overflow-y-auto">
               <SetGroupedHistory history={match.scoreHistory} sets={match.sets} showAll />
             </div>
@@ -696,8 +788,8 @@ export default function PracticeScoring() {
         )}
 
         <div className="flex gap-4">
-          <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/practice/setup')}>다시 하기</button>
-          <button className="btn btn-secondary btn-large" onClick={() => navigate('/referee/practice')}>홈으로</button>
+          <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/practice/setup')}>{t('referee.practice.home.startPractice')}</button>
+          <button className="btn btn-secondary btn-large" onClick={() => navigate('/referee/practice')}>{t('common.home')}</button>
         </div>
       </div>
     );
@@ -731,47 +823,47 @@ export default function PracticeScoring() {
       {/* Warmup Timer Modal */}
       {showWarmup && warmupTimer.isRunning && (
         <TimerModal
-          title="🔥 워밍업"
+          title={`🔥 ${t('referee.practice.scoring.warmupTitle')}`}
           seconds={warmupTimer.seconds}
           isWarning={warmupTimer.isWarning}
-          subtitle={matchType === 'team' ? '팀전 워밍업 (90초)' : '개인전 워밍업 (60초)'}
+          subtitle={matchType === 'team' ? `${t('referee.home.teamMatch')} (90${t('common.time.seconds')})` : `${t('referee.practice.setup.individual')} (60${t('common.time.seconds')})`}
           onClose={() => { warmupTimer.stop(); setShowWarmup(false); }}
-          closeLabel="워밍업 종료"
+          closeLabel={t('referee.practice.scoring.warmupEnd')}
         />
       )}
 
       {/* Side Change Timer */}
       {showSideChange && (
         <TimerModal
-          title="사이드 체인지!"
+          title={t('referee.practice.scoring.sideChangeTitle')}
           seconds={sideChangeTimer.seconds}
           isWarning={sideChangeTimer.isWarning}
-          subtitle="1분 휴식"
+          subtitle={t('referee.practice.scoring.sideChangeSubtitle')}
           onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); }}
-          closeLabel="확인"
+          closeLabel={t('referee.practice.scoring.confirmButton')}
         />
       )}
 
       {/* Timeout Modal */}
       {match.activeTimeout && (timeoutTimer.isRunning || match.activeTimeout.type === 'referee') && (
         <TimerModal
-          title={match.activeTimeout.type === 'medical' ? '🏥 메디컬 타임아웃' : match.activeTimeout.type === 'referee' ? '🟨 레프리 타임아웃' : '⏱️ 선수 타임아웃'}
+          title={match.activeTimeout.type === 'medical' ? `🏥 ${t('referee.scoring.timeoutTitle.medical')}` : match.activeTimeout.type === 'referee' ? `🟨 ${t('referee.scoring.timeoutTitle.referee')}` : `⏱️ ${t('referee.scoring.timeoutTitle.player')}`}
           seconds={timeoutTimer.seconds}
           isWarning={timeoutTimer.isWarning}
-          subtitle={match.activeTimeout.type === 'referee' ? '수동 종료' : undefined}
+          subtitle={match.activeTimeout.type === 'referee' ? '' : undefined}
           onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); }}
-          closeLabel="타임아웃 종료"
+          closeLabel={t('referee.practice.scoring.timeoutEndButton')}
         />
       )}
 
       {/* Substitution Modal */}
       {showSubModal && subTeam && (
         <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape') { setShowSubModal(false); setSubTeam(null); setSubOutIdx(null); setSubInIdx(null); } }}>
-          <div ref={subModalTrapRef} className="flex flex-col items-center gap-4 p-6 max-w-sm w-full" role="dialog" aria-modal="true" aria-label="선수 교체">
-            <h2 className="text-xl font-bold text-yellow-400">{subTeam === 1 ? p1Name : p2Name} 선수 교체</h2>
+          <div ref={subModalTrapRef} className="flex flex-col items-center gap-4 p-6 max-w-sm w-full" role="dialog" aria-modal="true" aria-label={t('referee.practice.scoring.substitutionModal')}>
+            <h2 className="text-xl font-bold text-yellow-400">{t('referee.practice.scoring.playerSubstitution', { name: subTeam === 1 ? p1Name : p2Name })}</h2>
             <div className="w-full space-y-3">
               <div>
-                <p className="text-sm text-gray-400 mb-2">교체할 선수 (출전 중)</p>
+                <p className="text-sm text-gray-400 mb-2">{t('referee.practice.scoring.selectOutPlayer')}</p>
                 <div className="flex flex-col gap-1">
                   {(subTeam === 1 ? match.team1Members : match.team2Members)?.slice(0, 3).map((name, i) => (
                     <button key={i} className={`btn text-left py-2 px-3 ${subOutIdx === i ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white'}`} aria-pressed={subOutIdx === i} onClick={() => setSubOutIdx(i)}>
@@ -781,7 +873,7 @@ export default function PracticeScoring() {
                 </div>
               </div>
               <div>
-                <p className="text-sm text-gray-400 mb-2">투입할 선수 (예비)</p>
+                <p className="text-sm text-gray-400 mb-2">{t('referee.practice.scoring.selectInPlayer')}</p>
                 <div className="flex flex-col gap-1">
                   {(subTeam === 1 ? match.team1Members : match.team2Members)?.slice(3).map((name, i) => (
                     <button key={i} className={`btn text-left py-2 px-3 ${subInIdx === i ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white'}`} aria-pressed={subInIdx === i} onClick={() => setSubInIdx(i)}>
@@ -792,8 +884,8 @@ export default function PracticeScoring() {
               </div>
             </div>
             <div className="flex gap-3 w-full">
-              <button className="btn btn-success flex-1" onClick={handleSubstitution} disabled={subOutIdx === null || subInIdx === null}>교체 확인</button>
-              <button className="btn btn-secondary flex-1" onClick={() => { setShowSubModal(false); setSubTeam(null); setSubOutIdx(null); setSubInIdx(null); }}>취소</button>
+              <button className="btn btn-success flex-1" onClick={handleSubstitution} disabled={subOutIdx === null || subInIdx === null}>{t('referee.practice.scoring.confirmSubstitution')}</button>
+              <button className="btn btn-secondary flex-1" onClick={() => { setShowSubModal(false); setSubTeam(null); setSubOutIdx(null); setSubInIdx(null); }}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>
@@ -802,12 +894,12 @@ export default function PracticeScoring() {
       {/* Set End Confirmation */}
       {showSetEndConfirm && (
         <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape') handleCancelSetEnd(); }}>
-          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm" role="dialog" aria-modal="true" aria-label="세트 종료 확인">
-            <h2 className="text-2xl font-bold text-yellow-400">세트 종료 확인</h2>
+          <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm" role="dialog" aria-modal="true" aria-label={t('referee.practice.scoring.setEndConfirm')}>
+            <h2 className="text-2xl font-bold text-yellow-400">{t('referee.practice.scoring.setEndConfirm')}</h2>
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
-              <button className="btn btn-success btn-large flex-1" onClick={handleConfirmSetEnd}>확인</button>
-              <button className="btn btn-secondary btn-large flex-1" onClick={handleCancelSetEnd}>취소</button>
+              <button className="btn btn-success btn-large flex-1" onClick={handleConfirmSetEnd}>{t('common.confirm')}</button>
+              <button className="btn btn-secondary btn-large flex-1" onClick={handleCancelSetEnd}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>
@@ -815,41 +907,41 @@ export default function PracticeScoring() {
 
       {/* Pause Banner */}
       {isPausedLocal && (
-        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between" role="status" aria-live="polite" aria-label="경기 일시정지 중">
+        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between" role="status" aria-live="polite" aria-label={t('referee.practice.scoring.matchPaused')}>
           <div>
-            <span className="text-orange-300 font-bold">⏸️ 경기 일시정지</span>
-            <span className="text-orange-200 ml-3" aria-label={`경과 시간 ${Math.floor(pauseElapsed / 60)}분 ${pauseElapsed % 60}초`}>
+            <span className="text-orange-300 font-bold">⏸️ {t('referee.practice.scoring.matchPaused')}</span>
+            <span className="text-orange-200 ml-3" aria-label={`${t('referee.scoring.elapsedTime')} ${Math.floor(pauseElapsed / 60)}${t('common.time.minutes')} ${pauseElapsed % 60}${t('common.time.seconds')}`}>
               {Math.floor(pauseElapsed / 60)}:{(pauseElapsed % 60).toString().padStart(2, '0')}
             </span>
             {pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({pauseReason})</span>}
           </div>
-          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label="경기 재개">▶ 재개</button>
+          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label={t('referee.practice.scoring.resumeAriaLabel')}>▶ {t('referee.practice.scoring.resumeButton')}</button>
         </div>
       )}
 
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/practice')} aria-label="연습 홈으로 돌아가기">← 연습 홈</button>
+          <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/practice')} aria-label={`${t('referee.practice.scoring.practiceHome')} ${t('common.back')}`}>← {t('referee.practice.scoring.practiceHome')}</button>
           <div className="text-center">
             <h1 className="text-lg font-bold" style={{ color: '#c084fc' }}>
-              {matchType === 'team' ? '팀전 31점' : `세트 ${ci + 1}/${config.MAX_SETS}`}
+              {matchType === 'team' ? t('referee.home.teamMatch') : `${t('common.matchHistory.setLabel', { num: ci + 1 })}/${config.MAX_SETS}`}
             </h1>
             {matchType === 'individual' && (
-              <div className="text-sm text-gray-400" aria-label={`세트 스코어 ${setWins.player1} 대 ${setWins.player2}`}>세트 스코어: {setWins.player1} - {setWins.player2}</div>
+              <div className="text-sm text-gray-400" aria-label={t('referee.practice.scoring.setScoreAriaLabel', { p1: setWins.player1, p2: setWins.player2 })}>{t('referee.practice.scoring.setScoreResult', { p1: setWins.player1, p2: setWins.player2 })}</div>
             )}
           </div>
-          <div className="text-sm text-gray-400">연습</div>
+          <div className="text-sm text-gray-400">{t('referee.practice.scoring.practiceLabel')}</div>
         </div>
       </div>
 
       {/* Serve */}
-      <div className="bg-blue-900/50 px-4 py-2 text-center" role="status" aria-label={`${serverName} 서브 ${match.serveCount + 1}/${maxServes}회차`}>
+      <div className="bg-blue-900/50 px-4 py-2 text-center" role="status" aria-label={t('referee.practice.scoring.serveInfo', { name: serverName, current: match.serveCount + 1, max: maxServes })}>
         <span className="text-blue-300 font-semibold">
-          🎾 {serverName} 서브 {match.serveCount + 1}/{maxServes}회차
+          🎾 {t('referee.practice.scoring.serveInfo', { name: serverName, current: match.serveCount + 1, max: maxServes })}
         </span>
-        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label="서브권 수동 변경" style={{ minHeight: '44px', minWidth: '44px' }}>
-          서브권 변경
+        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label={t('referee.practice.scoring.changeServeAriaLabel')} style={{ minHeight: '44px', minWidth: '44px' }}>
+          {t('referee.practice.scoring.changeServe')}
         </button>
       </div>
 
@@ -873,11 +965,14 @@ export default function PracticeScoring() {
 
       {/* Score display - server on left */}
       <div className="flex border-b border-gray-700" aria-live="polite">
-        <div className="flex-1 flex flex-col items-center py-4 px-2 border-r border-gray-700">
+        <div className="flex-1 flex flex-col items-center py-4 px-2 border-r border-gray-700" style={{ border: isFlipped ? undefined : '3px solid rgba(234,179,8,0.3)', borderRadius: 0 }}>
           <h2 className={`text-xl font-bold ${leftColor}`}>
             🎾 {leftName}
           </h2>
-          <div key={`left-${scoreFlash}`} className={`text-7xl font-bold my-2 ${leftColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${leftName} ${leftScore}점`}>
+          {(isFlipped ? match.player2Coach : match.player1Coach) && (
+            <span className="text-xs text-gray-400">{t('referee.practice.setup.coachOptional')}: {isFlipped ? match.player2Coach : match.player1Coach}</span>
+          )}
+          <div key={`left-${scoreFlash}`} className={`text-7xl font-bold my-2 ${leftColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${leftName} ${leftScore}${t('common.units.point')}`}>
             {leftScore}
           </div>
         </div>
@@ -885,7 +980,10 @@ export default function PracticeScoring() {
           <h2 className={`text-xl font-bold ${rightColor}`}>
             {rightName}
           </h2>
-          <div key={`right-${scoreFlash}`} className={`text-7xl font-bold my-2 ${rightColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${rightName} ${rightScore}점`}>
+          {(isFlipped ? match.player1Coach : match.player2Coach) && (
+            <span className="text-xs text-gray-400">{t('referee.practice.setup.coachOptional')}: {isFlipped ? match.player1Coach : match.player2Coach}</span>
+          )}
+          <div key={`right-${scoreFlash}`} className={`text-7xl font-bold my-2 ${rightColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${rightName} ${rightScore}${t('common.units.point')}`}>
             {rightScore}
           </div>
         </div>
@@ -904,69 +1002,69 @@ export default function PracticeScoring() {
           <button
             className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} 골`)}
-            aria-label={`${p1Name} 골 득점. ${p1Name}에게 2점 추가`}
+            onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} ${t('common.scoreActions.goal')}`)}
+            aria-label={t('referee.practice.scoring.goalAriaLabel', { name: p1Name })}
           >
-            ⚽ {p1Name} 골 득점<br/>
-            <span className="text-xs opacity-75">→ {p1Name} +2점</span>
+            ⚽ {t('referee.practice.scoring.goalButton', { name: p1Name })}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.goalPoints', { name: p1Name })}</span>
           </button>
           <button
             className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} 골`)}
-            aria-label={`${p2Name} 골 득점. ${p2Name}에게 2점 추가`}
+            onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} ${t('common.scoreActions.goal')}`)}
+            aria-label={t('referee.practice.scoring.goalAriaLabel', { name: p2Name })}
           >
-            ⚽ {p2Name} 골 득점<br/>
-            <span className="text-xs opacity-75">→ {p2Name} +2점</span>
+            ⚽ {t('referee.practice.scoring.goalButton', { name: p2Name })}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.goalPoints', { name: p2Name })}</span>
           </button>
         </div>
 
         {/* Fouls */}
-        <div className="text-center text-xs text-gray-400 font-semibold">파울 (상대에게 +1점)</div>
+        <div className="text-center text-xs text-gray-400 font-semibold">{t('referee.practice.scoring.foulSection')}</div>
         {foulActions.map(action => (
           <div key={action.type} className="grid grid-cols-2 gap-2">
             <button
               className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (action.type === 'irregular_serve' && match.currentServe !== 'player1')}
               onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
-              aria-label={`${p1Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p2Name}에게 1점 추가`}
+              aria-label={t('referee.practice.scoring.foulAriaLabel', { name: p1Name, action: PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label, opponent: p2Name, points: action.points })}
             >
               🟡 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
-              <span className="text-xs opacity-75">→ {p2Name} +1점</span>
+              <span className="text-xs opacity-75">{t('referee.practice.scoring.foulPoints', { opponent: p2Name, points: action.points })}</span>
             </button>
             <button
               className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (action.type === 'irregular_serve' && match.currentServe !== 'player2')}
               onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
-              aria-label={`${p2Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p1Name}에게 1점 추가`}
+              aria-label={t('referee.practice.scoring.foulAriaLabel', { name: p2Name, action: PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label, opponent: p1Name, points: action.points })}
             >
               🟡 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
-              <span className="text-xs opacity-75">→ {p1Name} +1점</span>
+              <span className="text-xs opacity-75">{t('referee.practice.scoring.foulPoints', { opponent: p1Name, points: action.points })}</span>
             </button>
           </div>
         ))}
 
         {/* Penalties (경고/실점) */}
-        <div className="text-center text-xs text-gray-400 font-semibold">벌점 (경고/실점)</div>
+        <div className="text-center text-xs text-gray-400 font-semibold">{t('referee.practice.scoring.penaltySection')}</div>
         {/* penalty_table_pushing: 1회 경고 → 2회 2점 */}
         <div className="grid grid-cols-2 gap-2">
           <button
             className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handlePenalty(1, 'penalty_table_pushing')}
-            aria-label={`${p1Name} 테이블 푸싱. 1회 경고, 2회 ${p2Name}에게 2점`}
+            aria-label={t('referee.practice.scoring.penaltyTalkingAriaLabel', { name: p1Name, opponent: p2Name })}
           >
-            🔴 {p1Name} 테이블 푸싱<br/>
-            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+            🔴 {p1Name} {t('common.scoreActions.penaltyTablePushing')}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.penaltyWarningInfo')}</span>
           </button>
           <button
             className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handlePenalty(2, 'penalty_table_pushing')}
-            aria-label={`${p2Name} 테이블 푸싱. 1회 경고, 2회 ${p1Name}에게 2점`}
+            aria-label={t('referee.practice.scoring.penaltyTalkingAriaLabel', { name: p2Name, opponent: p1Name })}
           >
-            🔴 {p2Name} 테이블 푸싱<br/>
-            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+            🔴 {p2Name} {t('common.scoreActions.penaltyTablePushing')}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.penaltyWarningInfo')}</span>
           </button>
         </div>
         {/* penalty_electronic: 즉시 2점 */}
@@ -975,19 +1073,19 @@ export default function PracticeScoring() {
             className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handlePenalty(1, 'penalty_electronic')}
-            aria-label={`${p1Name} 전자기기 소리. ${p2Name}에게 즉시 2점`}
+            aria-label={t('referee.practice.scoring.penaltyElectronicAriaLabel', { name: p1Name, action: t('common.scoreActions.penaltyElectronic'), opponent: p2Name })}
           >
-            🔴 {p1Name} 전자기기 소리<br/>
-            <span className="text-xs opacity-75">→ {p2Name} 즉시 +2점</span>
+            🔴 {p1Name} {t('common.scoreActions.penaltyElectronic')}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.penaltyElectronicPoints', { opponent: p2Name })}</span>
           </button>
           <button
             className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handlePenalty(2, 'penalty_electronic')}
-            aria-label={`${p2Name} 전자기기 소리. ${p1Name}에게 즉시 2점`}
+            aria-label={t('referee.practice.scoring.penaltyElectronicAriaLabel', { name: p2Name, action: t('common.scoreActions.penaltyElectronic'), opponent: p1Name })}
           >
-            🔴 {p2Name} 전자기기 소리<br/>
-            <span className="text-xs opacity-75">→ {p1Name} 즉시 +2점</span>
+            🔴 {p2Name} {t('common.scoreActions.penaltyElectronic')}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.penaltyElectronicPoints', { opponent: p1Name })}</span>
           </button>
         </div>
         {/* penalty_talking: 1회 경고 → 2회 2점 */}
@@ -996,19 +1094,19 @@ export default function PracticeScoring() {
             className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handlePenalty(1, 'penalty_talking')}
-            aria-label={`${p1Name} 경기 중 말하기. 1회 경고, 2회 ${p2Name}에게 2점`}
+            aria-label={t('referee.practice.scoring.penaltyTalkingAriaLabel', { name: p1Name, opponent: p2Name })}
           >
-            🔴 {p1Name} 경기 중 말하기<br/>
-            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+            🔴 {t('referee.practice.scoring.penaltyTalkingButton', { name: p1Name })}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.penaltyWarningInfo')}</span>
           </button>
           <button
             className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
             onClick={() => handlePenalty(2, 'penalty_talking')}
-            aria-label={`${p2Name} 경기 중 말하기. 1회 경고, 2회 ${p1Name}에게 2점`}
+            aria-label={t('referee.practice.scoring.penaltyTalkingAriaLabel', { name: p2Name, opponent: p1Name })}
           >
-            🔴 {p2Name} 경기 중 말하기<br/>
-            <span className="text-xs opacity-75">1회 경고 → 2회 +2점</span>
+            🔴 {t('referee.practice.scoring.penaltyTalkingButton', { name: p2Name })}<br/>
+            <span className="text-xs opacity-75">{t('referee.practice.scoring.penaltyWarningInfo')}</span>
           </button>
         </div>
         {/* mask_touch는 기존 penaltyActions에서 별도 처리 */}
@@ -1018,19 +1116,19 @@ export default function PracticeScoring() {
               className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
               onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
-              aria-label={`${p1Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p2Name}에게 ${action.points}점 추가`}
+              aria-label={t('referee.practice.scoring.foulAriaLabel', { name: p1Name, action: PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label, opponent: p2Name, points: action.points })}
             >
               🔴 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
-              <span className="text-xs opacity-75">→ {p2Name} +{action.points}점</span>
+              <span className="text-xs opacity-75">{t('referee.practice.scoring.foulPoints', { opponent: p2Name, points: action.points })}</span>
             </button>
             <button
               className="btn bg-red-900/80 hover:bg-red-800 text-red-100 text-sm py-3 rounded-lg"
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
               onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
-              aria-label={`${p2Name} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}. ${p1Name}에게 ${action.points}점 추가`}
+              aria-label={t('referee.practice.scoring.foulAriaLabel', { name: p2Name, action: PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label, opponent: p1Name, points: action.points })}
             >
               🔴 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
-              <span className="text-xs opacity-75">→ {p1Name} +{action.points}점</span>
+              <span className="text-xs opacity-75">{t('referee.practice.scoring.foulPoints', { opponent: p1Name, points: action.points })}</span>
             </button>
           </div>
         ))}
@@ -1041,10 +1139,10 @@ export default function PracticeScoring() {
             className="text-sm text-gray-400 underline mb-2"
             onClick={() => setShowHistory(!showHistory)}
             aria-expanded={showHistory}
-            aria-label={showHistory ? '경기 기록 닫기' : `경기 기록 열기, ${match.scoreHistory.length}건`}
+            aria-label={showHistory ? t('common.matchHistory.title') : t('common.matchHistory.titleWithCount', { count: match.scoreHistory.length })}
             style={{ minHeight: '44px' }}
           >
-            {showHistory ? '▲ 경기 기록 닫기' : `▼ 경기 기록 (${match.scoreHistory.length})`}
+            {showHistory ? `▲ ${t('referee.practice.scoring.historyClose')}` : `▼ ${t('referee.practice.scoring.historyToggle', { count: match.scoreHistory.length })}`}
           </button>
           {showHistory && match.scoreHistory.length > 0 && (
             <div className="max-h-48 overflow-y-auto">
@@ -1061,9 +1159,9 @@ export default function PracticeScoring() {
             className="btn btn-danger flex-1 py-3"
             onClick={handleUndo}
             disabled={match.scoreHistory.length === 0}
-            aria-label="마지막 점수 취소"
+            aria-label={t('referee.practice.scoring.undoAriaLabel')}
           >
-            ↩️ 취소
+            ↩️ {t('referee.practice.scoring.undoButton')}
           </button>
         </div>
         {/* 타임아웃 (3종류) */}
@@ -1074,19 +1172,19 @@ export default function PracticeScoring() {
               className="btn btn-secondary flex-1 py-2 text-sm"
               onClick={() => handleTimeout(1, 'player')}
               disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
-              aria-label={`${p1Name} 선수 타임아웃 (1분), 남은 횟수 ${1 - match.player1Timeouts}회`}
+              aria-label={t('referee.practice.scoring.playerTimeoutAriaLabel', { name: p1Name, remaining: 1 - match.player1Timeouts })}
             >
-              ⏱️ {p1Name} 선수 타임아웃
-              <span className="block text-xs opacity-75">1분 | 남은: {1 - match.player1Timeouts}</span>
+              ⏱️ {t('referee.practice.scoring.playerTimeoutButton', { name: p1Name })}
+              <span className="block text-xs opacity-75">{t('referee.practice.scoring.playerTimeoutInfo', { remaining: 1 - match.player1Timeouts })}</span>
             </button>
             <button
               className="btn btn-secondary flex-1 py-2 text-sm"
               onClick={() => handleTimeout(2, 'player')}
               disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
-              aria-label={`${p2Name} 선수 타임아웃 (1분), 남은 횟수 ${1 - match.player2Timeouts}회`}
+              aria-label={t('referee.practice.scoring.playerTimeoutAriaLabel', { name: p2Name, remaining: 1 - match.player2Timeouts })}
             >
-              ⏱️ {p2Name} 선수 타임아웃
-              <span className="block text-xs opacity-75">1분 | 남은: {1 - match.player2Timeouts}</span>
+              ⏱️ {t('referee.practice.scoring.playerTimeoutButton', { name: p2Name })}
+              <span className="block text-xs opacity-75">{t('referee.practice.scoring.playerTimeoutInfo', { remaining: 1 - match.player2Timeouts })}</span>
             </button>
           </div>
           {/* 메디컬 타임아웃 (5분, 1회) */}
@@ -1099,19 +1197,19 @@ export default function PracticeScoring() {
                   className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
                   onClick={() => handleTimeout(1, 'medical')}
                   disabled={!!match.activeTimeout || med1 >= 1}
-                  aria-label={`${p1Name} 메디컬 타임아웃 (5분)`}
+                  aria-label={t('referee.practice.scoring.medicalTimeoutAriaLabel', { name: p1Name })}
                 >
-                  🏥 {p1Name} 메디컬
-                  <span className="block text-xs opacity-75">{med1 >= 1 ? '사용완료' : '5분 | 1회'}</span>
+                  🏥 {t('referee.practice.scoring.medicalTimeoutButton', { name: p1Name })}
+                  <span className="block text-xs opacity-75">{med1 >= 1 ? '-' : t('referee.practice.scoring.medicalTimeoutInfo')}</span>
                 </button>
                 <button
                   className="btn flex-1 bg-teal-800 hover:bg-teal-700 text-white py-2 text-sm"
                   onClick={() => handleTimeout(2, 'medical')}
                   disabled={!!match.activeTimeout || med2 >= 1}
-                  aria-label={`${p2Name} 메디컬 타임아웃 (5분)`}
+                  aria-label={t('referee.practice.scoring.medicalTimeoutAriaLabel', { name: p2Name })}
                 >
-                  🏥 {p2Name} 메디컬
-                  <span className="block text-xs opacity-75">{med2 >= 1 ? '사용완료' : '5분 | 1회'}</span>
+                  🏥 {t('referee.practice.scoring.medicalTimeoutButton', { name: p2Name })}
+                  <span className="block text-xs opacity-75">{med2 >= 1 ? '-' : t('referee.practice.scoring.medicalTimeoutInfo')}</span>
                 </button>
               </div>
             );
@@ -1121,10 +1219,10 @@ export default function PracticeScoring() {
             className="btn bg-yellow-800 hover:bg-yellow-700 text-white py-2 text-sm w-full"
             onClick={() => handleTimeout(1, 'referee')}
             disabled={!!match.activeTimeout}
-            aria-label="레프리 타임아웃 (제한없음)"
+            aria-label={t('referee.practice.scoring.refereeTimeoutAriaLabel')}
           >
-            🟨 레프리 타임아웃
-            <span className="block text-xs opacity-75">제한없음 (수동 종료)</span>
+            🟨 {t('referee.practice.scoring.refereeTimeoutButton')}
+            <span className="block text-xs opacity-75">{t('referee.practice.scoring.refereeTimeoutInfo')}</span>
           </button>
         </div>
         {/* Dead Ball (양쪽) + Substitution + Pause */}
@@ -1134,9 +1232,9 @@ export default function PracticeScoring() {
               className="btn flex-1 bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm"
               onClick={() => { setSubTeam(1); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }}
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-              aria-label={`${p1Name} 선수 교체`}
+              aria-label={t('referee.practice.scoring.substitutionAriaLabel', { name: p1Name })}
             >
-              🔄 {p1Name} 교체
+              🔄 {t('referee.practice.scoring.substitutionButton', { name: p1Name })}
             </button>
           )}
           {matchType === 'team' && (match.team2Members?.length ?? 0) > 3 && !match.team2SubUsed && (
@@ -1144,30 +1242,30 @@ export default function PracticeScoring() {
               className="btn flex-1 bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm"
               onClick={() => { setSubTeam(2); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }}
               disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-              aria-label={`${p2Name} 선수 교체`}
+              aria-label={t('referee.practice.scoring.substitutionAriaLabel', { name: p2Name })}
             >
-              🔄 {p2Name} 교체
+              🔄 {t('referee.practice.scoring.substitutionButton', { name: p2Name })}
             </button>
           )}
           <button
             className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
             onClick={() => handleDeadBall(1)}
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            aria-label={`${p1Name} 데드볼. 현재 서브를 무효로 하고 재서브`}
+            aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p1Name })}
           >
-            🔵 {p1Name} 데드볼
+            🔵 {t('referee.practice.scoring.deadBallButton', { name: p1Name })}
           </button>
           <button
             className="btn flex-1 bg-blue-800 hover:bg-blue-700 text-white py-2 text-sm"
             onClick={() => handleDeadBall(2)}
             disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            aria-label={`${p2Name} 데드볼. 현재 서브를 무효로 하고 재서브`}
+            aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p2Name })}
           >
-            🔵 {p2Name} 데드볼
+            🔵 {t('referee.practice.scoring.deadBallButton', { name: p2Name })}
           </button>
           {!isPausedLocal && (
-            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 text-sm" onClick={handlePause} aria-label="경기 일시정지">
-              ⏸️ 일시정지
+            <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 text-sm" onClick={handlePause} aria-label={t('referee.practice.scoring.pauseAriaLabel')}>
+              ⏸️ {t('referee.practice.scoring.pauseButton')}
             </button>
           )}
         </div>
@@ -1178,8 +1276,8 @@ export default function PracticeScoring() {
         <div className="bg-gray-900 border-t border-gray-700 px-4 py-3">
           <div className="flex gap-4 overflow-x-auto">
             {sets.map((s: SetScore, i: number) => (
-              <div key={i} className={`text-center px-3 py-1 rounded ${i === ci ? 'bg-gray-700' : ''}`} aria-label={`세트 ${i + 1}: ${p1Name} ${s.player1Score} 대 ${p2Name} ${s.player2Score}${i === ci ? ' (현재 세트)' : ''}`} aria-current={i === ci ? 'true' : undefined}>
-                <div className="text-xs text-gray-400">세트 {i + 1}</div>
+              <div key={i} className={`text-center px-3 py-1 rounded ${i === ci ? 'bg-gray-700' : ''}`} aria-label={`${t('referee.practice.scoring.setLabel', { num: i + 1 })}: ${p1Name} ${s.player1Score} vs ${p2Name} ${s.player2Score}${i === ci ? ` ${t('referee.practice.scoring.currentSetLabel')}` : ''}`} aria-current={i === ci ? 'true' : undefined}>
+                <div className="text-xs text-gray-400">{t('referee.practice.scoring.setLabel', { num: i + 1 })}</div>
                 <div className="text-lg font-bold">
                   <span className="text-yellow-400">{s.player1Score}</span>
                   <span className="text-gray-400"> - </span>

@@ -332,11 +332,13 @@ export interface Match {
   round: number;
   courtId?: string;
   refereeId?: string;
+  assistantRefereeId?: string;
   scheduledTime?: string;
   scheduledDate?: string;
   // 비정규화 필드 (관람 모드 경량 구독용)
   courtName?: string;
   refereeName?: string;
+  assistantRefereeName?: string;
   // 개인전 필드
   player1Id?: string;
   player2Id?: string;
@@ -567,6 +569,9 @@ export interface PracticeMatch {
   team2SubUsed?: boolean;
   coinTossWinner?: 'team1' | 'team2';
   coinTossChoice?: 'serve' | 'receive';
+  // 코치 정보
+  player1Coach?: string;
+  player2Coach?: string;
 }
 
 export interface PracticeAction {

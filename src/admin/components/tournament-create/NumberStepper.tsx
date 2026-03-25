@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface NumberStepperProps {
   label: string;
@@ -11,6 +12,7 @@ interface NumberStepperProps {
 }
 
 export default function NumberStepper({ label, value, min, max, step = 1, onChange, ariaLabel }: NumberStepperProps) {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(String(value));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -47,7 +49,7 @@ export default function NumberStepper({ label, value, min, max, step = 1, onChan
           style={{ width: '64px', height: '64px', fontSize: '2rem', flexShrink: 0 }}
           onClick={() => onChange(Math.max(min, value - step))}
           disabled={value <= min}
-          aria-label={`${ariaLabel} 감소`}
+          aria-label={t('common.numberStepper.decrease', { label: ariaLabel })}
         >
           -
         </button>
@@ -64,7 +66,7 @@ export default function NumberStepper({ label, value, min, max, step = 1, onChan
             onChange={e => setEditValue(e.target.value)}
             onBlur={handleCommit}
             onKeyDown={handleKeyDown}
-            aria-label={`${ariaLabel} 직접 입력`}
+            aria-label={t('common.numberStepper.directInput', { label: ariaLabel })}
           />
         ) : (
           <button
@@ -76,7 +78,7 @@ export default function NumberStepper({ label, value, min, max, step = 1, onChan
             }}
             aria-live="polite"
             aria-atomic="true"
-            aria-label={`${ariaLabel}: ${value}, 클릭하여 직접 입력`}
+            aria-label={t('common.numberStepper.clickToEdit', { label: ariaLabel, value })}
           >
             {value}
           </button>
@@ -87,7 +89,7 @@ export default function NumberStepper({ label, value, min, max, step = 1, onChan
           style={{ width: '64px', height: '64px', fontSize: '2rem', flexShrink: 0 }}
           onClick={() => onChange(Math.min(max, value + step))}
           disabled={value >= max}
-          aria-label={`${ariaLabel} 증가`}
+          aria-label={t('common.numberStepper.increase', { label: ariaLabel })}
         >
           +
         </button>

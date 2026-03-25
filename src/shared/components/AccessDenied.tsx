@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface AccessDeniedProps {
   mode: 'admin' | 'referee';
@@ -7,6 +8,9 @@ interface AccessDeniedProps {
 
 export default function AccessDenied({ mode, message }: AccessDeniedProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  const modeLabel = mode === 'admin' ? t('common.modeBadge.admin') : t('common.modeBadge.referee');
 
   return (
     <div
@@ -31,25 +35,25 @@ export default function AccessDenied({ mode, message }: AccessDeniedProps) {
         !
       </div>
 
-      <h1 className="text-3xl font-bold text-red-400 mb-4">접근 권한이 없습니다</h1>
+      <h1 className="text-3xl font-bold text-red-400 mb-4">{t('common.accessDenied.title')}</h1>
       <p className="text-xl text-gray-300 mb-8">
-        {message || `${mode === 'admin' ? '관리자' : '심판'} 인증이 필요합니다.`}
+        {message || (mode === 'admin' ? t('common.accessDenied.adminAuthRequired') : t('common.accessDenied.refereeAuthRequired'))}
       </p>
 
       <div className="flex flex-col gap-4 w-full max-w-sm">
         <button
           className="btn btn-primary btn-large w-full"
           onClick={() => navigate(mode === 'admin' ? '/admin' : '/referee')}
-          aria-label={`${mode === 'admin' ? '관리자' : '심판'} 로그인으로 이동`}
+          aria-label={t('common.accessDenied.goToLoginAriaLabel', { mode: modeLabel })}
         >
-          로그인하기
+          {t('common.accessDenied.goToLogin')}
         </button>
         <button
           className="btn btn-secondary btn-large w-full"
           onClick={() => navigate('/')}
-          aria-label="홈으로 이동"
+          aria-label={t('common.accessDenied.goHomeAriaLabel')}
         >
-          홈으로
+          {t('common.accessDenied.goHome')}
         </button>
       </div>
     </div>

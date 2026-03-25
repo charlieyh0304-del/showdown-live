@@ -1,19 +1,20 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ScoreHistoryEntry, SetScore } from '@shared/types';
 
-const DESCRIPTIVE_ACTION_LABELS: Record<string, string> = {
-  goal: '골 득점',
-  irregular_serve: '부정 서브',
-  centerboard: '센터보드 터치',
-  body_touch: '바디 터치',
-  illegal_defense: '일리걸 디펜스',
-  out: '아웃',
-  ball_holding: '볼 홀딩',
-  mask_touch: '마스크/고글 터치',
-  penalty: '기타 벌점',
-  penalty_table_pushing: '테이블 푸싱',
-  penalty_electronic: '전자기기 소리',
-  penalty_talking: '경기 중 말하기',
+const ACTION_TYPE_TO_KEY: Record<string, string> = {
+  goal: 'common.scoreActions.goal',
+  irregular_serve: 'common.scoreActions.irregularServe',
+  centerboard: 'common.scoreActions.centerboard',
+  body_touch: 'common.scoreActions.bodyTouch',
+  illegal_defense: 'common.scoreActions.illegalDefense',
+  out: 'common.scoreActions.out',
+  ball_holding: 'common.scoreActions.ballHolding',
+  mask_touch: 'common.scoreActions.maskTouch',
+  penalty: 'common.scoreActions.penalty',
+  penalty_table_pushing: 'common.scoreActions.penaltyTablePushing',
+  penalty_electronic: 'common.scoreActions.penaltyElectronic',
+  penalty_talking: 'common.scoreActions.penaltyTalking',
 };
 
 interface SetGroupedHistoryProps {
@@ -23,6 +24,7 @@ interface SetGroupedHistoryProps {
 }
 
 export default function SetGroupedHistory({ history, sets, showAll = false }: SetGroupedHistoryProps) {
+  const { t } = useTranslation();
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('oldest');
 
   if (history.length === 0) return null;
@@ -63,10 +65,10 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
       <button
         className="text-xs text-blue-400 underline"
         onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
-        aria-label={sortOrder === 'newest' ? '오래된순으로 정렬 변경' : '최신순으로 정렬 변경'}
+        aria-label={sortOrder === 'newest' ? t('common.matchHistory.sortNewestAriaLabel') : t('common.matchHistory.sortOldestAriaLabel')}
         style={{ minHeight: '44px', minWidth: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        {sortOrder === 'newest' ? '최신순 ↓' : '오래된순 ↑'}
+        {sortOrder === 'newest' ? t('common.matchHistory.newestSortButton') : t('common.matchHistory.oldestSortButton')}
       </button>
       {setNums.map(setNum => {
         let entries = [...groups[setNum]];
@@ -76,10 +78,10 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
 
         return (
           <div key={setNum}>
-            <h4 className="text-sm font-bold text-blue-400 border-b border-blue-400/30 pb-1 mb-2" aria-label={`세트 ${setNum} ${setScore ? `스코어 ${setScore.player1Score} 대 ${setScore.player2Score}` : ''}`}>
-              세트 {setNum} {setScore ? `(${setScore.player1Score}:${setScore.player2Score})` : ''}
+            <h4 className="text-sm font-bold text-blue-400 border-b border-blue-400/30 pb-1 mb-2" aria-label={`${t('common.matchHistory.setLabel', { num: setNum })} ${setScore ? `${t('common.matchHistory.score')} ${setScore.player1Score} : ${setScore.player2Score}` : ''}`}>
+              {t('common.matchHistory.setLabel', { num: setNum })} {setScore ? `(${setScore.player1Score}:${setScore.player2Score})` : ''}
             </h4>
-            <ul className="space-y-2 list-none p-0 m-0" aria-label={`세트 ${setNum} 기록`}>
+            <ul className="space-y-2 list-none p-0 m-0" aria-label={`${t('common.matchHistory.setLabel', { num: setNum })} ${t('common.matchHistory.title')}`}>
               {entries.map((h, i) => {
                 const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
 
@@ -99,26 +101,26 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
 
                 // Non-scoring entries (pause, resume, timeout, substitution, dead_ball, walkover, penaltyWarning)
                 if (h.points === 0 || h.penaltyWarning) {
-                  const actionLabel = DESCRIPTIVE_ACTION_LABELS[h.actionType || ''] || h.actionLabel || '';
-                  const desc = h.penaltyWarning ? `${h.actionPlayer || '?'} ${actionLabel} 경고` :
-                    h.actionType === 'walkover' ? `${h.actionPlayer || '?'} ${(h.actionLabel || '부전승').replace('부전승 (', '').replace(')', '') || '기권'} → ${h.scoringPlayer || '?'} 부전승` :
-                    h.actionType === 'dead_ball' ? `${h.server || '?'} 데드볼 → 재서브` :
-                    h.actionType === 'pause' ? `일시정지 (${h.actionPlayer || ''})` :
-                    h.actionType === 'resume' ? `재개 (${h.actionPlayer || ''})` :
-                    h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃` :
-                    h.actionType === 'timeout_player' ? `${h.actionPlayer || ''} 선수 타임아웃` :
-                    h.actionType === 'timeout_medical' ? `${h.actionPlayer || ''} 메디컬 타임아웃` :
-                    h.actionType === 'timeout_referee' ? `레프리 타임아웃` :
-                    h.actionType === 'substitution' ? (h.actionLabel || '선수 교체') :
-                    h.actionType === 'coin_toss' ? (h.actionLabel || '동전던지기') :
-                    h.actionType === 'warmup_start' ? (h.actionLabel || '워밍업') :
-                    h.actionType === 'match_start' ? (h.actionLabel || '경기 시작') :
-                    h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체') :
-                    h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지') :
+                  const actionLabel = ACTION_TYPE_TO_KEY[h.actionType || ''] ? t(ACTION_TYPE_TO_KEY[h.actionType || '']) : (h.actionLabel || '');
+                  const desc = h.penaltyWarning ? t('common.matchHistory.warning', { player: h.actionPlayer || '?', action: actionLabel }) :
+                    h.actionType === 'walkover' ? `${h.actionPlayer || '?'} ${(h.actionLabel || t('common.scoreActions.walkover')).replace(t('common.scoreActions.walkover') + ' (', '').replace(')', '')} → ${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}` :
+                    h.actionType === 'dead_ball' ? t('common.matchHistory.deadBall', { server: h.server || '?' }) :
+                    h.actionType === 'pause' ? t('common.matchHistory.pause', { player: h.actionPlayer || '' }) :
+                    h.actionType === 'resume' ? `${h.actionPlayer || ''}` :
+                    h.actionType === 'timeout' ? t('common.matchHistory.timeout', { player: h.actionPlayer || '' }) :
+                    h.actionType === 'timeout_player' ? t('common.matchHistory.playerTimeout', { player: h.actionPlayer || '' }) :
+                    h.actionType === 'timeout_medical' ? t('common.matchHistory.medicalTimeout', { player: h.actionPlayer || '' }) :
+                    h.actionType === 'timeout_referee' ? t('common.matchHistory.refereeTimeout') :
+                    h.actionType === 'substitution' ? (h.actionLabel || t('common.matchHistory.substitution')) :
+                    h.actionType === 'coin_toss' ? (h.actionLabel || t('common.matchHistory.coinToss')) :
+                    h.actionType === 'warmup_start' ? (h.actionLabel || t('common.matchHistory.warmup')) :
+                    h.actionType === 'match_start' ? (h.actionLabel || t('common.matchHistory.matchStart')) :
+                    h.actionType === 'player_rotation' ? (h.actionLabel || t('common.matchHistory.playerRotation')) :
+                    h.actionType === 'side_change' ? (h.actionLabel || t('common.matchHistory.sideChange')) :
                     (h.actionLabel || '');
                   const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                   const scoreStr = !hideScore ? (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })() : '';
-                  const ariaText = `${timeStr}, ${desc}${scoreStr ? `, 스코어 ${scoreStr}` : ''}`;
+                  const ariaText = `${timeStr}, ${desc}${scoreStr ? `, ${t('common.matchHistory.score')} ${scoreStr}` : ''}`;
                   return (
                     <li key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-2" tabIndex={0} aria-label={ariaText}>
                       <div className="flex justify-between items-start gap-2" aria-hidden="true">
@@ -131,28 +133,22 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
 
                 // Scoring entries
                 let actionDesc: string;
-                const descriptiveLabel = DESCRIPTIVE_ACTION_LABELS[h.actionType || ''];
+                const descriptiveLabel = ACTION_TYPE_TO_KEY[h.actionType || ''] ? t(ACTION_TYPE_TO_KEY[h.actionType || '']) : '';
                 if (h.actionType === 'goal') {
-                  actionDesc = `${h.scoringPlayer || '?'} 골 득점 +${h.points}점`;
-                } else if (h.actionType === 'penalty_table_pushing') {
-                  actionDesc = `${h.actionPlayer || '?'} 테이블 푸싱 → ${h.scoringPlayer || '?'} +${h.points}점`;
-                } else if (h.actionType === 'penalty_electronic') {
-                  actionDesc = `${h.actionPlayer || '?'} 전자기기 소리 → ${h.scoringPlayer || '?'} +${h.points}점`;
-                } else if (h.actionType === 'penalty_talking') {
-                  actionDesc = `${h.actionPlayer || '?'} 경기 중 말하기 → ${h.scoringPlayer || '?'} +${h.points}점`;
+                  actionDesc = t('common.matchHistory.goalScored', { player: h.scoringPlayer || '?', points: h.points });
                 } else if (descriptiveLabel) {
-                  actionDesc = `${h.actionPlayer || '?'} ${descriptiveLabel} → ${h.scoringPlayer || '?'} +${h.points}점`;
+                  actionDesc = t('common.matchHistory.penaltyScored', { actionPlayer: h.actionPlayer || '?', action: descriptiveLabel, scoringPlayer: h.scoringPlayer || '?', points: h.points });
                 } else {
                   const labelParts = (h.actionLabel || '').split(' ').slice(1).join(' ');
-                  actionDesc = `${h.actionPlayer || '?'} ${labelParts} → ${h.scoringPlayer || '?'} +${h.points}점`;
+                  actionDesc = t('common.matchHistory.penaltyScored', { actionPlayer: h.actionPlayer || '?', action: labelParts, scoringPlayer: h.scoringPlayer || '?', points: h.points });
                 }
                 const scoreDisplay = (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })();
-                const ariaText = `${timeStr}, ${h.server || '?'} 서브 ${h.serveNumber || ''}회차, ${actionDesc}, 스코어 ${scoreDisplay}`;
+                const ariaText = `${timeStr}, ${h.server || '?'} ${t('common.matchHistory.serve')} ${t('common.matchHistory.serveNumber', { num: h.serveNumber || '' })}, ${actionDesc}, ${t('common.matchHistory.score')} ${scoreDisplay}`;
 
                 return (
                   <li key={`${setNum}-${h.time}-${i}`} className="text-xs text-gray-400 bg-gray-800 rounded px-3 py-2" tabIndex={0} aria-label={ariaText}>
                     <div className="flex justify-between items-center text-gray-400 mb-1" style={{ fontSize: '0.6875rem' }} aria-hidden="true">
-                      <span>{h.server || '?'} {h.serveNumber ? `${h.serveNumber}회차` : ''}</span>
+                      <span>{h.server || '?'} {h.serveNumber ? t('common.matchHistory.serveNumber', { num: h.serveNumber }) : ''}</span>
                       <span>{timeStr}</span>
                     </div>
                     <div className="flex justify-between items-center" aria-hidden="true">
@@ -163,7 +159,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 );
               })}
               {!showAll && groups[setNum].length > 10 && (
-                <li className="text-xs text-gray-400 text-center">... 외 {groups[setNum].length - 10}개</li>
+                <li className="text-xs text-gray-400 text-center">{t('common.matchHistory.andMore', { count: groups[setNum].length - 10 })}</li>
               )}
             </ul>
           </div>

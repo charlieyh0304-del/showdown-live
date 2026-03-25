@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ref, onValue, set, remove, push } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { hashPin, verifyPin } from '@shared/utils/crypto';
@@ -31,6 +32,7 @@ export function getSampleNames(): SampleNames {
 }
 
 export default function AdminSettings() {
+  const { t } = useTranslation();
   const { session } = useAuth();
   const [admins, setAdmins] = useState<(Admin & { id: string })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export default function AdminSettings() {
     const data = { players, referees };
     setSampleData(data);
     saveSampleNames(data);
-    setSampleSaved(`선수 ${players.length}명, 심판 ${referees.length}명 저장 완료`);
+    setSampleSaved(t('admin.settings.sampleNamesSaved', { playerCount: players.length, refereeCount: referees.length }));
     setTimeout(() => setSampleSaved(''), 3000);
   };
 
@@ -108,11 +110,11 @@ export default function AdminSettings() {
     setChangePinSuccess('');
 
     if (newPin.length < 4) {
-      setChangePinError('새 PIN은 4자리 이상이어야 합니다.');
+      setChangePinError(t('admin.settings.newPinMinLength'));
       return;
     }
     if (newPin !== confirmPin) {
-      setChangePinError('새 PIN이 일치하지 않습니다.');
+      setChangePinError(t('admin.settings.newPinMismatch'));
       return;
     }
 
@@ -121,12 +123,12 @@ export default function AdminSettings() {
       // admins/ 컬렉션의 관리자
       const admin = admins.find(a => a.id === session.adminId);
       if (!admin) {
-        setChangePinError('관리자 정보를 찾을 수 없습니다.');
+        setChangePinError(t('admin.settings.adminNotFound'));
         return;
       }
       const valid = await verifyPin(currentPin, admin.pin);
       if (!valid) {
-        setChangePinError('현재 PIN이 올바르지 않습니다.');
+        setChangePinError(t('admin.settings.currentPinIncorrect'));
         return;
       }
       const hashed = await hashPin(newPin);
@@ -137,7 +139,7 @@ export default function AdminSettings() {
       if (snap.exists()) {
         const valid = await verifyPin(currentPin, snap.val());
         if (!valid) {
-          setChangePinError('현재 PIN이 올바르지 않습니다.');
+          setChangePinError(t('admin.settings.currentPinIncorrect'));
           return;
         }
       }
@@ -145,7 +147,7 @@ export default function AdminSettings() {
       await set(ref(database, 'config/adminPin'), hashed);
     }
 
-    setChangePinSuccess('비밀번호가 변경되었습니다.');
+    setChangePinSuccess(t('admin.settings.passwordChanged'));
     setCurrentPin('');
     setNewPin('');
     setConfirmPin('');
@@ -159,15 +161,15 @@ export default function AdminSettings() {
     setAddSuccess('');
 
     if (!newAdminName.trim()) {
-      setAddError('이름을 입력해주세요.');
+      setAddError(t('admin.settings.nameRequired'));
       return;
     }
     if (newAdminPin.length < 4) {
-      setAddError('PIN은 4자리 이상이어야 합니다.');
+      setAddError(t('admin.pinSetup.minLengthError'));
       return;
     }
     if (newAdminPin !== newAdminConfirm) {
-      setAddError('PIN이 일치하지 않습니다.');
+      setAddError(t('admin.pinSetup.mismatchError'));
       return;
     }
 
@@ -180,7 +182,7 @@ export default function AdminSettings() {
 
     await push(ref(database, 'admins'), newAdmin);
 
-    setAddSuccess(`${newAdminName.trim()} 관리자가 추가되었습니다.`);
+    setAddSuccess(t('admin.settings.adminAdded', { name: newAdminName.trim() }));
     setNewAdminName('');
     setNewAdminPin('');
     setNewAdminConfirm('');
@@ -190,30 +192,30 @@ export default function AdminSettings() {
   // 관리자 삭제
   const handleDeleteAdmin = useCallback(async (admin: Admin & { id: string }) => {
     if (admins.length <= 1) {
-      alert('마지막 관리자는 삭제할 수 없습니다.');
+      alert(t('admin.settings.cannotDeleteLastAdmin'));
       return;
     }
     if (admin.id === session?.adminId) {
-      alert('현재 로그인한 관리자 계정은 삭제할 수 없습니다.');
+      alert(t('admin.settings.cannotDeleteSelf'));
       return;
     }
-    if (!window.confirm(`${admin.name} 관리자를 삭제하시겠습니까?`)) return;
+    if (!window.confirm(t('admin.settings.confirmDeleteAdmin', { name: admin.name }))) return;
     await remove(ref(database, `admins/${admin.id}`));
   }, [admins, session]);
 
   if (loading) {
-    return <div className="flex justify-center p-8" aria-live="polite"><p className="text-gray-300 animate-pulse">로딩 중...</p></div>;
+    return <div className="flex justify-center p-8" aria-live="polite"><p className="text-gray-300 animate-pulse">{t('common.loading')}</p></div>;
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold text-yellow-400">관리자 설정</h1>
+      <h1 className="text-3xl font-bold text-yellow-400">{t('admin.settings.title')}</h1>
 
       {/* 현재 로그인 정보 */}
       <div className="card">
-        <h2 className="text-xl font-bold mb-3">현재 로그인</h2>
+        <h2 className="text-xl font-bold mb-3">{t('admin.settings.currentLogin')}</h2>
         <p className="text-gray-300">
-          {session?.adminName ?? '관리자'}
+          {session?.adminName ?? t('app.modeSelector.adminMode')}
           {session?.adminId && <span className="text-gray-400 text-sm ml-2">(ID: {session.adminId.slice(0, 8)})</span>}
         </p>
       </div>
@@ -221,57 +223,57 @@ export default function AdminSettings() {
       {/* 비밀번호 변경 */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-bold">비밀번호 변경</h2>
+          <h2 className="text-xl font-bold">{t('admin.settings.changePassword')}</h2>
           <button
             className="btn btn-secondary text-sm"
             onClick={() => { setShowChangePin(!showChangePin); setChangePinError(''); setChangePinSuccess(''); }}
             aria-expanded={showChangePin}
-            aria-label={showChangePin ? '비밀번호 변경 취소' : '비밀번호 변경'}
+            aria-label={showChangePin ? t('common.cancel') : t('admin.settings.changeButton')}
           >
-            {showChangePin ? '취소' : '변경'}
+            {showChangePin ? t('common.cancel') : t('admin.settings.changeButton')}
           </button>
         </div>
         {changePinSuccess && <p className="text-green-400 font-semibold mb-2" role="alert">{changePinSuccess}</p>}
         {showChangePin && (
           <form onSubmit={handleChangePin} className="space-y-3">
             <div>
-              <label htmlFor="current-pin" className="block mb-1 text-sm text-gray-300">현재 PIN</label>
+              <label htmlFor="current-pin" className="block mb-1 text-sm text-gray-300">{t('admin.settings.currentPin')}</label>
               <input
                 id="current-pin"
                 type="password"
                 className="input"
                 value={currentPin}
                 onChange={e => setCurrentPin(e.target.value)}
-                placeholder="현재 PIN 입력"
+                placeholder={t('admin.settings.currentPinPlaceholder')}
                 autoComplete="current-password"
               />
             </div>
             <div>
-              <label htmlFor="new-pin" className="block mb-1 text-sm text-gray-300">새 PIN (4자리 이상)</label>
+              <label htmlFor="new-pin" className="block mb-1 text-sm text-gray-300">{t('admin.settings.newPin')}</label>
               <input
                 id="new-pin"
                 type="password"
                 className="input"
                 value={newPin}
                 onChange={e => setNewPin(e.target.value)}
-                placeholder="새 PIN 입력"
+                placeholder={t('admin.settings.newPinPlaceholder')}
                 autoComplete="new-password"
               />
             </div>
             <div>
-              <label htmlFor="confirm-new-pin" className="block mb-1 text-sm text-gray-300">새 PIN 확인</label>
+              <label htmlFor="confirm-new-pin" className="block mb-1 text-sm text-gray-300">{t('admin.settings.confirmNewPin')}</label>
               <input
                 id="confirm-new-pin"
                 type="password"
                 className="input"
                 value={confirmPin}
                 onChange={e => setConfirmPin(e.target.value)}
-                placeholder="새 PIN 확인"
+                placeholder={t('admin.settings.confirmNewPinPlaceholder')}
                 autoComplete="new-password"
               />
             </div>
             {changePinError && <p className="text-red-500 text-sm" role="alert">{changePinError}</p>}
-            <button type="submit" className="btn btn-primary w-full">비밀번호 변경</button>
+            <button type="submit" className="btn btn-primary w-full">{t('admin.settings.changePasswordButton')}</button>
           </form>
         )}
       </div>
@@ -279,14 +281,14 @@ export default function AdminSettings() {
       {/* 관리자 목록 */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-bold">관리자 목록</h2>
+          <h2 className="text-xl font-bold">{t('admin.settings.adminList')}</h2>
           <button
             className="btn btn-success text-sm"
             onClick={() => { setShowAddAdmin(!showAddAdmin); setAddError(''); setAddSuccess(''); }}
             aria-expanded={showAddAdmin}
-            aria-label={showAddAdmin ? '관리자 추가 취소' : '관리자 추가'}
+            aria-label={showAddAdmin ? t('common.cancel') : t('admin.settings.addAdmin')}
           >
-            {showAddAdmin ? '취소' : '+ 관리자 추가'}
+            {showAddAdmin ? t('common.cancel') : t('admin.settings.addAdmin')}
           </button>
         </div>
 
@@ -294,49 +296,49 @@ export default function AdminSettings() {
 
         {showAddAdmin && (
           <form onSubmit={handleAddAdmin} className="space-y-3 mb-4 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-bold text-gray-300">새 관리자 추가</h3>
+            <h3 className="text-lg font-bold text-gray-300">{t('admin.settings.addAdminTitle')}</h3>
             <div>
-              <label htmlFor="admin-name" className="block mb-1 text-sm text-gray-300">이름</label>
+              <label htmlFor="admin-name" className="block mb-1 text-sm text-gray-300">{t('admin.settings.adminName')}</label>
               <input
                 id="admin-name"
                 type="text"
                 className="input"
                 value={newAdminName}
                 onChange={e => setNewAdminName(e.target.value)}
-                placeholder="관리자 이름"
+                placeholder={t('admin.settings.adminNamePlaceholder')}
               />
             </div>
             <div>
-              <label htmlFor="new-admin-pin" className="block mb-1 text-sm text-gray-300">PIN (4자리 이상)</label>
+              <label htmlFor="new-admin-pin" className="block mb-1 text-sm text-gray-300">{t('admin.settings.adminPinLabel')}</label>
               <input
                 id="new-admin-pin"
                 type="password"
                 className="input"
                 value={newAdminPin}
                 onChange={e => setNewAdminPin(e.target.value)}
-                placeholder="PIN 입력"
+                placeholder={t('admin.settings.adminPinPlaceholder')}
                 autoComplete="new-password"
               />
             </div>
             <div>
-              <label htmlFor="admin-pin-confirm" className="block mb-1 text-sm text-gray-300">PIN 확인</label>
+              <label htmlFor="admin-pin-confirm" className="block mb-1 text-sm text-gray-300">{t('admin.settings.adminPinConfirm')}</label>
               <input
                 id="admin-pin-confirm"
                 type="password"
                 className="input"
                 value={newAdminConfirm}
                 onChange={e => setNewAdminConfirm(e.target.value)}
-                placeholder="PIN 확인"
+                placeholder={t('admin.settings.adminPinConfirmPlaceholder')}
                 autoComplete="new-password"
               />
             </div>
             {addError && <p className="text-red-500 text-sm" role="alert">{addError}</p>}
-            <button type="submit" className="btn btn-primary w-full">추가</button>
+            <button type="submit" className="btn btn-primary w-full">{t('admin.settings.addButton')}</button>
           </form>
         )}
 
         {admins.length === 0 ? (
-          <p className="text-gray-400">등록된 관리자가 없습니다. (레거시 PIN으로 로그인 중)</p>
+          <p className="text-gray-400">{t('admin.settings.noAdmins')}</p>
         ) : (
           <div className="space-y-2">
             {admins.map(admin => (
@@ -344,19 +346,19 @@ export default function AdminSettings() {
                 <div>
                   <span className="text-white font-semibold">{admin.name}</span>
                   {admin.id === session?.adminId && (
-                    <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">현재 로그인</span>
+                    <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">{t('admin.settings.currentLoginBadge')}</span>
                   )}
                   <div className="text-xs text-gray-400 mt-1">
-                    등록일: {new Date(admin.createdAt).toLocaleDateString('ko-KR')}
+                    {t('admin.settings.registeredDate')}: {new Date(admin.createdAt).toLocaleDateString('ko-KR')}
                   </div>
                 </div>
                 <button
                   className="btn btn-danger text-sm"
                   onClick={() => handleDeleteAdmin(admin)}
                   disabled={admin.id === session?.adminId || admins.length <= 1}
-                  aria-label={`${admin.name} 관리자 삭제`}
+                  aria-label={t('admin.settings.deleteAdminAriaLabel', { name: admin.name })}
                 >
-                  삭제
+                  {t('common.delete')}
                 </button>
               </div>
             ))}
@@ -365,37 +367,37 @@ export default function AdminSettings() {
       </div>
       {/* 시뮬레이션 샘플 이름 */}
       <div className="card">
-        <h2 className="text-xl font-bold mb-3">시뮬레이션 샘플 이름</h2>
+        <h2 className="text-xl font-bold mb-3">{t('admin.settings.sampleNames')}</h2>
         <p className="text-gray-400 text-sm mb-4">
-          선수/심판이 등록되지 않은 대회에서 시뮬레이션 실행 시 사용됩니다. 줄바꿈으로 구분하세요.
+          {t('admin.settings.sampleNamesDescription')}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="sample-players" className="block text-sm font-semibold text-gray-300 mb-1">선수 이름 ({samplePlayerText.split('\n').filter(s => s.trim()).length}명)</label>
+            <label htmlFor="sample-players" className="block text-sm font-semibold text-gray-300 mb-1">{t('admin.settings.samplePlayerNames')} {t('admin.settings.countLabel', { count: samplePlayerText.split('\n').filter(s => s.trim()).length })}</label>
             <textarea
               id="sample-players"
               className="input w-full h-48"
               value={samplePlayerText}
               onChange={e => setSamplePlayerText(e.target.value)}
               placeholder={"홍길동\n김철수\n이영희\n박민수\n최수진"}
-              aria-label="샘플 선수 이름 목록"
+              aria-label={t('admin.settings.samplePlayerNamesAriaLabel')}
             />
           </div>
           <div>
-            <label htmlFor="sample-referees" className="block text-sm font-semibold text-gray-300 mb-1">심판 이름 ({sampleRefereeText.split('\n').filter(s => s.trim()).length}명)</label>
+            <label htmlFor="sample-referees" className="block text-sm font-semibold text-gray-300 mb-1">{t('admin.settings.sampleRefereeNames')} {t('admin.settings.countLabel', { count: sampleRefereeText.split('\n').filter(s => s.trim()).length })}</label>
             <textarea
               id="sample-referees"
               className="input w-full h-48"
               value={sampleRefereeText}
               onChange={e => setSampleRefereeText(e.target.value)}
               placeholder={"심판 A\n심판 B\n심판 C"}
-              aria-label="샘플 심판 이름 목록"
+              aria-label={t('admin.settings.sampleRefereeNamesAriaLabel')}
             />
           </div>
         </div>
         {sampleSaved && <p className="text-green-400 text-sm mt-2" role="alert">{sampleSaved}</p>}
         <button className="btn btn-primary w-full mt-3" onClick={handleSaveSampleNames}>
-          샘플 이름 저장
+          {t('admin.settings.saveSampleNames')}
         </button>
       </div>
     </div>

@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth, useAdminPinExists } from '@shared/hooks/useAuth';
 import { hashPin, createRateLimiter } from '@shared/utils/crypto';
 import { ref, set } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import LanguageToggle from '@shared/components/LanguageToggle';
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
+  const { t } = useTranslation();
   const { isAdmin, loginAdmin, logout } = useAuth();
   const adminPinExists = useAdminPinExists();
   const navigate = useNavigate();
@@ -18,7 +21,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   if (adminPinExists === null) {
     return (
       <div className="flex items-center justify-center min-h-screen" aria-live="polite">
-        <p className="text-2xl text-yellow-400 animate-pulse">로딩 중...</p>
+        <p className="text-2xl text-yellow-400 animate-pulse">{t('common.loading')}</p>
       </div>
     );
   }
@@ -33,55 +36,56 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <a href="#main-content" className="skip-link">본문으로 건너뛰기</a>
+      <a href="#main-content" className="skip-link">{t('common.skipToContent')}</a>
       <header role="banner">
-        <nav className="flex items-center gap-2 p-4 border-b border-gray-700 flex-wrap" aria-label="관리자 내비게이션">
+        <nav className="flex items-center gap-2 p-4 border-b border-gray-700 flex-wrap" aria-label={t('admin.nav.label')}>
         <NavLink
           to="/admin"
           end
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          aria-label="대시보드"
+          aria-label={t('admin.nav.dashboard')}
         >
-          대시보드
+          {t('admin.nav.dashboard')}
         </NavLink>
         <NavLink
           to="/admin/players"
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          aria-label="선수 관리"
+          aria-label={t('admin.nav.playersManagement')}
         >
-          선수
+          {t('admin.nav.players')}
         </NavLink>
         <NavLink
           to="/admin/referees"
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          aria-label="심판 관리"
+          aria-label={t('admin.nav.refereesManagement')}
         >
-          심판
+          {t('admin.nav.referees')}
         </NavLink>
         <NavLink
           to="/admin/courts"
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          aria-label="경기장 관리"
+          aria-label={t('admin.nav.courtsManagement')}
         >
-          경기장
+          {t('admin.nav.courts')}
         </NavLink>
         <NavLink
           to="/admin/settings"
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          aria-label="설정"
+          aria-label={t('admin.nav.settings')}
         >
-          설정
+          {t('admin.nav.settings')}
         </NavLink>
         <div className="flex-1" />
+        <LanguageToggle />
         <button
           className="btn btn-danger"
           onClick={() => {
             logout();
             navigate('/');
           }}
-          aria-label="로그아웃"
+          aria-label={t('common.logout')}
         >
-          로그아웃
+          {t('common.logout')}
         </button>
         </nav>
       </header>
@@ -95,6 +99,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 }
 
 function AdminPinSetup() {
+  const { t } = useTranslation();
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
@@ -109,11 +114,11 @@ function AdminPinSetup() {
     e.preventDefault();
     setError('');
     if (pin.length < 4) {
-      setError('PIN은 4자리 이상이어야 합니다.');
+      setError(t('admin.pinSetup.minLengthError'));
       return;
     }
     if (pin !== confirmPin) {
-      setError('PIN이 일치하지 않습니다.');
+      setError(t('admin.pinSetup.mismatchError'));
       return;
     }
     setSaving(true);
@@ -121,19 +126,19 @@ function AdminPinSetup() {
       const hashed = await hashPin(pin);
       await set(ref(database, 'config/adminPin'), hashed);
     } catch {
-      setError('저장 중 오류가 발생했습니다.');
+      setError(t('common.error.saveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [pin, confirmPin]);
+  }, [pin, confirmPin, t]);
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       <form onSubmit={handleSubmit} className="card w-full max-w-md space-y-6">
-        <h1 className="text-3xl font-bold text-yellow-400 text-center">관리자 PIN 설정</h1>
-        <p className="text-gray-300 text-center">처음 사용하시는 경우 관리자 PIN을 설정해주세요.</p>
+        <h1 className="text-3xl font-bold text-yellow-400 text-center">{t('admin.pinSetup.title')}</h1>
+        <p className="text-gray-300 text-center">{t('admin.pinSetup.description')}</p>
         <div>
-          <label htmlFor="pin-input" className="block mb-2 font-semibold">PIN (4자리 이상)</label>
+          <label htmlFor="pin-input" className="block mb-2 font-semibold">{t('admin.pinSetup.pinLabel')}</label>
           <input
             ref={inputRef}
             id="pin-input"
@@ -141,27 +146,27 @@ function AdminPinSetup() {
             className="input"
             value={pin}
             onChange={e => setPin(e.target.value)}
-            placeholder="PIN 입력"
+            placeholder={t('admin.pinSetup.pinPlaceholder')}
             autoComplete="new-password"
-            aria-label="관리자 PIN 입력"
+            aria-label={t('admin.pinSetup.pinInputAriaLabel')}
           />
         </div>
         <div>
-          <label htmlFor="confirm-pin-input" className="block mb-2 font-semibold">PIN 확인</label>
+          <label htmlFor="confirm-pin-input" className="block mb-2 font-semibold">{t('admin.pinSetup.confirmLabel')}</label>
           <input
             id="confirm-pin-input"
             type="password"
             className="input"
             value={confirmPin}
             onChange={e => setConfirmPin(e.target.value)}
-            placeholder="PIN 확인"
+            placeholder={t('admin.pinSetup.confirmPlaceholder')}
             autoComplete="new-password"
-            aria-label="관리자 PIN 확인"
+            aria-label={t('admin.pinSetup.confirmInputAriaLabel')}
           />
         </div>
         {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
-        <button type="submit" className="btn btn-primary w-full" disabled={saving} aria-label="PIN 설정 완료">
-          {saving ? '저장 중...' : 'PIN 설정'}
+        <button type="submit" className="btn btn-primary w-full" disabled={saving} aria-label={t('admin.pinSetup.submitAriaLabel')}>
+          {saving ? t('common.saving') : t('admin.pinSetup.submitButton')}
         </button>
       </form>
     </div>
@@ -169,6 +174,7 @@ function AdminPinSetup() {
 }
 
 function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> }) {
+  const { t } = useTranslation();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -197,11 +203,11 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
     e.preventDefault();
     setError('');
     if (!pin) {
-      setError('PIN을 입력해주세요.');
+      setError(t('admin.login.enterPin'));
       return;
     }
     if (!rateLimiter.canAttempt()) {
-      setError(`너무 많은 시도가 있었습니다. ${Math.ceil(rateLimiter.remainingLockout() / 1000)}초 후 다시 시도해주세요.`);
+      setError(t('admin.login.tooManyAttempts', { seconds: Math.ceil(rateLimiter.remainingLockout() / 1000) }));
       return;
     }
     setLoading(true);
@@ -211,9 +217,9 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
         rateLimiter.recordFailure();
         const remaining = rateLimiter.remainingLockout();
         if (remaining > 0) {
-          setError(`PIN이 올바르지 않습니다. 너무 많은 시도로 ${Math.ceil(remaining / 1000)}초간 잠금됩니다.`);
+          setError(t('admin.login.lockedMessage', { seconds: Math.ceil(remaining / 1000) }));
         } else {
-          setError('PIN이 올바르지 않습니다.');
+          setError(t('admin.login.incorrectPin'));
         }
         setPin('');
         inputRef.current?.focus();
@@ -221,11 +227,11 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
         rateLimiter.recordSuccess();
       }
     } catch {
-      setError('인증 중 오류가 발생했습니다.');
+      setError(t('common.error.authFailed'));
     } finally {
       setLoading(false);
     }
-  }, [pin, onLogin, rateLimiter]);
+  }, [pin, onLogin, rateLimiter, t]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -237,9 +243,9 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
   return (
     <div className="flex items-center justify-center min-h-screen p-4" onKeyDown={handleKeyDown}>
       <form onSubmit={handleSubmit} className="card w-full max-w-md space-y-6">
-        <h1 className="text-3xl font-bold text-yellow-400 text-center">관리자 로그인</h1>
+        <h1 className="text-3xl font-bold text-yellow-400 text-center">{t('admin.login.title')}</h1>
         <div>
-          <label htmlFor="admin-pin" className="block mb-2 font-semibold">관리자 PIN</label>
+          <label htmlFor="admin-pin" className="block mb-2 font-semibold">{t('admin.login.pinLabel')}</label>
           <input
             ref={inputRef}
             id="admin-pin"
@@ -247,20 +253,20 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
             className="input"
             value={pin}
             onChange={e => setPin(e.target.value)}
-            placeholder="PIN 입력"
+            placeholder={t('admin.login.pinPlaceholder')}
             autoComplete="current-password"
-            aria-label="관리자 PIN 입력"
+            aria-label={t('admin.login.pinInputAriaLabel')}
             disabled={isLocked}
           />
         </div>
         {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
         {isLocked && (
           <p className="text-orange-400 font-semibold text-center" role="alert">
-            {lockoutSeconds}초 후 다시 시도할 수 있습니다.
+            {t('admin.login.retryAfter', { seconds: lockoutSeconds })}
           </p>
         )}
-        <button type="submit" className="btn btn-primary w-full" disabled={loading || isLocked} aria-label="로그인">
-          {loading ? '인증 중...' : isLocked ? '잠금됨' : '로그인'}
+        <button type="submit" className="btn btn-primary w-full" disabled={loading || isLocked} aria-label={t('admin.login.loginAriaLabel')}>
+          {loading ? t('admin.login.authenticating') : isLocked ? t('admin.login.locked') : t('admin.login.loginButton')}
         </button>
       </form>
     </div>

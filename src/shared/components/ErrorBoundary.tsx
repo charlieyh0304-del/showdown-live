@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import i18n from '../i18n';
 
 interface Props {
   children: ReactNode;
@@ -26,8 +27,8 @@ export default class ErrorBoundary extends Component<Props, State> {
       return this.props.fallback || (
         <div className="flex items-center justify-center min-h-screen bg-gray-900" role="alert">
           <div className="card text-center max-w-md">
-            <h2 className="text-2xl font-bold text-red-500 mb-4">오류가 발생했습니다</h2>
-            <p className="text-gray-400 mb-4">{this.state.error?.message || '알 수 없는 오류'}</p>
+            <h2 className="text-2xl font-bold text-red-500 mb-4">{i18n.t('common.error.occurred')}</h2>
+            <p className="text-gray-400 mb-4">{this.state.error?.message || i18n.t('common.error.unknown')}</p>
             {import.meta.env.DEV && this.state.error?.stack && (
               <pre className="text-left text-xs text-gray-400 bg-gray-800 p-3 rounded overflow-auto max-h-40 mb-4">{this.state.error.stack}</pre>
             )}
@@ -37,9 +38,9 @@ export default class ErrorBoundary extends Component<Props, State> {
                 this.setState({ hasError: false, error: null });
                 window.location.reload();
               }}
-              aria-label="페이지 새로고침"
+              aria-label={i18n.t('common.error.refreshPage')}
             >
-              새로고침
+              {i18n.t('common.refresh')}
             </button>
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import LanguageToggle from '@shared/components/LanguageToggle';
 
 interface SpectatorLayoutProps {
   children: ReactNode;
@@ -8,6 +10,7 @@ interface SpectatorLayoutProps {
 
 export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -15,7 +18,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
 
       {/* Header */}
       <header
-        aria-label="쇼다운 관람"
+        aria-label={t('spectator.layout.headerAriaLabel')}
         style={{
           backgroundColor: '#111827',
           borderBottom: '2px solid #374151',
@@ -34,9 +37,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             padding: '0.5rem 0.75rem',
             fontSize: '1.1rem',
           }}
-          aria-label="관람 홈으로 이동"
+          aria-label={t('spectator.layout.homeAriaLabel')}
         >
-          ← 관람 홈
+          {t('spectator.layout.homeButton')}
         </button>
         <span
           aria-hidden="true"
@@ -46,9 +49,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             color: 'var(--color-primary)',
           }}
         >
-          쇼다운 관람
+          {t('spectator.layout.headerTitle')}
         </span>
-        <div style={{ width: '60px' }} aria-hidden="true" />
+        <LanguageToggle />
       </header>
 
       {/* Main content area */}
@@ -78,7 +81,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           display: 'flex',
           zIndex: 40,
         }}
-        aria-label="하단 내비게이션"
+        aria-label={t('spectator.layout.bottomNavAriaLabel')}
       >
         <NavLink
           to="/spectator"
@@ -97,9 +100,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             fontSize: '1.25rem',
             fontWeight: 'bold',
           }}
-          aria-label="대회 목록"
+          aria-label={t('spectator.layout.tournamentsAriaLabel')}
         >
-          대회
+          {t('spectator.layout.tournaments')}
         </NavLink>
         <NavLink
           to="/spectator/favorites"
@@ -117,9 +120,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             fontSize: '1.25rem',
             fontWeight: 'bold',
           }}
-          aria-label="즐겨찾기"
+          aria-label={t('spectator.layout.favoritesAriaLabel')}
         >
-          즐겨찾기
+          {t('spectator.layout.favorites')}
         </NavLink>
         <NavLink
           to="/spectator/practice"
@@ -137,9 +140,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             fontSize: '1.25rem',
             fontWeight: 'bold',
           }}
-          aria-label="연습 경기"
+          aria-label={t('spectator.layout.practiceAriaLabel')}
         >
-          연습
+          {t('spectator.layout.practice')}
         </NavLink>
       </nav>
     </div>

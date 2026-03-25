@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ModeSelector from './ModeSelector';
 import OfflineIndicator from '@shared/components/OfflineIndicator';
 import ConnectionStatus from '@shared/components/ConnectionStatus';
@@ -13,13 +14,14 @@ const RefereeRoutes = lazy(() => import('../referee/RefereeRoutes'));
 const SpectatorRoutes = lazy(() => import('../spectator/SpectatorRoutes'));
 
 function AppContent() {
+  const { t } = useTranslation();
   const routeAnnouncement = useRouteAnnouncer();
 
   return (
     <>
       {/* Skip navigation link - visible only on focus */}
       <a href="#main-content" className="skip-link">
-        본문으로 건너뛰기
+        {t('common.skipToContent')}
       </a>
 
       {/* Route change announcements for screen readers */}
@@ -38,7 +40,7 @@ function AppContent() {
         <Suspense
           fallback={
             <div className="flex items-center justify-center min-h-screen">
-              <LoadingSpinner message="페이지 로딩 중..." />
+              <LoadingSpinner message={t('common.pageLoading')} />
             </div>
           }
         >

@@ -1,35 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useTournaments } from '@shared/hooks/useFirebase';
 import type { Tournament } from '@shared/types';
-
-function getTournamentTypeLabel(type: Tournament['type']): string {
-  switch (type) {
-    case 'individual': return '개인전';
-    case 'team': return '팀전';
-    case 'randomTeamLeague': return '랜덤팀리그전';
-  }
-}
-
-function getStatusLabel(status: Tournament['status']): string {
-  switch (status) {
-    case 'draft': return '진행중';
-    case 'registration': return '모집중';
-    case 'in_progress': return '진행중';
-    case 'completed': return '완료';
-    case 'paused': return '일시정지';
-    default: return status;
-  }
-}
 
 export default function SpectatorHome() {
   const { tournaments, loading } = useTournaments();
   const [filter, setFilter] = useState<'in_progress' | 'completed'>('in_progress');
   const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  const getTournamentTypeLabel = (type: Tournament['type']): string => {
+    return t(`common.tournamentType.${type}`);
+  };
+
+  const getStatusLabel = (status: Tournament['status']): string => {
+    const statusMap: Record<string, string> = {
+      draft: t('spectator.home.tournamentStatusLabels.draft'),
+      registration: t('spectator.home.tournamentStatusLabels.registration'),
+      in_progress: t('spectator.home.tournamentStatusLabels.inProgress'),
+      completed: t('spectator.home.tournamentStatusLabels.completed'),
+      paused: t('spectator.home.tournamentStatusLabels.paused'),
+    };
+    return statusMap[status] || status;
+  };
 
   useEffect(() => {
-    document.title = '대회 목록 - 쇼다운 관람';
-  }, []);
+    document.title = t('spectator.home.pageTitle');
+  }, [t]);
 
   const visibleTournaments = tournaments.filter((t) => {
     if (filter === 'in_progress') {
@@ -41,7 +39,7 @@ export default function SpectatorHome() {
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
-        <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
+        <p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p>
       </div>
     );
   }
@@ -49,14 +47,14 @@ export default function SpectatorHome() {
   return (
     <div>
       <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-        대회 목록
+        {t('spectator.home.title')}
       </h1>
 
       {/* Filter toggle */}
       <div
         style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}
         role="tablist"
-        aria-label="대회 필터"
+        aria-label={t('spectator.home.filterAriaLabel')}
         onKeyDown={e => {
           if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
             e.preventDefault();
@@ -76,7 +74,7 @@ export default function SpectatorHome() {
           onClick={() => setFilter('in_progress')}
           style={{ flex: 1 }}
         >
-          진행중
+          {t('spectator.home.inProgress')}
         </button>
         <button
           role="tab"
@@ -86,18 +84,18 @@ export default function SpectatorHome() {
           onClick={() => setFilter('completed')}
           style={{ flex: 1 }}
         >
-          완료
+          {t('spectator.home.completed')}
         </button>
       </div>
 
       {/* Tournament list */}
-      <div role="tabpanel" aria-label={filter === 'in_progress' ? '진행중 대회 목록' : '완료된 대회 목록'}>
+      <div role="tabpanel" aria-label={filter === 'in_progress' ? t('spectator.home.inProgressPanel') : t('spectator.home.completedPanel')}>
         {visibleTournaments.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
             <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">
               {filter === 'in_progress'
-                ? '진행 중인 대회가 없습니다'
-                : '완료된 대회가 없습니다'}
+                ? t('spectator.home.noInProgress')
+                : t('spectator.home.noCompleted')}
             </p>
           </div>
         ) : (
@@ -151,8 +149,8 @@ export default function SpectatorHome() {
         onClick={() => navigate('/spectator/practice')}
         style={{ border: '2px solid #7c3aed', cursor: 'pointer' }}
       >
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc' }}>연습 경기 관람</h2>
-        <p style={{ color: '#d1d5db', fontSize: '0.875rem', marginTop: '0.25rem' }}>진행 중이거나 완료된 연습 경기를 확인합니다</p>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc' }}>{t('spectator.home.practiceWatch')}</h2>
+        <p style={{ color: '#d1d5db', fontSize: '0.875rem', marginTop: '0.25rem' }}>{t('spectator.home.practiceWatchDescription')}</p>
       </button>
     </div>
   );

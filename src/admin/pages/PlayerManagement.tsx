@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePlayers } from '@shared/hooks/useFirebase';
 import type { Player } from '@shared/types';
 
@@ -13,6 +14,7 @@ const EMPTY_FORM: PlayerForm = { name: '', club: '', class: '', gender: '' };
 const CLASS_OPTIONS = ['', 'B1', 'B2', 'B3'];
 
 export default function PlayerManagement() {
+  const { t } = useTranslation();
   const { players, loading, addPlayer, updatePlayer, deletePlayer } = usePlayers();
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export default function PlayerManagement() {
   const handleSave = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      setError('이름을 입력해주세요.');
+      setError(t('admin.players.nameRequired'));
       return;
     }
     setSaving(true);
@@ -70,11 +72,11 @@ export default function PlayerManagement() {
       }
       closeModal();
     } catch {
-      setError('저장 중 오류가 발생했습니다.');
+      setError(t('common.error.saveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [form, modalMode, editId, addPlayer, updatePlayer, closeModal]);
+  }, [form, modalMode, editId, addPlayer, updatePlayer, closeModal, t]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -94,7 +96,7 @@ export default function PlayerManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20" aria-live="polite">
-        <p className="text-2xl text-yellow-400 animate-pulse">선수 목록 로딩 중...</p>
+        <p className="text-2xl text-yellow-400 animate-pulse">{t('admin.players.loadingPlayers')}</p>
       </div>
     );
   }
@@ -102,23 +104,23 @@ export default function PlayerManagement() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-3xl font-bold text-yellow-400">선수 관리</h1>
-        <button className="btn btn-primary" onClick={openAdd} aria-label="선수 추가">
-          선수 추가
+        <h1 className="text-3xl font-bold text-yellow-400">{t('admin.players.title')}</h1>
+        <button className="btn btn-primary" onClick={openAdd} aria-label={t('admin.players.addPlayer')}>
+          {t('admin.players.addPlayer')}
         </button>
       </div>
 
       {players.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-xl text-gray-400">등록된 선수가 없습니다.</p>
+          <p className="text-xl text-gray-400">{t('admin.players.noPlayers')}</p>
         </div>
       ) : (
-        <div className="space-y-3" aria-label="선수 목록">
+        <div className="space-y-3" aria-label={t('admin.players.playerListLabel')}>
           {players.map(p => (
             <div key={p.id} className="card flex items-center justify-between flex-wrap gap-3">
               <div>
                 <span className="font-bold text-lg">{p.name}</span>
-                {p.gender && <span className="ml-2 text-xs text-gray-400">{p.gender === 'male' ? '남' : '여'}</span>}
+                {p.gender && <span className="ml-2 text-xs text-gray-400">{p.gender === 'male' ? t('common.gender.male') : t('common.gender.female')}</span>}
                 {p.club && <span className="ml-3 text-gray-400">({p.club})</span>}
                 {p.class && <span className="ml-3 text-cyan-400">[{p.class}]</span>}
               </div>
@@ -126,16 +128,16 @@ export default function PlayerManagement() {
                 <button
                   className="btn btn-secondary"
                   onClick={() => openEdit(p)}
-                  aria-label={`${p.name} 수정`}
+                  aria-label={t('admin.players.editAriaLabel', { name: p.name })}
                 >
-                  수정
+                  {t('common.edit')}
                 </button>
                 <button
                   className="btn btn-danger"
                   onClick={() => setDeleteTarget(p)}
-                  aria-label={`${p.name} 삭제`}
+                  aria-label={t('admin.players.deleteAriaLabel', { name: p.name })}
                 >
-                  삭제
+                  {t('common.delete')}
                 </button>
               </div>
             </div>
@@ -151,85 +153,85 @@ export default function PlayerManagement() {
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="player-modal-title">
             <h2 id="player-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
-              {modalMode === 'add' ? '선수 추가' : '선수 수정'}
+              {modalMode === 'add' ? t('admin.players.addPlayer') : t('admin.players.editPlayer')}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label htmlFor="player-name" className="block mb-1 font-semibold">이름</label>
+                <label htmlFor="player-name" className="block mb-1 font-semibold">{t('admin.players.playerNameLabel')}</label>
                 <input
                   ref={nameInputRef}
                   id="player-name"
                   className="input"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="선수 이름"
-                  aria-label="선수 이름"
+                  placeholder={t('admin.players.playerNamePlaceholder')}
+                  aria-label={t('admin.players.playerNameAriaLabel')}
                 />
               </div>
               <div>
-                <label htmlFor="player-club" className="block mb-1 font-semibold">소속</label>
+                <label htmlFor="player-club" className="block mb-1 font-semibold">{t('admin.players.clubLabel')}</label>
                 <input
                   id="player-club"
                   className="input"
                   value={form.club}
                   onChange={e => setForm(f => ({ ...f, club: e.target.value }))}
-                  placeholder="소속 (선택)"
-                  aria-label="소속"
+                  placeholder={t('admin.players.clubPlaceholder')}
+                  aria-label={t('admin.players.clubAriaLabel')}
                 />
               </div>
               <div>
-                <label htmlFor="player-class" className="block mb-1 font-semibold">등급</label>
+                <label htmlFor="player-class" className="block mb-1 font-semibold">{t('admin.players.classLabel')}</label>
                 <select
                   id="player-class"
                   className="input"
                   value={form.class}
                   onChange={e => setForm(f => ({ ...f, class: e.target.value }))}
-                  aria-label="등급"
+                  aria-label={t('admin.players.classAriaLabel')}
                 >
                   {CLASS_OPTIONS.map(c => (
-                    <option key={c} value={c}>{c || '미지정'}</option>
+                    <option key={c} value={c}>{c || t('admin.players.classUnspecified')}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block mb-1 font-semibold">성별 (선택)</label>
+                <label className="block mb-1 font-semibold">{t('admin.players.genderLabel')}</label>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     className={`btn flex-1 ${form.gender === 'male' ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                     onClick={() => setForm(f => ({ ...f, gender: 'male' }))}
                     aria-pressed={form.gender === 'male'}
-                    aria-label="남성 선택"
+                    aria-label={t('admin.players.maleAriaLabel')}
                   >
-                    남
+                    {t('common.gender.male')}
                   </button>
                   <button
                     type="button"
                     className={`btn flex-1 ${form.gender === 'female' ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                     onClick={() => setForm(f => ({ ...f, gender: 'female' }))}
                     aria-pressed={form.gender === 'female'}
-                    aria-label="여성 선택"
+                    aria-label={t('admin.players.femaleAriaLabel')}
                   >
-                    여
+                    {t('common.gender.female')}
                   </button>
                   <button
                     type="button"
                     className={`btn flex-1 ${form.gender === '' ? 'btn-secondary ring-2 ring-gray-400' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                     onClick={() => setForm(f => ({ ...f, gender: '' }))}
                     aria-pressed={form.gender === ''}
-                    aria-label="성별 미지정"
+                    aria-label={t('admin.players.unspecifiedAriaLabel')}
                   >
-                    미지정
+                    {t('common.gender.unspecified')}
                   </button>
                 </div>
               </div>
               {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
               <div className="flex gap-4">
-                <button type="submit" className="btn btn-primary flex-1" disabled={saving} aria-label="저장">
-                  {saving ? '저장 중...' : '저장'}
+                <button type="submit" className="btn btn-primary flex-1" disabled={saving} aria-label={t('common.save')}>
+                  {saving ? t('common.saving') : t('common.save')}
                 </button>
-                <button type="button" className="btn btn-secondary flex-1" onClick={closeModal} aria-label="취소">
-                  취소
+                <button type="button" className="btn btn-secondary flex-1" onClick={closeModal} aria-label={t('common.cancel')}>
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
@@ -244,14 +246,14 @@ export default function PlayerManagement() {
           onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="player-delete-title">
-            <h2 id="player-delete-title" className="text-2xl font-bold text-red-500 mb-4">선수 삭제</h2>
-            <p className="text-lg mb-6">{deleteTarget.name} 선수를 삭제하시겠습니까?</p>
+            <h2 id="player-delete-title" className="text-2xl font-bold text-red-500 mb-4">{t('admin.players.deletePlayer')}</h2>
+            <p className="text-lg mb-6">{t('admin.players.deleteConfirmMessage', { name: deleteTarget.name })}</p>
             <div className="flex gap-4">
-              <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label="삭제 확인">
-                삭제
+              <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label={t('common.delete')}>
+                {t('common.delete')}
               </button>
-              <button className="btn btn-secondary flex-1" onClick={() => setDeleteTarget(null)} aria-label="취소">
-                취소
+              <button className="btn btn-secondary flex-1" onClick={() => setDeleteTarget(null)} aria-label={t('common.cancel')}>
+                {t('common.cancel')}
               </button>
             </div>
           </div>

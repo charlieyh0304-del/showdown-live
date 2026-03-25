@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
 
@@ -8,11 +9,12 @@ export default function FavoritesView() {
   const { players, loading: pLoading } = usePlayers();
   const { tournaments } = useTournaments();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [notifPermission, setNotifPermission] = useState(() => getNotificationPermissionStatus());
 
   useEffect(() => {
-    document.title = '즐겨찾기 - 쇼다운 관람';
-  }, []);
+    document.title = t('spectator.favorites.pageTitle');
+  }, [t]);
 
   // Find active tournaments to search for live matches
   const activeTournamentIds = useMemo(
@@ -34,7 +36,7 @@ export default function FavoritesView() {
   if (pLoading) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
-        <p style={{ fontSize: '1.5rem' }}>데이터 로딩 중...</p>
+        <p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p>
       </div>
     );
   }
@@ -42,16 +44,16 @@ export default function FavoritesView() {
   return (
     <div>
       <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-        즐겨찾기
+        {t('spectator.favorites.title')}
       </h1>
 
       {favoritePlayers.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
           <p style={{ fontSize: '1.25rem', color: '#d1d5db', marginBottom: '1rem' }} role="status">
-            즐겨찾기한 선수가 없습니다
+            {t('spectator.favorites.noFavorites')}
           </p>
           <p style={{ color: '#d1d5db' }}>
-            대회 관람 중 선수 이름 옆 ☆ 버튼을 눌러 추가하세요
+            {t('spectator.favorites.addHint')}
           </p>
         </div>
       ) : (
@@ -73,21 +75,21 @@ export default function FavoritesView() {
           {/* Notification settings section */}
           <div className="card" style={{ marginTop: '1.5rem', border: '1px solid #374151' }}>
             <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
-              알림 설정
+              {t('spectator.favorites.notifications.title')}
             </h2>
             {notifPermission === 'unsupported' ? (
               <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
-                이 브라우저는 알림을 지원하지 않습니다.
+                {t('spectator.favorites.notifications.unsupported')}
               </p>
             ) : notifPermission === 'granted' ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ color: '#22c55e', fontSize: '1.25rem' }}>&#10003;</span>
                 <div>
                   <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
-                    알림이 활성화되어 있습니다
+                    {t('spectator.favorites.notifications.enabled')}
                   </p>
                   <p style={{ color: '#d1d5db', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                    즐겨찾기 선수의 경기 10분 전, 경기 결과를 알려드립니다.
+                    {t('spectator.favorites.notifications.enabledDetail')}
                   </p>
                 </div>
               </div>
@@ -96,25 +98,24 @@ export default function FavoritesView() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <span style={{ color: '#ef4444', fontSize: '1.25rem' }}>&#10007;</span>
                   <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
-                    알림이 차단되어 있습니다
+                    {t('spectator.favorites.notifications.denied')}
                   </p>
                 </div>
                 <p style={{ color: '#d1d5db', fontSize: '0.75rem' }}>
-                  브라우저 설정에서 이 사이트의 알림 권한을 허용해주세요.
-                  주소창 왼쪽의 자물쇠 아이콘 &gt; 알림 &gt; 허용
+                  {t('spectator.favorites.notifications.deniedDetail')}
                 </p>
               </div>
             ) : (
               <div>
                 <p style={{ color: '#d1d5db', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-                  알림을 활성화하면 즐겨찾기 선수의 경기 10분 전 알림과 경기 결과를 받을 수 있습니다.
+                  {t('spectator.favorites.notifications.promptMessage')}
                 </p>
                 <button
                   className="btn btn-primary"
                   onClick={handleRequestPermission}
                   style={{ fontSize: '0.875rem' }}
                 >
-                  알림 허용하기
+                  {t('spectator.favorites.notifications.enableButton')}
                 </button>
               </div>
             )}
@@ -140,6 +141,7 @@ function FavoritePlayerCard({
   activeTournamentIds: string[];
   navigate: ReturnType<typeof useNavigate>;
 }) {
+  const { t } = useTranslation();
   const [animating, setAnimating] = useState(false);
   // Subscribe to first active tournament to find live match for this player
   const firstTournamentId = activeTournamentIds.length > 0 ? activeTournamentIds[0] : null;
@@ -168,8 +170,8 @@ function FavoritePlayerCard({
             <button
               onClick={handleRemove}
               className={`favorite-btn favorite-btn--active${animating ? ' favorite-btn--pop' : ''}`}
-              aria-label={`${playerName} 즐겨찾기 해제`}
-              title="즐겨찾기 해제"
+              aria-label={t('spectator.favorites.removeAriaLabel', { name: playerName })}
+              title={t('spectator.favorites.removeAriaLabel', { name: playerName })}
             >
               {'\u2605'}
             </button>
@@ -183,9 +185,9 @@ function FavoritePlayerCard({
           className="btn btn-danger"
           onClick={handleRemove}
           style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}
-          aria-label={`${playerName} 즐겨찾기 해제`}
+          aria-label={t('spectator.favorites.removeAriaLabel', { name: playerName })}
         >
-          삭제
+          {t('spectator.favorites.removeButton')}
         </button>
       </div>
 
@@ -207,7 +209,7 @@ function FavoritePlayerCard({
             color: '#fff',
             fontSize: 'inherit',
           }}
-          aria-label={`${playerName} 경기 보기: ${activeMatch.player1Name} 대 ${activeMatch.player2Name}`}
+          aria-label={t('spectator.favorites.viewMatchAriaLabel', { name: playerName, p1: activeMatch.player1Name, p2: activeMatch.player2Name })}
         >
           <span
             className="animate-pulse"
@@ -221,9 +223,9 @@ function FavoritePlayerCard({
             aria-hidden="true"
           />
           <span style={{ fontWeight: 'bold' }}>
-            경기 진행중: {activeMatch.player1Name} vs {activeMatch.player2Name}
+            {t('spectator.favorites.liveMatch', { p1: activeMatch.player1Name, p2: activeMatch.player2Name })}
           </span>
-          <span style={{ marginLeft: 'auto', color: 'var(--color-secondary)' }}>보기 →</span>
+          <span style={{ marginLeft: 'auto', color: 'var(--color-secondary)' }}>{t('spectator.favorites.viewMatch')}</span>
         </button>
       )}
     </li>

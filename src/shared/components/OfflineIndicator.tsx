@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getPendingCount } from '../utils/offlineQueue';
 
 export default function OfflineIndicator() {
+  const { t } = useTranslation();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -47,7 +49,7 @@ export default function OfflineIndicator() {
         role="status"
         aria-live="polite"
       >
-        온라인 복구됨
+        {t('common.connection.onlineRestored')}
       </div>
     );
   }
@@ -58,10 +60,10 @@ export default function OfflineIndicator() {
       role="alert"
       aria-live="assertive"
     >
-      오프라인 모드 - 데이터가 자동 동기화됩니다
+      {t('common.connection.offlineMode')}
       {pendingCount > 0 && (
         <span className="ml-2 text-sm font-normal">
-          (대기 중: {pendingCount}건)
+          {t('common.connection.pendingCount', { count: pendingCount })}
         </span>
       )}
     </div>

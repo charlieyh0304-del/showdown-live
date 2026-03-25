@@ -1,12 +1,21 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ScoreHistoryEntry } from '@shared/types';
 
-const ACTION_LABELS: Record<string, string> = {
-  goal: '골 득점', irregular_serve: '부정 서브', centerboard: '센터보드 터치',
-  body_touch: '바디 터치', illegal_defense: '일리걸 디펜스', out: '아웃',
-  ball_holding: '볼 홀딩', mask_touch: '마스크/고글 터치', penalty: '기타 벌점',
-  penalty_table_pushing: '테이블 푸싱', penalty_electronic: '전자기기 소리',
-  penalty_talking: '경기 중 말하기', walkover: '부전승',
+const ACTION_KEY_MAP: Record<string, string> = {
+  goal: 'common.scoreActions.goal',
+  irregular_serve: 'common.scoreActions.irregularServe',
+  centerboard: 'common.scoreActions.centerboard',
+  body_touch: 'common.scoreActions.bodyTouch',
+  illegal_defense: 'common.scoreActions.illegalDefense',
+  out: 'common.scoreActions.out',
+  ball_holding: 'common.scoreActions.ballHolding',
+  mask_touch: 'common.scoreActions.maskTouch',
+  penalty: 'common.scoreActions.penalty',
+  penalty_table_pushing: 'common.scoreActions.penaltyTablePushing',
+  penalty_electronic: 'common.scoreActions.penaltyElectronic',
+  penalty_talking: 'common.scoreActions.penaltyTalking',
+  walkover: 'common.scoreActions.walkover',
 };
 
 const META_ACTION_TYPES = new Set([
@@ -35,7 +44,13 @@ interface ScoreHistoryViewProps {
  * No custom ARIA attributes; relies on plain HTML semantics for screen reader compatibility.
  */
 export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProps) {
+  const { t } = useTranslation();
   const [order, setOrder] = useState<'newest' | 'oldest'>('oldest');
+
+  const getActionLabel = (actionType: string) => {
+    const key = ACTION_KEY_MAP[actionType];
+    return key ? t(key) : actionType;
+  };
 
   const meaningfulHistory = useMemo(() => {
     return history.filter(h => h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning);
@@ -63,14 +78,14 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
     <div className="card" style={{ marginTop: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <h2 style={{ fontWeight: 'bold', color: '#facc15', margin: 0 }}>
-          경기 기록 ({meaningfulHistory.length})
+          {t('common.matchHistory.titleWithCount', { count: meaningfulHistory.length })}
         </h2>
         <button
           className="btn"
           onClick={() => setOrder(o => o === 'newest' ? 'oldest' : 'newest')}
           style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#374151' }}
         >
-          {order === 'newest' ? '최신순' : '시간순'}
+          {order === 'newest' ? t('common.matchHistory.newestFirst') : t('common.matchHistory.oldestFirst')}
         </button>
       </div>
 
@@ -81,7 +96,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
             background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)',
             borderRadius: '0.5rem', color: '#93c5fd', fontSize: '0.9rem',
           }}>
-            경기 시작
+            {t('common.matchHistory.matchStart')}
           </div>
         )}
         {setGroups.map(([setNum, entries]) => {
@@ -93,7 +108,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                 color: '#60a5fa', borderBottom: '2px solid rgba(96,165,250,0.3)',
                 backgroundColor: '#111827', position: 'sticky', top: 0, zIndex: 1,
               }}>
-                제{setNum}세트 {setData ? `(${setData.player1Score} : ${setData.player2Score})` : ''}
+                {t('common.matchHistory.setLabel', { num: setNum })} {setData ? `(${setData.player1Score} : ${setData.player2Score})` : ''}
               </div>
               {entries.map((h, i) => {
                 const isMeta = h.points === 0 || h.penaltyWarning === true;
@@ -101,50 +116,50 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                 const timeStr = parseTimeStr(h.time);
 
                 if (isMeta) {
-                  const actionLabel = ACTION_LABELS[h.actionType || ''] || h.actionLabel || '';
-                  const desc = h.penaltyWarning ? `${h.actionPlayer || '?'} ${actionLabel} 경고`
-                    : h.actionType === 'dead_ball' ? `${h.server || '?'} 데드볼 → 재서브`
-                    : h.actionType === 'timeout' ? `${h.actionPlayer || ''} 타임아웃`
-                    : h.actionType === 'timeout_player' ? `${h.actionPlayer || ''} 선수 타임아웃`
-                    : h.actionType === 'timeout_medical' ? `${h.actionPlayer || ''} 메디컬 타임아웃`
-                    : h.actionType === 'timeout_referee' ? `레프리 타임아웃`
-                    : h.actionType === 'pause' ? `일시정지 (${h.actionPlayer || ''})`
-                    : h.actionType === 'substitution' ? (h.actionLabel || '선수 교체')
-                    : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} 부전승`
-                    : h.actionType === 'coin_toss' ? (h.actionLabel || '동전던지기')
-                    : h.actionType === 'warmup_start' ? (h.actionLabel || '워밍업')
-                    : h.actionType === 'match_start' ? (h.actionLabel || '경기 시작')
-                    : h.actionType === 'player_rotation' ? (h.actionLabel || '선수 교체')
-                    : h.actionType === 'side_change' ? (h.actionLabel || '사이드 체인지')
+                  const actionLabel = getActionLabel(h.actionType || '') || h.actionLabel || '';
+                  const desc = h.penaltyWarning ? t('common.matchHistory.warning', { player: h.actionPlayer || '?', action: actionLabel })
+                    : h.actionType === 'dead_ball' ? t('common.matchHistory.deadBall', { server: h.server || '?' })
+                    : h.actionType === 'timeout' ? t('common.matchHistory.timeout', { player: h.actionPlayer || '' })
+                    : h.actionType === 'timeout_player' ? t('common.matchHistory.playerTimeout', { player: h.actionPlayer || '' })
+                    : h.actionType === 'timeout_medical' ? t('common.matchHistory.medicalTimeout', { player: h.actionPlayer || '' })
+                    : h.actionType === 'timeout_referee' ? t('common.matchHistory.refereeTimeout')
+                    : h.actionType === 'pause' ? t('common.matchHistory.pause', { player: h.actionPlayer || '' })
+                    : h.actionType === 'substitution' ? (h.actionLabel || t('common.matchHistory.substitution'))
+                    : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
+                    : h.actionType === 'coin_toss' ? (h.actionLabel || t('common.matchHistory.coinToss'))
+                    : h.actionType === 'warmup_start' ? (h.actionLabel || t('common.matchHistory.warmup'))
+                    : h.actionType === 'match_start' ? (h.actionLabel || t('common.matchHistory.matchStart'))
+                    : h.actionType === 'player_rotation' ? (h.actionLabel || t('common.matchHistory.playerRotation'))
+                    : h.actionType === 'side_change' ? (h.actionLabel || t('common.matchHistory.sideChange'))
                     : (h.actionLabel || '');
                   const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                   return (
                     <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
                       <div>{timeStr} {icon} {desc}</div>
-                      {!hideScore && <div style={{ fontSize: '0.75rem' }}>점수: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}</div>}
+                      {!hideScore && <div style={{ fontSize: '0.75rem' }}>{t('common.matchHistory.score')}: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}</div>}
                     </div>
                   );
                 }
 
                 const isGoal = h.actionType === 'goal';
-                const label = ACTION_LABELS[h.actionType || ''] || h.actionType || '';
+                const label = getActionLabel(h.actionType || '') || h.actionType || '';
                 const actionDesc = isGoal
-                  ? `${h.scoringPlayer} 골 득점 +${h.points}점`
+                  ? t('common.matchHistory.goalScored', { player: h.scoringPlayer, points: h.points })
                   : h.actionType === 'walkover'
-                  ? `${h.scoringPlayer || '?'} 부전승`
-                  : `${h.actionPlayer} ${label} → ${h.scoringPlayer} +${h.points}점`;
+                  ? `${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
+                  : t('common.matchHistory.penaltyScored', { actionPlayer: h.actionPlayer, action: label, scoringPlayer: h.scoringPlayer, points: h.points });
                 const actionColor = isGoal ? '#22c55e' : h.points >= 2 ? '#ef4444' : '#eab308';
 
                 return (
                   <div key={`${setNum}-${i}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem' }}>
                     <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
-                      🎾 {h.server || '?'} 서브 {h.serveNumber ? `${h.serveNumber}회차` : ''} {timeStr && `· ${timeStr}`}
+                      🎾 {h.server || '?'} {t('common.matchHistory.serve')} {h.serveNumber ? t('common.matchHistory.serveNumber', { num: h.serveNumber }) : ''} {timeStr && `· ${timeStr}`}
                     </div>
                     <div style={{ color: actionColor, fontWeight: 'bold' }}>
                       {icon} {actionDesc}
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: '#d1d5db' }}>
-                      점수: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}
+                      {t('common.matchHistory.score')}: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}
                     </div>
                   </div>
                 );

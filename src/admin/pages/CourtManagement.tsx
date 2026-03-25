@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCourts, useReferees } from '@shared/hooks/useFirebase';
 import type { Court } from '@shared/types';
 
@@ -11,6 +12,7 @@ interface CourtForm {
 const EMPTY_FORM: CourtForm = { name: '', location: '', assignedReferees: [] };
 
 export default function CourtManagement() {
+  const { t } = useTranslation();
   const { courts, loading, addCourt, updateCourt, deleteCourt } = useCourts();
   const { referees } = useReferees();
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
@@ -65,7 +67,7 @@ export default function CourtManagement() {
   const handleSave = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      setError('경기장 이름을 입력해주세요.');
+      setError(t('admin.courts.courtNameRequired'));
       return;
     }
 
@@ -84,7 +86,7 @@ export default function CourtManagement() {
       }
       closeModal();
     } catch {
-      setError('저장 중 오류가 발생했습니다.');
+      setError(t('common.error.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -107,13 +109,13 @@ export default function CourtManagement() {
 
   const getRefereeNames = useCallback((ids?: string[]) => {
     if (!ids || ids.length === 0) return '';
-    return ids.map(id => referees.find(r => r.id === id)?.name ?? '알 수 없음').join(', ');
+    return ids.map(id => referees.find(r => r.id === id)?.name ?? t('common.unknown')).join(', ');
   }, [referees]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20" aria-live="polite">
-        <p className="text-2xl text-yellow-400 animate-pulse">경기장 목록 로딩 중...</p>
+        <p className="text-2xl text-yellow-400 animate-pulse">{t('admin.courts.loadingCourts')}</p>
       </div>
     );
   }
@@ -121,18 +123,18 @@ export default function CourtManagement() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-3xl font-bold text-yellow-400">경기장 관리</h1>
-        <button className="btn btn-primary" onClick={openAdd} aria-label="경기장 추가">
-          경기장 추가
+        <h1 className="text-3xl font-bold text-yellow-400">{t('admin.courts.title')}</h1>
+        <button className="btn btn-primary" onClick={openAdd} aria-label={t('admin.courts.addCourt')}>
+          {t('admin.courts.addCourt')}
         </button>
       </div>
 
       {courts.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-xl text-gray-400">등록된 경기장이 없습니다.</p>
+          <p className="text-xl text-gray-400">{t('admin.courts.noCourts')}</p>
         </div>
       ) : (
-        <div className="space-y-3" aria-label="경기장 목록">
+        <div className="space-y-3" aria-label={t('admin.courts.courtListLabel')}>
           {courts.map(c => (
             <div key={c.id} className="card flex items-center justify-between flex-wrap gap-3">
               <div>
@@ -140,7 +142,7 @@ export default function CourtManagement() {
                 {c.location && <span className="ml-3 text-gray-400">({c.location})</span>}
                 {(c.assignedReferees?.length ?? 0) > 0 && (
                   <span className="ml-3 text-cyan-400 text-sm">
-                    심판: {getRefereeNames(c.assignedReferees)}
+                    {t('admin.nav.referees')}: {getRefereeNames(c.assignedReferees)}
                   </span>
                 )}
               </div>
@@ -148,16 +150,16 @@ export default function CourtManagement() {
                 <button
                   className="btn btn-secondary"
                   onClick={() => openEdit(c)}
-                  aria-label={`${c.name} 수정`}
+                  aria-label={t('admin.courts.editAriaLabel', { name: c.name })}
                 >
-                  수정
+                  {t('common.edit')}
                 </button>
                 <button
                   className="btn btn-danger"
                   onClick={() => setDeleteTarget(c)}
-                  aria-label={`${c.name} 삭제`}
+                  aria-label={t('admin.courts.deleteAriaLabel', { name: c.name })}
                 >
-                  삭제
+                  {t('common.delete')}
                 </button>
               </div>
             </div>
@@ -173,36 +175,36 @@ export default function CourtManagement() {
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="court-modal-title">
             <h2 id="court-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
-              {modalMode === 'add' ? '경기장 추가' : '경기장 수정'}
+              {modalMode === 'add' ? t('admin.courts.addCourt') : t('admin.courts.editCourt')}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label htmlFor="court-name" className="block mb-1 font-semibold">경기장 이름</label>
+                <label htmlFor="court-name" className="block mb-1 font-semibold">{t('admin.courts.courtNameLabel')}</label>
                 <input
                   ref={nameInputRef}
                   id="court-name"
                   className="input"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="경기장 이름"
-                  aria-label="경기장 이름"
+                  placeholder={t('admin.courts.courtNamePlaceholder')}
+                  aria-label={t('admin.courts.courtNameAriaLabel')}
                 />
               </div>
               <div>
-                <label htmlFor="court-location" className="block mb-1 font-semibold">위치</label>
+                <label htmlFor="court-location" className="block mb-1 font-semibold">{t('admin.courts.locationLabel')}</label>
                 <input
                   id="court-location"
                   className="input"
                   value={form.location}
                   onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="위치 (선택)"
-                  aria-label="경기장 위치"
+                  placeholder={t('admin.courts.locationPlaceholder')}
+                  aria-label={t('admin.courts.locationAriaLabel')}
                 />
               </div>
               <div>
-                <p className="mb-2 font-semibold">심판 배정 (최대 2명)</p>
+                <p className="mb-2 font-semibold">{t('admin.courts.refereeAssignment')}</p>
                 {referees.length === 0 ? (
-                  <p className="text-gray-400 text-sm">등록된 심판이 없습니다.</p>
+                  <p className="text-gray-400 text-sm">{t('admin.courts.noRefereesRegistered')}</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {referees.map(r => {
@@ -214,9 +216,9 @@ export default function CourtManagement() {
                           className={`btn text-sm ${selected ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                           onClick={() => toggleReferee(r.id)}
                           aria-pressed={selected}
-                          aria-label={`${r.name} ${selected ? '배정됨' : '미배정'}`}
+                          aria-label={`${r.name} ${selected ? t('admin.courts.assigned') : t('admin.courts.unassigned')}`}
                         >
-                          {r.name} ({r.role === 'main' ? '주심' : '부심'})
+                          {r.name} ({r.role === 'main' ? t('common.refereeRole.main') : t('common.refereeRole.assistant')})
                         </button>
                       );
                     })}
@@ -225,11 +227,11 @@ export default function CourtManagement() {
               </div>
               {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
               <div className="flex gap-4">
-                <button type="submit" className="btn btn-primary flex-1" disabled={saving} aria-label="저장">
-                  {saving ? '저장 중...' : '저장'}
+                <button type="submit" className="btn btn-primary flex-1" disabled={saving} aria-label={t('common.save')}>
+                  {saving ? t('common.saving') : t('common.save')}
                 </button>
-                <button type="button" className="btn btn-secondary flex-1" onClick={closeModal} aria-label="취소">
-                  취소
+                <button type="button" className="btn btn-secondary flex-1" onClick={closeModal} aria-label={t('common.cancel')}>
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
@@ -244,14 +246,14 @@ export default function CourtManagement() {
           onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="court-delete-title">
-            <h2 id="court-delete-title" className="text-2xl font-bold text-red-500 mb-4">경기장 삭제</h2>
-            <p className="text-lg mb-6">{deleteTarget.name} 경기장을 삭제하시겠습니까?</p>
+            <h2 id="court-delete-title" className="text-2xl font-bold text-red-500 mb-4">{t('admin.courts.deleteCourt')}</h2>
+            <p className="text-lg mb-6">{t('admin.courts.deleteConfirmMessage', { name: deleteTarget.name })}</p>
             <div className="flex gap-4">
-              <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label="삭제 확인">
-                삭제
+              <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label={t('common.delete')}>
+                {t('common.delete')}
               </button>
-              <button className="btn btn-secondary flex-1" onClick={() => setDeleteTarget(null)} aria-label="취소">
-                취소
+              <button className="btn btn-secondary flex-1" onClick={() => setDeleteTarget(null)} aria-label={t('common.cancel')}>
+                {t('common.cancel')}
               </button>
             </div>
           </div>

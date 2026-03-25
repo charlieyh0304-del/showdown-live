@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { MatchType } from '@shared/types';
 
 interface TeamMember {
@@ -13,22 +14,23 @@ interface TeamData {
   members: TeamMember[];
 }
 
-const emptyTeam = (defaultName: string): TeamData => ({
-  name: defaultName,
-  coach: '',
-  members: [
-    { name: '선수1', gender: 'male' },
-    { name: '선수2', gender: 'male' },
-    { name: '선수3', gender: 'female' },
-  ],
-});
-
 export default function PracticeSetup() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [matchType, setMatchType] = useState<MatchType>('individual');
-  const [player1Name, setPlayer1Name] = useState('연습선수A');
-  const [player2Name, setPlayer2Name] = useState('연습선수B');
+  const [player1Name, setPlayer1Name] = useState(t('referee.practice.setup.practicePlayerA'));
+  const [player2Name, setPlayer2Name] = useState(t('referee.practice.setup.practicePlayerB'));
   const [setsToWin, setSetsToWin] = useState(2);
+
+  const emptyTeam = (defaultName: string): TeamData => ({
+    name: defaultName,
+    coach: '',
+    members: [
+      { name: `${t('referee.practice.setup.memberPlaceholder', { num: 1 })}`, gender: 'male' },
+      { name: `${t('referee.practice.setup.memberPlaceholder', { num: 2 })}`, gender: 'male' },
+      { name: `${t('referee.practice.setup.memberPlaceholder', { num: 3 })}`, gender: 'female' },
+    ],
+  });
 
   // Team-specific
   const [teams, setTeams] = useState<TeamData[]>([]);
@@ -46,14 +48,14 @@ export default function PracticeSetup() {
 
   const addTeam = () => {
     if (teams.length >= 2) return;
-    const t = emptyTeam(teams.length === 0 ? '팀 A' : '팀 B');
-    setTeams([...teams, t]);
+    const newTeam = emptyTeam(teams.length === 0 ? t('referee.practice.setup.teamA') : t('referee.practice.setup.teamB'));
+    setTeams([...teams, newTeam]);
     setEditingTeam(teams.length);
     focusTargetRef.current = `[data-team="${teams.length}"] [data-field="name"]`;
   };
 
   const updateTeam = (idx: number, data: Partial<TeamData>) => {
-    setTeams(teams.map((t, i) => i === idx ? { ...t, ...data } : t));
+    setTeams(teams.map((tm, i) => i === idx ? { ...tm, ...data } : tm));
   };
 
   const removeTeam = (idx: number) => {
@@ -62,16 +64,16 @@ export default function PracticeSetup() {
   };
 
   const addMember = (idx: number) => {
-    const t = teams[idx];
-    if (t.members.length >= 6) return;
-    updateTeam(idx, { members: [...t.members, { name: `선수${t.members.length + 1}`, gender: 'male' }] });
-    focusTargetRef.current = `[data-team="${idx}"] [data-member="${t.members.length}"]`;
+    const tm = teams[idx];
+    if (tm.members.length >= 6) return;
+    updateTeam(idx, { members: [...tm.members, { name: t('referee.practice.setup.memberPlaceholder', { num: tm.members.length + 1 }), gender: 'male' }] });
+    focusTargetRef.current = `[data-team="${idx}"] [data-member="${tm.members.length}"]`;
   };
 
   const removeMember = (teamIdx: number, memberIdx: number) => {
-    const t = teams[teamIdx];
-    if (t.members.length <= 3) return;
-    updateTeam(teamIdx, { members: t.members.filter((_, i) => i !== memberIdx) });
+    const tm = teams[teamIdx];
+    if (tm.members.length <= 3) return;
+    updateTeam(teamIdx, { members: tm.members.filter((_, i) => i !== memberIdx) });
   };
 
   const handleStart = () => {
@@ -79,8 +81,8 @@ export default function PracticeSetup() {
       ? { SETS_TO_WIN: 1, MAX_SETS: 1, POINTS_TO_WIN: 31, MIN_POINT_DIFF: 2 }
       : { SETS_TO_WIN: setsToWin, MAX_SETS: setsToWin * 2 - 1, POINTS_TO_WIN: 11, MIN_POINT_DIFF: 2 };
 
-    const p1 = matchType === 'team' ? (teams[0]?.name || '팀 A') : player1Name;
-    const p2 = matchType === 'team' ? (teams[1]?.name || '팀 B') : player2Name;
+    const p1 = matchType === 'team' ? (teams[0]?.name || t('referee.practice.setup.teamA')) : player1Name;
+    const p2 = matchType === 'team' ? (teams[1]?.name || t('referee.practice.setup.teamB')) : player2Name;
 
     const params = new URLSearchParams({
       type: matchType,
@@ -101,28 +103,28 @@ export default function PracticeSetup() {
 
   const canStart = matchType === 'individual'
     ? player1Name.trim() && player2Name.trim()
-    : teams.length === 2 && teams.every(t => t.name.trim() && t.members.length >= 3 && t.members.every(m => m.name.trim()));
+    : teams.length === 2 && teams.every(tm => tm.name.trim() && tm.members.length >= 3 && tm.members.every(m => m.name.trim()));
 
   return (
     <div className="p-4 max-w-lg mx-auto space-y-6">
-      <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>연습 경기 설정</h1>
+      <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>{t('referee.practice.setup.title')}</h1>
 
       <div className="card space-y-4">
-        <h2 className="text-xl font-bold">경기 유형</h2>
+        <h2 className="text-xl font-bold">{t('referee.practice.setup.matchType')}</h2>
         <div className="flex gap-3">
           <button
             className={`btn flex-1 text-lg py-4 ${matchType === 'individual' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
             onClick={() => { setMatchType('individual'); setSetsToWin(2); }}
             aria-pressed={matchType === 'individual'}
           >
-            개인전
+            {t('referee.practice.setup.individual')}
           </button>
           <button
             className={`btn flex-1 text-lg py-4 ${matchType === 'team' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
             onClick={() => setMatchType('team')}
             aria-pressed={matchType === 'team'}
           >
-            팀전
+            {t('common.tournamentType.team')}
           </button>
         </div>
       </div>
@@ -130,52 +132,50 @@ export default function PracticeSetup() {
       {matchType === 'individual' ? (
         <>
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">선수 이름</h2>
-            <input className="input" value={player1Name} onChange={e => setPlayer1Name(e.target.value)} placeholder="선수 1 이름" aria-label="선수 1 이름" />
-            <input className="input" value={player2Name} onChange={e => setPlayer2Name(e.target.value)} placeholder="선수 2 이름" aria-label="선수 2 이름" />
+            <h2 className="text-xl font-bold">{t('referee.practice.setup.playerNames')}</h2>
+            <input className="input" value={player1Name} onChange={e => setPlayer1Name(e.target.value)} placeholder={t('referee.practice.setup.player1Name')} aria-label={t('referee.practice.setup.player1Name')} />
+            <input className="input" value={player2Name} onChange={e => setPlayer2Name(e.target.value)} placeholder={t('referee.practice.setup.player2Name')} aria-label={t('referee.practice.setup.player2Name')} />
           </div>
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">경기 규칙</h2>
+            <h2 className="text-xl font-bold">{t('referee.practice.setup.matchRules')}</h2>
             <div className="flex items-center gap-2">
-              <span className="text-gray-300">승리 점수:</span>
-              <span className="text-white font-bold">11점</span>
-              <span className="text-gray-400 text-sm">(IBSA 공식 규칙)</span>
+              <span className="text-gray-300">{t('referee.practice.setup.winScore')}:</span>
+              <span className="text-white font-bold">{t('referee.practice.setup.points11')}</span>
+              <span className="text-gray-400 text-sm">{t('referee.practice.setup.ibsaRules')}</span>
             </div>
             <div>
-              <label className="block mb-2 text-gray-300">세트 수 (선승)</label>
+              <label className="block mb-2 text-gray-300">{t('referee.practice.setup.setsToWin')}</label>
               <div className="flex gap-2">
-                {[1, 2, 3].map(v => (
+                {[1, 2, 3, 4, 5].map(v => (
                   <button key={v} className={`btn flex-1 ${setsToWin === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setSetsToWin(v)} aria-pressed={setsToWin === v}>
-                    {v}세트
+                    {t('referee.practice.setup.setLabel', { count: v })}
                   </button>
                 ))}
               </div>
             </div>
-            <p className="text-cyan-400 font-semibold">11점 | {setsToWin}세트 선승 | 최대 {setsToWin * 2 - 1}세트 | 2점차</p>
+            <p className="text-cyan-400 font-semibold">{t('referee.practice.setup.ruleSummary', { setsToWin, maxSets: setsToWin * 2 - 1 })}</p>
           </div>
         </>
       ) : (
         <>
-          {/* 등록된 팀 목록 */}
           {teams.map((team, idx) => (
             <div key={idx} className="card space-y-3" data-team={idx} style={{ borderLeft: `4px solid ${idx === 0 ? '#facc15' : '#22d3ee'}` }}>
               {editingTeam === idx ? (
-                /* 팀 편집 모드 */
                 <>
                   <div className="flex justify-between items-center">
-                    <h3 className={`text-lg font-bold ${idx === 0 ? 'text-yellow-400' : 'text-cyan-400'}`}>팀 {idx + 1} 편집</h3>
-                    <button className="text-sm text-gray-400 underline" onClick={() => setEditingTeam(null)} aria-label="팀 편집 완료" style={{ minHeight: '44px', minWidth: '44px' }}>완료</button>
+                    <h3 className={`text-lg font-bold ${idx === 0 ? 'text-yellow-400' : 'text-cyan-400'}`}>{t('referee.practice.setup.teamEdit', { num: idx + 1 })}</h3>
+                    <button className="text-sm text-gray-400 underline" onClick={() => setEditingTeam(null)} aria-label={t('referee.practice.setup.teamEditDoneAriaLabel')} style={{ minHeight: '44px', minWidth: '44px' }}>{t('referee.practice.setup.teamEditDone')}</button>
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">팀 이름</label>
-                    <input className="input" data-field="name" value={team.name} onChange={e => updateTeam(idx, { name: e.target.value })} aria-label="팀 이름" />
+                    <label className="block text-sm text-gray-400 mb-1">{t('referee.practice.setup.teamName')}</label>
+                    <input className="input" data-field="name" value={team.name} onChange={e => updateTeam(idx, { name: e.target.value })} aria-label={t('referee.practice.setup.teamNameAriaLabel')} />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">코치 (선택)</label>
-                    <input className="input" value={team.coach} onChange={e => updateTeam(idx, { coach: e.target.value })} placeholder="코치 이름" aria-label="코치 이름" />
+                    <label className="block text-sm text-gray-400 mb-1">{t('referee.practice.setup.coachOptional')}</label>
+                    <input className="input" value={team.coach} onChange={e => updateTeam(idx, { coach: e.target.value })} placeholder={t('referee.practice.setup.coachOptional')} aria-label={t('referee.practice.setup.coachAriaLabel')} />
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm text-gray-400">팀원 (서브 순서)</label>
+                    <label className="block text-sm text-gray-400">{t('referee.practice.setup.memberOrder')}</label>
                     {team.members.map((member, mi) => (
                       <div key={mi} className="flex gap-2 items-center">
                         <span className="text-gray-400 text-sm w-6">{mi + 1}</span>
@@ -188,8 +188,8 @@ export default function PracticeSetup() {
                             arr[mi] = { ...arr[mi], name: e.target.value };
                             updateTeam(idx, { members: arr });
                           }}
-                          placeholder={`${mi + 1}번 선수`}
-                          aria-label={`${mi + 1}번 선수`}
+                          placeholder={t('referee.practice.setup.memberPlaceholder', { num: mi + 1 })}
+                          aria-label={t('referee.practice.setup.memberPlaceholder', { num: mi + 1 })}
                         />
                         <button
                           className={`btn text-xs px-2 py-1 ${member.gender === 'male' ? 'bg-blue-700 text-blue-200' : 'bg-pink-700 text-pink-200'}`}
@@ -198,18 +198,18 @@ export default function PracticeSetup() {
                             arr[mi] = { ...arr[mi], gender: member.gender === 'male' ? 'female' : 'male' };
                             updateTeam(idx, { members: arr });
                           }}
-                          aria-label={`성별 변경: ${member.gender === 'male' ? '남' : '여'}`}
+                          aria-label={t('referee.practice.setup.genderToggle', { gender: member.gender === 'male' ? t('common.gender.male') : t('common.gender.female') })}
                         >
-                          {member.gender === 'male' ? '남' : '여'}
+                          {member.gender === 'male' ? t('common.gender.male') : t('common.gender.female')}
                         </button>
                         {team.members.length > 3 && (
-                          <button className="btn bg-red-900 text-red-300 text-xs px-2 py-1" onClick={() => removeMember(idx, mi)} aria-label={`${member.name} 제거`}>삭제</button>
+                          <button className="btn bg-red-900 text-red-300 text-xs px-2 py-1" onClick={() => removeMember(idx, mi)} aria-label={`${member.name} ${t('common.delete')}`}>{t('common.delete')}</button>
                         )}
                       </div>
                     ))}
                     {team.members.length < 6 && (
                       <button className="btn bg-gray-700 text-gray-300 text-sm w-full py-2" onClick={() => addMember(idx)}>
-                        + 예비 선수 추가 (최대 {6 - team.members.length}명)
+                        {t('referee.practice.setup.addReserveMember', { max: 6 - team.members.length })}
                       </button>
                     )}
                     {(() => {
@@ -220,55 +220,53 @@ export default function PracticeSetup() {
                       const activeFemale = activeMembers.filter(m => m.gender === 'female').length;
                       return (
                         <div className="text-xs text-gray-400 space-y-1">
-                          <p>출전 3명{team.members.length > 3 ? ` + 예비 ${team.members.length - 3}명` : ''} | 입력 순서 = 서브 로테이션 순서</p>
-                          <p>성별: 남 {maleCount}명 / 여 {femaleCount}명 (출전: 남 {activeMale} 여 {activeFemale})</p>
+                          <p>{t('referee.practice.setup.memberInfo', { reserve: team.members.length > 3 ? t('referee.practice.setup.reserveInfo', { count: team.members.length - 3 }) : '' })}</p>
+                          <p>{t('referee.practice.setup.genderInfo', { male: maleCount, female: femaleCount, activeMale, activeFemale })}</p>
                         </div>
                       );
                     })()}
                   </div>
-                  <button className="btn bg-red-900/50 text-red-400 text-sm w-full py-2" onClick={() => removeTeam(idx)}>팀 삭제</button>
+                  <button className="btn bg-red-900/50 text-red-400 text-sm w-full py-2" onClick={() => removeTeam(idx)}>{t('referee.practice.setup.deleteTeam')}</button>
                 </>
               ) : (
-                /* 팀 요약 보기 */
                 <div
                   className="flex justify-between items-center cursor-pointer"
                   onClick={() => setEditingTeam(idx)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingTeam(idx); } }}
                   role="button"
                   tabIndex={0}
-                  aria-label={`${team.name} 팀 편집`}
+                  aria-label={t('referee.practice.setup.teamSummaryAriaLabel', { name: team.name })}
                 >
                   <div>
                     <h3 className={`text-lg font-bold ${idx === 0 ? 'text-yellow-400' : 'text-cyan-400'}`}>{team.name}</h3>
-                    {team.coach && <p className="text-sm text-gray-400">코치: {team.coach}</p>}
+                    {team.coach && <p className="text-sm text-gray-400">{t('referee.practice.setup.coachLabel')}: {team.coach}</p>}
                     <p className="text-sm text-gray-400">{team.members.map(m => m.name).join(', ')}</p>
                   </div>
-                  <span className="text-gray-400 text-sm" aria-hidden="true">편집</span>
+                  <span className="text-gray-400 text-sm" aria-hidden="true">{t('common.edit')}</span>
                 </div>
               )}
             </div>
           ))}
 
-          {/* 새 팀 추가 버튼 */}
           {teams.length < 2 && (
             <button
               className="card w-full text-center py-6 border-2 border-dashed border-gray-600 hover:border-yellow-400 text-gray-400 hover:text-yellow-400 text-lg font-bold"
               onClick={addTeam}
-              aria-label={`새 팀 추가. 현재 ${teams.length}팀 등록됨, 최대 2팀`}
+              aria-label={t('referee.practice.setup.addNewTeamAriaLabel', { current: teams.length })}
             >
-              + 새 팀 추가 ({teams.length}/2)
+              {t('referee.practice.setup.addNewTeam', { current: teams.length })}
             </button>
           )}
 
           <div className="card">
-            <p className="text-cyan-400 font-semibold">31점 | 1세트 단판 | 서브 3회 교대 | 2점차</p>
+            <p className="text-cyan-400 font-semibold">{t('referee.practice.setup.teamRuleSummary')}</p>
           </div>
         </>
       )}
 
       <div className="flex gap-4">
-        <button className="btn btn-success btn-large flex-1" onClick={handleStart} disabled={!canStart} aria-label="연습 시작">연습 시작</button>
-        <button className="btn btn-accent flex-1" onClick={() => navigate('/referee/practice')} aria-label="뒤로">뒤로</button>
+        <button className="btn btn-success btn-large flex-1" onClick={handleStart} disabled={!canStart} aria-label={t('referee.practice.setup.startAriaLabel')}>{t('referee.practice.setup.startButton')}</button>
+        <button className="btn btn-accent flex-1" onClick={() => navigate('/referee/practice')} aria-label={t('common.back')}>{t('common.back')}</button>
       </div>
     </div>
   );

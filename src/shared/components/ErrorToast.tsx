@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ErrorToastProps {
   message: string | null;
@@ -7,6 +8,8 @@ interface ErrorToastProps {
 }
 
 export default function ErrorToast({ message, onDismiss, duration = 5000 }: ErrorToastProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(onDismiss, duration);
@@ -25,9 +28,9 @@ export default function ErrorToast({ message, onDismiss, duration = 5000 }: Erro
       <button
         className="mt-2 text-sm underline text-red-300 hover:text-white"
         onClick={onDismiss}
-        aria-label="알림 닫기"
+        aria-label={t('common.error.dismissAlert')}
       >
-        닫기
+        {t('common.close')}
       </button>
     </div>
   );

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 interface StepIndicatorProps {
   currentStep: number;
   totalSteps: number;
@@ -5,13 +7,14 @@ interface StepIndicatorProps {
 }
 
 export default function StepIndicator({ currentStep, totalSteps, labels }: StepIndicatorProps) {
+  const { t } = useTranslation();
   return (
     <div
       role="progressbar"
       aria-valuenow={currentStep}
       aria-valuemin={1}
       aria-valuemax={totalSteps}
-      aria-label={`대회 생성 ${currentStep}단계 / ${totalSteps}단계: ${labels[currentStep - 1] || ''}`}
+      aria-label={t('admin.tournamentCreate.stepProgress', { current: currentStep, total: totalSteps, label: labels[currentStep - 1] || '' })}
     >
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
         {Array.from({ length: totalSteps }, (_, i) => (
@@ -29,7 +32,7 @@ export default function StepIndicator({ currentStep, totalSteps, labels }: StepI
         ))}
       </div>
       <p className="text-sm text-gray-400 text-center">
-        {currentStep}단계: {labels[currentStep - 1] || ''}
+        {t('admin.tournamentCreate.stepLabel', { step: currentStep, label: labels[currentStep - 1] || '' })}
       </p>
     </div>
   );

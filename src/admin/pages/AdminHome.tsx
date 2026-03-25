@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ref, get } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { useTournaments } from '@shared/hooks/useFirebase';
@@ -7,12 +8,12 @@ import { useAuth } from '@shared/hooks/useAuth';
 import { verifyPin, createRateLimiter } from '@shared/utils/crypto';
 import type { TournamentStatus, TournamentType } from '@shared/types';
 
-const STATUS_LABELS: Record<TournamentStatus, string> = {
-  draft: '초안',
-  registration: '접수중',
-  in_progress: '진행중',
-  paused: '일시정지',
-  completed: '완료',
+const STATUS_KEYS: Record<TournamentStatus, string> = {
+  draft: 'common.tournamentStatus.draft',
+  registration: 'common.tournamentStatus.registration',
+  in_progress: 'common.tournamentStatus.inProgress',
+  paused: 'common.tournamentStatus.paused',
+  completed: 'common.tournamentStatus.completed',
 };
 
 const STATUS_COLORS: Record<TournamentStatus, string> = {
@@ -23,13 +24,14 @@ const STATUS_COLORS: Record<TournamentStatus, string> = {
   completed: 'bg-green-600 text-white',
 };
 
-const TYPE_LABELS: Record<TournamentType, string> = {
-  individual: '개인전',
-  team: '팀전',
-  randomTeamLeague: '랜덤 팀리그전',
+const TYPE_KEYS: Record<TournamentType, string> = {
+  individual: 'common.tournamentType.individual',
+  team: 'common.tournamentType.team',
+  randomTeamLeague: 'common.tournamentType.randomTeamLeague',
 };
 
 export default function AdminHome() {
+  const { t } = useTranslation();
   const { tournaments, loading, deleteTournament } = useTournaments();
   const navigate = useNavigate();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export default function AdminHome() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20" aria-live="polite">
-        <p className="text-2xl text-yellow-400 animate-pulse">대회 목록 로딩 중...</p>
+        <p className="text-2xl text-yellow-400 animate-pulse">{t('admin.home.loadingTournaments')}</p>
       </div>
     );
   }
@@ -57,48 +59,48 @@ export default function AdminHome() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-3xl font-bold text-yellow-400">대시보드</h1>
+        <h1 className="text-3xl font-bold text-yellow-400">{t('admin.home.title')}</h1>
         <button
           className="btn btn-primary"
           onClick={() => navigate('/admin/tournament/new')}
-          aria-label="새 대회 만들기"
+          aria-label={t('admin.home.createTournament')}
         >
-          새 대회 만들기
+          {t('admin.home.createTournament')}
         </button>
       </div>
 
       {tournaments.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-xl text-gray-400">등록된 대회가 없습니다.</p>
-          <p className="text-gray-400 mt-2">새 대회를 만들어 시작하세요.</p>
+          <p className="text-xl text-gray-400">{t('admin.home.noTournaments')}</p>
+          <p className="text-gray-400 mt-2">{t('admin.home.startPrompt')}</p>
         </div>
       ) : (
-        <div className="space-y-4" aria-label="대회 목록">
-          {tournaments.map(t => (
-            <div key={t.id} className="card flex items-center justify-between flex-wrap gap-4">
+        <div className="space-y-4" aria-label={t('admin.home.tournamentListLabel')}>
+          {tournaments.map(tour => (
+            <div key={tour.id} className="card flex items-center justify-between flex-wrap gap-4">
               <div
                 className="flex-1 cursor-pointer min-w-0"
-                onClick={() => navigate(`/admin/tournament/${t.id}`)}
+                onClick={() => navigate(`/admin/tournament/${tour.id}`)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/tournament/${t.id}`); }}
-                aria-label={`${t.name} 대회 상세보기`}
+                onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/tournament/${tour.id}`); }}
+                aria-label={t('admin.home.tournamentDetailAriaLabel', { name: tour.name })}
               >
-                <h2 className="text-xl font-bold truncate">{t.name}</h2>
+                <h2 className="text-xl font-bold truncate">{tour.name}</h2>
                 <div className="flex items-center gap-3 mt-2 flex-wrap">
-                  <span className="text-gray-400">{t.date}</span>
-                  <span className="text-cyan-400">{TYPE_LABELS[t.type]}</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[t.status]}`}>
-                    {STATUS_LABELS[t.status]}
+                  <span className="text-gray-400">{tour.date}</span>
+                  <span className="text-cyan-400">{t(TYPE_KEYS[tour.type])}</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[tour.status]}`}>
+                    {t(STATUS_KEYS[tour.status])}
                   </span>
                 </div>
               </div>
               <button
                 className="btn btn-danger"
-                onClick={() => setDeleteTarget(t.id)}
-                aria-label={`${t.name} 대회 삭제`}
+                onClick={() => setDeleteTarget(tour.id)}
+                aria-label={t('admin.home.deleteTournamentAriaLabel', { name: tour.name })}
               >
-                삭제
+                {t('common.delete')}
               </button>
             </div>
           ))}
@@ -107,7 +109,7 @@ export default function AdminHome() {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          tournamentName={tournaments.find(t => t.id === deleteTarget)?.name || ''}
+          tournamentName={tournaments.find(tour => tour.id === deleteTarget)?.name || ''}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           deleting={deleting}
@@ -119,6 +121,7 @@ export default function AdminHome() {
 
 // ===== 삭제 확인 모달 (포커스 트랩 + Firebase PIN 검증 + 레이트 리미팅) =====
 function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: { tournamentName: string; onConfirm: () => void; onCancel: () => void; deleting: boolean }) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -172,7 +175,7 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
 
   const handleConfirmWithPassword = useCallback(async () => {
     if (!rateLimiter.canAttempt()) {
-      setPasswordError(`너무 많은 시도가 있었습니다. ${Math.ceil(rateLimiter.remainingLockout() / 1000)}초 후 다시 시도해주세요.`);
+      setPasswordError(t('admin.login.tooManyAttempts', { seconds: Math.ceil(rateLimiter.remainingLockout() / 1000) }));
       return;
     }
 
@@ -200,9 +203,9 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
         rateLimiter.recordFailure();
         const remaining = rateLimiter.remainingLockout();
         if (remaining > 0) {
-          setPasswordError(`PIN이 올바르지 않습니다. 너무 많은 시도로 ${Math.ceil(remaining / 1000)}초간 잠금됩니다.`);
+          setPasswordError(t('admin.login.lockedMessage', { seconds: Math.ceil(remaining / 1000) }));
         } else {
-          setPasswordError('PIN이 올바르지 않습니다.');
+          setPasswordError(t('admin.login.incorrectPin'));
         }
         setPassword('');
         passwordRef.current?.focus();
@@ -212,7 +215,7 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
       rateLimiter.recordSuccess();
       onConfirm();
     } catch {
-      setPasswordError('인증 중 오류가 발생했습니다.');
+      setPasswordError(t('common.error.authFailed'));
     } finally {
       setVerifying(false);
     }
@@ -230,12 +233,12 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
         aria-modal="true"
         aria-labelledby="delete-modal-title"
       >
-        <h2 id="delete-modal-title" className="text-2xl font-bold text-red-500 mb-4">대회 삭제</h2>
+        <h2 id="delete-modal-title" className="text-2xl font-bold text-red-500 mb-4">{t('admin.deleteModal.title')}</h2>
         <p className="text-lg mb-4">
-          <strong className="text-yellow-400">{tournamentName}</strong> 대회를 정말 삭제하시겠습니까? 관련된 모든 데이터가 삭제됩니다.
+          {t('admin.deleteModal.confirmMessage', { name: tournamentName })}
         </p>
         <div className="mb-4">
-          <label htmlFor="admin-password" className="block text-sm text-gray-400 mb-1">로그인 관리자 PIN을 입력하세요</label>
+          <label htmlFor="admin-password" className="block text-sm text-gray-400 mb-1">{t('admin.deleteModal.pinPrompt')}</label>
           <input
             ref={passwordRef}
             id="admin-password"
@@ -244,14 +247,14 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
             value={password}
             onChange={e => { setPassword(e.target.value); setPasswordError(''); }}
             onKeyDown={e => { if (e.key === 'Enter' && password && !isLocked && !verifying) handleConfirmWithPassword(); }}
-            placeholder="관리자 PIN"
-            aria-label="관리자 PIN"
+            placeholder={t('admin.deleteModal.adminPinPlaceholder')}
+            aria-label={t('admin.deleteModal.adminPinPlaceholder')}
             disabled={isLocked}
           />
           {passwordError && <p className="text-red-500 text-sm mt-1" role="alert">{passwordError}</p>}
           {isLocked && (
             <p className="text-orange-400 text-sm mt-1" role="alert">
-              {lockoutSeconds}초 후 다시 시도할 수 있습니다.
+              {t('admin.login.retryAfter', { seconds: lockoutSeconds })}
             </p>
           )}
         </div>
@@ -260,16 +263,16 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
             className="btn btn-danger flex-1"
             onClick={handleConfirmWithPassword}
             disabled={deleting || verifying || !password || isLocked}
-            aria-label="삭제 확인"
+            aria-label={t('admin.deleteModal.deleteConfirmAriaLabel')}
           >
-            {deleting ? '삭제 중...' : verifying ? '확인 중...' : '삭제'}
+            {deleting ? t('common.deleting') : verifying ? t('admin.deleteModal.verifying') : t('common.delete')}
           </button>
           <button
             className="btn btn-secondary flex-1"
             onClick={onCancel}
-            aria-label="취소"
+            aria-label={t('common.cancel')}
           >
-            취소
+            {t('common.cancel')}
           </button>
         </div>
       </div>
