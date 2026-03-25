@@ -2355,7 +2355,7 @@ function PlayerMatchRow({
                     const isMetaEvent = entry.points === 0 && META_TYPES.has(entry.actionType);
                     if (isMetaEvent) {
                       const metaIcon = entry.actionType === 'coin_toss' ? '🪙' : entry.actionType === 'warmup_start' ? '🏃' : entry.actionType === 'match_start' ? '🎾' : entry.actionType === 'timeout' ? '⏱️' : entry.actionType === 'side_change' ? '🔄' : entry.actionType === 'player_rotation' ? '🔄' : entry.actionType === 'pause' ? '⏸️' : entry.actionType === 'substitution' ? '🔄' : entry.actionType === 'dead_ball' ? '🔵' : '⚪';
-                      const metaDesc = entry.actionLabel || entry.actionType || '';
+                      const metaDesc = ACTION_LABELS[entry.actionType] || entry.actionType || '';
                       return (
                         <div key={i} style={{
                           display: 'flex',

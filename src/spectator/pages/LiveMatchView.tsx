@@ -273,14 +273,14 @@ function HistoryBySet({ history, sets, order }: {
                   : h.actionType === 'timeout_medical' ? t('common.matchHistory.medicalTimeout', { player: h.actionPlayer || '' })
                   : h.actionType === 'timeout_referee' ? t('common.matchHistory.refereeTimeout')
                   : h.actionType === 'pause' ? t('common.matchHistory.pause', { player: h.actionPlayer || '' })
-                  : h.actionType === 'substitution' ? (h.actionLabel || t('common.matchHistory.substitution'))
+                  : h.actionType === 'substitution' ? t('common.matchHistory.substitution')
                   : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
-                  : h.actionType === 'coin_toss' ? (h.actionLabel || t('common.matchHistory.coinToss'))
-                  : h.actionType === 'warmup_start' ? (h.actionLabel || t('common.matchHistory.warmup'))
-                  : h.actionType === 'match_start' ? (h.actionLabel || t('common.matchHistory.matchStart'))
-                  : h.actionType === 'player_rotation' ? (h.actionLabel || t('common.matchHistory.playerRotation'))
-                  : h.actionType === 'side_change' ? (h.actionLabel || t('common.matchHistory.sideChange'))
-                  : (h.actionLabel || '');
+                  : h.actionType === 'coin_toss' ? t('common.matchHistory.coinToss')
+                  : h.actionType === 'warmup_start' ? t('common.matchHistory.warmup')
+                  : h.actionType === 'match_start' ? t('common.matchHistory.matchStart')
+                  : h.actionType === 'player_rotation' ? t('common.matchHistory.playerRotation')
+                  : h.actionType === 'side_change' ? t('common.matchHistory.sideChange')
+                  : (actionLabel || h.actionType || '');
                 const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                 return (
                   <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
