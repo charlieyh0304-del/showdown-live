@@ -983,6 +983,7 @@ export default function TeamMatchScoring() {
           subtitle={`1${t('common.time.minutes')}`}
           onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); }}
           closeLabel={t('common.confirm')}
+          required
         />
       )}
 

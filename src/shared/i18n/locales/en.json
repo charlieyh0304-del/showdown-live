@@ -176,7 +176,8 @@
     "time": {
       "minutes": "min",
       "seconds": "sec",
-      "remaining": "Time remaining {{display}}"
+      "remaining": "Time remaining {{display}}",
+      "waitForTimer": "Please wait until the timer ends"
     },
 
     "units": {

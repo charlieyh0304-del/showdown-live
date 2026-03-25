@@ -7,13 +7,35 @@ export function useFocusTrap(isActive: boolean, onEscape?: () => void) {
   useEffect(() => {
     if (!isActive) return;
 
-    // 현재 포커스 저장
     previousFocusRef.current = document.activeElement as HTMLElement;
 
     const container = containerRef.current;
     if (!container) return;
 
-    // 모달 내 첫 번째 포커스 가능 요소로 이동
+    // Hide all siblings from screen readers (virtual cursor containment)
+    const root = document.getElementById('root');
+    const hiddenElements: { el: Element; prev: string | null }[] = [];
+    if (root) {
+      // Walk up from container to find the modal-backdrop, then hide siblings of root
+      const siblings = Array.from(document.body.children).filter(
+        el => el !== root && !el.contains(container) && el.tagName !== 'SCRIPT'
+      );
+      siblings.forEach(el => {
+        hiddenElements.push({ el, prev: el.getAttribute('aria-hidden') });
+        el.setAttribute('aria-hidden', 'true');
+      });
+      // Also hide root's children that are not the modal
+      // The modal-backdrop is typically a direct child of root or inside the component tree
+      // We set aria-hidden on elements that are NOT ancestors of our container
+      const rootChildren = Array.from(root.children);
+      rootChildren.forEach(el => {
+        if (!el.contains(container) && el !== container) {
+          hiddenElements.push({ el, prev: el.getAttribute('aria-hidden') });
+          el.setAttribute('aria-hidden', 'true');
+        }
+      });
+    }
+
     const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const focusables = container.querySelectorAll<HTMLElement>(focusableSelector);
     if (focusables.length > 0) {
@@ -50,7 +72,11 @@ export function useFocusTrap(isActive: boolean, onEscape?: () => void) {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      // 이전 포커스로 복귀
+      // Restore aria-hidden on previously hidden elements
+      hiddenElements.forEach(({ el, prev }) => {
+        if (prev === null) el.removeAttribute('aria-hidden');
+        else el.setAttribute('aria-hidden', prev);
+      });
       if (previousFocusRef.current && previousFocusRef.current.focus) {
         previousFocusRef.current.focus();
       }

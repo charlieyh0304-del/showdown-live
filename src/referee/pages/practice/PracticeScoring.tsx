@@ -25,6 +25,7 @@ import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import TimerModal from '../../components/TimerModal';
 import SetGroupedHistory from '../../components/SetGroupedHistory';
+import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../../components/ActionToast';
 
 export default function PracticeScoring() {
@@ -817,11 +818,8 @@ export default function PracticeScoring() {
         <p className="text-gray-400">{t('referee.practice.scoring.totalActions', { count: match.actionLog.length, seconds: Math.floor((match.completedAt! - match.startedAt) / 1000) })}</p>
 
         {match.scoreHistory.length > 0 && (
-          <div className="w-full max-w-lg">
-            <h3 className="text-lg font-bold text-gray-300 mb-2">{t('referee.practice.scoring.historyToggle', { count: match.scoreHistory.length })}</h3>
-            <div className="max-h-60 overflow-y-auto">
-              <SetGroupedHistory history={match.scoreHistory} sets={match.sets} showAll />
-            </div>
+          <div className="w-full max-w-lg mx-auto flex-1 min-h-0">
+            <ScoreHistoryView history={match.scoreHistory} sets={match.sets} />
           </div>
         )}
 
@@ -879,6 +877,7 @@ export default function PracticeScoring() {
           subtitle={t('referee.practice.scoring.sideChangeSubtitle')}
           onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); }}
           closeLabel={t('referee.practice.scoring.confirmButton')}
+          required
         />
       )}
 

@@ -8,18 +8,23 @@ interface TimerModalProps {
   subtitle?: string;
   onClose: () => void;
   closeLabel?: string;
+  /** If true, close button is hidden until timer reaches 0. Used for mandatory side changes. */
+  required?: boolean;
 }
 
-export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel }: TimerModalProps) {
+export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel, required }: TimerModalProps) {
   const { t } = useTranslation();
   const effectiveCloseLabel = closeLabel || t('common.close');
-  const trapRef = useFocusTrap(true, onClose);
+  // If required, don't allow Escape to close
+  const trapRef = useFocusTrap(true, required ? undefined : onClose);
 
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const display = minutes > 0
     ? `${minutes}:${secs.toString().padStart(2, '0')}`
     : `${seconds}`;
+
+  const timerDone = seconds <= 0;
 
   return (
     <div className="modal-backdrop" style={{ zIndex: 100 }}>
@@ -33,9 +38,14 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
           {display}
         </div>
         {subtitle && <p className="text-xl text-gray-300">{subtitle}</p>}
-        <button className="btn btn-danger btn-large" onClick={onClose} aria-label={effectiveCloseLabel}>
-          {effectiveCloseLabel}
-        </button>
+        {(!required || timerDone) && (
+          <button className="btn btn-danger btn-large" onClick={onClose} aria-label={effectiveCloseLabel}>
+            {effectiveCloseLabel}
+          </button>
+        )}
+        {required && !timerDone && (
+          <p className="text-sm text-gray-400" aria-live="polite">{t('common.time.waitForTimer')}</p>
+        )}
       </div>
     </div>
   );
