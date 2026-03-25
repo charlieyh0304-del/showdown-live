@@ -2517,8 +2517,8 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#facc15' }}>{p.name}</span>
               <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem' }} aria-hidden="true">
-                <span style={{ color: (p.wins + p.losses) > 0 && p.wins / (p.wins + p.losses) >= 0.5 ? '#22c55e' : '#ef4444' }}>
-                  {(p.wins + p.losses) > 0 ? Math.round((p.wins / (p.wins + p.losses)) * 100) : 0}%
+                <span style={{ color: '#d1d5db' }}>
+                  {p.wins}{t('common.units.win')}{p.losses}{t('common.units.loss')}
                 </span>
                 {!isTeam && <span style={{ color: p.setsWon - p.setsLost > 0 ? '#22c55e' : p.setsWon - p.setsLost < 0 ? '#ef4444' : '#9ca3af' }}>
                   {t('common.units.set')} {p.setsWon - p.setsLost > 0 ? '+' : ''}{p.setsWon - p.setsLost}

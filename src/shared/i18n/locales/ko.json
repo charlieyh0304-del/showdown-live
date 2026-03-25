@@ -186,7 +186,9 @@
       "match": "경기",
       "set": "세트",
       "point": "점",
-      "group": "조"
+      "group": "조",
+      "win": "승",
+      "loss": "패"
     },
 
     "pdf": {
@@ -203,6 +205,9 @@
       "coinToss": "동전던지기",
       "serve": "서브",
       "receive": "리시브",
+      "courtChange": "코트 체인지",
+      "courtChangeYes": "요청",
+      "courtChangeNo": "유지",
       "setResults": "세트 결과",
       "setNum": "세트",
       "winner": "승자",
@@ -887,6 +892,14 @@
       "warmupStart": "워밍업 시작",
       "coinToss": "동전던지기",
       "coinTossWinner": "동전던지기: {{winner}} 승리 → {{choice}} 선택",
+      "coinTossLoserCourtChange": "{{loser}}: 코트 체인지 {{decision}}",
+      "courtChangeYes": "요청",
+      "courtChangeNo": "유지",
+      "courtChangeTitle": "코트 체인지",
+      "courtChangeQuestion": "{{loser}} 선수가 코트 체인지를 원하나요?",
+      "courtChangeAriaLabel": "코트 체인지 선택",
+      "courtChangeYesButton": "코트 체인지",
+      "courtChangeNoButton": "현재 위치 유지",
       "serveChoice": "서브",
       "receiveChoice": "리시브",
       "firstServe": "{{name}} 첫 서브",

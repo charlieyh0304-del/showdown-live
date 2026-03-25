@@ -15,7 +15,7 @@ import {
   createScoreHistoryEntry,
   getMaxServes,
 } from '@shared/utils/scoring';
-import { formatTime, getLocale } from '@shared/utils/locale';
+import { formatTime, speak } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { IBSA_SCORE_ACTIONS } from '@shared/types';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
@@ -29,17 +29,6 @@ import ActionToast from '../components/ActionToast';
 
 type PenaltyDropdownKey = 'player1' | 'player2' | null;
 type TimeoutDropdownKey = 'player1' | 'player2' | null;
-
-// TTS helper: speak text using Web Speech API
-function speak(text: string) {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = getLocale();
-    utterance.rate = 1.2;
-    window.speechSynthesis.speak(utterance);
-  }
-}
 
 // Referee timeout elapsed timer component
 function TimeoutModal({ match, player1Name, player2Name, timeoutTimer, onClose }: {
@@ -123,9 +112,10 @@ export default function IndividualScoring() {
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
   // Coin toss
-  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'warmup_ask'>('toss');
+  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'court_change' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
   const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
+  const [courtChangeByLoser, setCourtChangeByLoser] = useState(false);
   // Coach
   const [player1Coach, setPlayer1Coach] = useState('');
   const [player2Coach, setPlayer2Coach] = useState('');
@@ -269,12 +259,18 @@ export default function IndividualScoring() {
     const choiceLabel = firstServe === (tossWinner ?? 'player1') ? t('referee.scoring.serveChoice') : t('referee.scoring.receiveChoice');
     const serverName = firstServe === 'player1' ? p1Name : p2Name;
 
+    const loserName = tossWinner === 'player1' ? p2Name : p1Name;
+    const courtChangeLabel = t('referee.scoring.coinTossLoserCourtChange', {
+      loser: loserName,
+      decision: courtChangeByLoser ? t('referee.scoring.courtChangeYes') : t('referee.scoring.courtChangeNo'),
+    });
+
     const coinTossEntry: ScoreHistoryEntry = {
       time: formatTime(),
       scoringPlayer: '',
       actionPlayer: winnerName,
       actionType: 'coin_toss',
-      actionLabel: t('referee.scoring.coinTossWinner', { winner: winnerName, choice: choiceLabel }),
+      actionLabel: `${t('referee.scoring.coinTossWinner', { winner: winnerName, choice: choiceLabel })} / ${courtChangeLabel}`,
       points: 0,
       set: 1,
       server: serverName,
@@ -334,10 +330,11 @@ export default function IndividualScoring() {
       warmupUsed: withWarmup,
       coinTossWinner: tossWinner ?? undefined,
       coinTossChoice: firstServe === (tossWinner ?? 'player1') ? 'serve' : 'receive',
+      courtChangeByLoser,
       player1Coach: player1Coach || undefined,
       player2Coach: player2Coach || undefined,
     });
-  }, [match, updateMatch, tossWinner, player1Coach, player2Coach]);
+  }, [match, updateMatch, tossWinner, courtChangeByLoser, player1Coach, player2Coach]);
 
   // Warmup
   const handleWarmup = useCallback(async () => {
@@ -929,14 +926,41 @@ export default function IndividualScoring() {
             </h2>
             <p className="text-gray-400 text-center">{t('referee.scoring.serveChoice')} / {t('referee.scoring.receiveChoice')}</p>
             <div className="flex gap-4">
-              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setCoinTossStep('warmup_ask'); }} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name} ${t('referee.scoring.serveChoice')}`}>
+              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setCoinTossStep('court_change'); }} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name} ${t('referee.scoring.serveChoice')}`}>
                 {t('referee.scoring.serveChoice')}
               </button>
-              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setCoinTossStep('warmup_ask'); }} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name} ${t('referee.scoring.receiveChoice')}`}>
+              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setCoinTossStep('court_change'); }} aria-label={`${tossWinner === 'player1' ? player1Name : player2Name} ${t('referee.scoring.receiveChoice')}`}>
                 {t('referee.scoring.receiveChoice')}
               </button>
             </div>
             <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+              {t('common.back')}
+            </button>
+          </div>
+        )}
+        {coinTossStep === 'court_change' && tossWinner && (
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold text-center">{t('referee.scoring.courtChangeTitle')}</h2>
+            <p className="text-gray-400 text-center" aria-live="polite">
+              {t('referee.scoring.courtChangeQuestion', { loser: tossWinner === 'player1' ? player2Name : player1Name })}
+            </p>
+            <div className="flex gap-4" role="group" aria-label={t('referee.scoring.courtChangeAriaLabel')}>
+              <button
+                className="btn btn-primary btn-large flex-1 text-xl py-6"
+                onClick={() => { setCourtChangeByLoser(true); setCoinTossStep('warmup_ask'); }}
+                aria-label={`${tossWinner === 'player1' ? player2Name : player1Name}: ${t('referee.scoring.courtChangeYesButton')}`}
+              >
+                {t('referee.scoring.courtChangeYesButton')}
+              </button>
+              <button
+                className="btn bg-gray-700 text-white btn-large flex-1 text-xl py-6"
+                onClick={() => { setCourtChangeByLoser(false); setCoinTossStep('warmup_ask'); }}
+                aria-label={`${tossWinner === 'player1' ? player2Name : player1Name}: ${t('referee.scoring.courtChangeNoButton')}`}
+              >
+                {t('referee.scoring.courtChangeNoButton')}
+              </button>
+            </div>
+            <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
               {t('common.back')}
             </button>
           </div>

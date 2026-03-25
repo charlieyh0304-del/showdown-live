@@ -611,6 +611,7 @@ export default function TournamentCreate() {
                   key={preset.id}
                   role="radio"
                   aria-checked={state.presetId === preset.id}
+                  aria-label={`${preset.name}${state.presetId === preset.id ? `, ${t('common.accessibility.selected')}` : ''}`}
                   className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                   onClick={() => {
                     const errors = validateStep(1);
@@ -675,6 +676,7 @@ export default function TournamentCreate() {
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'full_league_all'}
+                aria-label={`${t('admin.tournamentCreate.tournamentMode.fullLeague')}${state.tournamentMode === 'full_league_all' ? `, ${t('common.accessibility.selected')}` : ''}`}
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'full_league_all' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'full_league_all' })}
               >
@@ -684,6 +686,7 @@ export default function TournamentCreate() {
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'group_tournament'}
+                aria-label={`${t('admin.tournamentCreate.tournamentMode.groupTournament')}${state.tournamentMode === 'group_tournament' ? `, ${t('common.accessibility.selected')}` : ''}`}
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'group_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'group_tournament' })}
               >
@@ -693,6 +696,7 @@ export default function TournamentCreate() {
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'direct_tournament'}
+                aria-label={`${t('admin.tournamentCreate.tournamentMode.directTournament')}${state.tournamentMode === 'direct_tournament' ? `, ${t('common.accessibility.selected')}` : ''}`}
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'direct_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'direct_tournament' })}
               >
@@ -702,6 +706,7 @@ export default function TournamentCreate() {
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'manual'}
+                aria-label={`${t('admin.tournamentCreate.tournamentMode.manual')}${state.tournamentMode === 'manual' ? `, ${t('common.accessibility.selected')}` : ''}`}
                 className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'manual' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'manual' })}
               >
@@ -816,6 +821,7 @@ export default function TournamentCreate() {
                   <button
                     role="radio"
                     aria-checked={state.finalsFormat === 'single_elimination'}
+                    aria-label={`${t('admin.tournamentCreate.finals.singleElimination')}${state.finalsFormat === 'single_elimination' ? `, ${t('common.accessibility.selected')}` : ''}`}
                     className={`btn py-3 ${state.finalsFormat === 'single_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'single_elimination' })}
                   >
@@ -824,6 +830,7 @@ export default function TournamentCreate() {
                   <button
                     role="radio"
                     aria-checked={state.finalsFormat === 'double_elimination'}
+                    aria-label={`${t('admin.tournamentCreate.finals.doubleElimination')}${state.finalsFormat === 'double_elimination' ? `, ${t('common.accessibility.selected')}` : ''}`}
                     className={`btn py-3 ${state.finalsFormat === 'double_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'double_elimination' })}
                   >

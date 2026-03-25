@@ -122,6 +122,7 @@ export default function PracticeSetup() {
             aria-checked={matchType === 'individual'}
             className={`btn flex-1 text-lg py-4 ${matchType === 'individual' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
             onClick={() => { setMatchType('individual'); setSetsToWin(2); }}
+            aria-label={`${t('referee.practice.setup.individual')}${matchType === 'individual' ? `, ${t('common.accessibility.selected')}` : ''}`}
           >
             {t('referee.practice.setup.individual')}
           </button>
@@ -130,6 +131,7 @@ export default function PracticeSetup() {
             aria-checked={matchType === 'team'}
             className={`btn flex-1 text-lg py-4 ${matchType === 'team' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
             onClick={() => setMatchType('team')}
+            aria-label={`${t('common.tournamentType.team')}${matchType === 'team' ? `, ${t('common.accessibility.selected')}` : ''}`}
           >
             {t('common.tournamentType.team')}
           </button>
@@ -160,7 +162,7 @@ export default function PracticeSetup() {
               <legend className="block mb-2 text-gray-300">{t('referee.practice.setup.setsToWin')}</legend>
               <div className="flex gap-2" role="radiogroup" aria-label={t('referee.practice.setup.setsToWin')}>
                 {[1, 2, 3, 4, 5].map(v => (
-                  <button key={v} role="radio" aria-checked={setsToWin === v} className={`btn flex-1 ${setsToWin === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setSetsToWin(v)} aria-label={t('referee.practice.setup.setLabel', { count: v })}>
+                  <button key={v} role="radio" aria-checked={setsToWin === v} className={`btn flex-1 ${setsToWin === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setSetsToWin(v)} aria-label={`${t('referee.practice.setup.setLabel', { count: v })}${setsToWin === v ? `, ${t('common.accessibility.selected')}` : ''}`}>
                     {t('referee.practice.setup.setLabel', { count: v })}
                   </button>
                 ))}

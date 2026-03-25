@@ -150,10 +150,10 @@ export function shouldSideChange(
   const maxScore = Math.max(set.player1Score, set.player2Score);
 
   if (matchType === 'individual') {
-    // 개인전: 마지막 세트에서만
+    // 개인전: 결정 세트(양쪽 모두 SETS_TO_WIN-1 승)에서만 사이드 체인지
     const setWins = countSetWins(sets.slice(0, -1), config);
-    const isLastSet = setWins.player1 === config.SETS_TO_WIN - 1 && setWins.player2 === config.SETS_TO_WIN - 1;
-    return isLastSet && maxScore >= sideChangePoint;
+    const isDecidingSet = setWins.player1 === config.SETS_TO_WIN - 1 && setWins.player2 === config.SETS_TO_WIN - 1;
+    return isDecidingSet && maxScore >= sideChangePoint;
   }
   // 팀전: 항상
   return maxScore >= sideChangePoint;

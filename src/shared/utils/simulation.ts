@@ -30,6 +30,7 @@ function simulateScoreHistory(
   sets: SetScore[],
   matchType: 'individual' | 'team',
   teamServeOrders?: { team1: string[]; team2: string[] },
+  setsToWinParam?: number,
 ): ScoreHistoryEntry[] {
   const history: ScoreHistoryEntry[] = [];
   const maxServes = matchType === 'team' ? 3 : 2;
@@ -39,17 +40,20 @@ function simulateScoreHistory(
   // 코인토스 결정 (첫 서버 결정)
   const coinTossWinner: 'player1' | 'player2' = Math.random() < 0.5 ? 'player1' : 'player2';
   const coinTossChoice: 'serve' | 'receive' = Math.random() < 0.5 ? 'serve' : 'receive';
+  const courtChangeByLoser = Math.random() < 0.3; // 30% 확률로 코트 체인지
   const firstServer: 'player1' | 'player2' = coinTossChoice === 'serve' ? coinTossWinner : (coinTossWinner === 'player1' ? 'player2' : 'player1');
   const tossWinnerName = coinTossWinner === 'player1' ? p1Name : p2Name;
+  const tossLoserName = coinTossWinner === 'player1' ? p2Name : p1Name;
 
   // 코인토스 이벤트
   const coinTossTime = new Date(baseTime - 120000); // 경기 시작 2분 전
+  const courtChangeText = `${tossLoserName}: 코트 체인지 ${courtChangeByLoser ? '요청' : '유지'}`;
   history.push({
     time: formatTime(coinTossTime),
     scoringPlayer: tossWinnerName,
     actionPlayer: tossWinnerName,
     actionType: 'coin_toss' as ScoreActionType,
-    actionLabel: `동전던지기: ${tossWinnerName} 승리 → ${coinTossChoice === 'serve' ? '서브' : '리시브'} 선택`,
+    actionLabel: `동전던지기: ${tossWinnerName} 승리 → ${coinTossChoice === 'serve' ? '서브' : '리시브'} 선택 / ${courtChangeText}`,
     points: 0,
     set: 1,
     server: firstServer === 'player1' ? p1Name : p2Name,
@@ -94,7 +98,14 @@ function simulateScoreHistory(
     const targetP2 = set.player2Score;
     let entryIndex = 0;
     let sideChanged = false;
-    const isLastSet = setIdx === sets.length - 1;
+    // 결정 세트 판별: 양쪽 모두 setsToWin - 1 세트를 이겼을 때만 결정 세트
+    const setsToWin = matchType === 'team' ? 1 : (setsToWinParam ?? Math.ceil(sets.length / 2));
+    let p1SetWins = 0, p2SetWins = 0;
+    for (let si = 0; si < setIdx; si++) {
+      if (sets[si].player1Score > sets[si].player2Score) p1SetWins++;
+      else if (sets[si].player2Score > sets[si].player1Score) p2SetWins++;
+    }
+    const isDecidingSet = p1SetWins === setsToWin - 1 && p2SetWins === setsToWin - 1;
 
     // 세트 시작 시 첫 서브 기록 (서브 시작 이벤트)
     const setStartTime = new Date(baseTime + setIdx * 10 * 60 * 1000);
@@ -227,7 +238,7 @@ function simulateScoreHistory(
         const sideChangePoint = matchType === 'team' ? 16 : 6;
         const maxScore = Math.max(p1, p2);
         const shouldChange = matchType === 'individual'
-          ? (isLastSet && maxScore >= sideChangePoint)
+          ? (isDecidingSet && maxScore >= sideChangePoint)
           : (maxScore >= sideChangePoint);
         if (shouldChange) {
           sideChanged = true;
@@ -582,7 +593,7 @@ function generateFinalsMatches(
           team2: t2?.memberNames || [p2Name],
         };
       })() : undefined;
-      const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1, p2, result.sets, matchType, teamServeOrders);
+      const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1, p2, result.sets, matchType, teamServeOrders, setsToWin);
       const refIndex = matchCounter.value % referees.length;
       const courtIndex = matchCounter.value % courts.length;
       const matchId = `sim_match_${matchCounter.value}`;
@@ -689,7 +700,7 @@ function createRankingMatch(
       team2: t2?.memberNames || [p2Name],
     };
   })() : undefined;
-  const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1Id, p2Id, result.sets, matchType, teamServeOrders);
+  const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1Id, p2Id, result.sets, matchType, teamServeOrders, setsToWin);
   const refIndex = matchCounter.value % referees.length;
   const courtIndex = matchCounter.value % courts.length;
   const matchId = `sim_match_${matchCounter.value}`;
@@ -984,7 +995,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
         // scoreHistory 생성
         const scoreHistory = simulateScoreHistory(
           p1Name, p2Name, p1Id, p2Id,
-          result.sets, matchType, teamServeOrders,
+          result.sets, matchType, teamServeOrders, setsToWin,
         );
 
         // 스케줄 시간 계산 (20분 간격)

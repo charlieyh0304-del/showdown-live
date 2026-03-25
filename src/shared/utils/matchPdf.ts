@@ -68,8 +68,10 @@ export function generateMatchHtml(
   let coinTossHtml = '';
   if (match.coinTossWinner) {
     const tossWinner = match.coinTossWinner === 'player1' ? p1 : p2;
+    const tossLoser = match.coinTossWinner === 'player1' ? p2 : p1;
     const tossChoice = match.coinTossChoice === 'serve' ? t('common.pdf.serve') : t('common.pdf.receive');
-    coinTossHtml = `<p class="coin-toss">${escHtml(t('common.pdf.coinToss'))}: ${tossWinner} - ${escHtml(tossChoice)}</p>`;
+    const courtChange = match.courtChangeByLoser ? t('common.pdf.courtChangeYes') : t('common.pdf.courtChangeNo');
+    coinTossHtml = `<p class="coin-toss">${escHtml(t('common.pdf.coinToss'))}: ${tossWinner} - ${escHtml(tossChoice)} / ${escHtml(t('common.pdf.courtChange'))}: ${tossLoser} - ${escHtml(courtChange)}</p>`;
   }
 
   // Set results table

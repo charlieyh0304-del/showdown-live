@@ -186,7 +186,9 @@
       "match": "matches",
       "set": "sets",
       "point": "pts",
-      "group": "groups"
+      "group": "groups",
+      "win": "W",
+      "loss": "L"
     },
 
     "pdf": {
@@ -203,6 +205,9 @@
       "coinToss": "Coin Toss",
       "serve": "Serve",
       "receive": "Receive",
+      "courtChange": "Court Change",
+      "courtChangeYes": "Yes",
+      "courtChangeNo": "No",
       "setResults": "Set Results",
       "setNum": "Set",
       "winner": "Winner",
@@ -887,6 +892,14 @@
       "warmupStart": "Start Warm-up",
       "coinToss": "Coin Toss",
       "coinTossWinner": "Coin Toss: {{winner}} wins → chose {{choice}}",
+      "coinTossLoserCourtChange": "{{loser}}: Court change {{decision}}",
+      "courtChangeYes": "requested",
+      "courtChangeNo": "declined",
+      "courtChangeTitle": "Court Change",
+      "courtChangeQuestion": "Does {{loser}} want to change courts?",
+      "courtChangeAriaLabel": "Court change selection",
+      "courtChangeYesButton": "Change Courts",
+      "courtChangeNoButton": "Keep Current",
       "serveChoice": "Serve",
       "receiveChoice": "Receive",
       "firstServe": "{{name}} serves first",

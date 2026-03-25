@@ -319,7 +319,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   : 'border-transparent hover:border-gray-600'
               }`}
               onClick={() => setField('finalsFormat', fmt.value)}
-              aria-label={t(fmt.labelKey)}
+              aria-label={`${t(fmt.labelKey)}${state.finalsFormat === fmt.value ? `, ${t('common.accessibility.selected')}` : ''}`}
             >
               <div className="text-2xl mb-1" aria-hidden="true">
                 {fmt.icon}
@@ -382,7 +382,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                       : 'border-transparent hover:border-gray-600'
                   }`}
                   onClick={() => setField('bracketArrangement', opt.value)}
-                  aria-label={`${t(opt.labelKey)}: ${t(opt.descKey)}`}
+                  aria-label={`${t(opt.labelKey)}: ${t(opt.descKey)}${state.bracketArrangement === opt.value ? `, ${t('common.accessibility.selected')}` : ''}`}
                 >
                   <h3 className="text-lg font-bold">{t(opt.labelKey)}</h3>
                   <p className="text-gray-400 text-sm">{t(opt.descKey)}</p>
@@ -705,7 +705,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                           key={opt.value}
                           role="radio"
                           aria-checked={selected}
-                          aria-label={`${opt.label} ${opt.desc}`}
+                          aria-label={`${opt.label} ${opt.desc}${selected ? `, ${t('common.accessibility.selected')}` : ''}`}
                           className={`p-3 rounded-lg text-center text-sm font-semibold transition-all ${
                             selected
                               ? 'bg-yellow-500 text-black border-2 border-yellow-300 shadow-lg'
@@ -782,7 +782,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                       state.rankingFormat === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'
                     }`}
                     onClick={() => setField('rankingFormat', opt.value)}
-                    aria-label={t(opt.labelKey)}
+                    aria-label={`${t(opt.labelKey)}${state.rankingFormat === opt.value ? `, ${t('common.accessibility.selected')}` : ''}`}
                   >
                     {t(opt.labelKey)}
                   </button>

@@ -383,6 +383,7 @@ export interface Match {
   team2CurrentPlayerIndex?: number;   // 팀2 현재 서브 선수 인덱스
   coinTossWinner?: 'team1' | 'team2' | 'player1' | 'player2'; // 동전던지기 승자
   coinTossChoice?: 'serve' | 'receive'; // 승자의 선택
+  courtChangeByLoser?: boolean; // 패자의 코트 체인지 선택
   // 팀전 필드
   team1Id?: string;
   team2Id?: string;
@@ -569,6 +570,7 @@ export interface PracticeMatch {
   team2SubUsed?: boolean;
   coinTossWinner?: 'team1' | 'team2';
   coinTossChoice?: 'serve' | 'receive';
+  courtChangeByLoser?: boolean;
   // 코치 정보
   player1Coach?: string;
   player2Coach?: string;

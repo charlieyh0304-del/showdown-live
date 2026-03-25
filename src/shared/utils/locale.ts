@@ -31,6 +31,25 @@ export function formatDateTime(date?: Date): string {
   return d.toLocaleString(getLocale());
 }
 
+/** TTS helper: speak text using Web Speech API (iOS compatible) */
+export function speak(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  // iOS Safari requires a short delay after cancel() before speak() works
+  const doSpeak = () => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = getLocale();
+    utterance.rate = 1.2;
+    window.speechSynthesis.speak(utterance);
+  };
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    setTimeout(doSpeak, 100);
+  } else {
+    doSpeak();
+  }
+}
+
 /** Parse a time string that may be in Korean or English locale format */
 export function parseTimeDisplay(time: string): string {
   // Already in HH:MM or HH:MM:SS format
