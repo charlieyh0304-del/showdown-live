@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ModeSelector from './ModeSelector';
 import OfflineIndicator from '@shared/components/OfflineIndicator';
@@ -16,12 +16,23 @@ const SpectatorRoutes = lazy(() => import('../spectator/SpectatorRoutes'));
 function AppContent() {
   const { t, i18n } = useTranslation();
   const routeAnnouncement = useRouteAnnouncer();
+  const location = useLocation();
 
-  // Update page title and lang attribute when language changes
+  // Update page title and lang attribute when language or route changes
   useEffect(() => {
-    document.title = t('common.appName') + ' - ' + t('common.appDescription');
+    const path = location.pathname;
+    const appName = t('common.appName');
+    if (path.startsWith('/admin')) {
+      document.title = `${appName} - ${t('app.modeSelector.adminMode')}`;
+    } else if (path.startsWith('/referee')) {
+      document.title = `${appName} - ${t('app.modeSelector.refereeMode')}`;
+    } else if (path.startsWith('/spectator')) {
+      document.title = `${appName} - ${t('app.modeSelector.spectatorMode')}`;
+    } else {
+      document.title = `${appName} - ${t('common.appDescription')}`;
+    }
     document.documentElement.lang = i18n.language;
-  }, [i18n.language, t]);
+  }, [i18n.language, t, location.pathname]);
 
   return (
     <>
