@@ -79,11 +79,9 @@ export default function PracticeScoring() {
   const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
   const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
-  // Coach
-  const [player1Coach, setPlayer1Coach] = useState('');
-  const [player2Coach, setPlayer2Coach] = useState('');
-
-  // Read coach from URL params (team mode)
+  // Coach - read from URL params (individual: p1c/p2c, team: t1c/t2c)
+  const [player1Coach, setPlayer1Coach] = useState(searchParams.get('p1c') || '');
+  const [player2Coach, setPlayer2Coach] = useState(searchParams.get('p2c') || '');
   const t1c = searchParams.get('t1c') || '';
   const t2c = searchParams.get('t2c') || '';
   // Penalty & timeout dropdowns (same as real match mode)

@@ -20,6 +20,8 @@ export default function PracticeSetup() {
   const [matchType, setMatchType] = useState<MatchType>('individual');
   const [player1Name, setPlayer1Name] = useState(t('referee.practice.setup.practicePlayerA'));
   const [player2Name, setPlayer2Name] = useState(t('referee.practice.setup.practicePlayerB'));
+  const [player1Coach, setPlayer1Coach] = useState('');
+  const [player2Coach, setPlayer2Coach] = useState('');
   const [setsToWin, setSetsToWin] = useState(2);
 
   const emptyTeam = (defaultName: string): TeamData => ({
@@ -96,6 +98,9 @@ export default function PracticeSetup() {
       params.set('t2m', JSON.stringify(teams[1]?.members.map(m => m.name) || []));
       if (teams[0]?.coach?.trim()) params.set('t1c', teams[0].coach.trim());
       if (teams[1]?.coach?.trim()) params.set('t2c', teams[1].coach.trim());
+    } else {
+      if (player1Coach.trim()) params.set('p1c', player1Coach.trim());
+      if (player2Coach.trim()) params.set('p2c', player2Coach.trim());
     }
 
     navigate(`/referee/practice/play?${params.toString()}`);
@@ -133,8 +138,14 @@ export default function PracticeSetup() {
         <>
           <div className="card space-y-4">
             <h2 className="text-xl font-bold">{t('referee.practice.setup.playerNames')}</h2>
-            <input className="input" value={player1Name} onChange={e => setPlayer1Name(e.target.value)} placeholder={t('referee.practice.setup.player1Name')} aria-label={t('referee.practice.setup.player1Name')} />
-            <input className="input" value={player2Name} onChange={e => setPlayer2Name(e.target.value)} placeholder={t('referee.practice.setup.player2Name')} aria-label={t('referee.practice.setup.player2Name')} />
+            <div className="space-y-1">
+              <input className="input" value={player1Name} onChange={e => setPlayer1Name(e.target.value)} placeholder={t('referee.practice.setup.player1Name')} aria-label={t('referee.practice.setup.player1Name')} />
+              <input className="input text-sm" value={player1Coach} onChange={e => setPlayer1Coach(e.target.value)} placeholder={`${player1Name} ${t('referee.practice.setup.coachLabel')}`} aria-label={`${player1Name} ${t('referee.practice.setup.coachLabel')}`} />
+            </div>
+            <div className="space-y-1">
+              <input className="input" value={player2Name} onChange={e => setPlayer2Name(e.target.value)} placeholder={t('referee.practice.setup.player2Name')} aria-label={t('referee.practice.setup.player2Name')} />
+              <input className="input text-sm" value={player2Coach} onChange={e => setPlayer2Coach(e.target.value)} placeholder={`${player2Name} ${t('referee.practice.setup.coachLabel')}`} aria-label={`${player2Name} ${t('referee.practice.setup.coachLabel')}`} />
+            </div>
           </div>
           <div className="card space-y-4">
             <h2 className="text-xl font-bold">{t('referee.practice.setup.matchRules')}</h2>
