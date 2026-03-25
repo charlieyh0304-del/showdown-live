@@ -27,6 +27,14 @@ export function usePracticeHistory() {
     });
   }, []);
 
+  const deleteSession = useCallback((sessionId: string) => {
+    setSessions(prev => {
+      const next = prev.filter(s => s.id !== sessionId);
+      saveSessions(next);
+      return next;
+    });
+  }, []);
+
   const clearHistory = useCallback(() => {
     setSessions([]);
     localStorage.removeItem(STORAGE_KEY);
@@ -47,5 +55,5 @@ export function usePracticeHistory() {
     return { totalSessions: total, avgAccuracy, improvement };
   }, [sessions]);
 
-  return { sessions, addSession, clearHistory, getStats };
+  return { sessions, addSession, deleteSession, clearHistory, getStats };
 }

@@ -137,16 +137,23 @@ export default function PracticeScoring() {
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
-  // 워밍업 15초 알림
+  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다 (60초/30초 경과 시)
   useEffect(() => {
     if (warmupTimer.isRunning) {
       if (matchType === 'team') {
+        // 90초 워밍업: 60초(첫 선수 교대), 30초(두번째 선수 교대)에 알림
+        if (warmupTimer.seconds === 60) {
+          setLastAction(`⚠️ 30${t('common.time.seconds')}`);
+          setAnnouncement(`30${t('common.time.seconds')}`);
+          speak(`30${t('common.time.seconds')}`);
+        }
         if (warmupTimer.seconds === 30) {
-          setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
-          setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-          speak(t('referee.scoring.fifteenSecondsLeft'));
+          setLastAction(`⚠️ 30${t('common.time.seconds')}`);
+          setAnnouncement(`30${t('common.time.seconds')}`);
+          speak(`30${t('common.time.seconds')}`);
         }
       } else {
+        // 60초 워밍업: 15초 전 알림
         if (warmupTimer.seconds === 15) {
           setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
           setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));

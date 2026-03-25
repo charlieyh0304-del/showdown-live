@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import type { PracticeMatch, SetScore } from '@shared/types';
 import { countSetWins } from '@shared/utils/scoring';
 import { formatDateTime } from '@shared/utils/locale';
-import { useAuth } from '@shared/hooks/useAuth';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 
 const LIVE_KEY = 'showdown_practice_live';
@@ -13,24 +12,10 @@ const COMPLETED_KEY = 'showdown_practice_completed';
 export default function PracticeWatchView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { isAdmin } = useAuth();
   const [liveMatches, setLiveMatches] = useState<PracticeMatch[]>([]);
   const [completedMatches, setCompletedMatches] = useState<PracticeMatch[]>([]);
   const [tab, setTab] = useState<'live' | 'completed'>('live');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const handleDeleteMatch = (matchId: string) => {
-    if (!isAdmin) return;
-    const updated = completedMatches.filter(m => m.id !== matchId);
-    setCompletedMatches(updated);
-    localStorage.setItem(COMPLETED_KEY, JSON.stringify(updated));
-  };
-
-  const handleDeleteAll = () => {
-    if (!isAdmin) return;
-    localStorage.removeItem(COMPLETED_KEY);
-    setCompletedMatches([]);
-  };
 
   useEffect(() => {
     document.title = t('spectator.practiceWatch.pageTitle');
@@ -135,23 +120,42 @@ export default function PracticeWatchView() {
             </div>
           ) : (
             <div className="space-y-4">
-              {liveMatches.map(match => (
-                <div key={match.id} className="card p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span style={{ backgroundColor: '#16a34a', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                      {t('spectator.practiceWatch.liveTag')}
-                    </span>
-                    <span className="text-sm text-gray-300">{match.type === 'individual' ? t('spectator.practiceWatch.individualMatch') : t('spectator.practiceWatch.teamMatch')}</span>
+              {liveMatches.map(match => {
+                const isExpanded = expandedId === match.id;
+                return (
+                  <div key={match.id} className="card">
+                    <button
+                      className="w-full text-left p-6"
+                      onClick={() => setExpandedId(isExpanded ? null : match.id)}
+                      aria-expanded={isExpanded}
+                      aria-label={`${match.player1Name} vs ${match.player2Name} - ${t('spectator.practiceWatch.liveTag')}`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span style={{ backgroundColor: '#16a34a', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          {t('spectator.practiceWatch.liveTag')}
+                        </span>
+                        <span className="text-sm text-gray-300">{match.type === 'individual' ? t('spectator.practiceWatch.individualMatch') : t('spectator.practiceWatch.teamMatch')}</span>
+                      </div>
+                      {renderScore(match)}
+                      {renderSets(match.sets, match.currentSet)}
+                      {match.currentServe && (
+                        <div className="text-center text-sm text-blue-300 mt-2" role="status">
+                          <span aria-hidden="true">{'🎾 '}</span>{match.currentServe === 'player1' ? match.player1Name : match.player2Name} {t('spectator.practiceWatch.serve')}
+                        </div>
+                      )}
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-gray-700 p-4 space-y-3">
+                        {match.player1Coach && <p className="text-sm text-gray-400">{match.player1Name} {t('common.pdf.coach')}: {match.player1Coach}</p>}
+                        {match.player2Coach && <p className="text-sm text-gray-400">{match.player2Name} {t('common.pdf.coach')}: {match.player2Coach}</p>}
+                        {Array.isArray(match.scoreHistory) && match.scoreHistory.length > 0 && (
+                          <ScoreHistoryView history={match.scoreHistory} sets={match.sets} />
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {renderScore(match)}
-                  {renderSets(match.sets, match.currentSet)}
-                  {match.currentServe && (
-                    <div className="text-center text-sm text-blue-300 mt-2" role="status">
-                      <span aria-hidden="true">{'🎾 '}</span>{match.currentServe === 'player1' ? match.player1Name : match.player2Name} {t('spectator.practiceWatch.serve')}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -173,17 +177,6 @@ export default function PracticeWatchView() {
                 const completedDate = match.completedAt ? formatDateTime(new Date(match.completedAt)) : '';
                 return (
                   <div key={match.id} className="card">
-                    {isAdmin && (
-                      <div className="flex justify-end px-3 pt-2">
-                        <button
-                          className="btn bg-red-900 hover:bg-red-800 text-red-300 text-xs px-2 py-1"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteMatch(match.id); }}
-                          aria-label={t('spectator.practiceWatch.deleteMatch', { p1: match.player1Name, p2: match.player2Name })}
-                        >
-                          {t('common.delete')}
-                        </button>
-                      </div>
-                    )}
                     <button
                       className="w-full text-left p-4"
                       onClick={() => setExpandedId(isExpanded ? null : match.id)}
@@ -231,14 +224,6 @@ export default function PracticeWatchView() {
                   </div>
                 );
               })}
-              {isAdmin && (
-                <button
-                  className="btn btn-danger w-full text-sm"
-                  onClick={handleDeleteAll}
-                >
-                  {t('spectator.practiceWatch.deleteCompleted')}
-                </button>
-              )}
             </div>
           )}
         </div>

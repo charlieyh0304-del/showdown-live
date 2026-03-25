@@ -5,7 +5,7 @@ import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 export default function PracticeHistory() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { sessions, clearHistory, getStats } = usePracticeHistory();
+  const { sessions, deleteSession, clearHistory, getStats } = usePracticeHistory();
   const stats = getStats();
 
   const formatDate = (ts: number) => {
@@ -63,6 +63,15 @@ export default function PracticeHistory() {
                 )}
                 <span>{t('referee.practice.history.duration')}: {formatDuration(session.duration)}</span>
                 <span>{t('referee.practice.history.finalScore')}: {session.finalScore}</span>
+              </div>
+              <div className="mt-2">
+                <button
+                  className="btn bg-red-900 hover:bg-red-800 text-red-300 text-xs px-2 py-1"
+                  onClick={() => { deleteSession(session.id); localStorage.setItem('showdown_practice_completed', JSON.stringify((JSON.parse(localStorage.getItem('showdown_practice_completed') || '[]') as Array<{id:string}>).filter((m: {id:string}) => m.id !== session.id))); }}
+                  aria-label={t('common.delete')}
+                >
+                  {t('common.delete')}
+                </button>
               </div>
             </div>
           ))}

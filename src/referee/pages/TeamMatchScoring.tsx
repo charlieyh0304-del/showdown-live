@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { getLocale } from '@shared/utils/locale';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
   checkSetWinner,
@@ -61,6 +62,17 @@ export default function TeamMatchScoring() {
   const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice'>('toss');
   const [tossWinner, setTossWinner] = useState<'team1' | 'team2' | null>(null);
 
+  // TTS helper
+  function speak(text: string) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = getLocale();
+      utterance.rate = 1.2;
+      window.speechSynthesis.speak(utterance);
+    }
+  }
+
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
   const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
@@ -71,13 +83,37 @@ export default function TeamMatchScoring() {
   // Navigation guard
   useNavigationGuard(match?.status === 'in_progress');
 
-  // 타임아웃/워밍업 15초 알림 제거 (불필요)
+  // 팀전 워밍업 30초마다 알림 (90초: 60초/30초 경과 시 교대 안내)
+  useEffect(() => {
+    if (warmupTimer.isRunning) {
+      if (warmupTimer.seconds === 60) {
+        setLastAction(`⚠️ 30${t('common.time.seconds')}`);
+        setAnnouncement(`30${t('common.time.seconds')}`);
+        speak(`30${t('common.time.seconds')}`);
+      }
+      if (warmupTimer.seconds === 30) {
+        setLastAction(`⚠️ 30${t('common.time.seconds')}`);
+        setAnnouncement(`30${t('common.time.seconds')}`);
+        speak(`30${t('common.time.seconds')}`);
+      }
+    }
+  }, [warmupTimer.seconds, warmupTimer.isRunning]);
+
+  // 타임아웃 15초 알림
+  useEffect(() => {
+    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+      setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
+      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+      speak(t('referee.scoring.fifteenSecondsLeft'));
+    }
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
     if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
 
