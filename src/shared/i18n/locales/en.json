@@ -28,6 +28,9 @@
     "unknown": "Unknown",
     "next": "Next",
     "previous": "Previous",
+    "showMore": "Show more ({{remaining}})",
+    "showLess": "Show less",
+    "pageInfo": "Page {{page}} / {{total}}",
     "creating": "Creating...",
 
     "error": {
@@ -225,6 +228,31 @@
       "increase": "Increase {{label}}",
       "directInput": "Enter {{label}} directly",
       "clickToEdit": "{{label}}: {{value}}, click to edit"
+    },
+    "routes": {
+      "modeSelect": "Showdown - Mode Select",
+      "adminDashboard": "Admin - Dashboard",
+      "adminPlayers": "Admin - Players",
+      "adminReferees": "Admin - Referees",
+      "adminCourts": "Admin - Courts",
+      "adminSettings": "Admin - Settings",
+      "adminTournamentNew": "Admin - New Tournament",
+      "adminTournamentDetail": "Admin - Tournament Detail",
+      "refereeLogin": "Referee - Login",
+      "refereeGames": "Referee - Match List",
+      "refereeMatch": "Referee - Match Scoring",
+      "refereeTeamMatch": "Referee - Team Match Scoring",
+      "refereePractice": "Referee - Practice",
+      "refereePracticeSetup": "Referee - Practice Setup",
+      "refereePracticePlay": "Referee - Practice Match",
+      "refereePracticeHistory": "Referee - Practice History",
+      "spectatorTournaments": "Spectator - Tournaments",
+      "spectatorTournamentDetail": "Spectator - Tournament Detail",
+      "spectatorMatch": "Spectator - Match View",
+      "spectatorPlayer": "Spectator - Player Profile",
+      "spectatorFavorites": "Spectator - Favorites",
+      "spectatorPractice": "Spectator - Practice Matches",
+      "defaultTitle": "Showdown Tournament Manager"
     }
   },
 

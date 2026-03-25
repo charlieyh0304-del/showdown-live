@@ -3202,6 +3202,8 @@ interface StatusTabProps {
 function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
+  const [statusPage, setStatusPage] = useState(1);
+  const STATUS_PAGE_SIZE = 30;
   const [correctionMatch, setCorrectionMatch] = useState<Match | null>(null);
   const [correctionSets, setCorrectionSets] = useState<SetScore[]>([]);
   const [correctionReason, setCorrectionReason] = useState('');
@@ -3555,7 +3557,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
       <div className="flex gap-2 flex-wrap">
         <button
           className={`btn ${filter === 'all' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => setFilter('all')}
+          onClick={() => { setFilter('all'); setStatusPage(1); }}
           aria-pressed={filter === 'all'}
           aria-label={t('admin.tournamentDetail.statusTab.filterAll', { count: '' })}
         >
@@ -3563,7 +3565,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </button>
         <button
           className={`btn ${filter === 'pending' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => setFilter('pending')}
+          onClick={() => { setFilter('pending'); setStatusPage(1); }}
           aria-pressed={filter === 'pending'}
           aria-label={t('admin.tournamentDetail.statusTab.filterPending', { count: '' })}
         >
@@ -3571,7 +3573,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </button>
         <button
           className={`btn ${filter === 'in_progress' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => setFilter('in_progress')}
+          onClick={() => { setFilter('in_progress'); setStatusPage(1); }}
           aria-pressed={filter === 'in_progress'}
           aria-label={t('admin.tournamentDetail.statusTab.filterInProgress', { count: '' })}
         >
@@ -3579,7 +3581,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </button>
         <button
           className={`btn ${filter === 'completed' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => setFilter('completed')}
+          onClick={() => { setFilter('completed'); setStatusPage(1); }}
           aria-pressed={filter === 'completed'}
           aria-label={t('admin.tournamentDetail.statusTab.filterCompleted', { count: '' })}
         >
@@ -3593,7 +3595,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
             <p className="text-gray-400">{t('admin.tournamentDetail.statusTab.noMatches')}</p>
           </div>
         ) : (
-          filtered.map(match => (
+          filtered.slice((statusPage - 1) * STATUS_PAGE_SIZE, statusPage * STATUS_PAGE_SIZE).map(match => (
             <div key={match.id} className="card space-y-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
@@ -3656,6 +3658,17 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
           ))
         )}
       </div>
+
+      {(() => {
+        const totalStatusPages = Math.ceil(filtered.length / STATUS_PAGE_SIZE);
+        return totalStatusPages > 1 ? (
+          <div className="flex items-center justify-center gap-4 mt-4">
+            <button className="btn btn-sm btn-secondary" disabled={statusPage === 1} onClick={() => setStatusPage(p => p - 1)}>{t('common.previous')}</button>
+            <span className="text-gray-400 text-sm">{t('common.pageInfo', { page: statusPage, total: totalStatusPages })}</span>
+            <button className="btn btn-sm btn-secondary" disabled={statusPage >= totalStatusPages} onClick={() => setStatusPage(p => p + 1)}>{t('common.next')}</button>
+          </div>
+        ) : null;
+      })()}
 
       {/* 점수 수정 모달 */}
       {correctionMatch && (

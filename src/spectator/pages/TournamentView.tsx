@@ -2542,6 +2542,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
 
 // ===== History Tab =====
 const HISTORY_ITEMS_PER_PAGE = 30;
+const SECTION_INITIAL_LIMIT = 20;
 
 function HistoryMatchStatusBadge({ status }: { status: string }) {
   const { t } = useTranslation();
@@ -2723,6 +2724,12 @@ function HistoryTab({
 }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const toggleSection = (key: string) => setExpandedSections(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
   // Classify matches into stages
   const stageGroups = useMemo(() => {
@@ -2835,10 +2842,15 @@ function HistoryTab({
                   </span>
                 </div>
                 <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {gMatches.map((m, mi) => (
+                  {(expandedSections.has(`q_${groupId}`) ? gMatches : gMatches.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
                     <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={gMatches.length} />
                   ))}
                 </div>
+                {gMatches.length > SECTION_INITIAL_LIMIT && (
+                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection(`q_${groupId}`)}>
+                    {expandedSections.has(`q_${groupId}`) ? t('common.showLess') : t('common.showMore', { remaining: gMatches.length - SECTION_INITIAL_LIMIT })}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2869,10 +2881,15 @@ function HistoryTab({
                   </span>
                 </div>
                 <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {rMatches.map((m, mi) => (
+                  {(expandedSections.has(`f_${roundLabel}`) ? rMatches : rMatches.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
                     <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={rMatches.length} />
                   ))}
                 </div>
+                {rMatches.length > SECTION_INITIAL_LIMIT && (
+                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection(`f_${roundLabel}`)}>
+                    {expandedSections.has(`f_${roundLabel}`) ? t('common.showLess') : t('common.showMore', { remaining: rMatches.length - SECTION_INITIAL_LIMIT })}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2903,10 +2920,15 @@ function HistoryTab({
                   </span>
                 </div>
                 <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {rMatches.map((m, mi) => (
+                  {(expandedSections.has(`r_${roundLabel}`) ? rMatches : rMatches.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
                     <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={rMatches.length} />
                   ))}
                 </div>
+                {rMatches.length > SECTION_INITIAL_LIMIT && (
+                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection(`r_${roundLabel}`)}>
+                    {expandedSections.has(`r_${roundLabel}`) ? t('common.showLess') : t('common.showMore', { remaining: rMatches.length - SECTION_INITIAL_LIMIT })}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2925,10 +2947,15 @@ function HistoryTab({
             />
           )}
           <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {stageGroups.other.map((m, mi) => (
+            {(expandedSections.has('other') ? stageGroups.other : stageGroups.other.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
               <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={stageGroups.other.length} />
             ))}
           </div>
+          {stageGroups.other.length > SECTION_INITIAL_LIMIT && (
+            <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection('other')}>
+              {expandedSections.has('other') ? t('common.showLess') : t('common.showMore', { remaining: stageGroups.other.length - SECTION_INITIAL_LIMIT })}
+            </button>
+          )}
         </div>
       )}
 
