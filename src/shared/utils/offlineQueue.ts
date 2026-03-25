@@ -3,6 +3,25 @@ import { database } from '../config/firebase';
 
 const STORAGE_KEY = 'showdown_offline_queue';
 
+const VALID_MATCH_STATUSES = ['pending', 'in_progress', 'completed'];
+
+/**
+ * Validate match update data before replaying from offline queue.
+ * Returns true if valid, false if data is corrupted/invalid.
+ */
+function validateMatchUpdate(data: Record<string, unknown>): boolean {
+  if (data.status && !VALID_MATCH_STATUSES.includes(data.status as string)) return false;
+  if (data.sets && !Array.isArray(data.sets)) return false;
+  // Check scores are non-negative
+  if (Array.isArray(data.sets)) {
+    for (const set of data.sets as Record<string, unknown>[]) {
+      if (typeof set.player1Score === 'number' && set.player1Score < 0) return false;
+      if (typeof set.player2Score === 'number' && set.player2Score < 0) return false;
+    }
+  }
+  return true;
+}
+
 export interface PendingUpdate {
   path: string;
   data: Record<string, unknown>;
@@ -56,6 +75,11 @@ export async function flushQueue(): Promise<number> {
   const remaining: PendingUpdate[] = [];
   for (const item of queue) {
     try {
+      // Validate queued data before replaying
+      if (!validateMatchUpdate(item.data)) {
+        console.warn('[offlineQueue] Skipping invalid queued update:', item.path, item.data);
+        continue;
+      }
       // Check if server data is newer than when we queued the update
       const serverSnap = await get(ref(database, `${item.path}/updatedAt`));
       const serverUpdatedAt = serverSnap.val();

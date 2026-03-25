@@ -24,6 +24,15 @@ export default function PdfDownloadButton({ match, tournament, className }: Prop
     if (win) {
       win.document.write(html);
       win.document.close();
+    } else {
+      // Safari popup blocked - use download link as fallback
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'scoresheet.html';
+      a.click();
+      URL.revokeObjectURL(url);
     }
   };
 

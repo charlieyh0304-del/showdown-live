@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/hooks/useAuth';
@@ -20,8 +20,24 @@ export default function RefereeHome() {
 
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [showOnlyMine, setShowOnlyMine] = useState(true);
+  const [recoveryMatch, setRecoveryMatch] = useState<{ tournamentId: string; matchId: string } | null>(null);
 
   const myRefereeId = session?.refereeId;
+
+  // Check localStorage for an active match on mount (session recovery)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('showdown_active_match');
+      if (stored) {
+        const parsed = JSON.parse(stored) as { tournamentId: string; matchId: string };
+        if (parsed.tournamentId && parsed.matchId) {
+          setRecoveryMatch(parsed);
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
 
   const STATUS_LABELS: Record<MatchStatus, string> = {
     in_progress: `\u25B6 ${t('common.matchStatus.inProgress')}`,
@@ -94,6 +110,39 @@ export default function RefereeHome() {
     <div className="p-4 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-yellow-400 mb-4">{t('referee.home.title')}</h1>
 
+      {/* Active match recovery prompt */}
+      {recoveryMatch && (
+        <div className="card border-yellow-500 mb-4 p-4">
+          <p className="text-yellow-300 font-bold mb-2">{t('referee.home.activeMatchRecovery')}</p>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                // Determine if it's a team or individual match from the matches list
+                const found = matches.find(m => m.id === recoveryMatch.matchId);
+                if (found?.type === 'team') {
+                  navigate(`/referee/team/${recoveryMatch.tournamentId}/${recoveryMatch.matchId}`);
+                } else {
+                  navigate(`/referee/match/${recoveryMatch.tournamentId}/${recoveryMatch.matchId}`);
+                }
+                setRecoveryMatch(null);
+              }}
+            >
+              {t('referee.home.continueMatch')}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                localStorage.removeItem('showdown_active_match');
+                setRecoveryMatch(null);
+              }}
+            >
+              {t('referee.home.dismissRecovery')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tab buttons */}
       <div className="flex gap-2 mb-4" role="tablist" aria-label={t('referee.home.viewModeAriaLabel')}>
         <button
@@ -137,12 +186,15 @@ export default function RefereeHome() {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {currentList.map(match => {
+        <div className="flex flex-col gap-3" role="list" aria-label={`${t('referee.home.title')} (${currentList.length})`}>
+          {currentList.map((match, matchIdx) => {
             const score = getCurrentScore(match);
             return (
               <button
                 key={match.id}
+                role="listitem"
+                aria-setsize={currentList.length}
+                aria-posinset={matchIdx + 1}
                 className="card w-full text-left hover:border-yellow-400 transition-colors cursor-pointer"
                 onClick={() => handleMatchClick(match)}
                 aria-label={`${getMatchLabel(match)}, ${STATUS_LABELS[match.status]}${match.courtName ? `, ${t('referee.home.court')} ${match.courtName}` : ''}${match.scheduledTime ? `, ${match.scheduledTime}` : ''}`}

@@ -1,8 +1,64 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, onValue, set, push, remove, update, get } from 'firebase/database';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { ref, onValue, set, push, remove, update, get, runTransaction, type DataSnapshot } from 'firebase/database';
 import { database } from '../config/firebase';
 import { queueUpdate } from '../utils/offlineQueue';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
+
+// ===== Write rate limiter =====
+// Prevents rapid writes from overwhelming Firebase (max 10 writes/sec per path)
+const writeTimestamps = new Map<string, number[]>();
+// exported for use by consumers that need rate-limiting
+export function canWrite(path: string, maxPerSecond = 10): boolean {
+  const now = Date.now();
+  const timestamps = writeTimestamps.get(path) || [];
+  const recent = timestamps.filter(t => now - t < 1000);
+  if (recent.length >= maxPerSecond) return false;
+  recent.push(now);
+  writeTimestamps.set(path, recent);
+  return true;
+}
+
+// ===== Issue 4: Firebase listener deduplication =====
+// Module-level cache so multiple components subscribing to the same path share one listener.
+const listenerCache = new Map<string, { unsub: () => void; count: number; callbacks: Set<(data: DataSnapshot) => void> }>();
+
+function subscribeToPath(path: string, callback: (snapshot: DataSnapshot) => void): () => void {
+  if (listenerCache.has(path)) {
+    const entry = listenerCache.get(path)!;
+    entry.count++;
+    entry.callbacks.add(callback);
+    return () => {
+      entry.callbacks.delete(callback);
+      entry.count--;
+      if (entry.count <= 0) {
+        entry.unsub();
+        listenerCache.delete(path);
+      }
+    };
+  }
+  const callbacks = new Set<(snapshot: DataSnapshot) => void>([callback]);
+  const unsub = onValue(ref(database, path), (snap) => {
+    callbacks.forEach(cb => cb(snap));
+  });
+  listenerCache.set(path, { unsub, count: 1, callbacks });
+  return () => {
+    callbacks.delete(callback);
+    const entry = listenerCache.get(path)!;
+    entry.count--;
+    if (entry.count <= 0) {
+      entry.unsub();
+      listenerCache.delete(path);
+    }
+  };
+}
+
+// ===== Issue 8: Cap scoreHistory to prevent unbounded growth =====
+const MAX_SCORE_HISTORY = 500;
+function capScoreHistory(m: Record<string, unknown>): void {
+  if (Array.isArray(m.scoreHistory) && m.scoreHistory.length > MAX_SCORE_HISTORY) {
+    m.scoreHistory = m.scoreHistory.slice(0, MAX_SCORE_HISTORY);
+  }
+}
 
 // ===== Firebase array normalization helper =====
 // Firebase stores arrays as objects when indices have gaps or are sparse.
@@ -18,6 +74,8 @@ function normalizeMatchArrays(m: Record<string, unknown>): void {
   if (m.team1ActivePlayerNames && !Array.isArray(m.team1ActivePlayerNames)) m.team1ActivePlayerNames = Object.values(m.team1ActivePlayerNames as object);
   if (m.team2ActivePlayerIds && !Array.isArray(m.team2ActivePlayerIds)) m.team2ActivePlayerIds = Object.values(m.team2ActivePlayerIds as object);
   if (m.team2ActivePlayerNames && !Array.isArray(m.team2ActivePlayerNames)) m.team2ActivePlayerNames = Object.values(m.team2ActivePlayerNames as object);
+  // Cap scoreHistory after normalization
+  capScoreHistory(m);
 }
 
 // Normalize all known array fields on a Tournament object from Firebase
@@ -59,12 +117,14 @@ export function usePlayers() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onValue(ref(database, 'players'), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath('players', (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, []);
 
   const addPlayer = useCallback(async (player: Omit<Player, 'id' | 'createdAt'>) => {
@@ -90,7 +150,9 @@ export function useReferees() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onValue(ref(database, 'referees'), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath('referees', (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setReferees(data ? Object.entries(data).map(([id, r]) => {
         const referee = r as Record<string, unknown>;
@@ -102,7 +164,7 @@ export function useReferees() {
       }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, []);
 
   const addReferee = useCallback(async (referee: Omit<Referee, 'id' | 'createdAt'>) => {
@@ -128,7 +190,9 @@ export function useCourts() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onValue(ref(database, 'courts'), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath('courts', (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setCourts(data ? Object.entries(data).map(([id, c]) => {
         const court = c as Record<string, unknown>;
@@ -137,7 +201,7 @@ export function useCourts() {
       }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, []);
 
   const addCourt = useCallback(async (court: Omit<Court, 'id' | 'createdAt'>) => {
@@ -163,7 +227,9 @@ export function useTournaments() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onValue(ref(database, 'tournaments'), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath('tournaments', (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setTournaments(data ? Object.entries(data).map(([id, t]) => {
         const tournament = t as Record<string, unknown>;
@@ -172,7 +238,7 @@ export function useTournaments() {
       }).sort((a, b) => b.createdAt - a.createdAt) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, []);
 
   const addTournament = useCallback(async (tournament: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -182,9 +248,24 @@ export function useTournaments() {
     return newRef.key;
   }, []);
 
-  const updateTournament = useCallback(async (id: string, data: Partial<Tournament>) => {
-    await update(ref(database, `tournaments/${id}`), { ...data, updatedAt: Date.now() });
-  }, []);
+  const updateTournament = useCallback(async (id: string, data: Partial<Tournament>): Promise<boolean> => {
+    const path = `tournaments/${id}`;
+    const now = Date.now();
+    const payload = { ...data, updatedAt: now };
+    // Optimistic concurrency: check if server updatedAt matches local
+    const localTournament = tournaments.find(t => t.id === id);
+    const localUpdatedAt = localTournament?.updatedAt;
+    if (localUpdatedAt !== undefined) {
+      const snap = await get(ref(database, `${path}/updatedAt`));
+      const serverUpdatedAt = snap.val();
+      if (serverUpdatedAt !== null && serverUpdatedAt !== localUpdatedAt) {
+        // Conflict: server data was modified by another client
+        return false;
+      }
+    }
+    await update(ref(database, path), payload);
+    return true;
+  }, [tournaments]);
 
   const deleteTournament = useCallback(async (id: string) => {
     // 대회 + 관련 경기 + 팀 + 스케줄 + 알림 삭제
@@ -209,7 +290,9 @@ export function useTournament(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setTournament(null); setLoading(false); return; }
-    const unsub = onValue(ref(database, `tournaments/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`tournaments/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       if (data) {
         normalizeTournamentArrays(data);
@@ -219,13 +302,27 @@ export function useTournament(tournamentId: string | null) {
       }
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
-  const updateTournament = useCallback(async (data: Partial<Tournament>) => {
-    if (!tournamentId) return;
-    await update(ref(database, `tournaments/${tournamentId}`), { ...data, updatedAt: Date.now() });
-  }, [tournamentId]);
+  const updateTournament = useCallback(async (data: Partial<Tournament>): Promise<boolean> => {
+    if (!tournamentId) return false;
+    const path = `tournaments/${tournamentId}`;
+    const now = Date.now();
+    const payload = { ...data, updatedAt: now };
+    // Optimistic concurrency: check if server updatedAt matches local
+    const localUpdatedAt = tournament?.updatedAt;
+    if (localUpdatedAt !== undefined) {
+      const snap = await get(ref(database, `${path}/updatedAt`));
+      const serverUpdatedAt = snap.val();
+      if (serverUpdatedAt !== null && serverUpdatedAt !== localUpdatedAt) {
+        // Conflict: server data was modified by another client
+        return false;
+      }
+    }
+    await update(ref(database, path), payload);
+    return true;
+  }, [tournamentId, tournament]);
 
   return { tournament, loading, updateTournament };
 }
@@ -237,7 +334,9 @@ export function useMatches(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setMatches([]); setLoading(false); return; }
-    const unsub = onValue(ref(database, `matches/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`matches/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setMatches(data ? Object.entries(data).map(([id, raw]) => {
         const m = raw as Record<string, unknown>;
@@ -246,8 +345,11 @@ export function useMatches(tournamentId: string | null) {
       }).sort((a, b) => (a.round ?? 0) - (b.round ?? 0)) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
+
+  // Issue 5: Memoize stable match reference to avoid unnecessary re-renders
+  const stableMatches = useMemo(() => matches, [JSON.stringify(matches.map(m => m.id + ':' + m.updatedAt))]);
 
   const addMatch = useCallback(async (match: Omit<Match, 'id'>) => {
     if (!tournamentId) return null;
@@ -259,27 +361,32 @@ export function useMatches(tournamentId: string | null) {
   const updateMatch = useCallback(async (matchId: string, data: Partial<Match>): Promise<boolean> => {
     if (!tournamentId) return false;
     const path = `matches/${tournamentId}/${matchId}`;
+    if (!canWrite(path)) {
+      console.warn('[useFirebase] Write rate limit exceeded for', path);
+      return false;
+    }
     const now = Date.now();
+    // Issue 8: Cap scoreHistory before writing
+    if (data.scoreHistory && Array.isArray(data.scoreHistory) && data.scoreHistory.length > MAX_SCORE_HISTORY) {
+      data = { ...data, scoreHistory: data.scoreHistory.slice(0, MAX_SCORE_HISTORY) };
+    }
     const payload = { ...data, updatedAt: now };
     try {
-      // Optimistic concurrency: check if server updatedAt matches local
-      const localUpdatedAt = matches.find(m => m.id === matchId)?.updatedAt;
-      if (localUpdatedAt !== undefined) {
-        const snap = await get(ref(database, `${path}/updatedAt`));
-        const serverUpdatedAt = snap.val();
-        if (serverUpdatedAt !== null && serverUpdatedAt !== localUpdatedAt) {
-          // Conflict: server data was modified by another client
-          return false;
+      const localUpdatedAt = stableMatches.find(m => m.id === matchId)?.updatedAt;
+      const result = await runTransaction(ref(database, path), (currentData) => {
+        if (currentData === null) return payload; // First write
+        if (localUpdatedAt !== undefined && currentData.updatedAt && currentData.updatedAt !== localUpdatedAt) {
+          return; // Abort - conflict detected
         }
-      }
-      await update(ref(database, path), payload);
-      return true;
+        return { ...currentData, ...payload };
+      });
+      return result.committed;
     } catch {
       // Offline or network error - queue for later sync
       queueUpdate(path, payload as Record<string, unknown>);
       return true;
     }
-  }, [tournamentId, matches]);
+  }, [tournamentId, stableMatches]);
 
   const deleteMatch = useCallback(async (matchId: string) => {
     if (!tournamentId) return;
@@ -288,7 +395,7 @@ export function useMatches(tournamentId: string | null) {
 
   const setMatchesBulk = useCallback(async (newMatches: Omit<Match, 'id'>[]): Promise<string[]> => {
     if (!tournamentId) return [];
-    // Build a single object with all matches keyed by push IDs for atomic write
+    // Build new matches keyed by push IDs
     const bulkData: Record<string, unknown> = {};
     const ids: string[] = [];
     for (const match of newMatches) {
@@ -297,12 +404,21 @@ export function useMatches(tournamentId: string | null) {
       bulkData[newRef.key!] = clean;
       ids.push(newRef.key!);
     }
-    // Atomic: replaces entire node in one call (no remove + loop)
+    // Merge: preserve in-progress/completed matches, only overwrite pending ones
+    const existingSnap = await get(ref(database, `matches/${tournamentId}`));
+    const existingData = existingSnap.val() as Record<string, Record<string, unknown>> | null;
+    if (existingData) {
+      for (const [key, match] of Object.entries(existingData)) {
+        if (match.status === 'in_progress' || match.status === 'completed') {
+          bulkData[key] = match; // Preserve in-progress/completed matches
+        }
+      }
+    }
     await set(ref(database, `matches/${tournamentId}`), bulkData);
     return ids;
   }, [tournamentId]);
 
-  return { matches, loading, addMatch, updateMatch, deleteMatch, setMatchesBulk };
+  return { matches: stableMatches, loading, addMatch, updateMatch, deleteMatch, setMatchesBulk };
 }
 
 // ===== 단일 경기 구독 =====
@@ -312,10 +428,12 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
 
   useEffect(() => {
     if (!tournamentId || !matchId) { setMatch(null); setLoading(false); return; }
-    const unsub = onValue(ref(database, `matches/${tournamentId}/${matchId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`matches/${tournamentId}/${matchId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       if (data) {
-        // Firebase may store arrays as objects — normalize all array fields
+        // Firebase may store arrays as objects -- normalize all array fields
         normalizeMatchArrays(data);
         setMatch({ id: matchId, ...data });
       } else {
@@ -323,27 +441,32 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
       }
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId, matchId]);
 
   const updateMatch = useCallback(async (data: Partial<Match>): Promise<boolean> => {
     if (!tournamentId || !matchId) return false;
     const path = `matches/${tournamentId}/${matchId}`;
+    if (!canWrite(path)) {
+      console.warn('[useFirebase] Write rate limit exceeded for', path);
+      return false;
+    }
     const now = Date.now();
+    // Issue 8: Cap scoreHistory before writing
+    if (data.scoreHistory && Array.isArray(data.scoreHistory) && data.scoreHistory.length > MAX_SCORE_HISTORY) {
+      data = { ...data, scoreHistory: data.scoreHistory.slice(0, MAX_SCORE_HISTORY) };
+    }
     const payload = { ...data, updatedAt: now };
     try {
-      // Optimistic concurrency: check if server updatedAt matches local
       const localUpdatedAt = match?.updatedAt;
-      if (localUpdatedAt !== undefined) {
-        const snap = await get(ref(database, `${path}/updatedAt`));
-        const serverUpdatedAt = snap.val();
-        if (serverUpdatedAt !== null && serverUpdatedAt !== localUpdatedAt) {
-          // Conflict: server data was modified by another client
-          return false;
+      const result = await runTransaction(ref(database, path), (currentData) => {
+        if (currentData === null) return payload; // First write
+        if (localUpdatedAt !== undefined && currentData.updatedAt && currentData.updatedAt !== localUpdatedAt) {
+          return; // Abort - conflict detected
         }
-      }
-      await update(ref(database, path), payload);
-      return true;
+        return { ...currentData, ...payload };
+      });
+      return result.committed;
     } catch {
       // Offline or network error - queue for later sync
       queueUpdate(path, payload as Record<string, unknown>);
@@ -361,7 +484,9 @@ export function useTeams(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setTeams([]); setLoading(false); return; }
-    const unsub = onValue(ref(database, `teams/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`teams/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setTeams(data ? Object.entries(data).map(([id, t]) => {
         const team = t as Record<string, unknown>;
@@ -370,15 +495,25 @@ export function useTeams(tournamentId: string | null) {
       }) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
   const setTeamsBulk = useCallback(async (newTeams: Team[]) => {
     if (!tournamentId) return;
-    // Build a single object for atomic write (no remove + loop)
+    // Build new teams data
     const bulkData: Record<string, Team> = {};
     for (const team of newTeams) {
       bulkData[team.id] = team;
+    }
+    // Merge: preserve existing teams not in the new set
+    const existingSnap = await get(ref(database, `teams/${tournamentId}`));
+    const existingData = existingSnap.val() as Record<string, Team> | null;
+    if (existingData) {
+      for (const [key, team] of Object.entries(existingData)) {
+        if (!(key in bulkData)) {
+          bulkData[key] = team; // Preserve existing teams not being replaced
+        }
+      }
     }
     await set(ref(database, `teams/${tournamentId}`), bulkData);
   }, [tournamentId]);
@@ -393,12 +528,14 @@ export function useTournamentLocalPlayers(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setPlayers([]); setLoading(false); return; }
-    const unsub = onValue(ref(database, `tournamentPlayers/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`tournamentPlayers/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setPlayers(data ? Object.entries(data).map(([id, p]) => ({ id, ...(p as Omit<Player, 'id'>) })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
   const addPlayer = useCallback(async (player: Omit<Player, 'id' | 'createdAt'>) => {
@@ -436,7 +573,9 @@ export function useTournamentReferees(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setAssignments({}); setLoading(false); return; }
-    const unsub = onValue(ref(database, `tournamentReferees/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`tournamentReferees/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const raw = snap.val() || {};
       // Normalize assignedMatchIds arrays within each referee assignment
       const normalized: Record<string, { assignedMatchIds: string[] }> = {};
@@ -452,7 +591,7 @@ export function useTournamentReferees(tournamentId: string | null) {
       setAssignments(normalized);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
   const assignRefereeToMatch = useCallback(async (refereeId: string, matchIds: string[]) => {
@@ -470,21 +609,33 @@ export function useSchedule(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setSchedule([]); setLoading(false); return; }
-    const unsub = onValue(ref(database, `schedule/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`schedule/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setSchedule(data ? Object.entries(data).map(([id, s]) => ({ id, ...(s as Omit<ScheduleSlot, 'id'>) })).sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || '')) : []);
       setLoading(false);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
   const setScheduleBulk = useCallback(async (slots: Omit<ScheduleSlot, 'id'>[]) => {
     if (!tournamentId) return;
-    // Build a single object for atomic write (no remove + loop)
+    // Build new schedule data
     const bulkData: Record<string, Omit<ScheduleSlot, 'id'>> = {};
     for (const slot of slots) {
       const newRef = push(ref(database, `schedule/${tournamentId}`));
       bulkData[newRef.key!] = slot;
+    }
+    // Merge: preserve existing schedule entries
+    const existingSnap = await get(ref(database, `schedule/${tournamentId}`));
+    const existingData = existingSnap.val() as Record<string, Omit<ScheduleSlot, 'id'>> | null;
+    if (existingData) {
+      for (const [key, slot] of Object.entries(existingData)) {
+        if (!(key in bulkData)) {
+          bulkData[key] = slot; // Preserve existing schedule slots
+        }
+      }
     }
     await set(ref(database, `schedule/${tournamentId}`), bulkData);
   }, [tournamentId]);
@@ -498,7 +649,9 @@ export function useNotifications(tournamentId: string | null) {
 
   useEffect(() => {
     if (!tournamentId) { setNotifications([]); return; }
-    const unsub = onValue(ref(database, `notifications/${tournamentId}`), (snap) => {
+    let isMounted = true;
+    const unsub = subscribeToPath(`notifications/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
       const data = snap.val();
       setNotifications(data ? Object.entries(data).map(([id, n]) => {
         const notif = n as Record<string, unknown>;
@@ -509,7 +662,7 @@ export function useNotifications(tournamentId: string | null) {
         return { id, ...(notif as unknown as Omit<Notification, 'id'>) };
       }).sort((a, b) => b.timestamp - a.timestamp) : []);
     });
-    return () => unsub();
+    return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
   const addNotification = useCallback(async (notif: Omit<Notification, 'id'>) => {

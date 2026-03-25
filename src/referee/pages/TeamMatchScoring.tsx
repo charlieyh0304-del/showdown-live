@@ -112,6 +112,16 @@ export default function TeamMatchScoring() {
     }
   }, [match?.isPaused]);
 
+  // Save/clear active match in localStorage for session recovery
+  useEffect(() => {
+    if (match?.status === 'in_progress') {
+      localStorage.setItem('showdown_active_match', JSON.stringify({ tournamentId, matchId }));
+    }
+    if (match?.status === 'completed') {
+      localStorage.removeItem('showdown_active_match');
+    }
+  }, [match?.status, tournamentId, matchId]);
+
   const team1Name = match?.team1Name ?? t('referee.home.team1Default');
   const team2Name = match?.team2Name ?? t('referee.home.team2Default');
 

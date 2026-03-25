@@ -587,7 +587,7 @@ interface PlayersTabProps {
   addTournamentPlayer: (player: Omit<Player, 'id' | 'createdAt'>) => Promise<string | null>;
   deleteTournamentPlayer: (id: string) => Promise<void>;
   addPlayersFromGlobal: (players: Player[]) => Promise<void>;
-  updateTournament: (data: Record<string, unknown>) => Promise<void>;
+  updateTournament: (data: Record<string, unknown>) => Promise<boolean | void>;
   isTeamType: boolean;
   teams: Team[];
   setTeamsBulk: (teams: Team[]) => Promise<void>;
@@ -1447,7 +1447,7 @@ interface BracketTabProps {
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
   addMatch: (match: Omit<Match, 'id'>) => Promise<string | null>;
   deleteMatch: (matchId: string) => Promise<void>;
-  updateTournament: (data: Record<string, unknown>) => Promise<void>;
+  updateTournament: (data: Record<string, unknown>) => Promise<boolean | void>;
   referees: { id: string; name: string }[];
   courts: { id: string; name: string }[];
   isTeamType: boolean;
@@ -1525,6 +1525,13 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   };
 
   const generateBracket = useCallback(async () => {
+    // Guard: cannot regenerate while matches are in progress
+    const hasActiveMatches = matches.some(m => m.status === 'in_progress');
+    if (hasActiveMatches) {
+      alert(t('admin.tournamentDetail.bracketTab.cannotEditWhileActive'));
+      return;
+    }
+
     // Guard: need at least 2 players/teams to generate brackets
     if (isTeamType && teams.length < 2) {
       alert(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
@@ -1778,7 +1785,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     ]);
   }, [matches, updateMatch]);
 
-  const canGenerate = isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2;
+  const hasActiveMatches = matches.some(m => m.status === 'in_progress');
+  const canGenerate = (isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2) && !hasActiveMatches;
   const selectOptions = isTeamType
     ? teams.map(t => ({ id: t.id, name: t.name }))
     : tournamentPlayers.map(p => ({ id: p.id, name: p.name }));
@@ -2425,9 +2433,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" role="list" aria-label={`${t('admin.tournamentDetail.bracketTab.title')} (${matches.length})`}>
           {matches.map((match, matchIdx) => (
-            <div key={match.id} className="card space-y-3">
+            <div key={match.id} className="card space-y-3" role="listitem" aria-setsize={matches.length} aria-posinset={matchIdx + 1}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
                   {/* Reorder buttons */}
@@ -3184,7 +3192,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
 interface StatusTabProps {
   tournament: NonNullable<ReturnType<typeof useTournament>['tournament']>;
   matches: Match[];
-  updateTournament: (data: Record<string, unknown>) => Promise<void>;
+  updateTournament: (data: Record<string, unknown>) => Promise<boolean | void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
   isTeamType: boolean;
   tournamentPlayers: Player[];

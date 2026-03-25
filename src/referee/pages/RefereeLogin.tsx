@@ -16,6 +16,14 @@ const TOURNAMENT_STATUS_COLORS: Record<TournamentStatus, string> = {
   completed: 'bg-gray-600 text-gray-300',
 };
 
+const TOURNAMENT_STATUS_ICONS: Record<TournamentStatus, string> = {
+  draft: '\u270E',
+  registration: '\u{1F4CB}',
+  in_progress: '\u25B6',
+  paused: '\u23F8',
+  completed: '\u2713',
+};
+
 export default function RefereeLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -160,7 +168,7 @@ export default function RefereeLogin() {
                     <div className="flex items-center justify-between">
                       <div className="font-bold">{t.name}</div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${TOURNAMENT_STATUS_COLORS[t.status]}`}>
-                        {TOURNAMENT_STATUS_LABELS[t.status]}
+                        {TOURNAMENT_STATUS_ICONS[t.status]} {TOURNAMENT_STATUS_LABELS[t.status]}
                       </span>
                     </div>
                     <div className="text-sm opacity-80">{t.date}</div>

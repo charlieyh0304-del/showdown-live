@@ -5,7 +5,7 @@ import { verifyPin } from '../utils/crypto';
 import type { AuthSession, Referee, Admin } from '../types';
 
 const AUTH_KEY = 'showdown_auth';
-const LOGIN_TIMEOUT_MS = 10000;
+const LOGIN_TIMEOUT_MS = 15000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([

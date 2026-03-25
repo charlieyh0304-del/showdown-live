@@ -42,6 +42,7 @@ interface ScoreHistoryViewProps {
 export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProps) {
   const { t } = useTranslation();
   const [order, setOrder] = useState<'newest' | 'oldest'>('oldest');
+  const [showAll, setShowAll] = useState(false);
 
   const getActionLabel = (actionType: string) => {
     const key = ACTION_KEY_MAP[actionType];
@@ -57,16 +58,21 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
     return [...meaningfulHistory].reverse();
   }, [meaningfulHistory, order]);
 
+  const displayedHistory = useMemo(() => {
+    if (showAll || meaningfulHistory.length <= 50) return sortedHistory;
+    return sortedHistory.slice(0, 50);
+  }, [sortedHistory, showAll, meaningfulHistory.length]);
+
   const setGroups = useMemo(() => {
     const groups = new Map<number, ScoreHistoryEntry[]>();
-    sortedHistory.forEach(h => {
+    displayedHistory.forEach(h => {
       const s = h.set || 1;
       if (!groups.has(s)) groups.set(s, []);
       groups.get(s)!.push(h);
     });
     const entries = Array.from(groups.entries());
     return order === 'newest' ? entries.sort((a, b) => b[0] - a[0]) : entries.sort((a, b) => a[0] - b[0]);
-  }, [sortedHistory, order]);
+  }, [displayedHistory, order]);
 
   if (meaningfulHistory.length === 0) return null;
 
@@ -84,6 +90,16 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
           {order === 'newest' ? t('common.matchHistory.newestFirst') : t('common.matchHistory.oldestFirst')}
         </button>
       </div>
+
+      {!showAll && meaningfulHistory.length > 50 && (
+        <button
+          className="btn"
+          onClick={() => setShowAll(true)}
+          style={{ width: '100%', marginBottom: '0.5rem', fontSize: '0.8rem', padding: '6px 12px', background: '#1e40af' }}
+        >
+          {t('common.matchHistory.showAll', { count: meaningfulHistory.length, defaultValue: `Show all ${meaningfulHistory.length} entries` })}
+        </button>
+      )}
 
       <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
         {order === 'oldest' && (

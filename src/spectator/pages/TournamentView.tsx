@@ -1720,8 +1720,8 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
 function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   const { t } = useTranslation();
   return (
-    <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {matches.map((match) => {
+    <ul role="list" aria-label={`${t('spectator.tournament.tabs.bracket')} (${matches.length})`} style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {matches.map((match, matchIdx) => {
         const teamSets = Array.isArray(match.sets) ? match.sets : [];
         const setData = teamSets.length > 0 ? teamSets[0] : null;
 
@@ -1729,6 +1729,9 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
           <li
             key={match.id}
             className="card"
+            role="listitem"
+            aria-setsize={matches.length}
+            aria-posinset={matchIdx + 1}
             style={{ border: match.status === 'completed' ? '2px solid #16a34a' : '1px solid #1f2937' }}
             aria-label={t('spectator.tournament.view.matchAriaTeam', { p1: match.team1Name || t('referee.home.team1Default'), p2: match.team2Name || t('referee.home.team2Default'), status: t(`common.matchStatus.${match.status === 'in_progress' ? 'inProgress' : match.status}`) })}
           >
@@ -2580,10 +2583,14 @@ function HistoryMatchCard({
   match,
   navigate,
   tournamentId,
+  index,
+  total,
 }: {
   match: Match;
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
+  index?: number;
+  total?: number;
 }) {
   const { t } = useTranslation();
   const isIndividual = match.type === 'individual';
@@ -2613,6 +2620,8 @@ function HistoryMatchCard({
   return (
     <button
       className="card"
+      role="listitem"
+      {...(total !== undefined && index !== undefined ? { 'aria-setsize': total, 'aria-posinset': index + 1 } : {})}
       onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
       style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${borderColor}`, padding: '0.75rem 1rem' }}
     >
@@ -2825,9 +2834,9 @@ function HistoryTab({
                     {countCompleted(gMatches)}/{gMatches.length}
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {gMatches.map(m => (
-                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+                <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {gMatches.map((m, mi) => (
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={gMatches.length} />
                   ))}
                 </div>
               </div>
@@ -2859,9 +2868,9 @@ function HistoryTab({
                     {countCompleted(rMatches)}/{rMatches.length}
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {rMatches.map(m => (
-                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+                <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {rMatches.map((m, mi) => (
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={rMatches.length} />
                   ))}
                 </div>
               </div>
@@ -2893,9 +2902,9 @@ function HistoryTab({
                     {countCompleted(rMatches)}/{rMatches.length}
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {rMatches.map(m => (
-                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+                <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {rMatches.map((m, mi) => (
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={rMatches.length} />
                   ))}
                 </div>
               </div>
@@ -2915,9 +2924,9 @@ function HistoryTab({
               totalCount={stageGroups.other.length}
             />
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {stageGroups.other.map(m => (
-              <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} />
+          <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {stageGroups.other.map((m, mi) => (
+              <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={stageGroups.other.length} />
             ))}
           </div>
         </div>

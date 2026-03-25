@@ -252,6 +252,16 @@ export default function IndividualScoring() {
     }
   }, [match?.isPaused]);
 
+  // Save/clear active match in localStorage for session recovery
+  useEffect(() => {
+    if (match?.status === 'in_progress') {
+      localStorage.setItem('showdown_active_match', JSON.stringify({ tournamentId, matchId }));
+    }
+    if (match?.status === 'completed') {
+      localStorage.removeItem('showdown_active_match');
+    }
+  }, [match?.status, tournamentId, matchId]);
+
   const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2', withWarmup = false) => {
     if (!match) return;
     const p1Name = match.player1Name ?? t('referee.home.player1Default');

@@ -16,6 +16,14 @@ const STATUS_KEYS: Record<TournamentStatus, string> = {
   completed: 'common.tournamentStatus.completed',
 };
 
+const STATUS_ICONS: Record<TournamentStatus, string> = {
+  draft: '\u270E',
+  registration: '\u{1F4CB}',
+  in_progress: '\u25B6',
+  paused: '\u23F8',
+  completed: '\u2713',
+};
+
 const STATUS_COLORS: Record<TournamentStatus, string> = {
   draft: 'bg-gray-600 text-white',
   registration: 'bg-blue-600 text-white',
@@ -91,7 +99,7 @@ export default function AdminHome() {
                   <span className="text-gray-400">{tour.date}</span>
                   <span className="text-cyan-400">{t(TYPE_KEYS[tour.type])}</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[tour.status]}`}>
-                    {t(STATUS_KEYS[tour.status])}
+                    {STATUS_ICONS[tour.status]} {t(STATUS_KEYS[tour.status])}
                   </span>
                 </div>
               </div>

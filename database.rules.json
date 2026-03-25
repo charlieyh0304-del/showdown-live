@@ -35,7 +35,7 @@
       "$tournamentId": {
         ".write": "auth != null",
         "$matchId": {
-          ".validate": "newData.hasChildren(['tournamentId', 'status']) && (!data.child('updatedAt').exists() || !newData.child('updatedAt').exists() || newData.child('updatedAt').val() > data.child('updatedAt').val())",
+          ".validate": "newData.hasChildren(['tournamentId', 'status']) && (!data.exists() || !data.child('updatedAt').exists() || !newData.child('updatedAt').exists() || newData.child('updatedAt').val() > data.child('updatedAt').val())",
           "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'in_progress' || newData.val() === 'completed')" },
           "$other": { ".validate": true }
         }
