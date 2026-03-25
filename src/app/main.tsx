@@ -34,7 +34,9 @@ if ('serviceWorker' in navigator) {
       // 새 SW가 대기 중일 때 사용자에게 알림
       const promptUpdate = () => {
         if (reg.waiting) {
-          if (window.confirm('새로운 업데이트가 있습니다. 지금 적용하시겠습니까?')) {
+          var lang = localStorage.getItem('showdown_language') || 'ko';
+          var msg = lang === 'en' ? 'A new update is available. Apply now?' : '새로운 업데이트가 있습니다. 지금 적용하시겠습니까?';
+          if (window.confirm(msg)) {
             reg.waiting.postMessage({ type: 'SKIP_WAITING' });
           }
         }

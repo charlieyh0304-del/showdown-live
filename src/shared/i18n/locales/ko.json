@@ -316,7 +316,9 @@
       "sampleRefereeNamesAriaLabel": "샘플 심판 이름 목록",
       "sampleNamesSaved": "선수 {{playerCount}}명, 심판 {{refereeCount}}명 저장 완료",
       "saveSampleNames": "샘플 이름 저장",
-      "countLabel": "({{count}}명)"
+      "countLabel": "({{count}}명)",
+      "samplePlayerPlaceholder": "홍길동\n김철수\n이영희\n박민수\n최수진",
+      "sampleRefereePlaceholder": "심판 A\n심판 B\n심판 C"
     },
 
     "players": {
@@ -704,6 +706,7 @@
         "registeringPlayers": "참가자 {{count}}명 등록 중...",
         "creatingTeams": "팀 {{count}}개 생성 중...",
         "creatingCourts": "가상 코트 생성 중...",
+        "courtName": "{{number}}코트",
         "creatingReferees": "가상 심판 {{count}}명 생성 중...",
         "creatingMatches": "경기 {{count}}건 생성 중...",
         "savingSchedule": "스케줄 {{count}}건 저장 중...",

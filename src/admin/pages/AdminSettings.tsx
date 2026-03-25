@@ -379,7 +379,7 @@ export default function AdminSettings() {
               className="input w-full h-48"
               value={samplePlayerText}
               onChange={e => setSamplePlayerText(e.target.value)}
-              placeholder={"홍길동\n김철수\n이영희\n박민수\n최수진"}
+              placeholder={t('admin.settings.samplePlayerPlaceholder')}
               aria-label={t('admin.settings.samplePlayerNamesAriaLabel')}
             />
           </div>
@@ -390,7 +390,7 @@ export default function AdminSettings() {
               className="input w-full h-48"
               value={sampleRefereeText}
               onChange={e => setSampleRefereeText(e.target.value)}
-              placeholder={"심판 A\n심판 B\n심판 C"}
+              placeholder={t('admin.settings.sampleRefereePlaceholder')}
               aria-label={t('admin.settings.sampleRefereeNamesAriaLabel')}
             />
           </div>

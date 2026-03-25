@@ -26,6 +26,9 @@
     "skipToContent": "Skip to content",
     "pageLoading": "Loading page...",
     "unknown": "Unknown",
+    "next": "Next",
+    "previous": "Previous",
+    "creating": "Creating...",
 
     "error": {
       "occurred": "An error occurred",
@@ -180,6 +183,13 @@
       "set": "sets",
       "point": "pts",
       "group": "groups"
+    },
+
+    "numberStepper": {
+      "decrease": "Decrease {{label}}",
+      "increase": "Increase {{label}}",
+      "directInput": "Enter {{label}} directly",
+      "clickToEdit": "{{label}}: {{value}}, click to edit"
     }
   },
 
@@ -306,7 +316,9 @@
       "sampleRefereeNamesAriaLabel": "Sample referee names list",
       "sampleNamesSaved": "Saved {{playerCount}} players, {{refereeCount}} referees",
       "saveSampleNames": "Save Sample Names",
-      "countLabel": "({{count}})"
+      "countLabel": "({{count}})",
+      "samplePlayerPlaceholder": "John Smith\nJane Doe\nBob Wilson\nAlice Brown\nCharlie Davis",
+      "sampleRefereePlaceholder": "Referee A\nReferee B\nReferee C"
     },
 
     "players": {
@@ -694,6 +706,7 @@
         "registeringPlayers": "Registering {{count}} participants...",
         "creatingTeams": "Creating {{count}} teams...",
         "creatingCourts": "Creating virtual courts...",
+        "courtName": "Court {{number}}",
         "creatingReferees": "Creating {{count}} virtual referees...",
         "creatingMatches": "Creating {{count}} matches...",
         "savingSchedule": "Saving {{count}} schedule entries...",

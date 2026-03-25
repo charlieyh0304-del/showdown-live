@@ -185,7 +185,7 @@ export default function TournamentDetail() {
           });
         } else {
           setSimProgress(t('admin.tournamentDetail.simulation.creatingCourts'));
-          for (const simCourt of [{ simId: 'sim_court_1', name: '1코트' }, { simId: 'sim_court_2', name: '2코트' }]) {
+          for (const simCourt of [{ simId: 'sim_court_1', name: t('admin.tournamentDetail.simulation.courtName', { number: 1 }) }, { simId: 'sim_court_2', name: t('admin.tournamentDetail.simulation.courtName', { number: 2 }) }]) {
             const newId = await addCourt({ name: simCourt.name, assignedReferees: [] });
             if (newId) courtIdMap.set(simCourt.simId, newId);
           }
