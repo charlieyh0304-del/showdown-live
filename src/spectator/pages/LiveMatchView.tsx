@@ -265,7 +265,7 @@ function HistoryBySet({ history, sets, order }: {
               const timeStr = parseTimeStr(h.time);
 
               if (isMeta) {
-                const actionLabel = ACTION_LABEL_KEYS[h.actionType || ''] ? t(ACTION_LABEL_KEYS[h.actionType || '']) : (h.actionLabel || '');
+                const actionLabel = ACTION_LABEL_KEYS[h.actionType || ''] ? t(ACTION_LABEL_KEYS[h.actionType || '']) : (h.actionType || '');
                 const desc = h.penaltyWarning ? t('common.matchHistory.warning', { player: h.actionPlayer || '?', action: actionLabel })
                   : h.actionType === 'dead_ball' ? t('common.matchHistory.deadBall', { server: h.server || '?' })
                   : h.actionType === 'timeout' ? t('common.matchHistory.timeout', { player: h.actionPlayer || '' })

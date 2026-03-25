@@ -13,6 +13,28 @@ const META_TYPES = new Set([
   'match_start', 'player_rotation',
 ]);
 
+const ACTION_KEY_MAP: Record<string, string> = {
+  goal: 'common.scoreActions.goal',
+  irregular_serve: 'common.scoreActions.irregularServe',
+  centerboard: 'common.scoreActions.centerboard',
+  body_touch: 'common.scoreActions.bodyTouch',
+  illegal_defense: 'common.scoreActions.illegalDefense',
+  out: 'common.scoreActions.out',
+  ball_holding: 'common.scoreActions.ballHolding',
+  mask_touch: 'common.scoreActions.maskTouch',
+  penalty: 'common.scoreActions.penalty',
+  penalty_table_pushing: 'common.scoreActions.penaltyTablePushing',
+  penalty_electronic: 'common.scoreActions.penaltyElectronic',
+  penalty_talking: 'common.scoreActions.penaltyTalking',
+  walkover: 'common.scoreActions.walkover',
+  coin_toss: 'common.matchHistory.coinToss',
+  warmup_start: 'common.matchHistory.warmup',
+  match_start: 'common.matchHistory.matchStart',
+  substitution: 'common.matchHistory.substitution',
+  player_rotation: 'common.matchHistory.playerRotation',
+  side_change: 'common.matchHistory.sideChange',
+};
+
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -100,7 +122,26 @@ export function generateMatchHtml(
         const sorted = [...entries].reverse();
         const rows = sorted.map(h => {
           const time = escHtml(h.time || '');
-          const action = escHtml(h.actionLabel || h.actionType || '');
+          const actionKey = ACTION_KEY_MAP[h.actionType || ''];
+          let actionText: string;
+          if (actionKey) {
+            actionText = t(actionKey);
+          } else if (h.actionType === 'dead_ball') {
+            actionText = t('common.matchHistory.deadBall', { server: h.server || '' });
+          } else if (h.actionType === 'timeout_player') {
+            actionText = t('common.matchHistory.playerTimeout', { player: h.actionPlayer || '' });
+          } else if (h.actionType === 'timeout_medical') {
+            actionText = t('common.matchHistory.medicalTimeout', { player: h.actionPlayer || '' });
+          } else if (h.actionType === 'timeout_referee') {
+            actionText = t('common.matchHistory.refereeTimeout');
+          } else if (h.actionType === 'pause') {
+            actionText = t('common.matchHistory.pause', { player: h.actionPlayer || '' });
+          } else if (h.actionType === 'resume') {
+            actionText = h.actionPlayer || 'Resume';
+          } else {
+            actionText = h.actionType || '';
+          }
+          const action = escHtml(actionText);
           const pts = h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
           const p1s = h.scoreAfter ? `${h.scoreAfter.player1}` : '';
           const p2s = h.scoreAfter ? `${h.scoreAfter.player2}` : '';

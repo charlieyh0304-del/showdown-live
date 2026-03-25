@@ -90,7 +90,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
 
                 // Non-scoring entries (pause, resume, timeout, substitution, dead_ball, walkover, penaltyWarning)
                 if (h.points === 0 || h.penaltyWarning) {
-                  const actionLabel = ACTION_TYPE_TO_KEY[h.actionType || ''] ? t(ACTION_TYPE_TO_KEY[h.actionType || '']) : (h.actionLabel || '');
+                  const actionLabel = ACTION_TYPE_TO_KEY[h.actionType || ''] ? t(ACTION_TYPE_TO_KEY[h.actionType || '']) : (h.actionType || '');
                   const desc = h.penaltyWarning ? t('common.matchHistory.warning', { player: h.actionPlayer || '?', action: actionLabel }) :
                     h.actionType === 'walkover' ? `${h.actionPlayer || '?'} → ${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}` :
                     h.actionType === 'dead_ball' ? t('common.matchHistory.deadBall', { server: h.server || '?' }) :
@@ -128,8 +128,7 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                 } else if (descriptiveLabel) {
                   actionDesc = t('common.matchHistory.penaltyScored', { actionPlayer: h.actionPlayer || '?', action: descriptiveLabel, scoringPlayer: h.scoringPlayer || '?', points: h.points });
                 } else {
-                  const labelParts = (h.actionLabel || '').split(' ').slice(1).join(' ');
-                  actionDesc = t('common.matchHistory.penaltyScored', { actionPlayer: h.actionPlayer || '?', action: labelParts, scoringPlayer: h.scoringPlayer || '?', points: h.points });
+                  actionDesc = t('common.matchHistory.penaltyScored', { actionPlayer: h.actionPlayer || '?', action: h.actionType || '?', scoringPlayer: h.scoringPlayer || '?', points: h.points });
                 }
                 const scoreDisplay = (() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2}:${p1}` : `${p1}:${p2}`; })();
                 const ariaText = `${timeStr}, ${h.server || '?'} ${t('common.matchHistory.serve')} ${t('common.matchHistory.serveNumber', { num: h.serveNumber || '' })}, ${actionDesc}, ${t('common.matchHistory.score')} ${scoreDisplay}`;
