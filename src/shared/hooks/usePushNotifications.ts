@@ -29,7 +29,7 @@ export function usePushNotifications(favoriteIds: string[]) {
   const tokenRef = useRef<string | null>(null);
   const prevFavIdsRef = useRef<string>('');
 
-  // Check if push is supported
+  // Check if push is supported and auto-sync existing token
   useEffect(() => {
     const supported = 'serviceWorker' in navigator &&
       'PushManager' in window &&
@@ -42,9 +42,11 @@ export function usePushNotifications(favoriteIds: string[]) {
       if (savedToken) {
         tokenRef.current = savedToken;
         setPushEnabled(true);
+        // Auto-sync subscription to Firebase on app start
+        syncSubscription(savedToken, favoriteIds).catch(() => {});
       }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Register the FCM service worker and get token
   const enablePush = useCallback(async (): Promise<boolean> => {
@@ -58,12 +60,20 @@ export function usePushNotifications(favoriteIds: string[]) {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return false;
 
-      // Register FCM service worker
+      // Register FCM service worker and wait for it to be active
       const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      // Wait for the SW to become active (may be installing on first visit)
+      const activeSW = swReg.active || await new Promise<ServiceWorker>((resolve) => {
+        const sw = swReg.installing || swReg.waiting;
+        if (!sw) return resolve(swReg.active!);
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'activated') resolve(sw);
+        });
+      });
 
       // Send Firebase config to SW
-      if (swReg.active) {
-        swReg.active.postMessage({
+      if (activeSW) {
+        activeSW.postMessage({
           type: 'FIREBASE_CONFIG',
           config: {
             apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',

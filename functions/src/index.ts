@@ -78,10 +78,29 @@ async function sendToSubscriptions(
   const message: admin.messaging.MulticastMessage = {
     tokens,
     notification,
+    data: {
+      title: notification.title,
+      body: notification.body,
+    },
     webpush: {
+      headers: {
+        Urgency: "high",
+      },
       notification: {
         icon: "/icons/icon-192.png",
         badge: "/icons/icon-96.png",
+        requireInteraction: true,
+      },
+      fcmOptions: {
+        link: "/spectator",
+      },
+    },
+    // Android: high priority for immediate delivery even in doze mode
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "showdown_match",
+        priority: "max",
       },
     },
   };
