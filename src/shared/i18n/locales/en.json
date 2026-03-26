@@ -1305,7 +1305,15 @@
         "deniedDetail": "Please allow notification permissions for this site in your browser settings. Click the lock icon to the left of the address bar > Notifications > Allow",
         "promptMessage": "Enable notifications to receive alerts 10 minutes before your favorited player's matches and match results.",
         "enableButton": "Enable Notifications"
-      }
+      },
+      "addFavorite": "Add {{name}} to favorites",
+      "removeFavorite": "Remove {{name}} from favorites"
+    },
+
+    "notifications": {
+      "win": "Win!",
+      "loss": "Loss",
+      "preMatch": "{{name}} match in 10 minutes"
     },
 
     "practiceWatch": {

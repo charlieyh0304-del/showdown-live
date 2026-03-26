@@ -263,7 +263,24 @@ export default function TournamentView() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{t('spectator.tournament.playerRecord.title', { player: selectedPlayer })}</h2>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {(() => {
+                const pId = matches.find(m => m.player1Name === selectedPlayer)?.player1Id
+                  || matches.find(m => m.player2Name === selectedPlayer)?.player2Id
+                  || matches.find(m => m.team1Name === selectedPlayer)?.team1Id
+                  || matches.find(m => m.team2Name === selectedPlayer)?.team2Id
+                  || selectedPlayer;
+                return (
+                  <button
+                    onClick={() => handleToggleFavorite(pId)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    aria-label={isFavorite(pId) ? t('spectator.favorites.removeFavorite', { name: selectedPlayer }) : t('spectator.favorites.addFavorite', { name: selectedPlayer })}
+                    aria-pressed={isFavorite(pId)}
+                  >
+                    {isFavorite(pId) ? '★' : '☆'}
+                  </button>
+                );
+              })()}
               <button
                 className="btn btn-primary"
                 style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }}
@@ -442,7 +459,7 @@ export default function TournamentView() {
           <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
         )}
         {activeTab === 'players' && (
-          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} />
+          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} tournamentId={id!} navigate={navigate} />
         )}
         {activeTab === 'history' && (
           <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
@@ -2425,7 +2442,7 @@ function PlayerMatchRow({
 }
 
 // ===== Players Tab =====
-function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggleFavorite, tournamentId, navigate }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; isFavorite: (id: string) => boolean; toggleFavorite: (id: string) => void; tournamentId: string; navigate: ReturnType<typeof useNavigate> }) {
   const { t } = useTranslation();
   const [playerSearch, setPlayerSearch] = useState('');
 
@@ -2501,34 +2518,53 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false }: { matches: Matc
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {filteredPlayers.map(p => (
-          <button
+          <div
             key={p.id}
             className="card"
-            onClick={() => onSelectPlayer(p.name)}
             style={{
-              width: '100%',
-              textAlign: 'left',
-              cursor: 'pointer',
               padding: '0.75rem 1rem',
-              border: '1px solid #374151',
+              border: `1px solid ${isFavorite(p.id) ? '#f59e0b' : '#374151'}`,
             }}
-            aria-label={p.name}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#facc15' }}>{p.name}</span>
-              <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem' }} aria-hidden="true">
-                <span style={{ color: '#d1d5db' }}>
-                  {p.wins}{t('common.units.win')}{p.losses}{t('common.units.loss')}
-                </span>
-                {!isTeam && <span style={{ color: p.setsWon - p.setsLost > 0 ? '#22c55e' : p.setsWon - p.setsLost < 0 ? '#ef4444' : '#9ca3af' }}>
-                  {t('common.units.set')} {p.setsWon - p.setsLost > 0 ? '+' : ''}{p.setsWon - p.setsLost}
-                </span>}
-                <span style={{ color: p.pointsFor - p.pointsAgainst > 0 ? '#22c55e' : p.pointsFor - p.pointsAgainst < 0 ? '#ef4444' : '#9ca3af' }}>
-                  {t('spectator.tournament.playerRecord.goalDiff')} {p.pointsFor - p.pointsAgainst > 0 ? '+' : ''}{p.pointsFor - p.pointsAgainst}
-                </span>
+              <button
+                onClick={() => onSelectPlayer(p.name)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', flex: 1, padding: 0 }}
+                aria-label={p.name}
+              >
+                <span style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#facc15' }}>{p.name}</span>
+                <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', marginTop: '0.125rem' }} aria-hidden="true">
+                  <span style={{ color: '#d1d5db' }}>
+                    {p.wins}{t('common.units.win')}{p.losses}{t('common.units.loss')}
+                  </span>
+                  {!isTeam && <span style={{ color: p.setsWon - p.setsLost > 0 ? '#22c55e' : p.setsWon - p.setsLost < 0 ? '#ef4444' : '#9ca3af' }}>
+                    {t('common.units.set')} {p.setsWon - p.setsLost > 0 ? '+' : ''}{p.setsWon - p.setsLost}
+                  </span>}
+                  <span style={{ color: p.pointsFor - p.pointsAgainst > 0 ? '#22c55e' : p.pointsFor - p.pointsAgainst < 0 ? '#ef4444' : '#9ca3af' }}>
+                    {t('spectator.tournament.playerRecord.goalDiff')} {p.pointsFor - p.pointsAgainst > 0 ? '+' : ''}{p.pointsFor - p.pointsAgainst}
+                  </span>
+                </div>
+              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  aria-label={isFavorite(p.id) ? t('spectator.favorites.removeFavorite', { name: p.name }) : t('spectator.favorites.addFavorite', { name: p.name })}
+                  aria-pressed={isFavorite(p.id)}
+                >
+                  {isFavorite(p.id) ? '★' : '☆'}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate(`/spectator/player/${tournamentId}/${encodeURIComponent(p.name)}`); }}
+                  className="btn btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', minHeight: '44px' }}
+                  aria-label={`${p.name} ${t('common.profile')}`}
+                >
+                  {t('common.profile')}
+                </button>
               </div>
             </div>
-          </button>
+          </div>
         ))}
         {filteredPlayers.length === 0 && playerSearch.trim() && (
           <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>

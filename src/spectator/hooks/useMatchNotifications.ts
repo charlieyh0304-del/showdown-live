@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { sendNotification } from '@shared/utils/notifications';
 import type { Match, ScheduleSlot } from '@shared/types';
 
@@ -16,6 +17,7 @@ export function useMatchNotifications(
   matches: Match[],
   schedule: ScheduleSlot[],
 ) {
+  const { t } = useTranslation();
   const notifiedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -25,9 +27,14 @@ export function useMatchNotifications(
       const now = Date.now();
 
       for (const match of matches) {
-        const isFavMatch = favoriteIds.some(
-          (id) => id === match.player1Id || id === match.player2Id,
-        );
+        // Match by ID or by name (fallback for tournaments without player IDs)
+        const matchFavById = (id: string) =>
+          id === match.player1Id || id === match.player2Id ||
+          id === match.team1Id || id === match.team2Id;
+        const matchFavByName = (id: string) =>
+          id === match.player1Name || id === match.player2Name ||
+          id === match.team1Name || id === match.team2Name;
+        const isFavMatch = favoriteIds.some((id) => matchFavById(id) || matchFavByName(id));
         if (!isFavMatch) continue;
 
         const matchKey = match.id;
@@ -35,22 +42,22 @@ export function useMatchNotifications(
         // Match completion notification
         if (match.status === 'completed' && !notifiedRef.current.has(`result_${matchKey}`)) {
           notifiedRef.current.add(`result_${matchKey}`);
-          const favId = favoriteIds.find(
-            (id) => id === match.player1Id || id === match.player2Id,
-          );
-          const favName = favId === match.player1Id ? match.player1Name : match.player2Name;
-          const oppName = favId === match.player1Id ? match.player2Name : match.player1Name;
-          const won = match.winnerId === favId;
+          const favId = favoriteIds.find((id) => matchFavById(id) || matchFavByName(id));
+          const isP1 = favId === match.player1Id || favId === match.player1Name || favId === match.team1Id || favId === match.team1Name;
+          const favName = isP1 ? (match.player1Name || match.team1Name) : (match.player2Name || match.team2Name);
+          const oppName = isP1 ? (match.player2Name || match.team2Name) : (match.player1Name || match.team1Name);
+          const wonById = isP1 ? match.winnerId === match.player1Id || match.winnerId === match.team1Id : match.winnerId === match.player2Id || match.winnerId === match.team2Id;
+          const won = wonById;
           const scores = (match.sets || [])
             .map((s) => {
-              const my = favId === match.player1Id ? s.player1Score : s.player2Score;
-              const opp = favId === match.player1Id ? s.player2Score : s.player1Score;
+              const my = isP1 ? s.player1Score : s.player2Score;
+              const opp = isP1 ? s.player2Score : s.player1Score;
               return `${my}-${opp}`;
             })
             .join(', ');
 
           sendNotification(
-            `${favName} ${won ? '승리!' : '패배'}`,
+            `${favName} ${won ? t('spectator.notifications.win') : t('spectator.notifications.loss')}`,
             `vs ${oppName} (${scores})`,
             `result_${matchKey}`,
           );
@@ -66,15 +73,12 @@ export function useMatchNotifications(
               // Between 9-11 minutes before (check window)
               if (diff > 0 && diff <= 11 * 60 * 1000 && diff >= 9 * 60 * 1000) {
                 notifiedRef.current.add(`pre_${matchKey}`);
-                const favId = favoriteIds.find(
-                  (id) => id === match.player1Id || id === match.player2Id,
-                );
-                const favName =
-                  favId === match.player1Id ? match.player1Name : match.player2Name;
-                const oppName =
-                  favId === match.player1Id ? match.player2Name : match.player1Name;
+                const preFavId = favoriteIds.find((id) => matchFavById(id) || matchFavByName(id));
+                const preIsP1 = preFavId === match.player1Id || preFavId === match.player1Name || preFavId === match.team1Id || preFavId === match.team1Name;
+                const favName = preIsP1 ? (match.player1Name || match.team1Name) : (match.player2Name || match.team2Name);
+                const oppName = preIsP1 ? (match.player2Name || match.team2Name) : (match.player1Name || match.team1Name);
                 sendNotification(
-                  `${favName} 경기 10분 전`,
+                  t('spectator.notifications.preMatch', { name: favName }),
                   `vs ${oppName}${slot.courtName ? ` (${slot.courtName})` : ''}`,
                   `pre_${matchKey}`,
                 );
