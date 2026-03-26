@@ -36,9 +36,23 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: null,
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        // JS/CSS는 precache하지 않음 → 항상 네트워크에서 최신 버전 로드
+        globPatterns: ['**/*.{ico,png,svg,woff2}'],
         navigateFallbackDenylist: [/.*/],
         runtimeCaching: [
+          {
+            // JS/CSS: 항상 네트워크 우선, 오프라인 시에만 캐시 사용
+            urlPattern: /\.(?:js|css)$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-code-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60, // 1 hour max
+              },
+            },
+          },
           {
             urlPattern: /^https:\/\/.*firebaseio\.com/,
             handler: 'NetworkFirst',
@@ -47,7 +61,7 @@ export default defineConfig({
               networkTimeoutSeconds: 5,
               expiration: {
                 maxEntries: 500,
-                maxAgeSeconds: 60 * 5, // 5 minutes for API data
+                maxAgeSeconds: 60 * 5,
               },
             },
           },
@@ -58,7 +72,7 @@ export default defineConfig({
               cacheName: 'google-api-cache',
               expiration: {
                 maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days for assets
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
             },
           },
@@ -69,7 +83,7 @@ export default defineConfig({
               cacheName: 'static-assets-cache',
               expiration: {
                 maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days for static assets
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
             },
           },
