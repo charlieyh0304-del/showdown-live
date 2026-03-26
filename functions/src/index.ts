@@ -77,12 +77,16 @@ async function sendToSubscriptions(
 
   const tokens = subs.map((s) => s.token);
   const tag = `showdown-${Date.now()}`;
+  // data-only 메시지: webpush.notification 없이 SW가 직접 알림 표시
+  // webpush.notification이 있으면 브라우저 자동 표시가 iOS/일부 Android에서 실패하고
+  // onBackgroundMessage도 스킵하여 "조용한 실패" 발생
   const message: admin.messaging.MulticastMessage = {
     tokens,
-    // data field: for SW to read in onBackgroundMessage / onMessage
     data: {
       title: notification.title,
       body: notification.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-96.png",
       tag,
       link,
     },
@@ -91,31 +95,13 @@ async function sendToSubscriptions(
         Urgency: "high",
         TTL: "86400",
       },
-      // webpush.notification: browser displays this directly for web push
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        icon: "/icons/icon-192.png",
-        badge: "/icons/icon-96.png",
-        tag,
-        requireInteraction: true,
-        renotify: true,
-      },
       fcmOptions: {
         link,
       },
     },
-    // Android: high priority for background/doze delivery
     android: {
       priority: "high",
-      notification: {
-        channelId: "showdown_match",
-        priority: "max",
-        defaultSound: true,
-        defaultVibrateTimings: true,
-      },
     },
-    // iOS (Safari PWA): APNS headers for push delivery
     apns: {
       headers: {
         "apns-push-type": "alert",
@@ -123,10 +109,7 @@ async function sendToSubscriptions(
       },
       payload: {
         aps: {
-          alert: {
-            title: notification.title,
-            body: notification.body,
-          },
+          "content-available": 1,
           sound: "default",
         },
       },

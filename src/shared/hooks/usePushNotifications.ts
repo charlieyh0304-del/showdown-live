@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, deleteToken, onMessage } from 'firebase/messaging';
 import { ref, set } from 'firebase/database';
 import app, { database } from '@shared/config/firebase';
 import { sendNotification } from '@shared/utils/notifications';
@@ -34,18 +34,44 @@ async function syncSubscription(token: string, favoriteIds: string[]) {
   console.log('[Push] Synced subscription to Firebase:', key, 'favorites:', favoriteIds.length);
 }
 
+// 기존 firebase-messaging-sw.js 등록 정리
+async function cleanupOldServiceWorkers() {
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  for (const reg of registrations) {
+    if (reg.active?.scriptURL?.includes('firebase-messaging-sw.js')) {
+      console.log('[Push] Unregistering old firebase-messaging-sw.js');
+      await reg.unregister();
+    }
+  }
+}
+
 async function registerAndGetToken(): Promise<string | null> {
   if (!VAPID_KEY) {
     console.error('[Push] VAPID key not configured!');
     return null;
   }
 
-  // Use VitePWA's service worker (which includes Firebase push handler)
-  // Do NOT register a separate SW - it conflicts with VitePWA's SW at the same scope
+  // 기존 firebase-messaging-sw.js 정리
+  await cleanupOldServiceWorkers();
+
+  // VitePWA의 sw.js 사용 (workbox + Firebase Messaging 통합)
   const swReg = await navigator.serviceWorker.ready;
 
-  // Get FCM token
   const messaging = getMessaging(app);
+
+  // 기존 토큰이 잘못된 SW에 바인딩되어 있을 수 있으므로 1회 갱신
+  const migrationKey = 'showdown_sw_migrated_v3';
+  if (!localStorage.getItem(migrationKey)) {
+    try {
+      await deleteToken(messaging);
+      localStorage.removeItem(TOKEN_KEY);
+      console.log('[Push] Deleted old token for SW migration');
+    } catch (e) {
+      console.warn('[Push] Token migration cleanup:', e);
+    }
+    localStorage.setItem(migrationKey, '1');
+  }
+
   const token = await getToken(messaging, {
     vapidKey: VAPID_KEY,
     serviceWorkerRegistration: swReg,

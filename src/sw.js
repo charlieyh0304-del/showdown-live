@@ -80,11 +80,9 @@ function showPushNotification(data) {
   return self.registration.showNotification(title, options);
 }
 
-// Firebase SDK 백그라운드 메시지 핸들러
+// Firebase SDK 백그라운드 메시지 핸들러 (data-only 메시지 → SW가 직접 표시)
 messaging.onBackgroundMessage((payload) => {
-  // webpush.notification이 있으면 브라우저가 이미 표시함 → 중복 방지
-  if (payload.notification) return;
-  const data = payload.data || {};
+  const data = payload.data || payload.notification || {};
   return showPushNotification(data);
 });
 
