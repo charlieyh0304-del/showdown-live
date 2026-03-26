@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { ref, set } from 'firebase/database';
-import app, { database, auth } from '@shared/config/firebase';
+import app, { database } from '@shared/config/firebase';
 import { sendNotification } from '@shared/utils/notifications';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
@@ -132,10 +132,6 @@ export function usePushNotifications(favoriteIds: string[]) {
 }
 
 async function syncSubscription(token: string, favoriteIds: string[]) {
-  // Wait for auth to be ready
-  const user = auth.currentUser;
-  if (!user) return;
-
   const key = tokenToKey(token);
   const subRef = ref(database, `pushSubscriptions/${key}`);
   await set(subRef, {

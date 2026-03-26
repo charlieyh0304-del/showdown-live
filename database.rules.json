@@ -92,7 +92,7 @@
     "pushSubscriptions": {
       ".read": true,
       "$tokenKey": {
-        ".write": "auth != null",
+        ".write": true,
         ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt'])",
         "token": { ".validate": "newData.isString()" },
         "favoriteIds": { ".validate": true },
