@@ -89,6 +89,22 @@
       ".read": true,
       "$tournamentId": { ".write": "auth != null" }
     },
+    "pushSubscriptions": {
+      ".read": true,
+      "$tokenKey": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt'])",
+        "token": { ".validate": "newData.isString()" },
+        "favoriteIds": { ".validate": true },
+        "platform": { ".validate": "newData.isString()" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "pushNotifSent": {
+      ".read": false,
+      ".write": false
+    },
     "$other": {
       ".read": false,
       ".write": false

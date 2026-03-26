@@ -474,3 +474,8 @@ a:not(.btn):not(.nav-link):not(.mode-card):not(.skip-link):hover {
 .mode-high-contrast .skip-link:focus {
   outline: 3px solid #00FFFF;
 }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}

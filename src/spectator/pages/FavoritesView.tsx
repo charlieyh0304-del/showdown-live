@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
+import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
 export default function FavoritesView() {
   const { favorites, toggleFavorite, updateFavoriteName } = useFavorites();
@@ -10,6 +11,8 @@ export default function FavoritesView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [notifPermission, setNotifPermission] = useState(() => getNotificationPermissionStatus());
+  const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
+  const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favoriteIds);
 
   // Always call useMatches with a stable value (no conditional hooks)
   const firstActiveTournamentId = useMemo(
@@ -57,6 +60,14 @@ export default function FavoritesView() {
   }, [favoritePlayers, favorites, updateFavoriteName]);
 
   const handleRequestPermission = async () => {
+    // Try FCM push first, fall back to basic web notifications
+    if (pushSupported) {
+      const ok = await enablePush();
+      if (ok) {
+        setNotifPermission('granted');
+        return;
+      }
+    }
     const granted = await requestNotificationPermission();
     setNotifPermission(granted ? 'granted' : 'denied');
   };
@@ -151,14 +162,18 @@ export default function FavoritesView() {
             <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
               {t('spectator.favorites.notifications.title')}
             </h2>
-            {notifPermission === 'unsupported' ? (
+            {notifPermission === 'unsupported' && !pushSupported ? (
               <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{t('spectator.favorites.notifications.unsupported')}</p>
-            ) : notifPermission === 'granted' ? (
+            ) : notifPermission === 'granted' || pushEnabled ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ color: '#22c55e', fontSize: '1.25rem' }}>&#10003;</span>
                 <div>
                   <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{t('spectator.favorites.notifications.enabled')}</p>
-                  <p style={{ color: '#d1d5db', fontSize: '0.75rem', marginTop: '0.25rem' }}>{t('spectator.favorites.notifications.enabledDetail')}</p>
+                  <p style={{ color: '#d1d5db', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                    {pushEnabled
+                      ? t('spectator.favorites.notifications.pushEnabled')
+                      : t('spectator.favorites.notifications.enabledDetail')}
+                  </p>
                 </div>
               </div>
             ) : notifPermission === 'denied' ? (

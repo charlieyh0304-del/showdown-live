@@ -35,7 +35,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <a href="#main-content" className="skip-link">{t('common.skipToContent')}</a>
       <header role="banner">
         <nav className="flex items-center gap-2 p-4 border-b border-gray-700 flex-wrap" aria-label={t('admin.nav.label')}>
         <NavLink

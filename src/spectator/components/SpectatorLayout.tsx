@@ -2,8 +2,10 @@ import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import NotificationToast from '@shared/components/NotificationToast';
 import { useFavorites, useTournaments, useMatches, useSchedule } from '@shared/hooks/useFirebase';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
+import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { useMemo } from 'react';
 
 // Global notification watcher - runs on all spectator pages
@@ -22,6 +24,9 @@ function NotificationWatcher() {
 
   useMatchNotifications(favoriteIds, matches, schedule);
 
+  // Keep push subscription in sync with favorites
+  usePushNotifications(favoriteIds);
+
   return null; // No UI
 }
 
@@ -37,6 +42,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Global notification watcher */}
       <NotificationWatcher />
+      <NotificationToast />
 
       {/* Skip navigation - handled by global skip-link in App.tsx */}
 

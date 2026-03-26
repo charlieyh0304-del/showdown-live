@@ -1,3 +1,20 @@
+export interface InAppNotification {
+  title: string;
+  body: string;
+}
+
+type NotificationListener = (notif: InAppNotification) => void;
+const listeners: Set<NotificationListener> = new Set();
+
+export function onInAppNotification(cb: NotificationListener): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function emitInApp(title: string, body: string) {
+  listeners.forEach((cb) => cb({ title, body }));
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) return false;
   if (Notification.permission === 'granted') return true;
@@ -7,7 +24,13 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 export function sendNotification(title: string, body: string, tag?: string): void {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const canUseOSNotification = 'Notification' in window && Notification.permission === 'granted';
+
+  if (!canUseOSNotification) {
+    emitInApp(title, body);
+    return;
+  }
+
   const notifTag = tag || `showdown-${Date.now()}`;
   const options: NotificationOptions = {
     body,
@@ -21,17 +44,18 @@ export function sendNotification(title: string, body: string, tag?: string): voi
     navigator.serviceWorker.getRegistration().then(reg => {
       if (reg) {
         reg.showNotification(title, options).catch(() => {
-          // Fallback to direct Notification constructor (desktop)
-          try { new Notification(title, options); } catch { /* ignore */ }
+          // SW notification failed (common on iOS) - use in-app fallback
+          emitInApp(title, body);
         });
       } else {
-        try { new Notification(title, options); } catch { /* ignore */ }
+        // No service worker - try direct Notification, fallback to in-app
+        try { new Notification(title, options); } catch { emitInApp(title, body); }
       }
     }).catch(() => {
-      try { new Notification(title, options); } catch { /* ignore */ }
+      try { new Notification(title, options); } catch { emitInApp(title, body); }
     });
   } else {
-    try { new Notification(title, options); } catch { /* ignore */ }
+    try { new Notification(title, options); } catch { emitInApp(title, body); }
   }
 }
 

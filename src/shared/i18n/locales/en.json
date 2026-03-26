@@ -1302,10 +1302,11 @@
         "title": "Notification Settings",
         "unsupported": "This browser does not support notifications.",
         "enabled": "Notifications are enabled",
-        "enabledDetail": "You'll be notified 10 minutes before your favorited player's match and when results are available.",
+        "enabledDetail": "You'll be notified 10 minutes before your favorited player's match, when matches start, and when results are available.",
+        "pushEnabled": "Background push notifications are enabled. You'll receive alerts even when the app is closed.",
         "denied": "Notifications are blocked",
         "deniedDetail": "Please allow notification permissions for this site in your browser settings. Click the lock icon to the left of the address bar > Notifications > Allow",
-        "promptMessage": "Enable notifications to receive alerts 10 minutes before your favorited player's matches and match results.",
+        "promptMessage": "Enable notifications to receive alerts 10 minutes before your favorited player's matches, match starts, and match results.",
         "enableButton": "Enable Notifications"
       },
       "addFavorite": "Add {{name}} to favorites",
