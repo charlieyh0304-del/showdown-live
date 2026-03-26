@@ -1,6 +1,7 @@
 /* eslint-disable no-undef */
 // Firebase Messaging Service Worker
 // Handles background push notifications (iOS PWA + Android + Desktop)
+// Uses data-only messages for reliable delivery on all platforms
 
 importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-compat.js');
@@ -18,18 +19,29 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// Handle background messages via Firebase SDK
-messaging.onBackgroundMessage((payload) => {
-  const notification = payload.notification || {};
-  const title = notification.title || '쇼다운 알림';
+// Show notification helper - used by both handlers
+function showNotificationFromData(data) {
+  const title = data.title || '쇼다운 알림';
   const options = {
-    body: notification.body || '',
-    icon: notification.icon || '/icons/icon-192.png',
-    badge: '/icons/icon-96.png',
-    tag: payload.data?.tag || `showdown-${Date.now()}`,
-    data: payload.data || {},
+    body: data.body || '',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/icon-96.png',
+    tag: data.tag || `showdown-${Date.now()}`,
+    data: { link: data.link || '/spectator' },
+    requireInteraction: true,
+    // iOS Safari PWA needs renotify to vibrate/sound on same tag
+    renotify: true,
   };
   return self.registration.showNotification(title, options);
+}
+
+// Handle background messages via Firebase SDK (data-only messages)
+messaging.onBackgroundMessage((payload) => {
+  // Data-only message: notification info is in payload.data
+  const data = payload.data || {};
+  // If there's also a notification field (shouldn't happen with our setup), skip SW handling
+  if (payload.notification) return;
+  return showNotificationFromData(data);
 });
 
 // Fallback: Handle raw push events (for cases where Firebase SDK doesn't intercept)
@@ -43,25 +55,19 @@ self.addEventListener('push', (event) => {
     return;
   }
 
-  // Skip if Firebase SDK already handled it (check if notification is already shown)
+  // Skip if Firebase SDK already handled it
   if (data.fcmMessageId) return;
 
-  const notification = data.notification || {};
-  const title = notification.title || '쇼다운 알림';
-  const options = {
-    body: notification.body || '',
-    icon: notification.icon || '/icons/icon-192.png',
-    badge: '/icons/icon-96.png',
-    tag: data.data?.tag || `showdown-${Date.now()}`,
-    data: data.data || {},
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Handle data from raw push or nested data field
+  const notifData = data.data || data.notification || data;
+  event.waitUntil(showNotificationFromData(notifData));
 });
 
 // Handle notification click - open the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  const link = event.notification.data?.link || '/spectator';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -72,7 +78,7 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       // Otherwise open new window
-      return self.clients.openWindow('/spectator');
+      return self.clients.openWindow(link);
     })
   );
 });

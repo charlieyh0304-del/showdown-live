@@ -68,6 +68,10 @@ async function findSubscriptions(participantIds: string[]): Promise<PushSubscrip
 }
 
 // Send FCM to multiple tokens, clean up invalid ones
+// IMPORTANT: Uses data-only messages (no top-level `notification` field)
+// so the service worker always handles display. This ensures:
+// - Android: immediate delivery in background/doze mode (not delayed by system tray)
+// - iOS: service worker receives the push and can show notification
 async function sendToSubscriptions(
   subs: PushSubscription[],
   notification: { title: string; body: string },
@@ -75,21 +79,22 @@ async function sendToSubscriptions(
   if (subs.length === 0) return;
 
   const tokens = subs.map((s) => s.token);
+  const tag = `showdown-${Date.now()}`;
   const message: admin.messaging.MulticastMessage = {
     tokens,
-    notification,
+    // NO top-level `notification` - data-only so SW always handles it
     data: {
       title: notification.title,
       body: notification.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-96.png",
+      tag,
+      link: "/spectator",
     },
     webpush: {
       headers: {
         Urgency: "high",
-      },
-      notification: {
-        icon: "/icons/icon-192.png",
-        badge: "/icons/icon-96.png",
-        requireInteraction: true,
+        TTL: "86400",
       },
       fcmOptions: {
         link: "/spectator",
@@ -98,9 +103,24 @@ async function sendToSubscriptions(
     // Android: high priority for immediate delivery even in doze mode
     android: {
       priority: "high",
-      notification: {
-        channelId: "showdown_match",
-        priority: "max",
+    },
+    // iOS (Safari PWA): APNS headers for immediate push delivery
+    apns: {
+      headers: {
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+        "apns-expiration": "0",
+      },
+      payload: {
+        aps: {
+          "content-available": 1,
+          alert: {
+            title: notification.title,
+            body: notification.body,
+          },
+          sound: "default",
+          "mutable-content": 1,
+        },
       },
     },
   };

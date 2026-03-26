@@ -141,7 +141,9 @@ export function usePushNotifications(favoriteIds: string[]) {
     try {
       const messaging = getMessaging(app);
       const unsubscribe = onMessage(messaging, (payload) => {
-        const { title, body } = payload.notification || {};
+        // Support both notification field and data-only messages
+        const title = payload.notification?.title || payload.data?.title;
+        const body = payload.notification?.body || payload.data?.body;
         if (title) {
           sendNotification(title, body || '');
         }
