@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
 export default function FavoritesView() {
-  const { favorites, toggleFavorite, updateFavoriteName, isGoogleUser, loginWithGoogle, logoutGoogle } = useFavorites();
+  const { favorites, toggleFavorite, updateFavoriteName } = useFavorites();
   const { players, loading: pLoading } = usePlayers();
   const { tournaments } = useTournaments();
   const navigate = useNavigate();
@@ -181,37 +181,6 @@ export default function FavoritesView() {
         </>
       )}
 
-      {/* Device sync via Google */}
-      <div className="card" style={{ marginTop: '1rem', border: '1px solid #374151' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
-          {t('spectator.favorites.sync.title')}
-        </h2>
-        {isGoogleUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ color: '#22c55e', fontSize: '1.25rem' }}>&#10003;</span>
-              <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{t('spectator.favorites.sync.linked')}</p>
-            </div>
-            <button className="btn btn-sm" onClick={logoutGoogle} style={{ fontSize: '0.75rem', minHeight: '44px' }}>
-              {t('spectator.favorites.sync.logout')}
-            </button>
-          </div>
-        ) : (
-          <>
-            <p style={{ color: '#9ca3af', fontSize: '0.8125rem', marginBottom: '0.75rem' }}>
-              {t('spectator.favorites.sync.description')}
-            </p>
-            <button
-              className="btn btn-primary"
-              onClick={loginWithGoogle}
-              style={{ fontSize: '0.875rem', minHeight: '44px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-              aria-label={t('spectator.favorites.sync.googleLogin')}
-            >
-              {t('spectator.favorites.sync.googleLogin')}
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

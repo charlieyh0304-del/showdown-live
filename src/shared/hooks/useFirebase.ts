@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, onValue, set, push, remove, update, get, runTransaction, type DataSnapshot } from 'firebase/database';
-import { database, auth, signInWithGoogle } from '../config/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { database } from '../config/firebase';
 import { queueUpdate } from '../utils/offlineQueue';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
 
@@ -681,7 +680,7 @@ export function useNotifications(tournamentId: string | null) {
   return { notifications, addNotification };
 }
 
-// ===== 즐겨찾기 (Firebase Auth UID 기반 자동 동기화) =====
+// ===== 즐겨찾기 (localStorage 기반, 기기별 독립) =====
 export interface FavoriteEntry { id: string; name: string }
 
 function loadLocalFavorites(): FavoriteEntry[] {
@@ -691,7 +690,9 @@ function loadLocalFavorites(): FavoriteEntry[] {
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
     if (parsed.length > 0 && typeof parsed[0] === 'string') {
-      return (parsed as string[]).map(id => ({ id, name: id }));
+      const migrated = (parsed as string[]).map(id => ({ id, name: id }));
+      try { localStorage.setItem('showdown_favorites', JSON.stringify(migrated)); } catch { /* ignore */ }
+      return migrated;
     }
     return parsed.filter((e: unknown): e is FavoriteEntry =>
       typeof e === 'object' && e !== null && 'id' in e && 'name' in e
@@ -703,76 +704,10 @@ function saveLocalFavorites(favorites: FavoriteEntry[]) {
   try { localStorage.setItem('showdown_favorites', JSON.stringify(favorites)); } catch { /* ignore */ }
 }
 
-function parseFavorites(data: unknown): FavoriteEntry[] {
-  if (!data) return [];
-  const arr = Array.isArray(data) ? data : Object.values(data);
-  return (arr as unknown[]).filter((e): e is FavoriteEntry =>
-    typeof e === 'object' && e !== null && 'id' in (e as Record<string, unknown>) && 'name' in (e as Record<string, unknown>)
-  );
-}
-
 export function useFavorites() {
   const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadLocalFavorites);
-  const [uid, setUid] = useState<string | null>(null);
-  const [isGoogleUser, setIsGoogleUser] = useState(false);
   const favoritesRef = useRef(favorites);
-  const writingRef = useRef(false);
-  const unsubFbRef = useRef<(() => void) | null>(null);
-
   useEffect(() => { favoritesRef.current = favorites; }, [favorites]);
-
-  // Track Firebase Auth state → use UID for sync path
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, user => {
-      if (user) {
-        setUid(user.uid);
-        setIsGoogleUser(user.providerData.some(p => p.providerId === 'google.com'));
-      }
-    });
-    return unsub;
-  }, []);
-
-  // Subscribe to Firebase favorites when UID is available
-  useEffect(() => {
-    if (!uid) return;
-    // Migrate local favorites to Firebase on first sign-in
-    const local = loadLocalFavorites();
-    if (local.length > 0) {
-      get(ref(database, `userFavorites/${uid}`)).then(snap => {
-        if (!snap.val()) {
-          set(ref(database, `userFavorites/${uid}`), local).catch(() => {});
-        } else {
-          // Merge local + remote
-          const remote = parseFavorites(snap.val());
-          const merged = [...remote];
-          for (const l of local) {
-            if (!merged.some(m => m.id === l.id)) merged.push(l);
-          }
-          if (merged.length > remote.length) {
-            set(ref(database, `userFavorites/${uid}`), merged).catch(() => {});
-          }
-        }
-      }).catch(() => {});
-    }
-
-    const unsub = onValue(ref(database, `userFavorites/${uid}`), snap => {
-      if (writingRef.current) { writingRef.current = false; return; }
-      const valid = parseFavorites(snap.val());
-      if (valid.length > 0 || snap.exists()) {
-        saveLocalFavorites(valid);
-        favoritesRef.current = valid;
-        setFavorites(valid);
-      }
-    });
-    unsubFbRef.current = unsub;
-    return unsub;
-  }, [uid]);
-
-  const syncToFirebase = useCallback((data: FavoriteEntry[]) => {
-    if (!uid) return;
-    writingRef.current = true;
-    set(ref(database, `userFavorites/${uid}`), data).catch(() => {});
-  }, [uid]);
 
   const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
 
@@ -783,11 +718,10 @@ export function useFavorites() {
       ? prev.filter(f => f.id !== playerId)
       : [...prev, { id: playerId, name: playerName || playerId }];
     saveLocalFavorites(next);
-    syncToFirebase(next);
     favoritesRef.current = next;
     setFavorites(next);
     return next.map(f => f.id);
-  }, [syncToFirebase]);
+  }, []);
 
   const isFavorite = useCallback((playerId: string) => {
     return favorites.some(f => f.id === playerId);
@@ -803,20 +737,9 @@ export function useFavorites() {
     if (!entry || entry.name === name) return;
     const next = prev.map(f => f.id === playerId ? { ...f, name } : f);
     saveLocalFavorites(next);
-    syncToFirebase(next);
     favoritesRef.current = next;
     setFavorites(next);
-  }, [syncToFirebase]);
-
-  // Google sign-in for cross-device sync
-  const loginWithGoogle = useCallback(async (): Promise<boolean> => {
-    const user = await signInWithGoogle();
-    return !!user;
   }, []);
 
-  const logoutGoogle = useCallback(async () => {
-    await signOut(auth);
-  }, []);
-
-  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName, isGoogleUser, loginWithGoogle, logoutGoogle };
+  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName };
 }
