@@ -271,25 +271,32 @@ export const onMatchChange = onValueUpdated(
 );
 
 // === FUNCTION 2: Pre-match notification (10 min before) ===
+// 대회 상태와 무관하게 스케줄만 보고 알림 전송
 export const preMatchNotify = onSchedule(
   { schedule: "* * * * *", timeZone: "Asia/Seoul" },
   async () => {
-    // Find all active tournaments
-    const tournamentsSnap = await db.ref("tournaments")
-      .orderByChild("status")
-      .equalTo("in_progress")
-      .once("value");
+    // completed 대회만 제외, 나머지는 모두 스케줄 확인
+    const tournamentsSnap = await db.ref("tournaments").once("value");
 
     if (!tournamentsSnap.exists()) {
-      console.log("No active tournaments");
+      console.log("No tournaments");
       return;
     }
 
     const tournamentIds: string[] = [];
     tournamentsSnap.forEach((child) => {
-      tournamentIds.push(child.key!);
+      const status = child.val()?.status;
+      // completed 대회만 제외
+      if (status !== "completed") {
+        tournamentIds.push(child.key!);
+      }
     });
-    console.log(`Active tournaments: ${tournamentIds.join(", ")}`);
+
+    if (tournamentIds.length === 0) {
+      console.log("No active tournaments (all completed)");
+      return;
+    }
+    console.log(`Checking ${tournamentIds.length} tournaments: ${tournamentIds.join(", ")}`);
 
     const now = Date.now();
     const pendingNotifs: Promise<void>[] = [];
