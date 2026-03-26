@@ -1500,7 +1500,7 @@ export default function IndividualScoring() {
 
         {/* Warmup + Pause */}
         <div className="flex gap-3">
-          {!match.warmupUsed && (
+          {!match.warmupUsed && (match.currentSet ?? 0) === 0 && (
             <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup} aria-label={`${t('referee.scoring.warmupStart')} 60${t('common.time.seconds')}`}>
               🔥 {t('referee.scoring.warmupStart')} 60{t('common.time.seconds')}
             </button>
