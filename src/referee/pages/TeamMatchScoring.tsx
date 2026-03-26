@@ -210,7 +210,7 @@ export default function TeamMatchScoring() {
     const t1 = match.team1;
     const t2 = match.team2;
 
-    await updateMatch({
+    const ok = await updateMatch({
       status: 'in_progress',
       sets: [createEmptySet()],
       currentSet: 0,
@@ -229,7 +229,10 @@ export default function TeamMatchScoring() {
       team1CurrentPlayerIndex: 0,
       team2CurrentPlayerIndex: 0,
     });
-  }, [match, updateMatch, courtChangeByLoser]);
+    if (!ok) {
+      throw new Error(t('referee.scoring.conflictError'));
+    }
+  }, [match, updateMatch, courtChangeByLoser, t]);
 
   // Warmup (team: 90 seconds)
   const handleWarmup = useCallback(() => {
@@ -936,10 +939,13 @@ export default function TeamMatchScoring() {
               <button
                 className="btn btn-success btn-large flex-1 text-xl py-6"
                 onClick={async () => {
-                  await handleStartMatch(tossWinner, pendingChoice);
-                  // handleWarmup uses match state, so call warmup directly
-                  warmupTimer.start(90);
-                  setShowWarmup(true);
+                  try {
+                    await handleStartMatch(tossWinner, pendingChoice);
+                    warmupTimer.start(90);
+                    setShowWarmup(true);
+                  } catch (err) {
+                    alert(String(err));
+                  }
                 }}
                 aria-label={t('referee.scoring.warmupStart')}
               >
@@ -947,7 +953,13 @@ export default function TeamMatchScoring() {
               </button>
               <button
                 className="btn btn-accent btn-large flex-1 text-xl py-6"
-                onClick={() => handleStartMatch(tossWinner, pendingChoice)}
+                onClick={async () => {
+                  try {
+                    await handleStartMatch(tossWinner, pendingChoice);
+                  } catch (err) {
+                    alert(String(err));
+                  }
+                }}
                 aria-label={t('referee.scoring.matchStartLabel')}
               >
                 {t('referee.scoring.matchStartLabel')}

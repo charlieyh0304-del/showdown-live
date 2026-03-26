@@ -315,7 +315,7 @@ export default function IndividualScoring() {
       });
     }
 
-    await updateMatch({
+    const ok = await updateMatch({
       status: 'in_progress',
       sets: [createEmptySet()],
       currentSet: 0,
@@ -334,7 +334,10 @@ export default function IndividualScoring() {
       player1Coach: player1Coach || undefined,
       player2Coach: player2Coach || undefined,
     });
-  }, [match, updateMatch, tossWinner, courtChangeByLoser, player1Coach, player2Coach]);
+    if (!ok) {
+      throw new Error(t('referee.scoring.conflictError'));
+    }
+  }, [match, updateMatch, tossWinner, courtChangeByLoser, player1Coach, player2Coach, t]);
 
   // Warmup
   const handleWarmup = useCallback(async () => {
@@ -973,9 +976,13 @@ export default function IndividualScoring() {
               <button
                 className="btn btn-success btn-large flex-1 text-xl py-6"
                 onClick={async () => {
-                  await handleStartMatch(pendingFirstServe, true);
-                  warmupTimer.start(60);
-                  setShowWarmup(true);
+                  try {
+                    await handleStartMatch(pendingFirstServe, true);
+                    warmupTimer.start(60);
+                    setShowWarmup(true);
+                  } catch (err) {
+                    alert(String(err));
+                  }
                 }}
                 aria-label={t('referee.scoring.warmupStart')}
               >
@@ -983,7 +990,13 @@ export default function IndividualScoring() {
               </button>
               <button
                 className="btn btn-accent btn-large flex-1 text-xl py-6"
-                onClick={() => handleStartMatch(pendingFirstServe)}
+                onClick={async () => {
+                  try {
+                    await handleStartMatch(pendingFirstServe);
+                  } catch (err) {
+                    alert(String(err));
+                  }
+                }}
                 aria-label={t('referee.scoring.matchStartLabel')}
               >
                 {t('referee.scoring.matchStartLabel')}
