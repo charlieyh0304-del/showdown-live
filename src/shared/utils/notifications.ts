@@ -7,24 +7,31 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 export function sendNotification(title: string, body: string, tag?: string): void {
-  if (Notification.permission !== 'granted') return;
-  try {
-    new Notification(title, {
-      body,
-      tag: tag || `showdown-${Date.now()}`,
-      icon: '/icon-192x192.png',
-      badge: '/icon-192x192.png',
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const notifTag = tag || `showdown-${Date.now()}`;
+  const options: NotificationOptions = {
+    body,
+    tag: notifTag,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-96.png',
+  };
+
+  // Try Service Worker notification first (works on mobile + background)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg) {
+        reg.showNotification(title, options).catch(() => {
+          // Fallback to direct Notification constructor (desktop)
+          try { new Notification(title, options); } catch { /* ignore */ }
+        });
+      } else {
+        try { new Notification(title, options); } catch { /* ignore */ }
+      }
+    }).catch(() => {
+      try { new Notification(title, options); } catch { /* ignore */ }
     });
-  } catch {
-    // Service worker notification fallback
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'SHOW_NOTIFICATION',
-        title,
-        body,
-        tag,
-      });
-    }
+  } else {
+    try { new Notification(title, options); } catch { /* ignore */ }
   }
 }
 

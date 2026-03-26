@@ -680,35 +680,49 @@ export function useNotifications(tournamentId: string | null) {
   return { notifications, addNotification };
 }
 
-// ===== 즐겨찾기 (localStorage 기반) =====
-export function useFavorites() {
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('showdown_favorites');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+// ===== 즐겨찾기 (localStorage 기반, ID+이름 쌍 저장) =====
+interface FavoriteEntry { id: string; name: string }
+
+function loadFavorites(): FavoriteEntry[] {
+  try {
+    const stored = localStorage.getItem('showdown_favorites');
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    // Backwards compat: old format was string[], new format is {id, name}[]
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+      return (parsed as string[]).map(id => ({ id, name: id }));
     }
-  });
+    return parsed as FavoriteEntry[];
+  } catch { return []; }
+}
 
-  // Use a ref to track the latest value synchronously for toggleFavorite return
-  const favoriteIdsRef = useRef(favoriteIds);
-  useEffect(() => {
-    favoriteIdsRef.current = favoriteIds;
-  }, [favoriteIds]);
+export function useFavorites() {
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadFavorites);
 
-  const toggleFavorite = useCallback((playerId: string): string[] => {
-    const prev = favoriteIdsRef.current;
-    const next = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+  const favoritesRef = useRef(favorites);
+  useEffect(() => { favoritesRef.current = favorites; }, [favorites]);
+
+  const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
+
+  const toggleFavorite = useCallback((playerId: string, playerName?: string): string[] => {
+    const prev = favoritesRef.current;
+    const exists = prev.some(f => f.id === playerId);
+    const next = exists
+      ? prev.filter(f => f.id !== playerId)
+      : [...prev, { id: playerId, name: playerName || playerId }];
     localStorage.setItem('showdown_favorites', JSON.stringify(next));
-    favoriteIdsRef.current = next;
-    setFavoriteIds(next);
-    return next;
+    favoritesRef.current = next;
+    setFavorites(next);
+    return next.map(f => f.id);
   }, []);
 
   const isFavorite = useCallback((playerId: string) => {
-    return favoriteIds.includes(playerId);
-  }, [favoriteIds]);
+    return favorites.some(f => f.id === playerId);
+  }, [favorites]);
 
-  return { favoriteIds, toggleFavorite, isFavorite };
+  const getFavoriteName = useCallback((playerId: string) => {
+    return favorites.find(f => f.id === playerId)?.name || playerId;
+  }, [favorites]);
+
+  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName };
 }

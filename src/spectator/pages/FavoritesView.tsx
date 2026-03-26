@@ -13,7 +13,7 @@ interface ResolvedFavorite {
 }
 
 export default function FavoritesView() {
-  const { favoriteIds, toggleFavorite } = useFavorites();
+  const { favorites, toggleFavorite } = useFavorites();
   const { players, loading: pLoading } = usePlayers();
   const { tournaments } = useTournaments();
   const navigate = useNavigate();
@@ -33,33 +33,30 @@ export default function FavoritesView() {
   const firstTournamentId = activeTournamentIds.length > 0 ? activeTournamentIds[0] : null;
   const { matches: activeMatches } = useMatches(firstTournamentId);
 
-  // Resolve favorite IDs to player info: try global players first, then match data, then use ID as name
+  // Resolve favorite IDs to player info
   const favoritePlayers = useMemo(() => {
-    return favoriteIds.map((id): ResolvedFavorite => {
+    return favorites.map((fav): ResolvedFavorite => {
       // 1. Try global players DB
-      const globalPlayer = players.find((p) => p.id === id);
+      const globalPlayer = players.find((p) => p.id === fav.id);
       if (globalPlayer) {
-        return { id, name: globalPlayer.name, club: globalPlayer.club };
+        return { id: fav.id, name: globalPlayer.name, club: globalPlayer.club };
       }
 
-      // 2. Try matching in tournament matches (by ID or name)
-      const allMatches = activeMatches;
-      for (const m of allMatches) {
-        if (m.player1Id === id) return { id, name: m.player1Name || id, tournamentId: firstTournamentId || undefined };
-        if (m.player2Id === id) return { id, name: m.player2Name || id, tournamentId: firstTournamentId || undefined };
-        if (m.team1Id === id) return { id, name: m.team1Name || id, tournamentId: firstTournamentId || undefined };
-        if (m.team2Id === id) return { id, name: m.team2Name || id, tournamentId: firstTournamentId || undefined };
-        // Name-based match (when ID is actually a name)
-        if (m.player1Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
-        if (m.player2Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
-        if (m.team1Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
-        if (m.team2Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
+      // 2. Use stored name from favorites (saved at toggle time)
+      const storedName = fav.name !== fav.id ? fav.name : null;
+
+      // 3. Try matching in active tournament matches
+      for (const m of activeMatches) {
+        if (m.player1Id === fav.id) return { id: fav.id, name: m.player1Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
+        if (m.player2Id === fav.id) return { id: fav.id, name: m.player2Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
+        if (m.team1Id === fav.id) return { id: fav.id, name: m.team1Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
+        if (m.team2Id === fav.id) return { id: fav.id, name: m.team2Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
       }
 
-      // 3. Fallback: use ID as name
-      return { id, name: id };
+      // 4. Fallback: use stored name
+      return { id: fav.id, name: storedName || fav.id, tournamentId: firstTournamentId || undefined };
     });
-  }, [favoriteIds, players, activeMatches, firstTournamentId]);
+  }, [favorites, players, activeMatches, firstTournamentId]);
 
   const handleRequestPermission = async () => {
     const granted = await requestNotificationPermission();

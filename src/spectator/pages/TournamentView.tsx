@@ -36,8 +36,8 @@ export default function TournamentView() {
 
   useMatchNotifications(favoriteIds, matches, schedule);
 
-  const handleToggleFavorite = useCallback((playerId: string) => {
-    const newFavs = toggleFavorite(playerId);
+  const handleToggleFavorite = useCallback((playerId: string, playerName?: string) => {
+    const newFavs = toggleFavorite(playerId, playerName);
     if (newFavs.includes(playerId)) {
       requestNotificationPermission();
     }
@@ -272,7 +272,7 @@ export default function TournamentView() {
                   || selectedPlayer;
                 return (
                   <button
-                    onClick={() => handleToggleFavorite(pId)}
+                    onClick={() => handleToggleFavorite(pId, selectedPlayer)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     aria-label={isFavorite(pId) ? t('spectator.favorites.removeFavorite', { name: selectedPlayer }) : t('spectator.favorites.addFavorite', { name: selectedPlayer })}
                     aria-pressed={isFavorite(pId)}
@@ -504,7 +504,7 @@ function LiveTab({
 }: {
   matches: Match[];
   isFavorite: (id: string) => boolean;
-  toggleFavorite: (id: string) => void;
+  toggleFavorite: (id: string, name?: string) => void;
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
 }) {
@@ -699,7 +699,7 @@ function IndividualMatchCard({
 }: {
   match: Match;
   isFavorite: (id: string) => boolean;
-  toggleFavorite: (id: string) => void;
+  toggleFavorite: (id: string, name?: string) => void;
   justChanged?: boolean;
 }) {
   const { t } = useTranslation();
@@ -720,7 +720,7 @@ function IndividualMatchCard({
             <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player1Name || t('referee.home.player1Default')}</span>
             {match.player1Id && (
               <button
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player1Id!); }}
+                onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player1Id!, match.player1Name || undefined); }}
                 aria-label={isFavorite(match.player1Id) ? t('spectator.favorites.removeAriaLabel', { name: match.player1Name }) : `${match.player1Name} ☆`}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--color-primary)', padding: '0.25rem' }}
               >
@@ -752,7 +752,7 @@ function IndividualMatchCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
             {match.player2Id && (
               <button
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player2Id!); }}
+                onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player2Id!, match.player2Name || undefined); }}
                 aria-label={isFavorite(match.player2Id) ? t('spectator.favorites.removeAriaLabel', { name: match.player2Name }) : `${match.player2Name} ☆`}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--color-primary)', padding: '0.25rem' }}
               >
@@ -2442,7 +2442,7 @@ function PlayerMatchRow({
 }
 
 // ===== Players Tab =====
-function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggleFavorite, tournamentId, navigate }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; isFavorite: (id: string) => boolean; toggleFavorite: (id: string) => void; tournamentId: string; navigate: ReturnType<typeof useNavigate> }) {
+function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggleFavorite, tournamentId, navigate }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; isFavorite: (id: string) => boolean; toggleFavorite: (id: string, name?: string) => void; tournamentId: string; navigate: ReturnType<typeof useNavigate> }) {
   const { t } = useTranslation();
   const [playerSearch, setPlayerSearch] = useState('');
 
@@ -2547,7 +2547,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggl
               </button>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}
+                  onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id, p.name); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   aria-label={isFavorite(p.id) ? t('spectator.favorites.removeFavorite', { name: p.name }) : t('spectator.favorites.addFavorite', { name: p.name })}
                   aria-pressed={isFavorite(p.id)}
