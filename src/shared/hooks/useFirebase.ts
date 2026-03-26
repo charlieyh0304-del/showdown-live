@@ -20,13 +20,17 @@ export function canWrite(path: string, maxPerSecond = 10): boolean {
 
 // ===== Issue 4: Firebase listener deduplication =====
 // Module-level cache so multiple components subscribing to the same path share one listener.
-const listenerCache = new Map<string, { unsub: () => void; count: number; callbacks: Set<(data: DataSnapshot) => void> }>();
+const listenerCache = new Map<string, { unsub: () => void; count: number; callbacks: Set<(data: DataSnapshot) => void>; lastSnapshot: DataSnapshot | null }>();
 
 function subscribeToPath(path: string, callback: (snapshot: DataSnapshot) => void): () => void {
   if (listenerCache.has(path)) {
     const entry = listenerCache.get(path)!;
     entry.count++;
     entry.callbacks.add(callback);
+    // Deliver the last snapshot immediately so new subscribers don't stay in loading state
+    if (entry.lastSnapshot) {
+      queueMicrotask(() => callback(entry.lastSnapshot!));
+    }
     return () => {
       entry.callbacks.delete(callback);
       entry.count--;
@@ -37,10 +41,12 @@ function subscribeToPath(path: string, callback: (snapshot: DataSnapshot) => voi
     };
   }
   const callbacks = new Set<(snapshot: DataSnapshot) => void>([callback]);
-  const unsub = onValue(ref(database, path), (snap) => {
+  const cacheEntry = { unsub: () => {}, count: 1, callbacks, lastSnapshot: null as DataSnapshot | null };
+  cacheEntry.unsub = onValue(ref(database, path), (snap) => {
+    cacheEntry.lastSnapshot = snap;
     callbacks.forEach(cb => cb(snap));
   });
-  listenerCache.set(path, { unsub, count: 1, callbacks });
+  listenerCache.set(path, cacheEntry);
   return () => {
     callbacks.delete(callback);
     const entry = listenerCache.get(path)!;
