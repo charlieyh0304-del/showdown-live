@@ -6,11 +6,12 @@ import { countSetWins } from '@shared/utils/scoring';
 import type { Match } from '@shared/types';
 
 export default function PlayerProfileView() {
-  const { tournamentId, playerName } = useParams<{ tournamentId: string; playerName: string }>();
+  const { tournamentId: rawTournamentId, playerName } = useParams<{ tournamentId: string; playerName: string }>();
+  const tournamentId = rawTournamentId && rawTournamentId !== 'undefined' ? rawTournamentId : null;
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { tournament, loading: tLoading } = useTournament(tournamentId || null);
-  const { matches, loading: mLoading } = useMatches(tournamentId || null);
+  const { tournament, loading: tLoading } = useTournament(tournamentId);
+  const { matches, loading: mLoading } = useMatches(tournamentId);
   const { players, loading: pLoading } = usePlayers();
 
   const decodedName = decodeURIComponent(playerName || '');

@@ -892,6 +892,7 @@
       "allMatches": "모든 경기",
       "noActiveMatches": "진행할 경기가 없습니다",
       "noCompletedMatches": "완료된 경기가 없습니다",
+      "tryAllMatches": "\"전체 경기\" 탭을 눌러 배정되지 않은 경기를 확인하세요",
       "loadingMatches": "경기 목록 로딩 중...",
       "team1Default": "팀1",
       "team2Default": "팀2",
@@ -1307,7 +1308,17 @@
         "enableButton": "알림 허용하기"
       },
       "addFavorite": "{{name}} 즐겨찾기 추가",
-      "removeFavorite": "{{name}} 즐겨찾기 해제"
+      "removeFavorite": "{{name}} 즐겨찾기 해제",
+      "sync": {
+        "title": "기기 간 동기화",
+        "description": "다른 기기에서도 같은 즐겨찾기를 사용할 수 있습니다. 코드를 생성한 후 다른 기기에서 입력하세요.",
+        "myCode": "내 동기화 코드",
+        "generateCode": "동기화 코드 생성",
+        "enterCode": "동기화 코드 입력",
+        "importButton": "가져오기",
+        "importSuccess": "즐겨찾기를 성공적으로 가져왔습니다!",
+        "importError": "코드를 찾을 수 없습니다. 다시 확인해주세요."
+      }
     },
 
     "notifications": {

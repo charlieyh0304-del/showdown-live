@@ -892,6 +892,7 @@
       "allMatches": "All Matches",
       "noActiveMatches": "No matches to officiate",
       "noCompletedMatches": "No completed matches",
+      "tryAllMatches": "Tap \"All Matches\" to see unassigned matches",
       "loadingMatches": "Loading matches...",
       "team1Default": "Team 1",
       "team2Default": "Team 2",
@@ -1307,7 +1308,17 @@
         "enableButton": "Enable Notifications"
       },
       "addFavorite": "Add {{name}} to favorites",
-      "removeFavorite": "Remove {{name}} from favorites"
+      "removeFavorite": "Remove {{name}} from favorites",
+      "sync": {
+        "title": "Sync Across Devices",
+        "description": "Use the same favorites on another device. Generate a code here and enter it on the other device.",
+        "myCode": "My sync code",
+        "generateCode": "Generate Sync Code",
+        "enterCode": "Enter sync code",
+        "importButton": "Import",
+        "importSuccess": "Favorites imported successfully!",
+        "importError": "Code not found. Please check and try again."
+      }
     },
 
     "notifications": {

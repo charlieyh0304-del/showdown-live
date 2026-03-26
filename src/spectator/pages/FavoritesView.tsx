@@ -36,7 +36,7 @@ export default function FavoritesView() {
       }
       // Try global player DB
       const globalPlayer = players.find(p => p.id === fav.id);
-      if (globalPlayer) return { id: fav.id, name: globalPlayer.name, club: globalPlayer.club };
+      if (globalPlayer) return { id: fav.id, name: globalPlayer.name, club: globalPlayer.club, tournamentId: firstActiveTournamentId || undefined };
       // Try match data
       for (const m of matches) {
         if (m.player1Id === fav.id && m.player1Name) return { id: fav.id, name: m.player1Name, tournamentId: firstActiveTournamentId || undefined };

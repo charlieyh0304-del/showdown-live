@@ -184,6 +184,11 @@ export default function RefereeHome() {
           <p className="text-xl text-gray-400">
             {viewMode === 'active' ? t('referee.home.noActiveMatches') : t('referee.home.noCompletedMatches')}
           </p>
+          {showOnlyMine && matches.length > 0 && (
+            <p className="text-sm text-gray-500 mt-2">
+              {t('referee.home.tryAllMatches')}
+            </p>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3" role="list" aria-label={`${t('referee.home.title')} (${currentList.length})`}>
