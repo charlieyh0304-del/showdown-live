@@ -27,73 +27,16 @@ export default defineConfig({
     },
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
       devOptions: {
         enabled: false,
       },
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        navigateFallback: null,
-        // Firebase Messaging을 VitePWA 서비스 워커에 통합
-        importScripts: [
-          'https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js',
-          'https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-compat.js',
-          '/firebase-push-handler.js',
-        ],
-        // JS/CSS는 precache하지 않음 → 항상 네트워크에서 최신 버전 로드
+      injectManifest: {
         globPatterns: ['**/*.{ico,png,svg,woff2}'],
-        navigateFallbackDenylist: [/.*/],
-        runtimeCaching: [
-          {
-            // JS/CSS: 항상 네트워크 우선, 오프라인 시에만 캐시 사용
-            urlPattern: /\.(?:js|css)$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'app-code-cache',
-              networkTimeoutSeconds: 3,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60, // 1 hour max
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/.*firebaseio\.com/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firebase-cache',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 60 * 5,
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/.*googleapis\.com/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-api-cache',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 7,
-              },
-            },
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-assets-cache',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 7,
-              },
-            },
-          },
-        ],
       },
       manifest: {
         name: '쇼다운',
