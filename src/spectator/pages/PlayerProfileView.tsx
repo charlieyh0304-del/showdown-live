@@ -76,6 +76,17 @@ export default function PlayerProfileView() {
     document.title = decodedName ? t('spectator.playerProfile.pageTitle', { name: decodedName }) : t('spectator.playerProfile.defaultPageTitle');
   }, [decodedName, t]);
 
+  // Group upcoming by date (must be before early returns to maintain hook order)
+  const upcomingDateGroups = useMemo(() => {
+    const dates = [...new Set(upcomingMatches.map(m => m.scheduledDate || ''))].sort();
+    return dates.map(date => ({
+      date,
+      matches: upcomingMatches.filter(m => (m.scheduledDate || '') === date),
+    }));
+  }, [upcomingMatches]);
+
+  const hasMultipleUpcomingDates = upcomingDateGroups.length > 1 || (upcomingDateGroups.length === 1 && upcomingDateGroups[0].date !== '');
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
@@ -109,17 +120,6 @@ export default function PlayerProfileView() {
     const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
     return m.winnerId === myId ? t('spectator.playerProfile.win') : t('spectator.playerProfile.loss');
   }
-
-  // Group upcoming by date
-  const upcomingDateGroups = useMemo(() => {
-    const dates = [...new Set(upcomingMatches.map(m => m.scheduledDate || ''))].sort();
-    return dates.map(date => ({
-      date,
-      matches: upcomingMatches.filter(m => (m.scheduledDate || '') === date),
-    }));
-  }, [upcomingMatches]);
-
-  const hasMultipleUpcomingDates = upcomingDateGroups.length > 1 || (upcomingDateGroups.length === 1 && upcomingDateGroups[0].date !== '');
 
   return (
     <div style={{ maxWidth: '40rem', margin: '0 auto', padding: '1rem' }}>
