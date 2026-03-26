@@ -31,9 +31,12 @@ if ('serviceWorker' in navigator) {
 
   navigator.serviceWorker.getRegistration().then(reg => {
     if (reg) {
-      // 새 SW가 대기 중이면 즉시 적용 (캐시된 구 코드 방지)
+      // 새 SW가 대기 중일 때: 심판 경기 중이면 대기, 아니면 적용
       const applyUpdate = () => {
         if (reg.waiting) {
+          const path = window.location.pathname;
+          const isScoring = path.includes('/referee/match/') || path.includes('/referee/team/') || path.includes('/referee/practice/play');
+          if (isScoring) return; // 경기 진행중에는 새로고침 방지
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
       };
