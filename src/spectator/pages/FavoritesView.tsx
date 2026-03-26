@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
+import type { Match } from '@shared/types';
+
+interface ResolvedFavorite {
+  id: string;
+  name: string;
+  club?: string;
+  tournamentId?: string;
+}
 
 export default function FavoritesView() {
   const { favoriteIds, toggleFavorite } = useFavorites();
@@ -16,17 +24,42 @@ export default function FavoritesView() {
     document.title = t('spectator.favorites.pageTitle');
   }, [t]);
 
-  // Find active tournaments to search for live matches
   const activeTournamentIds = useMemo(
     () => tournaments.filter((t) => t.status === 'in_progress').map((t) => t.id),
     [tournaments]
   );
 
+  // Load matches from first active tournament to resolve player names
+  const firstTournamentId = activeTournamentIds.length > 0 ? activeTournamentIds[0] : null;
+  const { matches: activeMatches } = useMatches(firstTournamentId);
+
+  // Resolve favorite IDs to player info: try global players first, then match data, then use ID as name
   const favoritePlayers = useMemo(() => {
-    return favoriteIds
-      .map((id) => players.find((p) => p.id === id))
-      .filter((p): p is NonNullable<typeof p> => p != null);
-  }, [favoriteIds, players]);
+    return favoriteIds.map((id): ResolvedFavorite => {
+      // 1. Try global players DB
+      const globalPlayer = players.find((p) => p.id === id);
+      if (globalPlayer) {
+        return { id, name: globalPlayer.name, club: globalPlayer.club };
+      }
+
+      // 2. Try matching in tournament matches (by ID or name)
+      const allMatches = activeMatches;
+      for (const m of allMatches) {
+        if (m.player1Id === id) return { id, name: m.player1Name || id, tournamentId: firstTournamentId || undefined };
+        if (m.player2Id === id) return { id, name: m.player2Name || id, tournamentId: firstTournamentId || undefined };
+        if (m.team1Id === id) return { id, name: m.team1Name || id, tournamentId: firstTournamentId || undefined };
+        if (m.team2Id === id) return { id, name: m.team2Name || id, tournamentId: firstTournamentId || undefined };
+        // Name-based match (when ID is actually a name)
+        if (m.player1Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
+        if (m.player2Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
+        if (m.team1Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
+        if (m.team2Name === id) return { id, name: id, tournamentId: firstTournamentId || undefined };
+      }
+
+      // 3. Fallback: use ID as name
+      return { id, name: id };
+    });
+  }, [favoriteIds, players, activeMatches, firstTournamentId]);
 
   const handleRequestPermission = async () => {
     const granted = await requestNotificationPermission();
@@ -62,11 +95,10 @@ export default function FavoritesView() {
             {favoritePlayers.map((player) => (
               <FavoritePlayerCard
                 key={player.id}
-                playerId={player.id}
-                playerName={player.name}
-                playerClub={player.club}
+                player={player}
                 onRemove={() => toggleFavorite(player.id)}
-                activeTournamentIds={activeTournamentIds}
+                activeMatches={activeMatches}
+                activeTournamentId={firstTournamentId}
                 navigate={navigate}
               />
             ))}
@@ -127,33 +159,31 @@ export default function FavoritesView() {
 }
 
 function FavoritePlayerCard({
-  playerId,
-  playerName,
-  playerClub,
+  player,
   onRemove,
-  activeTournamentIds,
+  activeMatches,
+  activeTournamentId,
   navigate,
 }: {
-  playerId: string;
-  playerName: string;
-  playerClub?: string;
+  player: ResolvedFavorite;
   onRemove: () => void;
-  activeTournamentIds: string[];
+  activeMatches: Match[];
+  activeTournamentId: string | null;
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const { t } = useTranslation();
   const [animating, setAnimating] = useState(false);
-  // Subscribe to first active tournament to find live match for this player
-  const firstTournamentId = activeTournamentIds.length > 0 ? activeTournamentIds[0] : null;
-  const { matches } = useMatches(firstTournamentId);
 
   const activeMatch = useMemo(() => {
-    return matches.find(
+    return activeMatches.find(
       (m) =>
         m.status === 'in_progress' &&
-        (m.player1Id === playerId || m.player2Id === playerId)
+        (m.player1Id === player.id || m.player2Id === player.id ||
+         m.team1Id === player.id || m.team2Id === player.id ||
+         m.player1Name === player.id || m.player2Name === player.id ||
+         m.team1Name === player.id || m.team2Name === player.id)
     ) || null;
-  }, [matches, playerId]);
+  }, [activeMatches, player.id]);
 
   const handleRemove = () => {
     setAnimating(true);
@@ -170,31 +200,46 @@ function FavoritePlayerCard({
             <button
               onClick={handleRemove}
               className={`favorite-btn favorite-btn--active${animating ? ' favorite-btn--pop' : ''}`}
-              aria-label={t('spectator.favorites.removeAriaLabel', { name: playerName })}
-              title={t('spectator.favorites.removeAriaLabel', { name: playerName })}
+              aria-label={t('spectator.favorites.removeAriaLabel', { name: player.name })}
+              title={t('spectator.favorites.removeAriaLabel', { name: player.name })}
+              style={{ minWidth: '44px', minHeight: '44px' }}
             >
               {'\u2605'}
             </button>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{playerName}</span>
+            <div>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{player.name}</span>
+              {player.club && (
+                <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{player.club}</p>
+              )}
+            </div>
           </div>
-          {playerClub && (
-            <p style={{ color: '#d1d5db', marginTop: '0.25rem' }}>{playerClub}</p>
-          )}
         </div>
-        <button
-          className="btn btn-danger"
-          onClick={handleRemove}
-          style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}
-          aria-label={t('spectator.favorites.removeAriaLabel', { name: playerName })}
-        >
-          {t('spectator.favorites.removeButton')}
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {player.tournamentId && (
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => navigate(`/spectator/player/${player.tournamentId}/${encodeURIComponent(player.name)}`)}
+              style={{ fontSize: '0.75rem', minHeight: '44px' }}
+              aria-label={`${player.name} ${t('common.profile')}`}
+            >
+              {t('common.profile')}
+            </button>
+          )}
+          <button
+            className="btn btn-danger"
+            onClick={handleRemove}
+            style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem', minHeight: '44px' }}
+            aria-label={t('spectator.favorites.removeAriaLabel', { name: player.name })}
+          >
+            {t('spectator.favorites.removeButton')}
+          </button>
+        </div>
       </div>
 
       {/* Active match link */}
-      {activeMatch && firstTournamentId && (
+      {activeMatch && activeTournamentId && (
         <button
-          onClick={() => navigate(`/spectator/match/${firstTournamentId}/${activeMatch.id}`)}
+          onClick={() => navigate(`/spectator/match/${activeTournamentId}/${activeMatch.id}`)}
           style={{
             marginTop: '0.75rem',
             width: '100%',
@@ -208,8 +253,9 @@ function FavoritePlayerCard({
             cursor: 'pointer',
             color: '#fff',
             fontSize: 'inherit',
+            minHeight: '44px',
           }}
-          aria-label={t('spectator.favorites.viewMatchAriaLabel', { name: playerName, p1: activeMatch.player1Name, p2: activeMatch.player2Name })}
+          aria-label={t('spectator.favorites.viewMatchAriaLabel', { name: player.name, p1: activeMatch.player1Name || activeMatch.team1Name, p2: activeMatch.player2Name || activeMatch.team2Name })}
         >
           <span
             className="animate-pulse"
@@ -223,7 +269,7 @@ function FavoritePlayerCard({
             aria-hidden="true"
           />
           <span style={{ fontWeight: 'bold' }}>
-            {t('spectator.favorites.liveMatch', { p1: activeMatch.player1Name, p2: activeMatch.player2Name })}
+            {t('spectator.favorites.liveMatch', { p1: activeMatch.player1Name || activeMatch.team1Name, p2: activeMatch.player2Name || activeMatch.team2Name })}
           </span>
           <span style={{ marginLeft: 'auto', color: 'var(--color-secondary)' }}>{t('spectator.favorites.viewMatch')}</span>
         </button>
