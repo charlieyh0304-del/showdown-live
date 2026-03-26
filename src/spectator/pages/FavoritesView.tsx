@@ -13,7 +13,7 @@ interface ResolvedFavorite {
 }
 
 export default function FavoritesView() {
-  const { favorites, toggleFavorite } = useFavorites();
+  const { favorites, toggleFavorite, updateFavoriteName } = useFavorites();
   const { players, loading: pLoading } = usePlayers();
   const { tournaments } = useTournaments();
   const navigate = useNavigate();
@@ -33,6 +33,13 @@ export default function FavoritesView() {
   const firstTournamentId = activeTournamentIds.length > 0 ? activeTournamentIds[0] : null;
   const { matches: activeMatches } = useMatches(firstTournamentId);
 
+  // Also load matches from ALL tournaments (not just active) to resolve names
+  const allTournamentIds = useMemo(() => tournaments.map(t => t.id), [tournaments]);
+  // Use first available tournament for name resolution
+  const resolveTournamentId = firstTournamentId || (allTournamentIds.length > 0 ? allTournamentIds[0] : null);
+  const { matches: resolveMatches } = useMatches(resolveTournamentId !== firstTournamentId ? resolveTournamentId : null);
+  const allResolveMatches = useMemo(() => [...activeMatches, ...resolveMatches], [activeMatches, resolveMatches]);
+
   // Resolve favorite IDs to player info
   const favoritePlayers = useMemo(() => {
     return favorites.map((fav): ResolvedFavorite => {
@@ -44,19 +51,32 @@ export default function FavoritesView() {
 
       // 2. Use stored name from favorites (saved at toggle time)
       const storedName = fav.name !== fav.id ? fav.name : null;
-
-      // 3. Try matching in active tournament matches
-      for (const m of activeMatches) {
-        if (m.player1Id === fav.id) return { id: fav.id, name: m.player1Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
-        if (m.player2Id === fav.id) return { id: fav.id, name: m.player2Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
-        if (m.team1Id === fav.id) return { id: fav.id, name: m.team1Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
-        if (m.team2Id === fav.id) return { id: fav.id, name: m.team2Name || storedName || fav.id, tournamentId: firstTournamentId || undefined };
+      if (storedName) {
+        return { id: fav.id, name: storedName, tournamentId: resolveTournamentId || undefined };
       }
 
-      // 4. Fallback: use stored name
-      return { id: fav.id, name: storedName || fav.id, tournamentId: firstTournamentId || undefined };
+      // 3. Try matching in tournament matches (resolve Firebase key → name)
+      for (const m of allResolveMatches) {
+        if (m.player1Id === fav.id && m.player1Name) return { id: fav.id, name: m.player1Name, tournamentId: resolveTournamentId || undefined };
+        if (m.player2Id === fav.id && m.player2Name) return { id: fav.id, name: m.player2Name, tournamentId: resolveTournamentId || undefined };
+        if (m.team1Id === fav.id && m.team1Name) return { id: fav.id, name: m.team1Name, tournamentId: resolveTournamentId || undefined };
+        if (m.team2Id === fav.id && m.team2Name) return { id: fav.id, name: m.team2Name, tournamentId: resolveTournamentId || undefined };
+      }
+
+      // 4. Fallback: use id
+      return { id: fav.id, name: fav.id, tournamentId: resolveTournamentId || undefined };
     });
-  }, [favorites, players, activeMatches, firstTournamentId]);
+  }, [favorites, players, allResolveMatches, resolveTournamentId]);
+
+  // Auto-fix: when names are resolved from matches, save them back to localStorage
+  useEffect(() => {
+    for (const resolved of favoritePlayers) {
+      const stored = favorites.find(f => f.id === resolved.id);
+      if (stored && stored.name === stored.id && resolved.name !== resolved.id) {
+        updateFavoriteName(resolved.id, resolved.name);
+      }
+    }
+  }, [favoritePlayers, favorites, updateFavoriteName]);
 
   const handleRequestPermission = async () => {
     const granted = await requestNotificationPermission();

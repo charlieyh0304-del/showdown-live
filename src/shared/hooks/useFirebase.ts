@@ -688,12 +688,27 @@ function loadFavorites(): FavoriteEntry[] {
     const stored = localStorage.getItem('showdown_favorites');
     if (!stored) return [];
     const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
     // Backwards compat: old format was string[], new format is {id, name}[]
-    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
-      return (parsed as string[]).map(id => ({ id, name: id }));
+    if (parsed.length > 0 && typeof parsed[0] === 'string') {
+      // Migrate old format to new format and save immediately
+      const migrated = (parsed as string[]).map(id => ({ id, name: id }));
+      localStorage.setItem('showdown_favorites', JSON.stringify(migrated));
+      return migrated;
     }
-    return parsed as FavoriteEntry[];
+    // Validate entries
+    return parsed.filter((e: unknown): e is FavoriteEntry =>
+      typeof e === 'object' && e !== null && 'id' in e && 'name' in e
+    );
   } catch { return []; }
+}
+
+function safeSaveFavorites(favorites: FavoriteEntry[]) {
+  try {
+    localStorage.setItem('showdown_favorites', JSON.stringify(favorites));
+  } catch {
+    // iOS Private Browsing or quota exceeded - silent fail
+  }
 }
 
 export function useFavorites() {
@@ -710,7 +725,7 @@ export function useFavorites() {
     const next = exists
       ? prev.filter(f => f.id !== playerId)
       : [...prev, { id: playerId, name: playerName || playerId }];
-    localStorage.setItem('showdown_favorites', JSON.stringify(next));
+    safeSaveFavorites(next);
     favoritesRef.current = next;
     setFavorites(next);
     return next.map(f => f.id);
@@ -724,5 +739,16 @@ export function useFavorites() {
     return favorites.find(f => f.id === playerId)?.name || playerId;
   }, [favorites]);
 
-  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName };
+  // Update stored name for a favorite (used to fix unresolved names)
+  const updateFavoriteName = useCallback((playerId: string, name: string) => {
+    const prev = favoritesRef.current;
+    const entry = prev.find(f => f.id === playerId);
+    if (!entry || entry.name === name) return;
+    const next = prev.map(f => f.id === playerId ? { ...f, name } : f);
+    safeSaveFavorites(next);
+    favoritesRef.current = next;
+    setFavorites(next);
+  }, []);
+
+  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName };
 }
