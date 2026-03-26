@@ -221,17 +221,21 @@ export const preMatchNotify = onSchedule(
       .equalTo("in_progress")
       .once("value");
 
-    if (!tournamentsSnap.exists()) return;
+    if (!tournamentsSnap.exists()) {
+      console.log("No active tournaments");
+      return;
+    }
 
     const tournamentIds: string[] = [];
     tournamentsSnap.forEach((child) => {
       tournamentIds.push(child.key!);
     });
+    console.log(`Active tournaments: ${tournamentIds.join(", ")}`);
 
     const now = Date.now();
+    const pendingNotifs: Promise<void>[] = [];
 
     for (const tid of tournamentIds) {
-      // Load matches and schedule for this tournament
       const [matchesSnap, scheduleSnap] = await Promise.all([
         db.ref(`matches/${tid}`).once("value"),
         db.ref(`schedule/${tid}`).once("value"),
@@ -248,12 +252,18 @@ export const preMatchNotify = onSchedule(
         });
       }
 
+      // Collect pending matches into array (forEach can't await)
+      const pendingMatches: Array<{ match: Match; matchId: string }> = [];
       matchesSnap.forEach((child) => {
         const match = child.val() as Match;
-        const matchId = child.key!;
+        if (match.status === "pending") {
+          pendingMatches.push({ match, matchId: child.key! });
+        }
+      });
 
-        if (match.status !== "pending") return;
+      console.log(`Tournament ${tid}: ${pendingMatches.length} pending matches, ${scheduleLookup.size} schedule slots`);
 
+      for (const { match, matchId } of pendingMatches) {
         // Determine scheduled time
         let timeStr = match.scheduledTime;
         let dateStr = match.scheduledDate;
@@ -264,11 +274,11 @@ export const preMatchNotify = onSchedule(
             dateStr = slot.scheduledDate;
           }
         }
-        if (!timeStr) return;
+        if (!timeStr) continue;
 
         // Parse time
         const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
-        if (!timeMatch) return;
+        if (!timeMatch) continue;
 
         const d = dateStr ? new Date(dateStr) : new Date();
         d.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]), 0, 0);
@@ -277,13 +287,17 @@ export const preMatchNotify = onSchedule(
         // 9-11 minutes before match
         if (diff > 0 && diff <= 11 * 60 * 1000 && diff >= 9 * 60 * 1000) {
           const notifKey = `pre_${matchId}`;
+          console.log(`Match ${matchId} is ${Math.round(diff / 60000)}min away, sending pre-match notif`);
 
-          // Fire async - don't block forEach
-          (async () => {
-            if (await wasNotifSent(notifKey)) return;
+          pendingNotifs.push((async () => {
+            if (await wasNotifSent(notifKey)) {
+              console.log(`Already sent: ${notifKey}`);
+              return;
+            }
 
             const participants = getMatchParticipants(match);
             const subs = await findSubscriptions(participants);
+            console.log(`Match ${matchId}: ${subs.length} subscribers found`);
             if (subs.length === 0) return;
 
             for (const sub of subs) {
@@ -294,11 +308,16 @@ export const preMatchNotify = onSchedule(
                 title: `📢 ${info.favName} 경기 10분 전`,
                 body: `vs ${info.oppName}${courtInfo}`,
               });
+              console.log(`Sent pre-match notif for ${info.favName} to ${sub.platform}`);
             }
             await markNotifSent(notifKey);
-          })();
+          })());
         }
-      });
+      }
     }
+
+    // Wait for all notifications to complete before function exits
+    await Promise.all(pendingNotifs);
+    console.log(`preMatchNotify done, processed ${pendingNotifs.length} notifications`);
   },
 );
