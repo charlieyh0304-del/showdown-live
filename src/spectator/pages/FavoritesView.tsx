@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
+import { useNotificationSettings } from '@shared/hooks/useNotificationSettings';
+import { useNotificationHistory } from '@shared/hooks/useNotificationHistory';
 export default function FavoritesView() {
   const { favorites, toggleFavorite, updateFavoriteName } = useFavorites();
   const { players, loading: pLoading } = usePlayers();
@@ -11,6 +13,9 @@ export default function FavoritesView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [notifPermission, setNotifPermission] = useState(() => getNotificationPermissionStatus());
+  const { settings, setEnabled, setTypeEnabled, setQuietHours, setPlayerSettings, getPlayerSettings } = useNotificationSettings();
+  const { history: notifHistory, unreadCount, markAllAsRead, clearAll } = useNotificationHistory();
+  const [showHistory, setShowHistory] = useState(false);
   const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
   const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favoriteIds);
 
@@ -165,16 +170,71 @@ export default function FavoritesView() {
             {notifPermission === 'unsupported' && !pushSupported ? (
               <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{t('spectator.favorites.notifications.unsupported')}</p>
             ) : notifPermission === 'granted' || pushEnabled ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: '#22c55e', fontSize: '1.25rem' }}>&#10003;</span>
-                <div>
-                  <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{t('spectator.favorites.notifications.enabled')}</p>
-                  <p style={{ color: '#d1d5db', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: '#22c55e', fontSize: '1.25rem' }}>&#10003;</span>
+                  <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
                     {pushEnabled
                       ? t('spectator.favorites.notifications.pushEnabled')
                       : t('spectator.favorites.notifications.enabledDetail')}
                   </p>
                 </div>
+
+                {/* Global toggle */}
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderTop: '1px solid #374151' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>{t('spectator.favorites.notifications.globalToggle')}</span>
+                  <input type="checkbox" checked={settings.enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ width: '20px', height: '20px', accentColor: '#3b82f6' }} />
+                </label>
+
+                {settings.enabled && (
+                  <>
+                    {/* Notification type toggles */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {(['preMatch', 'matchStart', 'matchComplete'] as const).map((type) => (
+                        <label key={type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0' }}>
+                          <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>
+                            {t(`spectator.favorites.notifications.type${type.charAt(0).toUpperCase() + type.slice(1)}`)}
+                          </span>
+                          <input type="checkbox" checked={settings.types[type]} onChange={(e) => setTypeEnabled(type, e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#3b82f6' }} />
+                        </label>
+                      ))}
+                    </div>
+
+                    {/* Quiet hours */}
+                    <div style={{ borderTop: '1px solid #374151', paddingTop: '0.75rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>{t('spectator.favorites.notifications.quietHours')}</span>
+                        <input type="checkbox" checked={settings.quietHours.enabled} onChange={(e) => setQuietHours({ ...settings.quietHours, enabled: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: '#3b82f6' }} />
+                      </label>
+                      {settings.quietHours.enabled && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{t('spectator.favorites.notifications.quietHoursStart')}</span>
+                          <input type="time" value={settings.quietHours.start} onChange={(e) => setQuietHours({ ...settings.quietHours, start: e.target.value })} style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{t('spectator.favorites.notifications.quietHoursEnd')}</span>
+                          <input type="time" value={settings.quietHours.end} onChange={(e) => setQuietHours({ ...settings.quietHours, end: e.target.value })} style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Per-player settings */}
+                    {favoritePlayers.length > 0 && (
+                      <div style={{ borderTop: '1px solid #374151', paddingTop: '0.75rem' }}>
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>{t('spectator.favorites.notifications.perPlayerTitle')}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {favoritePlayers.map((player) => {
+                            const ps = getPlayerSettings(player.id);
+                            return (
+                              <label key={player.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0' }}>
+                                <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>{player.name}</span>
+                                <input type="checkbox" checked={ps.enabled} onChange={(e) => setPlayerSettings(player.id, { ...ps, enabled: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: '#3b82f6' }} />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             ) : notifPermission === 'denied' ? (
               <div>
@@ -190,6 +250,60 @@ export default function FavoritesView() {
                 <button className="btn btn-primary" onClick={handleRequestPermission} style={{ fontSize: '0.875rem' }}>
                   {t('spectator.favorites.notifications.enableButton')}
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* Notification history */}
+          <div className="card" style={{ marginTop: '1rem', border: '1px solid #374151' }}>
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}
+            >
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', margin: 0 }}>
+                {t('spectator.favorites.notifications.historyTitle')}
+                {unreadCount > 0 && (
+                  <span style={{ marginLeft: '0.5rem', backgroundColor: '#ef4444', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem', fontSize: '0.75rem', fontWeight: 'normal' }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </h2>
+              <span style={{ color: '#9ca3af', fontSize: '1.25rem' }}>{showHistory ? '\u25B2' : '\u25BC'}</span>
+            </button>
+
+            {showHistory && (
+              <div style={{ marginTop: '0.75rem' }}>
+                {notifHistory.length === 0 ? (
+                  <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{t('spectator.favorites.notifications.historyEmpty')}</p>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      {unreadCount > 0 && (
+                        <button className="btn btn-sm" onClick={markAllAsRead} style={{ fontSize: '0.75rem' }}>
+                          {t('spectator.favorites.notifications.markAllRead')}
+                        </button>
+                      )}
+                      <button className="btn btn-sm btn-danger" onClick={clearAll} style={{ fontSize: '0.75rem' }}>
+                        {t('spectator.favorites.notifications.clearHistory')}
+                      </button>
+                    </div>
+                    <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                      {notifHistory.slice(0, 20).map((entry) => (
+                        <li key={entry.id} style={{ padding: '0.5rem', borderRadius: '0.375rem', backgroundColor: entry.read ? 'transparent' : '#1e3a5f', border: `1px solid ${entry.read ? '#374151' : '#2563eb'}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <p style={{ fontSize: '0.875rem', fontWeight: entry.read ? 'normal' : 'bold' }}>{entry.title}</p>
+                              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.125rem' }}>{entry.body}</p>
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: '#6b7280', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
+                              {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
             )}
           </div>
