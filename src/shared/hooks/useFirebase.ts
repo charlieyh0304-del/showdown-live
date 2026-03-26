@@ -349,7 +349,7 @@ export function useMatches(tournamentId: string | null) {
   }, [tournamentId]);
 
   // Issue 5: Memoize stable match reference to avoid unnecessary re-renders
-  const stableMatches = useMemo(() => matches, [JSON.stringify(matches.map(m => m.id + ':' + m.updatedAt))]);
+  const stableMatches = useMemo(() => matches, [JSON.stringify(matches.map(m => m.id + ':' + m.status + ':' + m.updatedAt))]);
 
   const addMatch = useCallback(async (match: Omit<Match, 'id'>) => {
     if (!tournamentId) return null;

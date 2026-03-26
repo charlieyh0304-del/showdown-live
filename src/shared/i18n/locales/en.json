@@ -1189,7 +1189,8 @@
         "otherStage": "Other"
       },
       "live": {
-        "noLiveMatches": "No matches currently in progress"
+        "noLiveMatches": "No matches currently in progress",
+        "matchSummary": "Total {{total}} matches (Pending {{pending}} / Live {{inProgress}} / Done {{completed}})"
       },
       "view": {
         "scoreAnnouncement": "{{p1}} {{p1Score}} pts, {{p2}} {{p2Score}} pts, Set {{set}}",

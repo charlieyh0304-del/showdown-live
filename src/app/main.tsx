@@ -31,20 +31,16 @@ if ('serviceWorker' in navigator) {
 
   navigator.serviceWorker.getRegistration().then(reg => {
     if (reg) {
-      // 새 SW가 대기 중일 때 사용자에게 알림
-      const promptUpdate = () => {
+      // 새 SW가 대기 중이면 즉시 적용 (캐시된 구 코드 방지)
+      const applyUpdate = () => {
         if (reg.waiting) {
-          var lang = localStorage.getItem('showdown_language') || 'ko';
-          var msg = lang === 'en' ? 'A new update is available. Apply now?' : '새로운 업데이트가 있습니다. 지금 적용하시겠습니까?';
-          if (window.confirm(msg)) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
       };
 
       // 이미 대기 중인 SW가 있으면 즉시 알림
       if (reg.waiting) {
-        promptUpdate();
+        applyUpdate();
       }
 
       // 새 SW 설치 완료 시 알림
@@ -53,7 +49,7 @@ if ('serviceWorker' in navigator) {
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              promptUpdate();
+              applyUpdate();
             }
           });
         }

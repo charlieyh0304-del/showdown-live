@@ -1189,7 +1189,8 @@
         "otherStage": "기타"
       },
       "live": {
-        "noLiveMatches": "현재 진행 중인 경기가 없습니다"
+        "noLiveMatches": "현재 진행 중인 경기가 없습니다",
+        "matchSummary": "전체 {{total}}경기 (대기 {{pending}} / 진행 {{inProgress}} / 완료 {{completed}})"
       },
       "view": {
         "scoreAnnouncement": "{{p1}} {{p1Score}}점, {{p2}} {{p2Score}}점, 제{{set}}세트",

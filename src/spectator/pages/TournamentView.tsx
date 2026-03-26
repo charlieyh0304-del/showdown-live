@@ -584,9 +584,17 @@ function LiveTab({
   const { t } = useTranslation();
 
   if (liveMatches.length === 0) {
+    const pending = matches.filter(m => m.status === 'pending').length;
+    const completed = matches.filter(m => m.status === 'completed').length;
+    const inProgress = matches.filter(m => m.status === 'in_progress').length;
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
         <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">{t('spectator.tournament.live.noLiveMatches')}</p>
+        {matches.length > 0 && (
+          <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '0.5rem' }}>
+            {t('spectator.tournament.live.matchSummary', { total: matches.length, pending, inProgress, completed })}
+          </p>
+        )}
       </div>
     );
   }
