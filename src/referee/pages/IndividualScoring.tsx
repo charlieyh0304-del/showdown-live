@@ -464,19 +464,26 @@ export default function IndividualScoring() {
     });
 
     const prevHistory = match.scoreHistory ?? [];
+
+    // 부전승 세트 점수: 승자 11:0 처리
+    const gameConfig = getEffectiveGameConfig(tournament?.gameConfig);
+    const winScore = gameConfig.POINTS_TO_WIN;
+    const walkoverSet = {
+      ...createEmptySet(),
+      player1Score: winnerPlayer === 1 ? winScore : 0,
+      player2Score: winnerPlayer === 2 ? winScore : 0,
+      winnerId,
+    };
+
     const updateData: Record<string, unknown> = {
       status: 'completed',
       winnerId,
       walkover: true,
       walkoverReason: reason,
+      sets: [walkoverSet],
+      currentSet: 0,
       scoreHistory: [historyEntry, ...prevHistory],
     };
-
-    // If match is pending, create initial sets
-    if (match.status === 'pending') {
-      updateData.sets = [createEmptySet()];
-      updateData.currentSet = 0;
-    }
 
     const okWo = await updateMatch(updateData);
     if (!okWo) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }

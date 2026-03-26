@@ -3434,7 +3434,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         winnerId: walkoverWinnerId,
         walkover: true,
         walkoverReason: walkoverReason.trim(),
-        sets: [{ player1Score: 0, player2Score: 0, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: walkoverWinnerId }],
+        sets: [{
+          player1Score: walkoverWinnerId === (walkoverMatch.player1Id || walkoverMatch.team1Id || 'player1') ? (walkoverMatch.type === 'team' ? 31 : 11) : 0,
+          player2Score: walkoverWinnerId === (walkoverMatch.player2Id || walkoverMatch.team2Id || 'player2') ? (walkoverMatch.type === 'team' ? 31 : 11) : 0,
+          player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: walkoverWinnerId,
+        }],
         scoreHistory: [...existingHistory, historyEntry],
       } as Partial<Match>);
 

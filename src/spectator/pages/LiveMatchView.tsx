@@ -34,7 +34,7 @@ export default function LiveMatchView() {
     if (!match || !Array.isArray(match.sets) || match.sets.length === 0) return;
     const currentSetData = match.type === 'team'
       ? match.sets[0]
-      : match.sets[(match.currentSet ?? 1) - 1];
+      : match.sets[match.currentSet ?? 0] ?? match.sets[match.sets.length - 1];
     if (!currentSetData) return;
 
     const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
