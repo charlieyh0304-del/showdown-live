@@ -363,20 +363,22 @@ export default function TeamMatchScoring() {
 
     const prevHistory = match.scoreHistory ?? [];
 
-    // 부전승 세트 점수: 팀전은 31:0
-    const walkoverSet = {
+    // 부전승 세트 점수: 팀전은 31:0 (setsToWin 만큼 생성)
+    const gameConfig = getEffectiveGameConfig(tournament?.gameConfig, 'team');
+    const winScore = gameConfig.POINTS_TO_WIN;
+    const walkoverSets = Array.from({ length: gameConfig.SETS_TO_WIN }, () => ({
       ...createEmptySet(),
-      player1Score: winnerTeam === 1 ? 31 : 0,
-      player2Score: winnerTeam === 2 ? 31 : 0,
+      player1Score: winnerTeam === 1 ? winScore : 0,
+      player2Score: winnerTeam === 2 ? winScore : 0,
       winnerId,
-    };
+    }));
 
     const updateData: Record<string, unknown> = {
       status: 'completed',
       winnerId,
       walkover: true,
       walkoverReason: reason,
-      sets: [walkoverSet],
+      sets: walkoverSets,
       currentSet: 0,
       scoreHistory: [historyEntry, ...prevHistory],
     };

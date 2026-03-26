@@ -342,13 +342,28 @@ export const preMatchNotify = onSchedule(
         }
         if (!timeStr) continue;
 
-        // Parse time
+        // Parse time (KST - Korea Standard Time, UTC+9)
         const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
         if (!timeMatch) continue;
 
-        const d = dateStr ? new Date(dateStr) : new Date();
-        d.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]), 0, 0);
-        const diff = d.getTime() - now;
+        const hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+
+        // Build KST datetime string and parse as UTC
+        // scheduledTime is in KST, so subtract 9 hours for UTC
+        let dateBase: string;
+        if (dateStr) {
+          dateBase = dateStr;
+        } else {
+          // No date: use today in KST (UTC+9)
+          const kstNow = new Date(now + 9 * 60 * 60 * 1000);
+          dateBase = kstNow.toISOString().slice(0, 10);
+        }
+        // Create date as KST then convert to UTC timestamp
+        const kstDate = new Date(`${dateBase}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00+09:00`);
+        const diff = kstDate.getTime() - now;
+
+        console.log(`Match ${matchId}: scheduled ${dateBase} ${timeStr} KST, diff=${Math.round(diff / 60000)}min`);
 
         // 9-11 minutes before match
         if (diff > 0 && diff <= 11 * 60 * 1000 && diff >= 9 * 60 * 1000) {

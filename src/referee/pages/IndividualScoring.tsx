@@ -487,22 +487,22 @@ export default function IndividualScoring() {
 
     const prevHistory = match.scoreHistory ?? [];
 
-    // 부전승 세트 점수: 승자 11:0 처리
+    // 부전승 세트 점수: setsToWin 만큼 세트 생성 (예: 3세트→2세트, 5세트→3세트)
     const gameConfig = getEffectiveGameConfig(tournament?.gameConfig);
     const winScore = gameConfig.POINTS_TO_WIN;
-    const walkoverSet = {
+    const walkoverSets = Array.from({ length: gameConfig.SETS_TO_WIN }, () => ({
       ...createEmptySet(),
       player1Score: winnerPlayer === 1 ? winScore : 0,
       player2Score: winnerPlayer === 2 ? winScore : 0,
       winnerId,
-    };
+    }));
 
     const updateData: Record<string, unknown> = {
       status: 'completed',
       winnerId,
       walkover: true,
       walkoverReason: reason,
-      sets: [walkoverSet],
+      sets: walkoverSets,
       currentSet: 0,
       scoreHistory: [historyEntry, ...prevHistory],
     };

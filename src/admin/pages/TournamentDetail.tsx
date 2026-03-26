@@ -13,7 +13,7 @@ import {
 } from '@shared/hooks/useFirebase';
 import { push, set, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { createEmptySet, checkMatchWinner, checkSetWinner } from '@shared/utils/scoring';
+import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
@@ -3429,16 +3429,23 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
 
       const existingHistory = toArray(walkoverMatch.scoreHistory);
 
+      // setsToWin 만큼 부전승 세트 생성 (3세트→2세트, 5세트→3세트)
+      const gameConfig = getEffectiveGameConfig(tournament?.gameConfig, walkoverMatch.type);
+      const winScore = gameConfig.POINTS_TO_WIN;
+      const isP1Winner = walkoverWinnerId === (walkoverMatch.player1Id || walkoverMatch.team1Id || 'player1');
+      const walkoverSets = Array.from({ length: gameConfig.SETS_TO_WIN }, () => ({
+        ...createEmptySet(),
+        player1Score: isP1Winner ? winScore : 0,
+        player2Score: isP1Winner ? 0 : winScore,
+        winnerId: walkoverWinnerId,
+      }));
+
       await updateMatch(walkoverMatch.id, {
         status: 'completed',
         winnerId: walkoverWinnerId,
         walkover: true,
         walkoverReason: walkoverReason.trim(),
-        sets: [{
-          player1Score: walkoverWinnerId === (walkoverMatch.player1Id || walkoverMatch.team1Id || 'player1') ? (walkoverMatch.type === 'team' ? 31 : 11) : 0,
-          player2Score: walkoverWinnerId === (walkoverMatch.player2Id || walkoverMatch.team2Id || 'player2') ? (walkoverMatch.type === 'team' ? 31 : 11) : 0,
-          player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: walkoverWinnerId,
-        }],
+        sets: walkoverSets,
         scoreHistory: [...existingHistory, historyEntry],
       } as Partial<Match>);
 
