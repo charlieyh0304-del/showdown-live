@@ -40,13 +40,9 @@ async function registerAndGetToken(): Promise<string | null> {
     return null;
   }
 
-  // Register FCM service worker
-  const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-
-  // Wait for SW to be ready (handles installing/waiting/active states)
-  if (!swReg.active) {
-    await navigator.serviceWorker.ready;
-  }
+  // Use VitePWA's service worker (which includes Firebase push handler)
+  // Do NOT register a separate SW - it conflicts with VitePWA's SW at the same scope
+  const swReg = await navigator.serviceWorker.ready;
 
   // Get FCM token
   const messaging = getMessaging(app);

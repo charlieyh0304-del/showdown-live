@@ -36,6 +36,12 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: null,
+        // Firebase Messaging을 VitePWA 서비스 워커에 통합
+        importScripts: [
+          'https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js',
+          'https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-compat.js',
+          '/firebase-push-handler.js',
+        ],
         // JS/CSS는 precache하지 않음 → 항상 네트워크에서 최신 버전 로드
         globPatterns: ['**/*.{ico,png,svg,woff2}'],
         navigateFallbackDenylist: [/.*/],
