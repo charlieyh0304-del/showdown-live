@@ -1311,14 +1311,10 @@
       "removeFavorite": "Remove {{name}} from favorites",
       "sync": {
         "title": "Sync Across Devices",
-        "description": "Use the same favorites on another device. Generate a code here and enter it on the other device.",
-        "myCode": "My sync code",
-        "generateCode": "Generate Sync Code",
-        "enterCode": "Enter sync code",
-        "importButton": "Import",
-        "importSuccess": "Favorites imported! Auto-sync is now active.",
-        "importError": "Code not found. Please check and try again.",
-        "linked": "Auto-sync across devices is active"
+        "description": "Sign in with Google to automatically sync favorites across all your devices.",
+        "googleLogin": "Sign in with Google",
+        "linked": "Auto-sync across devices is active",
+        "logout": "Sign out"
       }
     },
 

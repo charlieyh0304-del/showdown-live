@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, enableLogging } from 'firebase/database';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 // Firebase 설정 - 실제 프로젝트에서는 환경변수 사용 권장
 const firebaseConfig = {
@@ -34,6 +34,17 @@ if (import.meta.env.DEV) {
     enableLogging(false);
   } catch {
     // Logging may already be enabled
+  }
+}
+
+// Google sign-in for cross-device favorites sync
+const googleProvider = new GoogleAuthProvider();
+export async function signInWithGoogle() {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch {
+    return null;
   }
 }
 
