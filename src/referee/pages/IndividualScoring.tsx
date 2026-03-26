@@ -116,9 +116,16 @@ export default function IndividualScoring() {
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
   const [pendingFirstServe, setPendingFirstServe] = useState<'player1' | 'player2' | null>(null);
   const [courtChangeByLoser, setCourtChangeByLoser] = useState(false);
-  // Coach
+  // Coach - synced to Firebase in real-time
   const [player1Coach, setPlayer1Coach] = useState('');
   const [player2Coach, setPlayer2Coach] = useState('');
+  const coachSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncCoachToFirebase = useCallback((field: 'player1Coach' | 'player2Coach', value: string) => {
+    if (coachSyncTimer.current) clearTimeout(coachSyncTimer.current);
+    coachSyncTimer.current = setTimeout(() => {
+      updateMatch({ [field]: value || undefined });
+    }, 500);
+  }, [updateMatch]);
   // Pause
   const [isPausedLocal, setIsPausedLocal] = useState(false);
   const [pauseElapsed, setPauseElapsed] = useState(0);
@@ -226,10 +233,10 @@ export default function IndividualScoring() {
     return () => clearInterval(interval);
   }, [isPausedLocal]);
 
-  // Sync coach from match
+  // Sync coach from match (always prefer Firebase value)
   useEffect(() => {
-    if (match?.player1Coach && !player1Coach) setPlayer1Coach(match.player1Coach);
-    if (match?.player2Coach && !player2Coach) setPlayer2Coach(match.player2Coach);
+    if (match?.player1Coach !== undefined && match.player1Coach !== player1Coach) setPlayer1Coach(match.player1Coach);
+    if (match?.player2Coach !== undefined && match.player2Coach !== player2Coach) setPlayer2Coach(match.player2Coach);
   }, [match?.player1Coach, match?.player2Coach]);
 
   // Sync pause state from match
@@ -900,7 +907,7 @@ export default function IndividualScoring() {
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
                 placeholder={t('referee.practice.setup.coachAriaLabel')}
                 value={player1Coach}
-                onChange={e => setPlayer1Coach(e.target.value)}
+                onChange={e => { setPlayer1Coach(e.target.value); syncCoachToFirebase('player1Coach', e.target.value); }}
               />
             </div>
             <div>
@@ -910,7 +917,7 @@ export default function IndividualScoring() {
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
                 placeholder={t('referee.practice.setup.coachAriaLabel')}
                 value={player2Coach}
-                onChange={e => setPlayer2Coach(e.target.value)}
+                onChange={e => { setPlayer2Coach(e.target.value); syncCoachToFirebase('player2Coach', e.target.value); }}
               />
             </div>
           </div>
