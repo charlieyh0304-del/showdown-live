@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 export interface NotificationHistoryEntry {
   id: string;
