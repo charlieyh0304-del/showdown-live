@@ -447,7 +447,7 @@ export default function TournamentView() {
       {/* Tab panels */}
       <div role="tabpanel" id={`panel-${activeTab}`} aria-label={getTabLabel(activeTab)}>
         {activeTab === 'live' && (
-          <LiveTab matches={filteredMatches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
+          <LiveTab matches={matches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
         {activeTab === 'bracket' && (
           <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
@@ -520,7 +520,7 @@ function LiveTab({
   useEffect(() => {
     for (const match of liveMatches) {
       if (match.type === 'individual' && Array.isArray(match.sets) && match.currentSet != null) {
-        const currentSetData = match.sets[match.currentSet - 1];
+        const currentSetData = match.sets[match.currentSet] ?? match.sets[match.sets.length - 1];
         if (!currentSetData) continue;
         const key = match.id;
         const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
@@ -705,7 +705,7 @@ function IndividualMatchCard({
   const { t } = useTranslation();
   const safeSets = Array.isArray(match.sets) ? match.sets : [];
   const currentSetData = safeSets.length > 0 && match.currentSet != null
-    ? safeSets[match.currentSet - 1] ?? null
+    ? safeSets[match.currentSet] ?? safeSets[safeSets.length - 1] ?? null
     : null;
   const setWins = safeSets.length > 0 ? countSetWins(safeSets) : { player1: 0, player2: 0 };
   const scoreKey = `${currentSetData?.player1Score}-${currentSetData?.player2Score}`;
