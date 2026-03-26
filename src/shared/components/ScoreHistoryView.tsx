@@ -50,7 +50,13 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
   };
 
   const meaningfulHistory = useMemo(() => {
-    return history.filter(h => h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning);
+    return history.filter(h => {
+      // Skip "set 0" entries
+      if (h.set === 0) return false;
+      // Skip match_start entries with 0:0 score (no useful info)
+      if (h.actionType === 'match_start' && h.scoreAfter?.player1 === 0 && h.scoreAfter?.player2 === 0) return false;
+      return h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning;
+    });
   }, [history]);
 
   const sortedHistory = useMemo(() => {
@@ -138,7 +144,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                     : h.actionType === 'pause' ? t('common.matchHistory.pause', { player: h.actionPlayer || '' })
                     : h.actionType === 'substitution' ? t('common.matchHistory.substitution')
                     : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
-                    : h.actionType === 'coin_toss' ? t('common.matchHistory.coinToss')
+                    : h.actionType === 'coin_toss' ? (h.actionLabel || t('common.matchHistory.coinToss'))
                     : h.actionType === 'warmup_start' ? t('common.matchHistory.warmup')
                     : h.actionType === 'match_start' ? t('common.matchHistory.matchStart')
                     : h.actionType === 'player_rotation' ? t('common.matchHistory.playerRotation')

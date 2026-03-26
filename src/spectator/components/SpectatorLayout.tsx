@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
@@ -8,12 +8,24 @@ import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { useMemo } from 'react';
 
-// Global notification watcher - runs on all spectator pages
+// Global notification watcher - deferred to avoid blocking initial render
 function NotificationWatcher() {
+  const [ready, setReady] = useState(false);
+
+  // Defer heavy subscriptions to avoid freezing on iOS navigation
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!ready) return null;
+  return <NotificationWatcherInner />;
+}
+
+function NotificationWatcherInner() {
   const { favoriteIds } = useFavorites();
   const { tournaments } = useTournaments();
 
-  // Find first active tournament to watch
   const activeTournamentId = useMemo(
     () => tournaments.find(t => t.status === 'in_progress')?.id || null,
     [tournaments]
@@ -23,11 +35,9 @@ function NotificationWatcher() {
   const { schedule } = useSchedule(activeTournamentId);
 
   useMatchNotifications(favoriteIds, matches, schedule);
-
-  // Keep push subscription in sync with favorites
   usePushNotifications(favoriteIds);
 
-  return null; // No UI
+  return null;
 }
 
 interface SpectatorLayoutProps {

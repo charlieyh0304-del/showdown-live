@@ -151,9 +151,13 @@ function ScoreHistorySection({
     'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start',
     'match_start', 'player_rotation'
   ]);
-  // Keep scoring entries AND meaningful meta events, filter out only serve-start 0-point entries
+  // Keep scoring entries AND meaningful meta events, filter out noise
   const meaningfulHistory = useMemo(() => {
-    return history.filter(h => h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning);
+    return history.filter(h => {
+      if (h.set === 0) return false;
+      if (h.actionType === 'match_start' && h.scoreAfter?.player1 === 0 && h.scoreAfter?.player2 === 0) return false;
+      return h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning;
+    });
   }, [history]);
 
   const sortedHistory = useMemo(() => {
@@ -275,9 +279,9 @@ function HistoryBySet({ history, sets, order }: {
                   : h.actionType === 'pause' ? t('common.matchHistory.pause', { player: h.actionPlayer || '' })
                   : h.actionType === 'substitution' ? t('common.matchHistory.substitution')
                   : h.actionType === 'walkover' ? `${h.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
-                  : h.actionType === 'coin_toss' ? t('common.matchHistory.coinToss')
+                  : h.actionType === 'coin_toss' ? (h.actionLabel || t('common.matchHistory.coinToss'))
                   : h.actionType === 'warmup_start' ? t('common.matchHistory.warmup')
-                  : h.actionType === 'match_start' ? t('common.matchHistory.matchStart')
+                  : h.actionType === 'match_start' ? (h.actionLabel || t('common.matchHistory.matchStart'))
                   : h.actionType === 'player_rotation' ? t('common.matchHistory.playerRotation')
                   : h.actionType === 'side_change' ? t('common.matchHistory.sideChange')
                   : (actionLabel || h.actionType || '');

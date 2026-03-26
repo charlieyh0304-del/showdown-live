@@ -41,6 +41,10 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
   history.forEach(h => {
     // Filter out 0-point entries that are not meaningful meta-events
     if (h.points === 0 && !META_ACTION_TYPES.has(h.actionType) && !h.penaltyWarning) return;
+    // Skip set 0 entries
+    if (h.set === 0) return;
+    // Skip match_start with 0:0 score
+    if (h.actionType === 'match_start' && h.scoreAfter?.player1 === 0 && h.scoreAfter?.player2 === 0) return;
     // 재개 정보 숨김 - 모든 resume 엔트리 제거
     if (h.actionType === 'resume') return;
     const setNum = h.set || 1;
@@ -101,9 +105,9 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
                     h.actionType === 'timeout_medical' ? t('common.matchHistory.medicalTimeout', { player: h.actionPlayer || '' }) :
                     h.actionType === 'timeout_referee' ? t('common.matchHistory.refereeTimeout') :
                     h.actionType === 'substitution' ? t('common.matchHistory.substitution') :
-                    h.actionType === 'coin_toss' ? t('common.matchHistory.coinToss') :
+                    h.actionType === 'coin_toss' ? (h.actionLabel || t('common.matchHistory.coinToss')) :
                     h.actionType === 'warmup_start' ? t('common.matchHistory.warmup') :
-                    h.actionType === 'match_start' ? t('common.matchHistory.matchStart') :
+                    h.actionType === 'match_start' ? (h.actionLabel || t('common.matchHistory.matchStart')) :
                     h.actionType === 'player_rotation' ? t('common.matchHistory.playerRotation') :
                     h.actionType === 'side_change' ? t('common.matchHistory.sideChange') :
                     (actionLabel || h.actionType || '');
