@@ -251,7 +251,8 @@ export function useTournaments() {
   const updateTournament = useCallback(async (id: string, data: Partial<Tournament>): Promise<boolean> => {
     const path = `tournaments/${id}`;
     const now = Date.now();
-    const payload = { ...data, updatedAt: now };
+    // Firebase does not accept undefined values — strip them
+    const payload = Object.fromEntries(Object.entries({ ...data, updatedAt: now }).filter(([, v]) => v !== undefined));
     // Optimistic concurrency: check if server updatedAt matches local
     const localTournament = tournaments.find(t => t.id === id);
     const localUpdatedAt = localTournament?.updatedAt;
@@ -309,7 +310,8 @@ export function useTournament(tournamentId: string | null) {
     if (!tournamentId) return false;
     const path = `tournaments/${tournamentId}`;
     const now = Date.now();
-    const payload = { ...data, updatedAt: now };
+    // Firebase does not accept undefined values — strip them
+    const payload = Object.fromEntries(Object.entries({ ...data, updatedAt: now }).filter(([, v]) => v !== undefined));
     // Optimistic concurrency: check if server updatedAt matches local
     const localUpdatedAt = tournament?.updatedAt;
     if (localUpdatedAt !== undefined) {
@@ -370,7 +372,8 @@ export function useMatches(tournamentId: string | null) {
     if (data.scoreHistory && Array.isArray(data.scoreHistory) && data.scoreHistory.length > MAX_SCORE_HISTORY) {
       data = { ...data, scoreHistory: data.scoreHistory.slice(0, MAX_SCORE_HISTORY) };
     }
-    const payload = { ...data, updatedAt: now };
+    // Firebase does not accept undefined values — strip them
+    const payload = Object.fromEntries(Object.entries({ ...data, updatedAt: now }).filter(([, v]) => v !== undefined));
     try {
       const result = await runTransaction(ref(database, path), (currentData) => {
         if (currentData === null) return payload;
@@ -460,7 +463,8 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
     if (data.scoreHistory && Array.isArray(data.scoreHistory) && data.scoreHistory.length > MAX_SCORE_HISTORY) {
       data = { ...data, scoreHistory: data.scoreHistory.slice(0, MAX_SCORE_HISTORY) };
     }
-    const payload = { ...data, updatedAt: now };
+    // Firebase does not accept undefined values — strip them
+    const payload = Object.fromEntries(Object.entries({ ...data, updatedAt: now }).filter(([, v]) => v !== undefined));
     try {
       const result = await runTransaction(ref(database, path), (currentData) => {
         if (currentData === null) return payload;
