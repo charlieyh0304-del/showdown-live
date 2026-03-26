@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useFavorites, usePlayers, useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
 export default function FavoritesView() {
-  const { favorites, toggleFavorite, updateFavoriteName, syncCode, generateSyncCode, importFromSyncCode } = useFavorites();
+  const { favorites, toggleFavorite, updateFavoriteName, syncCode, generateSyncCode, importFromSyncCode, linked } = useFavorites();
   const [importCode, setImportCode] = useState('');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const { players, loading: pLoading } = usePlayers();
@@ -188,48 +188,61 @@ export default function FavoritesView() {
         <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
           {t('spectator.favorites.sync.title')}
         </h2>
-        <p style={{ color: '#9ca3af', fontSize: '0.8125rem', marginBottom: '0.75rem' }}>
-          {t('spectator.favorites.sync.description')}
-        </p>
-        <div style={{ marginBottom: '1rem' }}>
-          {syncCode ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>{t('spectator.favorites.sync.myCode')}:</span>
-              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15', letterSpacing: '0.15em', fontVariantNumeric: 'tabular-nums' }}>{syncCode}</span>
+
+        {linked ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <span style={{ color: '#22c55e', fontSize: '1.25rem' }}>&#10003;</span>
+            <div>
+              <p style={{ color: '#d1d5db', fontSize: '0.875rem' }}>{t('spectator.favorites.sync.linked')}</p>
+              {syncCode && <p style={{ color: '#9ca3af', fontSize: '0.75rem', marginTop: '0.25rem' }}>{t('spectator.favorites.sync.myCode')}: <strong style={{ color: '#facc15' }}>{syncCode}</strong></p>}
             </div>
-          ) : (
-            <button className="btn btn-primary" onClick={async () => { await generateSyncCode(); }} style={{ fontSize: '0.875rem' }}>
-              {t('spectator.favorites.sync.generateCode')}
-            </button>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            className="input"
-            style={{ width: '120px', textAlign: 'center', fontSize: '1.125rem', letterSpacing: '0.1em' }}
-            value={importCode}
-            onChange={e => setImportCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            placeholder="000000"
-            inputMode="numeric"
-            maxLength={6}
-            aria-label={t('spectator.favorites.sync.enterCode')}
-          />
-          <button
-            className="btn btn-primary"
-            disabled={importCode.length !== 6 || syncStatus === 'loading'}
-            onClick={async () => {
-              setSyncStatus('loading');
-              const ok = await importFromSyncCode(importCode).catch(() => false);
-              setSyncStatus(ok ? 'success' : 'error');
-              if (ok) setImportCode('');
-            }}
-            style={{ fontSize: '0.875rem', minHeight: '44px' }}
-          >
-            {syncStatus === 'loading' ? t('common.loading') : t('spectator.favorites.sync.importButton')}
-          </button>
-        </div>
-        {syncStatus === 'success' && <p style={{ color: '#22c55e', fontSize: '0.8125rem', marginTop: '0.5rem' }}>{t('spectator.favorites.sync.importSuccess')}</p>}
-        {syncStatus === 'error' && <p style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.5rem' }}>{t('spectator.favorites.sync.importError')}</p>}
+          </div>
+        ) : (
+          <>
+            <p style={{ color: '#9ca3af', fontSize: '0.8125rem', marginBottom: '0.75rem' }}>
+              {t('spectator.favorites.sync.description')}
+            </p>
+            <div style={{ marginBottom: '1rem' }}>
+              {syncCode ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>{t('spectator.favorites.sync.myCode')}:</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#facc15', letterSpacing: '0.15em', fontVariantNumeric: 'tabular-nums' }}>{syncCode}</span>
+                </div>
+              ) : (
+                <button className="btn btn-primary" onClick={async () => { await generateSyncCode(); }} style={{ fontSize: '0.875rem' }}>
+                  {t('spectator.favorites.sync.generateCode')}
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                className="input"
+                style={{ width: '120px', textAlign: 'center', fontSize: '1.125rem', letterSpacing: '0.1em' }}
+                value={importCode}
+                onChange={e => setImportCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                inputMode="numeric"
+                maxLength={6}
+                aria-label={t('spectator.favorites.sync.enterCode')}
+              />
+              <button
+                className="btn btn-primary"
+                disabled={importCode.length !== 6 || syncStatus === 'loading'}
+                onClick={async () => {
+                  setSyncStatus('loading');
+                  const ok = await importFromSyncCode(importCode).catch(() => false);
+                  setSyncStatus(ok ? 'success' : 'error');
+                  if (ok) setImportCode('');
+                }}
+                style={{ fontSize: '0.875rem', minHeight: '44px' }}
+              >
+                {syncStatus === 'loading' ? t('common.loading') : t('spectator.favorites.sync.importButton')}
+              </button>
+            </div>
+            {syncStatus === 'success' && <p style={{ color: '#22c55e', fontSize: '0.8125rem', marginTop: '0.5rem' }}>{t('spectator.favorites.sync.importSuccess')}</p>}
+            {syncStatus === 'error' && <p style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.5rem' }}>{t('spectator.favorites.sync.importError')}</p>}
+          </>
+        )}
       </div>
     </div>
   );

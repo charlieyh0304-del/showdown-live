@@ -715,52 +715,52 @@ function getViewerId(): string {
 export function useFavorites() {
   const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadLocalFavorites);
   const [syncCode, setSyncCode] = useState<string | null>(null);
+  const [linked, setLinked] = useState(false);
   const favoritesRef = useRef(favorites);
   const viewerId = useRef(getViewerId());
-  const firebaseSynced = useRef(false);
+  const writingRef = useRef(false); // prevent echo from onValue after own write
 
   useEffect(() => { favoritesRef.current = favorites; }, [favorites]);
 
-  // Sync FROM Firebase on mount
+  // Real-time subscription to Firebase favorites (auto-sync across devices)
   useEffect(() => {
     const vid = viewerId.current;
-    get(ref(database, `userFavorites/${vid}`)).then(snap => {
-      const remote = snap.val() as FavoriteEntry[] | null;
-      if (remote && Array.isArray(remote)) {
-        const valid = remote.filter((e: unknown): e is FavoriteEntry =>
-          typeof e === 'object' && e !== null && 'id' in e && 'name' in e
-        );
-        if (valid.length > 0) {
-          // Merge: remote + local (deduplicate by id)
-          const local = loadLocalFavorites();
-          const merged = [...valid];
-          for (const l of local) {
-            if (!merged.some(m => m.id === l.id)) merged.push(l);
-          }
-          saveLocalFavorites(merged);
-          favoritesRef.current = merged;
-          setFavorites(merged);
-        }
-      } else {
-        // No remote data: push local to Firebase
-        const local = loadLocalFavorites();
-        if (local.length > 0) {
+    // Push local data to Firebase first (if any)
+    const local = loadLocalFavorites();
+    if (local.length > 0) {
+      get(ref(database, `userFavorites/${vid}`)).then(snap => {
+        const remote = snap.val();
+        if (!remote) {
           set(ref(database, `userFavorites/${vid}`), local).catch(() => {});
         }
+      }).catch(() => {});
+    }
+    // Subscribe for real-time sync
+    const unsub = onValue(ref(database, `userFavorites/${vid}`), snap => {
+      if (writingRef.current) { writingRef.current = false; return; }
+      const data = snap.val();
+      if (!data) return;
+      const arr = Array.isArray(data) ? data : Object.values(data);
+      const valid = (arr as unknown[]).filter((e): e is FavoriteEntry =>
+        typeof e === 'object' && e !== null && 'id' in (e as Record<string, unknown>) && 'name' in (e as Record<string, unknown>)
+      );
+      if (valid.length > 0) {
+        saveLocalFavorites(valid);
+        favoritesRef.current = valid;
+        setFavorites(valid);
       }
-      firebaseSynced.current = true;
-    }).catch(() => { firebaseSynced.current = true; });
-
+    });
     // Load existing sync code
     get(ref(database, `viewerSyncCodes/${vid}`)).then(snap => {
       const code = snap.val();
-      if (code) setSyncCode(code as string);
+      if (code) { setSyncCode(code as string); setLinked(true); }
     }).catch(() => {});
+    return unsub;
   }, []);
 
   const syncToFirebase = useCallback((data: FavoriteEntry[]) => {
-    const vid = viewerId.current;
-    set(ref(database, `userFavorites/${vid}`), data).catch(() => {});
+    writingRef.current = true;
+    set(ref(database, `userFavorites/${viewerId.current}`), data).catch(() => {});
   }, []);
 
   const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
@@ -804,20 +804,30 @@ export function useFavorites() {
     await set(ref(database, `syncCodes/${code}`), vid);
     await set(ref(database, `viewerSyncCodes/${vid}`), code);
     setSyncCode(code);
+    setLinked(true);
     return code;
   }, []);
 
-  // Import favorites from another device using sync code
+  // Link this device to another using sync code (adopt their viewerId for permanent auto-sync)
   const importFromSyncCode = useCallback(async (code: string): Promise<boolean> => {
     const snap = await get(ref(database, `syncCodes/${code}`));
     const sourceVid = snap.val() as string | null;
     if (!sourceVid) return false;
+
+    // Adopt the source viewerId → both devices now share the same Firebase path
+    try { localStorage.setItem('showdown_viewer_id', sourceVid); } catch { /* ignore */ }
+    viewerId.current = sourceVid;
+
+    // Load favorites from the shared path
     const favSnap = await get(ref(database, `userFavorites/${sourceVid}`));
-    const remoteFavs = favSnap.val() as FavoriteEntry[] | null;
-    if (!remoteFavs || !Array.isArray(remoteFavs)) return false;
-    // Merge with existing
+    const remoteFavs = favSnap.val();
+    const arr = remoteFavs ? (Array.isArray(remoteFavs) ? remoteFavs : Object.values(remoteFavs)) : [];
+    const valid = (arr as unknown[]).filter((e): e is FavoriteEntry =>
+      typeof e === 'object' && e !== null && 'id' in (e as Record<string, unknown>) && 'name' in (e as Record<string, unknown>)
+    );
+    // Merge local + remote
     const local = favoritesRef.current;
-    const merged = [...remoteFavs];
+    const merged = [...valid];
     for (const l of local) {
       if (!merged.some(m => m.id === l.id)) merged.push(l);
     }
@@ -825,8 +835,10 @@ export function useFavorites() {
     syncToFirebase(merged);
     favoritesRef.current = merged;
     setFavorites(merged);
+    setSyncCode(code);
+    setLinked(true);
     return true;
   }, [syncToFirebase]);
 
-  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName, syncCode, generateSyncCode, importFromSyncCode };
+  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName, syncCode, generateSyncCode, importFromSyncCode, linked };
 }

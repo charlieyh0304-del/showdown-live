@@ -1316,8 +1316,9 @@
         "generateCode": "Generate Sync Code",
         "enterCode": "Enter sync code",
         "importButton": "Import",
-        "importSuccess": "Favorites imported successfully!",
-        "importError": "Code not found. Please check and try again."
+        "importSuccess": "Favorites imported! Auto-sync is now active.",
+        "importError": "Code not found. Please check and try again.",
+        "linked": "Auto-sync across devices is active"
       }
     },
 

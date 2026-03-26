@@ -1316,8 +1316,9 @@
         "generateCode": "동기화 코드 생성",
         "enterCode": "동기화 코드 입력",
         "importButton": "가져오기",
-        "importSuccess": "즐겨찾기를 성공적으로 가져왔습니다!",
-        "importError": "코드를 찾을 수 없습니다. 다시 확인해주세요."
+        "importSuccess": "즐겨찾기를 성공적으로 가져왔습니다! 이후 자동으로 동기화됩니다.",
+        "importError": "코드를 찾을 수 없습니다. 다시 확인해주세요.",
+        "linked": "기기 간 자동 동기화 활성화됨"
       }
     },
 
