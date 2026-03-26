@@ -1322,7 +1322,8 @@
     "notifications": {
       "win": "Win!",
       "loss": "Loss",
-      "preMatch": "{{name}} match in 10 minutes"
+      "preMatch": "{{name}} match in 10 minutes",
+      "matchStarted": "{{name}} match started!"
     },
 
     "practiceWatch": {

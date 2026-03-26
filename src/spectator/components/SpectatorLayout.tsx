@@ -2,6 +2,28 @@ import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import { useFavorites, useTournaments, useMatches, useSchedule } from '@shared/hooks/useFirebase';
+import { useMatchNotifications } from '../hooks/useMatchNotifications';
+import { useMemo } from 'react';
+
+// Global notification watcher - runs on all spectator pages
+function NotificationWatcher() {
+  const { favoriteIds } = useFavorites();
+  const { tournaments } = useTournaments();
+
+  // Find first active tournament to watch
+  const activeTournamentId = useMemo(
+    () => tournaments.find(t => t.status === 'in_progress')?.id || null,
+    [tournaments]
+  );
+
+  const { matches } = useMatches(activeTournamentId);
+  const { schedule } = useSchedule(activeTournamentId);
+
+  useMatchNotifications(favoriteIds, matches, schedule);
+
+  return null; // No UI
+}
 
 interface SpectatorLayoutProps {
   children: ReactNode;
@@ -13,6 +35,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* Global notification watcher */}
+      <NotificationWatcher />
+
       {/* Skip navigation - handled by global skip-link in App.tsx */}
 
       {/* Header */}
