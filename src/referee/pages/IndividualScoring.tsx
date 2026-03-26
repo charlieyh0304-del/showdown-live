@@ -104,13 +104,11 @@ export default function IndividualScoring() {
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
-  const [showSideChange, setShowSideChange] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSetEndConfirm, setShowSetEndConfirm] = useState(false);
   const [setEndMessage, setSetEndMessage] = useState('');
   const [isMatchEnd, setIsMatchEnd] = useState(false);
-  // Warmup
-  const [showWarmup, setShowWarmup] = useState(false);
+  // Warmup & SideChange derived from Firebase state
   // Coin toss
   const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'court_change' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
@@ -126,10 +124,8 @@ export default function IndividualScoring() {
       updateMatch({ [field]: value || undefined });
     }, 500);
   }, [updateMatch]);
-  // Pause
-  const [isPausedLocal, setIsPausedLocal] = useState(false);
+  // Pause - derived from Firebase match.isPaused
   const [pauseElapsed, setPauseElapsed] = useState(0);
-  const [pauseReason, setPauseReason] = useState('');
   // Penalty & timeout dropdowns
   const [penaltyDropdown, setPenaltyDropdown] = useState<PenaltyDropdownKey>(null);
   const [timeoutDropdown, setTimeoutDropdown] = useState<TimeoutDropdownKey>(null);
@@ -142,12 +138,21 @@ export default function IndividualScoring() {
   useNavigationGuard(match?.status === 'in_progress');
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
 
-  // Timers
-  const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
-  const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
+  // Timers - driven by Firebase timestamps
+  const sideChangeTimer = useCountdownTimer(() => {
+    if (match) updateMatch({ sideChangeStartTime: undefined });
+  });
+  const warmupTimer = useCountdownTimer(() => {
+    if (match) updateMatch({ warmupStartTime: undefined });
+  });
   const timeoutTimer = useCountdownTimer(() => {
     if (match) updateMatch({ activeTimeout: null });
   });
+
+  // Derive modal visibility from Firebase state
+  const showWarmup = !!(match?.warmupStartTime);
+  const showSideChange = !!(match?.sideChangeStartTime);
+  const isPausedLocal = !!(match?.isPaused);
 
   // 15초 안내 (타임아웃)
   const timeoutAlerted = useRef(false);
@@ -194,23 +199,46 @@ export default function IndividualScoring() {
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
+  // Sync warmup timer from Firebase
+  useEffect(() => {
+    if (match?.warmupStartTime) {
+      const elapsed = Math.floor((Date.now() - match.warmupStartTime) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      if (remaining > 0 && !warmupTimer.isRunning) warmupTimer.start(remaining);
+      else if (remaining <= 0) updateMatch({ warmupStartTime: undefined });
+    } else {
+      warmupTimer.stop();
+    }
+  }, [match?.warmupStartTime]);
+
+  // Sync sideChange timer from Firebase
+  useEffect(() => {
+    if (match?.sideChangeStartTime) {
+      const elapsed = Math.floor((Date.now() - match.sideChangeStartTime) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      if (remaining > 0 && !sideChangeTimer.isRunning) sideChangeTimer.start(remaining);
+      else if (remaining <= 0) updateMatch({ sideChangeStartTime: undefined });
+    } else {
+      sideChangeTimer.stop();
+    }
+  }, [match?.sideChangeStartTime]);
+
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
     if (match?.activeTimeout) {
       const toType = match.activeTimeout.type ?? 'player';
       if (toType === 'referee') {
-        // Referee timeout: no countdown, manual end only
         timeoutTimer.stop();
       } else {
         const duration = toType === 'medical' ? 300 : 60;
         const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
         const remaining = Math.max(0, duration - elapsed);
-        if (remaining > 0) timeoutTimer.start(remaining);
+        if (remaining > 0 && !timeoutTimer.isRunning) timeoutTimer.start(remaining);
       }
     } else {
       timeoutTimer.stop();
     }
-  }, [match?.activeTimeout, timeoutTimer]);
+  }, [match?.activeTimeout]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -226,27 +254,21 @@ export default function IndividualScoring() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [penaltyDropdown, timeoutDropdown]);
 
-  // Pause elapsed time counter
+  // Pause elapsed time counter - derived from Firebase pauseStartTime
   useEffect(() => {
-    if (!isPausedLocal) return;
-    const interval = setInterval(() => setPauseElapsed(p => p + 1), 1000);
+    if (!isPausedLocal || !match?.pauseStartTime) { setPauseElapsed(0); return; }
+    setPauseElapsed(Math.floor((Date.now() - match.pauseStartTime) / 1000));
+    const interval = setInterval(() => {
+      setPauseElapsed(Math.floor((Date.now() - match.pauseStartTime!) / 1000));
+    }, 1000);
     return () => clearInterval(interval);
-  }, [isPausedLocal]);
+  }, [isPausedLocal, match?.pauseStartTime]);
 
   // Sync coach from match (always prefer Firebase value)
   useEffect(() => {
     if (match?.player1Coach !== undefined && match.player1Coach !== player1Coach) setPlayer1Coach(match.player1Coach);
     if (match?.player2Coach !== undefined && match.player2Coach !== player2Coach) setPlayer2Coach(match.player2Coach);
   }, [match?.player1Coach, match?.player2Coach]);
-
-  // Sync pause state from match
-  useEffect(() => {
-    if (match?.isPaused && !isPausedLocal) {
-      setIsPausedLocal(true);
-      setPauseReason(match.pauseReason ?? '');
-      setPauseElapsed(match.pauseStartTime ? Math.floor((Date.now() - match.pauseStartTime) / 1000) : 0);
-    }
-  }, [match?.isPaused]);
 
   // Save/clear active match in localStorage for session recovery
   useEffect(() => {
@@ -335,6 +357,7 @@ export default function IndividualScoring() {
       sideChangeUsed: false,
       scoreHistory: [...warmupEntries, matchStartEntry, ...coachEntries, coinTossEntry],
       warmupUsed: withWarmup,
+      warmupStartTime: withWarmup ? Date.now() : undefined,
       coinTossWinner: tossWinner ?? undefined,
       coinTossChoice: firstServe === (tossWinner ?? 'player1') ? 'serve' : 'receive',
       courtChangeByLoser,
@@ -371,19 +394,14 @@ export default function IndividualScoring() {
     };
 
     const prevHistory = match.scoreHistory ?? [];
-    await updateMatch({ warmupUsed: true, scoreHistory: [warmupEntry, ...prevHistory] });
-    warmupTimer.start(60); // Individual: 60 seconds
-    setShowWarmup(true);
-  }, [match, updateMatch, warmupTimer]);
+    await updateMatch({ warmupUsed: true, warmupStartTime: Date.now(), scoreHistory: [warmupEntry, ...prevHistory] });
+  }, [match, updateMatch]);
 
   // Pause
   const handlePause = useCallback(async () => {
     if (!match || match.status !== 'in_progress' || isPausedLocal) return;
     const reason = prompt(t('referee.scoring.pausePrompt'));
     if (reason === null) return;
-    setIsPausedLocal(true);
-    setPauseReason(reason || t('referee.scoring.noReason'));
-    setPauseElapsed(0);
     const pauseEntry = {
       time: formatTime(),
       reason: reason || t('referee.scoring.noReason'),
@@ -415,7 +433,6 @@ export default function IndividualScoring() {
 
   const handleResume = useCallback(async () => {
     if (!match) return;
-    setIsPausedLocal(false);
     const prevPauseHistory = match.pauseHistory ?? [];
     const updated = [...prevPauseHistory];
     if (updated.length > 0) {
@@ -437,8 +454,6 @@ export default function IndividualScoring() {
       serverSide: match.currentServe ?? 'player1',
     };
     const prevScoreHistory = match.scoreHistory ?? [];
-    setPauseElapsed(0);
-    setPauseReason('');
     await updateMatch({ isPaused: false, pauseReason: '', pauseStartTime: undefined, pauseHistory: updated, scoreHistory: [resumeHistoryEntry, ...prevScoreHistory] });
   }, [match, updateMatch, pauseElapsed]);
 
@@ -613,11 +628,9 @@ export default function IndividualScoring() {
     if (shouldSideChange('individual', cs, match.sideChangeUsed ?? false, sets, gameConfig) && !match.activeTimeout) {
       const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
-        sideChangeUsed: true, scoreHistory: newHistory,
+        sideChangeUsed: true, sideChangeStartTime: Date.now(), scoreHistory: newHistory,
       });
       if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
-      sideChangeTimer.start(60);
-      setShowSideChange(true);
       return;
     }
 
@@ -994,10 +1007,7 @@ export default function IndividualScoring() {
                     await handleStartMatch(pendingFirstServe!, true);
                   } catch (err) {
                     alert(String(err));
-                    return;
                   }
-                  warmupTimer.start(60);
-                  setShowWarmup(true);
                 }}
                 aria-label={t('referee.scoring.warmupStart')}
               >
@@ -1133,7 +1143,7 @@ export default function IndividualScoring() {
           seconds={warmupTimer.seconds}
           isWarning={warmupTimer.isWarning}
           subtitle={`${t('referee.practice.setup.individual')} ${t('referee.scoring.warmupStart')} (60${t('common.time.seconds')})`}
-          onClose={() => { warmupTimer.stop(); setShowWarmup(false); }}
+          onClose={() => { warmupTimer.stop(); updateMatch({ warmupStartTime: undefined }); }}
           closeLabel={t('common.done')}
         />
       )}
@@ -1145,7 +1155,7 @@ export default function IndividualScoring() {
           seconds={sideChangeTimer.seconds}
           isWarning={sideChangeTimer.isWarning}
           subtitle={`1${t('common.time.minutes')}`}
-          onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); }}
+          onClose={() => { sideChangeTimer.stop(); updateMatch({ sideChangeStartTime: undefined }); }}
           closeLabel={t('common.confirm')}
           required
         />
@@ -1186,7 +1196,7 @@ export default function IndividualScoring() {
             <span className="text-orange-200 ml-3" aria-label={`${t('referee.scoring.elapsedTime')} ${Math.floor(pauseElapsed / 60)}${t('common.time.minutes')} ${pauseElapsed % 60}${t('common.time.seconds')}`}>
               {Math.floor(pauseElapsed / 60)}:{(pauseElapsed % 60).toString().padStart(2, '0')}
             </span>
-            {pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({pauseReason})</span>}
+            {match.pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({match.pauseReason})</span>}
           </div>
           <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label={t('common.confirm')}>▶</button>
         </div>
