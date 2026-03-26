@@ -106,6 +106,12 @@ async function sendToSubscriptions(
   };
 
   const response = await admin.messaging().sendEachForMulticast(message);
+  const successCount = response.responses.filter((r) => r.success).length;
+  const failCount = response.responses.filter((r) => !r.success).length;
+  console.log(`[FCM] Sent to ${tokens.length} tokens: ${successCount} success, ${failCount} failed`);
+  response.responses.forEach((r, idx) => {
+    if (r.error) console.error(`[FCM] Token ${idx} error:`, r.error.code, r.error.message);
+  });
 
   // Remove invalid tokens
   const invalidTokens: string[] = [];
@@ -172,15 +178,18 @@ export const onMatchChange = onValueUpdated(
     if (!before || !after) return;
 
     const matchId = event.params.matchId;
+    const tournamentId = event.params.tournamentId;
     const participants = getMatchParticipants(after);
+    console.log(`[onMatchChange] ${tournamentId}/${matchId}: ${before.status} → ${after.status}, participants: ${participants.length}`);
     if (participants.length === 0) return;
 
     // Match started
     if (before.status !== "in_progress" && after.status === "in_progress") {
       const notifKey = `start_${matchId}`;
-      if (await wasNotifSent(notifKey)) return;
+      if (await wasNotifSent(notifKey)) { console.log(`[onMatchChange] Already sent: ${notifKey}`); return; }
 
       const subs = await findSubscriptions(participants);
+      console.log(`[onMatchChange] Match started ${matchId}: ${subs.length} subscribers found`);
       if (subs.length === 0) return;
 
       // Send personalized notifications per subscription
@@ -202,6 +211,7 @@ export const onMatchChange = onValueUpdated(
       if (await wasNotifSent(notifKey)) return;
 
       const subs = await findSubscriptions(participants);
+      console.log(`[onMatchChange] Match completed ${matchId}: ${subs.length} subscribers found`);
       if (subs.length === 0) return;
 
       for (const sub of subs) {

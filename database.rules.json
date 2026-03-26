@@ -103,7 +103,7 @@
     },
     "pushNotifSent": {
       ".read": false,
-      ".write": false
+      ".write": "auth != null"
     },
     "$other": {
       ".read": false,

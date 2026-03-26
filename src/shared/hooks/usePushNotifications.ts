@@ -14,7 +14,6 @@ function getPlatform(): string {
   return 'desktop';
 }
 
-// Simple hash for token-based key (avoid special chars in Firebase path)
 function tokenToKey(token: string): string {
   let hash = 0;
   for (let i = 0; i < token.length; i++) {
@@ -23,92 +22,85 @@ function tokenToKey(token: string): string {
   return 'tk_' + Math.abs(hash).toString(36);
 }
 
+async function syncSubscription(token: string, favoriteIds: string[]) {
+  const key = tokenToKey(token);
+  const subRef = ref(database, `pushSubscriptions/${key}`);
+  await set(subRef, {
+    token,
+    favoriteIds,
+    platform: getPlatform(),
+    updatedAt: Date.now(),
+  });
+  console.log('[Push] Synced subscription to Firebase:', key, 'favorites:', favoriteIds.length);
+}
+
+async function registerAndGetToken(): Promise<string | null> {
+  if (!VAPID_KEY) {
+    console.error('[Push] VAPID key not configured!');
+    return null;
+  }
+
+  // Register FCM service worker
+  const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
+  // Wait for SW to be ready (handles installing/waiting/active states)
+  if (!swReg.active) {
+    await navigator.serviceWorker.ready;
+  }
+
+  // Get FCM token
+  const messaging = getMessaging(app);
+  const token = await getToken(messaging, {
+    vapidKey: VAPID_KEY,
+    serviceWorkerRegistration: swReg,
+  });
+
+  return token || null;
+}
+
 export function usePushNotifications(favoriteIds: string[]) {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
   const tokenRef = useRef<string | null>(null);
   const prevFavIdsRef = useRef<string>('');
+  const initDone = useRef(false);
 
-  // Check if push is supported and auto-sync existing token
+  // Auto-initialize: if permission already granted, get/refresh token and sync
   useEffect(() => {
+    if (initDone.current) return;
+    initDone.current = true;
+
     const supported = 'serviceWorker' in navigator &&
       'PushManager' in window &&
       'Notification' in window;
     setPushSupported(supported);
 
-    // Check if already enabled
-    if (supported && Notification.permission === 'granted') {
-      const savedToken = localStorage.getItem(TOKEN_KEY);
-      if (savedToken) {
-        tokenRef.current = savedToken;
-        setPushEnabled(true);
-        // Auto-sync subscription to Firebase on app start
-        syncSubscription(savedToken, favoriteIds).catch(() => {});
+    if (!supported || Notification.permission !== 'granted') return;
+
+    // Auto-register FCM token (not just read from localStorage)
+    (async () => {
+      try {
+        const token = await registerAndGetToken();
+        if (token) {
+          tokenRef.current = token;
+          localStorage.setItem(TOKEN_KEY, token);
+          setPushEnabled(true);
+          // Sync with current favoriteIds (may be empty initially, will re-sync when favorites load)
+          await syncSubscription(token, favoriteIds);
+        }
+      } catch (err) {
+        console.error('[Push] Auto-init failed:', err);
+        // Fallback: use saved token if available
+        const savedToken = localStorage.getItem(TOKEN_KEY);
+        if (savedToken) {
+          tokenRef.current = savedToken;
+          setPushEnabled(true);
+        }
       }
-    }
+    })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Register the FCM service worker and get token
-  const enablePush = useCallback(async (): Promise<boolean> => {
-    try {
-      if (!VAPID_KEY) {
-        console.warn('VAPID key not configured');
-        return false;
-      }
-
-      // Request notification permission
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') return false;
-
-      // Register FCM service worker and wait for it to be active
-      const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      // Wait for the SW to become active (may be installing on first visit)
-      const activeSW = swReg.active || await new Promise<ServiceWorker>((resolve) => {
-        const sw = swReg.installing || swReg.waiting;
-        if (!sw) return resolve(swReg.active!);
-        sw.addEventListener('statechange', () => {
-          if (sw.state === 'activated') resolve(sw);
-        });
-      });
-
-      // Send Firebase config to SW
-      if (activeSW) {
-        activeSW.postMessage({
-          type: 'FIREBASE_CONFIG',
-          config: {
-            apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-            authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-            projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-            messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-            appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
-          },
-        });
-      }
-
-      // Get FCM token
-      const messaging = getMessaging(app);
-      const token = await getToken(messaging, {
-        vapidKey: VAPID_KEY,
-        serviceWorkerRegistration: swReg,
-      });
-
-      if (!token) return false;
-
-      tokenRef.current = token;
-      localStorage.setItem(TOKEN_KEY, token);
-      setPushEnabled(true);
-
-      // Save subscription to Firebase
-      await syncSubscription(token, favoriteIds);
-
-      return true;
-    } catch (err) {
-      console.error('Push notification setup failed:', err);
-      return false;
-    }
-  }, [favoriteIds]);
-
-  // Sync subscription to Firebase when favorites change
+  // Re-sync when favoriteIds change (handles the "initially empty" problem)
   useEffect(() => {
     const token = tokenRef.current;
     if (!token || !pushEnabled) return;
@@ -117,13 +109,35 @@ export function usePushNotifications(favoriteIds: string[]) {
     if (favKey === prevFavIdsRef.current) return;
     prevFavIdsRef.current = favKey;
 
-    syncSubscription(token, favoriteIds);
+    syncSubscription(token, favoriteIds).catch(err => {
+      console.error('[Push] Sync failed on favorites change:', err);
+    });
   }, [favoriteIds, pushEnabled]);
 
-  // Handle foreground messages - show in-app toast
+  // Manual enable (button click from UI)
+  const enablePush = useCallback(async (): Promise<boolean> => {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return false;
+
+      const token = await registerAndGetToken();
+      if (!token) return false;
+
+      tokenRef.current = token;
+      localStorage.setItem(TOKEN_KEY, token);
+      setPushEnabled(true);
+
+      await syncSubscription(token, favoriteIds);
+      return true;
+    } catch (err) {
+      console.error('[Push] enablePush failed:', err);
+      return false;
+    }
+  }, [favoriteIds]);
+
+  // Foreground message handler
   useEffect(() => {
     if (!pushEnabled) return;
-
     try {
       const messaging = getMessaging(app);
       const unsubscribe = onMessage(messaging, (payload) => {
@@ -139,15 +153,4 @@ export function usePushNotifications(favoriteIds: string[]) {
   }, [pushEnabled]);
 
   return { pushEnabled, pushSupported, enablePush };
-}
-
-async function syncSubscription(token: string, favoriteIds: string[]) {
-  const key = tokenToKey(token);
-  const subRef = ref(database, `pushSubscriptions/${key}`);
-  await set(subRef, {
-    token,
-    favoriteIds,
-    platform: getPlatform(),
-    updatedAt: Date.now(),
-  });
 }
