@@ -940,12 +940,13 @@ export default function TeamMatchScoring() {
                 className="btn btn-success btn-large flex-1 text-xl py-6"
                 onClick={async () => {
                   try {
-                    await handleStartMatch(tossWinner, pendingChoice);
-                    warmupTimer.start(90);
-                    setShowWarmup(true);
+                    await handleStartMatch(tossWinner!, pendingChoice!);
                   } catch (err) {
                     alert(String(err));
+                    return;
                   }
+                  warmupTimer.start(90);
+                  setShowWarmup(true);
                 }}
                 aria-label={t('referee.scoring.warmupStart')}
               >
@@ -955,7 +956,7 @@ export default function TeamMatchScoring() {
                 className="btn btn-accent btn-large flex-1 text-xl py-6"
                 onClick={async () => {
                   try {
-                    await handleStartMatch(tossWinner, pendingChoice);
+                    await handleStartMatch(tossWinner!, pendingChoice!);
                   } catch (err) {
                     alert(String(err));
                   }

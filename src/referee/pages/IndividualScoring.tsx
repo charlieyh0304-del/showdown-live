@@ -977,12 +977,13 @@ export default function IndividualScoring() {
                 className="btn btn-success btn-large flex-1 text-xl py-6"
                 onClick={async () => {
                   try {
-                    await handleStartMatch(pendingFirstServe, true);
-                    warmupTimer.start(60);
-                    setShowWarmup(true);
+                    await handleStartMatch(pendingFirstServe!, true);
                   } catch (err) {
                     alert(String(err));
+                    return;
                   }
+                  warmupTimer.start(60);
+                  setShowWarmup(true);
                 }}
                 aria-label={t('referee.scoring.warmupStart')}
               >
@@ -992,7 +993,7 @@ export default function IndividualScoring() {
                 className="btn btn-accent btn-large flex-1 text-xl py-6"
                 onClick={async () => {
                   try {
-                    await handleStartMatch(pendingFirstServe);
+                    await handleStartMatch(pendingFirstServe!);
                   } catch (err) {
                     alert(String(err));
                   }

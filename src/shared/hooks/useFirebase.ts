@@ -474,9 +474,17 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
         return merged;
       });
       return result.committed;
-    } catch {
-      queueUpdate(path, payload as Record<string, unknown>);
-      return true;
+    } catch (err) {
+      console.error('[useMatch] updateMatch failed:', err);
+      // Try direct update as fallback (transaction may fail on some Firebase configs)
+      try {
+        await update(ref(database, path), payload);
+        return true;
+      } catch (err2) {
+        console.error('[useMatch] direct update also failed:', err2);
+        queueUpdate(path, payload as Record<string, unknown>);
+        return false;
+      }
     }
   }, [tournamentId, matchId]);
 
