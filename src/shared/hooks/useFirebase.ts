@@ -680,42 +680,88 @@ export function useNotifications(tournamentId: string | null) {
   return { notifications, addNotification };
 }
 
-// ===== 즐겨찾기 (localStorage 기반, ID+이름 쌍 저장) =====
-interface FavoriteEntry { id: string; name: string }
+// ===== 즐겨찾기 (Firebase 동기화 + localStorage 캐시) =====
+export interface FavoriteEntry { id: string; name: string }
 
-function loadFavorites(): FavoriteEntry[] {
+function loadLocalFavorites(): FavoriteEntry[] {
   try {
     const stored = localStorage.getItem('showdown_favorites');
     if (!stored) return [];
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    // Backwards compat: old format was string[], new format is {id, name}[]
     if (parsed.length > 0 && typeof parsed[0] === 'string') {
-      // Migrate old format to new format and save immediately
-      const migrated = (parsed as string[]).map(id => ({ id, name: id }));
-      localStorage.setItem('showdown_favorites', JSON.stringify(migrated));
-      return migrated;
+      return (parsed as string[]).map(id => ({ id, name: id }));
     }
-    // Validate entries
     return parsed.filter((e: unknown): e is FavoriteEntry =>
       typeof e === 'object' && e !== null && 'id' in e && 'name' in e
     );
   } catch { return []; }
 }
 
-function safeSaveFavorites(favorites: FavoriteEntry[]) {
-  try {
-    localStorage.setItem('showdown_favorites', JSON.stringify(favorites));
-  } catch {
-    // iOS Private Browsing or quota exceeded - silent fail
+function saveLocalFavorites(favorites: FavoriteEntry[]) {
+  try { localStorage.setItem('showdown_favorites', JSON.stringify(favorites)); } catch { /* ignore */ }
+}
+
+// Get or generate a stable viewer ID for cross-device sync
+function getViewerId(): string {
+  let id = localStorage.getItem('showdown_viewer_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    try { localStorage.setItem('showdown_viewer_id', id); } catch { /* ignore */ }
   }
+  return id;
 }
 
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadFavorites);
-
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadLocalFavorites);
+  const [syncCode, setSyncCode] = useState<string | null>(null);
   const favoritesRef = useRef(favorites);
+  const viewerId = useRef(getViewerId());
+  const firebaseSynced = useRef(false);
+
   useEffect(() => { favoritesRef.current = favorites; }, [favorites]);
+
+  // Sync FROM Firebase on mount
+  useEffect(() => {
+    const vid = viewerId.current;
+    get(ref(database, `userFavorites/${vid}`)).then(snap => {
+      const remote = snap.val() as FavoriteEntry[] | null;
+      if (remote && Array.isArray(remote)) {
+        const valid = remote.filter((e: unknown): e is FavoriteEntry =>
+          typeof e === 'object' && e !== null && 'id' in e && 'name' in e
+        );
+        if (valid.length > 0) {
+          // Merge: remote + local (deduplicate by id)
+          const local = loadLocalFavorites();
+          const merged = [...valid];
+          for (const l of local) {
+            if (!merged.some(m => m.id === l.id)) merged.push(l);
+          }
+          saveLocalFavorites(merged);
+          favoritesRef.current = merged;
+          setFavorites(merged);
+        }
+      } else {
+        // No remote data: push local to Firebase
+        const local = loadLocalFavorites();
+        if (local.length > 0) {
+          set(ref(database, `userFavorites/${vid}`), local).catch(() => {});
+        }
+      }
+      firebaseSynced.current = true;
+    }).catch(() => { firebaseSynced.current = true; });
+
+    // Load existing sync code
+    get(ref(database, `viewerSyncCodes/${vid}`)).then(snap => {
+      const code = snap.val();
+      if (code) setSyncCode(code as string);
+    }).catch(() => {});
+  }, []);
+
+  const syncToFirebase = useCallback((data: FavoriteEntry[]) => {
+    const vid = viewerId.current;
+    set(ref(database, `userFavorites/${vid}`), data).catch(() => {});
+  }, []);
 
   const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
 
@@ -725,11 +771,12 @@ export function useFavorites() {
     const next = exists
       ? prev.filter(f => f.id !== playerId)
       : [...prev, { id: playerId, name: playerName || playerId }];
-    safeSaveFavorites(next);
+    saveLocalFavorites(next);
+    syncToFirebase(next);
     favoritesRef.current = next;
     setFavorites(next);
     return next.map(f => f.id);
-  }, []);
+  }, [syncToFirebase]);
 
   const isFavorite = useCallback((playerId: string) => {
     return favorites.some(f => f.id === playerId);
@@ -739,16 +786,47 @@ export function useFavorites() {
     return favorites.find(f => f.id === playerId)?.name || playerId;
   }, [favorites]);
 
-  // Update stored name for a favorite (used to fix unresolved names)
   const updateFavoriteName = useCallback((playerId: string, name: string) => {
     const prev = favoritesRef.current;
     const entry = prev.find(f => f.id === playerId);
     if (!entry || entry.name === name) return;
     const next = prev.map(f => f.id === playerId ? { ...f, name } : f);
-    safeSaveFavorites(next);
+    saveLocalFavorites(next);
+    syncToFirebase(next);
     favoritesRef.current = next;
     setFavorites(next);
+  }, [syncToFirebase]);
+
+  // Generate a 6-digit sync code for cross-device linking
+  const generateSyncCode = useCallback(async (): Promise<string> => {
+    const vid = viewerId.current;
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await set(ref(database, `syncCodes/${code}`), vid);
+    await set(ref(database, `viewerSyncCodes/${vid}`), code);
+    setSyncCode(code);
+    return code;
   }, []);
 
-  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName };
+  // Import favorites from another device using sync code
+  const importFromSyncCode = useCallback(async (code: string): Promise<boolean> => {
+    const snap = await get(ref(database, `syncCodes/${code}`));
+    const sourceVid = snap.val() as string | null;
+    if (!sourceVid) return false;
+    const favSnap = await get(ref(database, `userFavorites/${sourceVid}`));
+    const remoteFavs = favSnap.val() as FavoriteEntry[] | null;
+    if (!remoteFavs || !Array.isArray(remoteFavs)) return false;
+    // Merge with existing
+    const local = favoritesRef.current;
+    const merged = [...remoteFavs];
+    for (const l of local) {
+      if (!merged.some(m => m.id === l.id)) merged.push(l);
+    }
+    saveLocalFavorites(merged);
+    syncToFirebase(merged);
+    favoritesRef.current = merged;
+    setFavorites(merged);
+    return true;
+  }, [syncToFirebase]);
+
+  return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName, syncCode, generateSyncCode, importFromSyncCode };
 }
