@@ -68,13 +68,10 @@ async function findSubscriptions(participantIds: string[]): Promise<PushSubscrip
 }
 
 // Send FCM to multiple tokens, clean up invalid ones
-// IMPORTANT: Uses data-only messages (no top-level `notification` field)
-// so the service worker always handles display. This ensures:
-// - Android: immediate delivery in background/doze mode (not delayed by system tray)
-// - iOS: service worker receives the push and can show notification
 async function sendToSubscriptions(
   subs: PushSubscription[],
   notification: { title: string; body: string },
+  link = "/spectator",
 ) {
   if (subs.length === 0) return;
 
@@ -82,44 +79,55 @@ async function sendToSubscriptions(
   const tag = `showdown-${Date.now()}`;
   const message: admin.messaging.MulticastMessage = {
     tokens,
-    // NO top-level `notification` - data-only so SW always handles it
+    // data field: for SW to read in onBackgroundMessage / onMessage
     data: {
       title: notification.title,
       body: notification.body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-96.png",
       tag,
-      link: "/spectator",
+      link,
     },
     webpush: {
       headers: {
         Urgency: "high",
         TTL: "86400",
       },
+      // webpush.notification: browser displays this directly for web push
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-96.png",
+        tag,
+        requireInteraction: true,
+        renotify: true,
+      },
       fcmOptions: {
-        link: "/spectator",
+        link,
       },
     },
-    // Android: high priority for immediate delivery even in doze mode
+    // Android: high priority for background/doze delivery
     android: {
       priority: "high",
+      notification: {
+        channelId: "showdown_match",
+        priority: "max",
+        defaultSound: true,
+        defaultVibrateTimings: true,
+      },
     },
-    // iOS (Safari PWA): APNS headers for immediate push delivery
+    // iOS (Safari PWA): APNS headers for push delivery
     apns: {
       headers: {
         "apns-push-type": "alert",
         "apns-priority": "10",
-        "apns-expiration": "0",
       },
       payload: {
         aps: {
-          "content-available": 1,
           alert: {
             title: notification.title,
             body: notification.body,
           },
           sound: "default",
-          "mutable-content": 1,
         },
       },
     },
@@ -213,6 +221,7 @@ export const onMatchChange = onValueUpdated(
       if (subs.length === 0) return;
 
       // Send personalized notifications per subscription
+      const matchLink = `/spectator/match/${tournamentId}/${matchId}`;
       for (const sub of subs) {
         const info = getPlayerInfo(after, sub.favoriteIds);
         if (!info) continue;
@@ -220,7 +229,7 @@ export const onMatchChange = onValueUpdated(
         await sendToSubscriptions([sub], {
           title: `⚡ ${info.favName} 경기 시작!`,
           body: `vs ${info.oppName}${courtInfo}`,
-        });
+        }, matchLink);
       }
       await markNotifSent(notifKey);
     }
@@ -234,6 +243,7 @@ export const onMatchChange = onValueUpdated(
       console.log(`[onMatchChange] Match completed ${matchId}: ${subs.length} subscribers found`);
       if (subs.length === 0) return;
 
+      const resultLink = `/spectator/match/${tournamentId}/${matchId}`;
       for (const sub of subs) {
         const info = getPlayerInfo(after, sub.favoriteIds);
         if (!info) continue;
@@ -253,7 +263,7 @@ export const onMatchChange = onValueUpdated(
         await sendToSubscriptions([sub], {
           title: `${won ? "🏆" : "😢"} ${info.favName} ${won ? "승리" : "패배"}`,
           body: `vs ${info.oppName} (${scores})`,
-        });
+        }, resultLink);
       }
       await markNotifSent(notifKey);
     }
@@ -349,6 +359,7 @@ export const preMatchNotify = onSchedule(
             console.log(`Match ${matchId}: ${subs.length} subscribers found`);
             if (subs.length === 0) return;
 
+            const preMatchLink = `/spectator/match/${tid}/${matchId}`;
             for (const sub of subs) {
               const info = getPlayerInfo(match, sub.favoriteIds);
               if (!info) continue;
@@ -356,7 +367,7 @@ export const preMatchNotify = onSchedule(
               await sendToSubscriptions([sub], {
                 title: `📢 ${info.favName} 경기 10분 전`,
                 body: `vs ${info.oppName}${courtInfo}`,
-              });
+              }, preMatchLink);
               console.log(`Sent pre-match notif for ${info.favName} to ${sub.platform}`);
             }
             await markNotifSent(notifKey);

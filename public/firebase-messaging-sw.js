@@ -35,12 +35,12 @@ function showNotificationFromData(data) {
   return self.registration.showNotification(title, options);
 }
 
-// Handle background messages via Firebase SDK (data-only messages)
+// Handle background messages via Firebase SDK
 messaging.onBackgroundMessage((payload) => {
-  // Data-only message: notification info is in payload.data
-  const data = payload.data || {};
-  // If there's also a notification field (shouldn't happen with our setup), skip SW handling
+  // If browser already showed notification from webpush.notification, skip
   if (payload.notification) return;
+  // Data-only fallback: build notification from data field
+  const data = payload.data || {};
   return showNotificationFromData(data);
 });
 
