@@ -72,10 +72,14 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
+// 익명 인증 완료 후 앱 렌더링 (DB 쓰기 권한 확보)
+import { authReady } from '@shared/config/firebase';
+authReady.then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+});
