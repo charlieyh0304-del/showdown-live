@@ -18,12 +18,18 @@ export const database = getDatabase(app);
 export const auth = getAuth(app);
 
 // 익명 인증 - 앱 시작 시 자동 로그인 (DB 쓰기 권한 확보)
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    signInAnonymously(auth).catch(() => {
-      // 오프라인 등 실패 시 무시 - 재연결 시 자동 재시도
-    });
-  }
+// authReady: 인증 완료를 기다리는 Promise (DB 쓰기 전에 await)
+export const authReady = new Promise<void>((resolve) => {
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      unsubscribe();
+      resolve();
+    } else {
+      signInAnonymously(auth).catch(() => {
+        // 오프라인 등 실패 시 무시 - 재연결 시 자동 재시도
+      });
+    }
+  });
 });
 
 // Firebase Realtime Database has built-in offline caching.

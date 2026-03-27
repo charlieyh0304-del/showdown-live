@@ -174,6 +174,8 @@ export function useReferees() {
   }, []);
 
   const addReferee = useCallback(async (referee: Omit<Referee, 'id' | 'createdAt'>) => {
+    const { authReady } = await import('@shared/config/firebase');
+    await authReady;
     const newRef = push(ref(database, 'referees'));
     await set(newRef, { ...referee, createdAt: Date.now() });
     return newRef.key;

@@ -63,6 +63,7 @@
         ".write": "auth != null",
         ".validate": "newData.hasChildren(['name'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "createdAt": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }
       }
     },
@@ -83,6 +84,7 @@
         ".write": "auth != null",
         ".validate": "newData.hasChildren(['name'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "createdAt": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }
       }
     },
