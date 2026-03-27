@@ -125,10 +125,10 @@ export function usePushNotifications(favorites: FavEntry[]) {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-sync when favorites change
+  // Re-sync when favorites change (pushEnabled 상태와 무관하게 토큰이 있으면 동기화)
   useEffect(() => {
-    const token = tokenRef.current;
-    if (!token || !pushEnabled) return;
+    const token = tokenRef.current || localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
 
     const favKey = JSON.stringify(favorites);
     if (favKey === prevFavRef.current) return;
@@ -137,7 +137,7 @@ export function usePushNotifications(favorites: FavEntry[]) {
     syncSubscription(token, favorites).catch(err => {
       console.error('[Push] Sync failed on favorites change:', err);
     });
-  }, [favorites, pushEnabled]);
+  }, [favorites]);
 
   // Manual enable (button click from UI)
   const enablePush = useCallback(async (): Promise<boolean> => {
