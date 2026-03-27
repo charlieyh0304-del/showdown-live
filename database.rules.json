@@ -21,10 +21,7 @@
       ".read": true,
       "$tournamentId": {
         ".write": "auth != null",
-        ".validate": "newData.hasChildren(['name', 'type', 'status'])",
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
-        "type": { ".validate": "newData.isString() && (newData.val() === 'individual' || newData.val() === 'team')" },
-        "status": { ".validate": "newData.isString() && (newData.val() === 'draft' || newData.val() === 'in_progress' || newData.val() === 'completed' || newData.val() === 'cancelled')" }
+        ".validate": "newData.hasChildren(['name', 'status'])"
       }
     },
     "matches": {
