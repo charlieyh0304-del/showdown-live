@@ -72,12 +72,15 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// 앱 즉시 렌더링 (인증은 백그라운드에서 진행, DB 쓰기 시 authReady로 대기)
-import '@shared/config/firebase';
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
+// 인증 완료 후 앱 렌더링 (5초 타임아웃 - 오프라인에서도 멈추지 않음)
+import { authReady } from '@shared/config/firebase';
+const renderApp = () => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+};
+Promise.race([authReady, new Promise(r => setTimeout(r, 5000))]).then(renderApp);

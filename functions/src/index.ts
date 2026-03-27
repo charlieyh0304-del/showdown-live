@@ -85,11 +85,9 @@ async function sendToSubscriptions(
 
   const tokens = subs.map((s) => s.token);
   const tag = `showdown-${Date.now()}`;
-  // data-only 메시지: webpush.notification 없이 SW가 직접 알림 표시
-  // webpush.notification이 있으면 브라우저 자동 표시가 iOS/일부 Android에서 실패하고
-  // onBackgroundMessage도 스킵하여 "조용한 실패" 발생
-  const message: admin.messaging.MulticastMessage = {
-    tokens,
+
+  // 공통 메시지 페이로드 (token 제외)
+  const basePayload = {
     data: {
       title: notification.title,
       body: notification.body,
@@ -99,45 +97,29 @@ async function sendToSubscriptions(
       link,
     },
     webpush: {
-      headers: {
-        Urgency: "high",
-        TTL: "86400",
-      },
-      fcmOptions: {
-        link,
-      },
+      headers: { Urgency: "high", TTL: "86400" },
+      fcmOptions: { link },
     },
-    android: {
-      priority: "high",
-    },
+    android: { priority: "high" as const },
     apns: {
-      headers: {
-        "apns-push-type": "alert",
-        "apns-priority": "10",
-      },
-      payload: {
-        aps: {
-          "content-available": 1,
-          sound: "default",
-        },
-      },
+      headers: { "apns-push-type": "alert", "apns-priority": "10" },
+      payload: { aps: { "content-available": 1, sound: "default" } },
     },
   };
 
   let successCount = 0;
   let failCount = 0;
-  // 개별 전송 (한 토큰 실패가 전체를 막지 않도록)
   const responses: { success: boolean; error?: { code: string; message: string } }[] = [];
+
   for (let i = 0; i < tokens.length; i++) {
     try {
-      const singleMsg = { ...message, tokens: undefined, token: tokens[i] };
-      await admin.messaging().send(singleMsg as admin.messaging.Message);
+      await admin.messaging().send({ ...basePayload, token: tokens[i] });
       responses.push({ success: true });
       successCount++;
       console.log(`[FCM] Token ${i} sent OK`);
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
-      responses.push({ success: false, error: { code: e.code || 'unknown', message: e.message || '' } });
+      responses.push({ success: false, error: { code: e.code || "unknown", message: e.message || "" } });
       failCount++;
       console.error(`[FCM] Token ${i} error:`, e.code, e.message);
     }
