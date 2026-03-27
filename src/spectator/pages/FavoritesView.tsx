@@ -206,11 +206,15 @@ export default function FavoritesView() {
                         <input type="checkbox" checked={settings.quietHours.enabled} onChange={(e) => setQuietHours({ ...settings.quietHours, enabled: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: '#3b82f6' }} />
                       </label>
                       {settings.quietHours.enabled && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{t('spectator.favorites.notifications.quietHoursStart')}</span>
-                          <input type="time" value={settings.quietHours.start} onChange={(e) => setQuietHours({ ...settings.quietHours, start: e.target.value })} style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }} />
+                          <select value={settings.quietHours.start.split(':')[0]} onChange={(e) => setQuietHours({ ...settings.quietHours, start: `${e.target.value}:${settings.quietHours.start.split(':')[1] || '00'}` })} style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
+                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <option key={h} value={h}>{h}시</option>)}
+                          </select>
                           <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{t('spectator.favorites.notifications.quietHoursEnd')}</span>
-                          <input type="time" value={settings.quietHours.end} onChange={(e) => setQuietHours({ ...settings.quietHours, end: e.target.value })} style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }} />
+                          <select value={settings.quietHours.end.split(':')[0]} onChange={(e) => setQuietHours({ ...settings.quietHours, end: `${e.target.value}:${settings.quietHours.end.split(':')[1] || '00'}` })} style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
+                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <option key={h} value={h}>{h}시</option>)}
+                          </select>
                         </div>
                       )}
                     </div>

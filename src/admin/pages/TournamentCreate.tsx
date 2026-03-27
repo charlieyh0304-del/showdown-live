@@ -539,24 +539,50 @@ export default function TournamentCreate() {
             </div>
             <div>
               <label htmlFor="date" className="block mb-2 font-semibold text-lg">{t('admin.tournamentCreate.basicInfo.tournamentPeriod')}</label>
-              <div className="flex gap-2 items-center">
-                <input
-                  id="date"
-                  type="date"
-                  className="input flex-1"
-                  value={state.date}
-                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })}
-                  aria-label={t('admin.tournamentCreate.basicInfo.startDate')}
-                />
+              <div className="flex gap-2 items-center flex-wrap">
+                {/* 시작일 */}
+                {(() => {
+                  const [y, m, d] = (state.date || '').split('-');
+                  const curYear = new Date().getFullYear();
+                  return (
+                    <div className="flex gap-1 items-center">
+                      <select className="input text-sm" value={y || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: `${e.target.value}-${m || '01'}-${d || '01'}` })} aria-label={t('admin.tournamentCreate.basicInfo.startDate')}>
+                        <option value="">{t('common.date.year')}</option>
+                        {[curYear, curYear + 1].map(yr => <option key={yr} value={yr}>{yr}</option>)}
+                      </select>
+                      <select className="input text-sm" value={m || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: `${y || curYear}-${e.target.value}-${d || '01'}` })}>
+                        <option value="">{t('common.date.month')}</option>
+                        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mo => <option key={mo} value={mo}>{parseInt(mo)}{t('common.date.monthUnit')}</option>)}
+                      </select>
+                      <select className="input text-sm" value={d || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: `${y || curYear}-${m || '01'}-${e.target.value}` })}>
+                        <option value="">{t('common.date.day')}</option>
+                        {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(dy => <option key={dy} value={dy}>{parseInt(dy)}{t('common.date.dayUnit')}</option>)}
+                      </select>
+                    </div>
+                  );
+                })()}
                 <span className="text-gray-400">~</span>
-                <input
-                  type="date"
-                  className="input flex-1"
-                  value={state.endDate}
-                  min={state.date}
-                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: e.target.value })}
-                  aria-label={t('admin.tournamentCreate.basicInfo.endDate')}
-                />
+                {/* 종료일 */}
+                {(() => {
+                  const [y, m, d] = (state.endDate || '').split('-');
+                  const curYear = new Date().getFullYear();
+                  return (
+                    <div className="flex gap-1 items-center">
+                      <select className="input text-sm" value={y || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: `${e.target.value}-${m || '01'}-${d || '01'}` })} aria-label={t('admin.tournamentCreate.basicInfo.endDate')}>
+                        <option value="">{t('common.date.year')}</option>
+                        {[curYear, curYear + 1].map(yr => <option key={yr} value={yr}>{yr}</option>)}
+                      </select>
+                      <select className="input text-sm" value={m || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: `${y || curYear}-${e.target.value}-${d || '01'}` })}>
+                        <option value="">{t('common.date.month')}</option>
+                        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mo => <option key={mo} value={mo}>{parseInt(mo)}{t('common.date.monthUnit')}</option>)}
+                      </select>
+                      <select className="input text-sm" value={d || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: `${y || curYear}-${m || '01'}-${e.target.value}` })}>
+                        <option value="">{t('common.date.day')}</option>
+                        {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(dy => <option key={dy} value={dy}>{parseInt(dy)}{t('common.date.dayUnit')}</option>)}
+                      </select>
+                    </div>
+                  );
+                })()}
               </div>
               <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.basicInfo.oneDayHint')}</p>
             </div>

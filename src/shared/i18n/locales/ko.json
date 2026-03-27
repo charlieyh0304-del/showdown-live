@@ -194,6 +194,14 @@
       "loss": "패"
     },
 
+    "date": {
+      "year": "년",
+      "month": "월",
+      "day": "일",
+      "monthUnit": "월",
+      "dayUnit": "일"
+    },
+
     "pdf": {
       "download": "기록지 PDF",
       "generating": "PDF 생성 중...",

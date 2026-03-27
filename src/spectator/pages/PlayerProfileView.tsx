@@ -276,7 +276,11 @@ export default function PlayerProfileView() {
                   </div>
                   {Array.isArray(m.sets) && m.sets.length > 0 && (
                     <div style={{ color: '#d1d5db', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-                      {m.sets.map((s) => `${s.player1Score}-${s.player2Score}`).join(' / ')}
+                      {m.sets.map((s) => {
+                        const myScore = isP1 ? s.player1Score : s.player2Score;
+                        const oppScore = isP1 ? s.player2Score : s.player1Score;
+                        return `${myScore}-${oppScore}`;
+                      }).join(' / ')}
                     </div>
                   )}
                 </button>

@@ -194,6 +194,14 @@
       "loss": "L"
     },
 
+    "date": {
+      "year": "Year",
+      "month": "Month",
+      "day": "Day",
+      "monthUnit": "",
+      "dayUnit": ""
+    },
+
     "pdf": {
       "download": "Scoresheet PDF",
       "generating": "Generating PDF...",

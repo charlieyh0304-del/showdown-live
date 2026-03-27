@@ -720,54 +720,51 @@ function IndividualMatchCard({
 
   return (
     <div>
-      {/* Player names and scores */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {/* Player 1 */}
-        <div style={{ flex: 1 }}>
+      {/* 경기 정보: 선수명 vs 선수명 + 점수 */}
+      <div aria-label={`${match.player1Name} vs ${match.player2Name}, ${currentSetData?.player1Score ?? 0}:${currentSetData?.player2Score ?? 0}, ${t('spectator.tournament.view.setScoreDisplay', { p1: setWins.player1, p2: setWins.player2 })}`}>
+        {/* 선수 이름 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }} aria-hidden="true">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player1Name || t('referee.home.player1Default')}</span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{match.player1Name || t('referee.home.player1Default')}</span>
             {match.player1Id && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player1Id!, match.player1Name || undefined); }}
-                aria-label={isFavorite(match.player1Id) ? t('spectator.favorites.removeAriaLabel', { name: match.player1Name }) : `${match.player1Name} ☆`}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--color-primary)', padding: '0.25rem' }}
+                aria-label={isFavorite(match.player1Id) ? t('spectator.favorites.removeFavorite', { name: match.player1Name }) : t('spectator.favorites.addFavorite', { name: match.player1Name })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--color-primary)', padding: '0.125rem' }}
               >
                 {isFavorite(match.player1Id) ? '★' : '☆'}
               </button>
             )}
           </div>
-        </div>
-
-        {/* Score - with flash animation on change */}
-        <div
-          key={scoreKey}
-          className={justChanged ? 'live-score-pulse' : ''}
-          style={{ textAlign: 'center', minWidth: '140px', padding: '0.25rem 0.5rem' }}
-        >
-          <div style={{ fontSize: '3.5rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
-            <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-primary)' }}>{currentSetData?.player1Score ?? 0}</span>
-            <span style={{ color: '#9ca3af', margin: '0 0.25rem', fontSize: '2.5rem' }}>:</span>
-            <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-secondary)' }}>{currentSetData?.player2Score ?? 0}</span>
-          </div>
-          <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
-            {t('spectator.tournament.view.setScoreDisplay', { p1: setWins.player1, p2: setWins.player2 })}
-            {match.currentSet && ` ${t('spectator.tournament.view.currentSet', { set: match.currentSet })}`}
-          </div>
-        </div>
-
-        {/* Player 2 */}
-        <div style={{ flex: 1, textAlign: 'right' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
+          <span style={{ color: '#9ca3af', fontWeight: 'bold' }}>vs</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {match.player2Id && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(match.player2Id!, match.player2Name || undefined); }}
-                aria-label={isFavorite(match.player2Id) ? t('spectator.favorites.removeAriaLabel', { name: match.player2Name }) : `${match.player2Name} ☆`}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--color-primary)', padding: '0.25rem' }}
+                aria-label={isFavorite(match.player2Id) ? t('spectator.favorites.removeFavorite', { name: match.player2Name }) : t('spectator.favorites.addFavorite', { name: match.player2Name })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--color-primary)', padding: '0.125rem' }}
               >
                 {isFavorite(match.player2Id) ? '★' : '☆'}
               </button>
             )}
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{match.player2Name || t('referee.home.player2Default')}</span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{match.player2Name || t('referee.home.player2Default')}</span>
+          </div>
+        </div>
+
+        {/* 점수 */}
+        <div
+          key={scoreKey}
+          className={justChanged ? 'live-score-pulse' : ''}
+          style={{ textAlign: 'center', padding: '0.25rem 0' }}
+          aria-hidden="true"
+        >
+          <div style={{ fontSize: '3rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+            <span style={{ color: '#fff' }}>{currentSetData?.player1Score ?? 0}</span>
+            <span style={{ color: '#9ca3af', margin: '0 0.5rem', fontSize: '2rem' }}>:</span>
+            <span style={{ color: '#fff' }}>{currentSetData?.player2Score ?? 0}</span>
+          </div>
+          <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
+            {t('spectator.tournament.view.setScoreDisplay', { p1: setWins.player1, p2: setWins.player2 })}
           </div>
         </div>
       </div>

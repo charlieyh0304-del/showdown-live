@@ -2492,7 +2492,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   )}
                   {match.walkover && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
-                      {t('admin.tournamentDetail.bracketTab.walkoverBadge')}
+                      {t('admin.tournamentDetail.bracketTab.walkoverBadge')} ({match.type === 'individual'
+                        ? (match.winnerId === match.player1Id ? match.player1Name : match.player2Name)
+                        : (match.winnerId === match.team1Id ? match.team1Name : match.team2Name)} {t('spectator.playerProfile.win')})
                     </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
@@ -3124,13 +3126,28 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                   <div className="flex gap-3 flex-wrap items-end">
                     <div>
                       <label className="block text-xs text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.scheduleDateLabel')}</label>
-                      <input
-                        type="date"
-                        className="input text-sm"
-                        value={edit.scheduledDate}
-                        onChange={e => setManualEdit(match.id, 'scheduledDate', e.target.value)}
-                        aria-label={`${matchLabel} ${t('admin.tournamentDetail.scheduleTab.scheduleDateLabel')}`}
-                      />
+                      {(() => {
+                        const [y, mo, dy] = (edit.scheduledDate || '').split('-');
+                        const curYear = new Date().getFullYear();
+                        const setDate = (part: 'y' | 'm' | 'd', val: string) => {
+                          const ny = part === 'y' ? val : (y || String(curYear));
+                          const nm = part === 'm' ? val : (mo || '01');
+                          const nd = part === 'd' ? val : (dy || '01');
+                          setManualEdit(match.id, 'scheduledDate', `${ny}-${nm}-${nd}`);
+                        };
+                        return (
+                          <div className="flex gap-1">
+                            <select className="input text-sm" value={mo || ''} onChange={e => setDate('m', e.target.value)} aria-label={`${matchLabel} ${t('admin.tournamentDetail.scheduleTab.scheduleDateLabel')}`}>
+                              <option value="">{t('common.date.month')}</option>
+                              {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(m => <option key={m} value={m}>{parseInt(m)}{t('common.date.monthUnit')}</option>)}
+                            </select>
+                            <select className="input text-sm" value={dy || ''} onChange={e => setDate('d', e.target.value)}>
+                              <option value="">{t('common.date.day')}</option>
+                              {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{parseInt(d)}{t('common.date.dayUnit')}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="block text-xs text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.scheduleTimeLabel')}</label>
@@ -3624,7 +3641,9 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                   {match.actualStartTime && <span className="text-sm text-green-400">{match.actualStartTime}</span>}
                   {match.walkover && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
-                      {t('admin.tournamentDetail.bracketTab.walkoverBadge')}
+                      {t('admin.tournamentDetail.bracketTab.walkoverBadge')} ({match.type === 'individual'
+                        ? (match.winnerId === match.player1Id ? match.player1Name : match.player2Name)
+                        : (match.winnerId === match.team1Id ? match.team1Name : match.team2Name)} {t('spectator.playerProfile.win')})
                     </span>
                   )}
                   <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[match.status]}`}>
