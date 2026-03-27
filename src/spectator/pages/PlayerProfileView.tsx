@@ -323,27 +323,21 @@ function ScheduleMatchCard({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
-          {m.roundLabel && (
-            <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>
-          )}
-          {m.groupId && (
-            <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}{t('common.units.group')}</span>
-          )}
-        </div>
+        <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
         <span style={{
           fontWeight: 'bold',
           fontSize: '0.75rem',
-          color: m.status === 'in_progress' ? '#ef4444' : '#facc15',
+          padding: '0.125rem 0.5rem',
+          borderRadius: '0.25rem',
+          backgroundColor: m.status === 'in_progress' ? '#7f1d1d' : '#422006',
+          color: m.status === 'in_progress' ? '#fca5a5' : '#fde68a',
         }}>
           {m.status === 'in_progress' ? t('common.matchStatus.inProgress') : t('common.matchStatus.pending')}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#d1d5db', fontSize: '0.75rem' }}>
-        {m.scheduledDate && <span>{m.scheduledDate}</span>}
-        {m.scheduledTime && <span>{m.scheduledTime}</span>}
-        {m.courtName && <span>{m.courtName}</span>}
+      <div style={{ marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.75rem' }}>
+        {[m.scheduledDate, m.scheduledTime, m.courtName].filter(Boolean).join(' · ')}
+        {m.roundLabel && ` · ${m.roundLabel}`}
       </div>
     </button>
   );

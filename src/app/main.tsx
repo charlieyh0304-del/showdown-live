@@ -19,18 +19,7 @@ if (savedAccessibility) {
   document.documentElement.classList.add('mode-dark', 'font-normal');
 }
 
-// 1회 캐시 강제 삭제 (이전 SW가 캐시한 오래된 JS 제거)
-const cacheCleared = 'showdown_cache_cleared_v2';
-if (!localStorage.getItem(cacheCleared) && 'caches' in window) {
-  caches.keys().then(names => {
-    Promise.all(names.map(name => caches.delete(name))).then(() => {
-      localStorage.setItem(cacheCleared, '1');
-      window.location.reload();
-    });
-  });
-}
-
-// SW 업데이트 시 확인 후 새로고침 + 적극적 업데이트 체크
+// SW 업데이트 시 확인 후 새로고침
 if ('serviceWorker' in navigator) {
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -72,7 +61,7 @@ if ('serviceWorker' in navigator) {
       // 즉시 업데이트 체크
       reg.update();
       // 30초마다 업데이트 체크
-      setInterval(() => reg.update(), 30 * 1000);
+      setInterval(() => reg.update(), 5 * 60 * 1000);
       // 탭이 다시 활성화될 때 업데이트 체크
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') reg.update();
@@ -83,14 +72,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// 익명 인증 완료 후 앱 렌더링 (DB 쓰기 권한 확보)
-import { authReady } from '@shared/config/firebase';
-authReady.then(() => {
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <App />
-      </BrowserRouter>
-    </React.StrictMode>
-  );
-});
+// 앱 즉시 렌더링 (인증은 백그라운드에서 진행, DB 쓰기 시 authReady로 대기)
+import '@shared/config/firebase';
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+);

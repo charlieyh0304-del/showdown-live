@@ -13,13 +13,12 @@ cleanupOutdatedCaches();
 self.skipWaiting();
 clientsClaim();
 
-// JS/CSS: 네트워크 우선
+// JS/CSS: 캐시 우선 (Vite가 해시 파일명 사용하므로 안전)
 registerRoute(
   /\.(?:js|css)$/,
-  new NetworkFirst({
+  new CacheFirst({
     cacheName: 'app-code-cache',
-    networkTimeoutSeconds: 3,
-    plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 3600 })],
+    plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 86400 })],
   })
 );
 
