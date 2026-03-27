@@ -922,10 +922,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         </button>
                       </div>
                     </div>
-                    {/* 편집 모드에서만 상세 표시 */}
-                    {isEditing && <>
-                    {/* 팀 내 선수 목록 */}
-                    <ul className="mt-3 space-y-1">
+                    {/* 팀 멤버 목록 (항상 표시) */}
+                    <ul className="mt-2 space-y-1">
                       {(team.memberIds ?? []).map((memberId, i) => {
                         const memberName = (team.memberNames ?? [])[i] ?? memberId;
                         const player = tournamentPlayers.find(p => p.id === memberId);
@@ -936,6 +934,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                               {player?.gender === 'male' && <span className="ml-1 text-xs text-blue-400">{t('common.gender.male')}</span>}
                               {player?.gender === 'female' && <span className="ml-1 text-xs text-pink-400">{t('common.gender.female')}</span>}
                             </span>
+                            {isEditing && (
                             <button
                               className="text-red-400 hover:text-red-300 font-bold text-sm"
                               onClick={() => handleRemoveMemberFromTeam(memberId, team.id)}
@@ -943,6 +942,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                             >
                               x
                             </button>
+                            )}
                           </li>
                         );
                       })}
@@ -950,6 +950,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     {memberCount === 0 && (
                       <p className="text-gray-400 text-sm mt-2">{t('admin.tournamentDetail.playersTabInline.addMemberPlaceholder')}</p>
                     )}
+                    {/* 편집 모드에서만 추가/설정 표시 */}
+                    {isEditing && <>
                     {/* 팀 내 선수 추가 */}
                     <div className="mt-3">
                       <KoreanNameInput

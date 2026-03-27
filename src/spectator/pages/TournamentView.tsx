@@ -2519,7 +2519,10 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggl
         />
       </div>
       <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-        {t('spectator.tournament.view.playerCount', { count: filteredPlayers.length })}{playerSearch.trim() ? ` (${t('spectator.tournament.searchAriaLabel')}: "${playerSearch.trim()}")` : ''}
+        {isTeam
+          ? `총 ${filteredPlayers.length}${t('common.units.team')}`
+          : t('spectator.tournament.view.playerCount', { count: filteredPlayers.length })
+        }{playerSearch.trim() ? ` (${t('spectator.tournament.searchAriaLabel')}: "${playerSearch.trim()}")` : ''}
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {filteredPlayers.map(p => (
