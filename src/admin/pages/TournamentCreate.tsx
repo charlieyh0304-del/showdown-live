@@ -703,40 +703,40 @@ export default function TournamentCreate() {
                 role="radio"
                 aria-checked={state.tournamentMode === 'full_league_all'}
                 aria-label={`${t('admin.tournamentCreate.tournamentMode.fullLeague')}${state.tournamentMode === 'full_league_all' ? `, ${t('common.accessibility.selected')}` : ''}`}
-                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'full_league_all' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'full_league_all' ? 'border-cyan-400 bg-cyan-900/40 ring-2 ring-cyan-400/50' : 'border-gray-700 hover:border-gray-500'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'full_league_all' })}
               >
-                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.fullLeague')}</h3>
+                <h3 className="text-lg font-bold">{state.tournamentMode === 'full_league_all' && '✓ '}{t('admin.tournamentCreate.tournamentMode.fullLeague')}</h3>
                 <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.fullLeagueDescription')}</p>
               </button>
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'group_tournament'}
                 aria-label={`${t('admin.tournamentCreate.tournamentMode.groupTournament')}${state.tournamentMode === 'group_tournament' ? `, ${t('common.accessibility.selected')}` : ''}`}
-                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'group_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'group_tournament' ? 'border-cyan-400 bg-cyan-900/40 ring-2 ring-cyan-400/50' : 'border-gray-700 hover:border-gray-500'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'group_tournament' })}
               >
-                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.groupTournament')}</h3>
+                <h3 className="text-lg font-bold">{state.tournamentMode === 'group_tournament' && '✓ '}{t('admin.tournamentCreate.tournamentMode.groupTournament')}</h3>
                 <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.groupTournamentDescription')}</p>
               </button>
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'direct_tournament'}
                 aria-label={`${t('admin.tournamentCreate.tournamentMode.directTournament')}${state.tournamentMode === 'direct_tournament' ? `, ${t('common.accessibility.selected')}` : ''}`}
-                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'direct_tournament' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'direct_tournament' ? 'border-cyan-400 bg-cyan-900/40 ring-2 ring-cyan-400/50' : 'border-gray-700 hover:border-gray-500'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'direct_tournament' })}
               >
-                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.directTournament')}</h3>
+                <h3 className="text-lg font-bold">{state.tournamentMode === 'direct_tournament' && '✓ '}{t('admin.tournamentCreate.tournamentMode.directTournament')}</h3>
                 <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.directTournamentDescription')}</p>
               </button>
               <button
                 role="radio"
                 aria-checked={state.tournamentMode === 'manual'}
                 aria-label={`${t('admin.tournamentCreate.tournamentMode.manual')}${state.tournamentMode === 'manual' ? `, ${t('common.accessibility.selected')}` : ''}`}
-                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'manual' ? 'border-cyan-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
+                className={`card w-full text-left p-4 border-2 ${state.tournamentMode === 'manual' ? 'border-cyan-400 bg-cyan-900/40 ring-2 ring-cyan-400/50' : 'border-gray-700 hover:border-gray-500'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'tournamentMode', value: 'manual' })}
               >
-                <h3 className="text-lg font-bold">{t('admin.tournamentCreate.tournamentMode.manual')}</h3>
+                <h3 className="text-lg font-bold">{state.tournamentMode === 'manual' && '✓ '}{t('admin.tournamentCreate.tournamentMode.manual')}</h3>
                 <p className="text-gray-400 text-sm mt-1">{t('admin.tournamentCreate.tournamentMode.manualDescription')}</p>
               </button>
             </div>
