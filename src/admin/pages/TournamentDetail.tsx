@@ -802,34 +802,14 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         <div className="card space-y-4">
           <h3 className="text-lg font-bold">{t('admin.tournamentDetail.playersTab.addPlayerTitle')}</h3>
 
-          {/* 개별 추가 */}
-          <div className="flex gap-2">
-            <input
-              className="input flex-1"
-              value={newPlayerName}
-              onChange={e => setNewPlayerName(e.target.value)}
-              onCompositionStart={() => { composingRef.current = true; }}
-              onCompositionEnd={() => { composingRef.current = false; }}
-              placeholder={t('admin.tournamentDetail.playersTabInline.playerNamePlaceholder')}
-              aria-label={t('admin.tournamentDetail.playersTabInline.playerNameAriaLabel')}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && newPlayerName.trim()) handleAddPlayer(); }}
-            />
-            {isTeamType && (
-            <select
-              className="input w-24"
-              value={newPlayerGender}
-              onChange={e => setNewPlayerGender(e.target.value as '' | 'male' | 'female')}
-              aria-label={t('admin.tournamentDetail.playersTabInline.genderAriaLabel')}
-            >
-              <option value="">{t('admin.tournamentDetail.playersTabInline.genderLabel')}</option>
-              <option value="male">{t('admin.tournamentDetail.playersTabInline.genderMale')}</option>
-              <option value="female">{t('admin.tournamentDetail.playersTabInline.genderFemale')}</option>
-            </select>
-            )}
-            <button className="btn btn-success" onClick={handleAddPlayer} disabled={!newPlayerName.trim()} aria-label={t('admin.tournamentDetail.playersTabInline.addPlayerAriaLabel')}>
-              {t('admin.tournamentDetail.playersTabInline.addButton')}
-            </button>
-          </div>
+          {/* 개별 추가 - 비제어 컴포넌트 (한글 IME 호환) */}
+          <KoreanNameInput
+            placeholder={t('admin.tournamentDetail.playersTabInline.playerNamePlaceholder')}
+            ariaLabel={t('admin.tournamentDetail.playersTabInline.playerNameAriaLabel')}
+            onSubmit={async (name, gender) => {
+              await addTournamentPlayer({ name, gender: (gender as 'male' | 'female') || undefined });
+            }}
+          />
 
           {/* 일괄 추가 */}
           <details>
