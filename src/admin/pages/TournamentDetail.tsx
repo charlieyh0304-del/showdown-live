@@ -3620,7 +3620,8 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 <div className="flex items-center gap-2">
                   {match.courtName && <span className="text-sm text-gray-400">{match.courtName}</span>}
                   {match.scheduledDate && <span className="text-sm text-gray-500">{match.scheduledDate}</span>}
-                  {match.scheduledTime && <span className="text-sm text-cyan-400">{match.scheduledTime}</span>}
+                  {match.scheduledTime && <span className={`text-sm ${match.actualStartTime ? 'text-gray-500 line-through' : 'text-cyan-400'}`}>{match.scheduledTime}</span>}
+                  {match.actualStartTime && <span className="text-sm text-green-400">{match.actualStartTime}</span>}
                   {match.walkover && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
                       {t('admin.tournamentDetail.bracketTab.walkoverBadge')}

@@ -335,6 +335,7 @@ export interface Match {
   assistantRefereeId?: string;
   scheduledTime?: string;
   scheduledDate?: string;
+  actualStartTime?: string;
   // 비정규화 필드 (관람 모드 경량 구독용)
   courtName?: string;
   refereeName?: string;

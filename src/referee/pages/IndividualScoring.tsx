@@ -344,6 +344,10 @@ export default function IndividualScoring() {
       });
     }
 
+    // 실제 시작 시간으로 스케줄 자동 업데이트
+    const startNow = new Date();
+    const actualTime = `${String(startNow.getHours()).padStart(2, '0')}:${String(startNow.getMinutes()).padStart(2, '0')}`;
+
     const ok = await updateMatch({
       status: 'in_progress',
       sets: [createEmptySet()],
@@ -363,6 +367,7 @@ export default function IndividualScoring() {
       courtChangeByLoser,
       player1Coach: player1Coach || undefined,
       player2Coach: player2Coach || undefined,
+      actualStartTime: actualTime,
     });
     if (!ok) {
       throw new Error(t('referee.scoring.conflictError'));

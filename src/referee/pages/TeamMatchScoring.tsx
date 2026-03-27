@@ -210,6 +210,10 @@ export default function TeamMatchScoring() {
     const t1 = match.team1;
     const t2 = match.team2;
 
+    // 실제 시작 시간으로 스케줄 자동 업데이트
+    const startNow = new Date();
+    const actualTime = `${String(startNow.getHours()).padStart(2, '0')}:${String(startNow.getMinutes()).padStart(2, '0')}`;
+
     const ok = await updateMatch({
       status: 'in_progress',
       sets: [createEmptySet()],
@@ -228,6 +232,7 @@ export default function TeamMatchScoring() {
       team2PlayerOrder: t2?.memberIds || [],
       team1CurrentPlayerIndex: 0,
       team2CurrentPlayerIndex: 0,
+      actualStartTime: actualTime,
     });
     if (!ok) {
       throw new Error(t('referee.scoring.conflictError'));
