@@ -23,6 +23,7 @@ import type { SetScore, ScoreActionType, PracticeMatch } from '@shared/types';
 import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useWhistle } from '@shared/hooks/useWhistle';
 import TimerModal from '../../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../../components/ActionToast';
@@ -33,6 +34,7 @@ export default function PracticeScoring() {
   const [searchParams] = useSearchParams();
   const { addSession } = usePracticeHistory();
   const { canAct, startProcessing, done } = useDoubleClickGuard();
+  const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
 
   const PRACTICE_DESCRIPTIVE_LABELS: Record<string, string> = {
     goal: t('referee.practice.scoring.descriptiveLabels.goal'),
@@ -328,6 +330,10 @@ export default function PracticeScoring() {
     addAction({ type: 'score', player: actingPlayer, detail: `${label} (${points}${t('common.units.point')})` });
     setScoreFlash(f => f + 1);
 
+    // Whistle: goal (2pt) = goalWhistle, foul/1pt = shortWhistle
+    if (actionType === 'goal') goalWhistle();
+    else shortWhistle();
+
     const pName = scoringPlayer === 1 ? p1Name : p2Name;
     const actorName = actingPlayer === 1 ? p1Name : p2Name;
     const nextServerName = nextServe === 'player1' ? p1Name : p2Name;
@@ -390,7 +396,7 @@ export default function PracticeScoring() {
     });
 
     } finally { done(); }
-  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, startProcessing, done, sideChangeTimer, showSideChange]);
+  }, [match, config, updateMatch, addAction, p1Name, p2Name, matchType, canAct, startProcessing, done, sideChangeTimer, showSideChange, goalWhistle, shortWhistle]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(() => {
@@ -403,6 +409,7 @@ export default function PracticeScoring() {
       updateMatch({
         sets, status: 'completed', winnerId, completedAt: Date.now(),
       });
+      longWhistle(); // match end whistle
       addSession({
         id: crypto.randomUUID(),
         date: Date.now(),
@@ -421,7 +428,7 @@ export default function PracticeScoring() {
       });
     }
     setShowSetEndConfirm(false);
-  }, [match, config, updateMatch, matchType, addSession]);
+  }, [match, config, updateMatch, matchType, addSession, longWhistle]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);
@@ -580,7 +587,8 @@ export default function PracticeScoring() {
     updateMatch(up);
     addAction({ type: 'timeout', player });
     if (duration > 0) timeoutTimer.start(duration);
-  }, [match, updateMatch, addAction, p1Name, p2Name, timeoutTimer]);
+    longWhistle(); // timeout start whistle
+  }, [match, updateMatch, addAction, p1Name, p2Name, timeoutTimer, longWhistle]);
 
   // 벌점 핸들러: 경고 카운트를 scoreHistory에서 동적 계산
   // Note: canAct() is NOT called here to avoid double-guard with handleIBSAScore
@@ -626,15 +634,17 @@ export default function PracticeScoring() {
       });
       warningEntry.penaltyWarning = true;
       updateMatch({ scoreHistory: [warningEntry, ...match.scoreHistory] });
+      shortWhistle(); // warning whistle
       setLastAction(`⚠️ ${actorName} ${t('common.matchHistory.warning', { player: actorName, action: penaltyLabel })}`);
       setAnnouncement(`${actorName} ${t('common.matchHistory.warning', { player: actorName, action: penaltyLabel })}`);
     } else {
-      // 2회 이상: 2점 실점
+      // 2회 이상: 실점 (penalty_talking: 1점, others: 2점)
       const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
+      const penaltyPoints = penaltyType === 'penalty_talking' ? 1 : 2;
       const label = `${actorName} ${penaltyLabel}`;
-      handleIBSAScore(actingPlayer, penaltyType, 2, true, label);
+      handleIBSAScore(actingPlayer, penaltyType, penaltyPoints, true, label);
     }
-  }, [match, canAct, startProcessing, done, handleIBSAScore, updateMatch, p1Name, p2Name, showSideChange]);
+  }, [match, canAct, startProcessing, done, handleIBSAScore, updateMatch, p1Name, p2Name, showSideChange, shortWhistle]);
 
   // Helper: start match with full history entries (matching real match mode)
   const handleStartPracticeMatch = useCallback((firstServe: 'player1' | 'player2', withWarmup: boolean) => {
@@ -702,8 +712,11 @@ export default function PracticeScoring() {
     if (withWarmup) {
       warmupTimer.start(matchType === 'team' ? 90 : 60);
       setShowWarmup(true);
+      longWhistle(); // warmup start whistle
+    } else {
+      longWhistle(); // match start whistle
     }
-  }, [tossWinner, p1Name, p2Name, matchType, courtChangeByLoser, player1Coach, player2Coach, t1c, t2c, startMatch, updateMatch, warmupTimer]);
+  }, [tossWinner, p1Name, p2Name, matchType, courtChangeByLoser, player1Coach, player2Coach, t1c, t2c, startMatch, updateMatch, warmupTimer, longWhistle]);
 
   // ===== PENDING =====
   if (match.status === 'pending') {
@@ -867,7 +880,7 @@ export default function PracticeScoring() {
           seconds={warmupTimer.seconds}
           isWarning={warmupTimer.isWarning}
           subtitle={matchType === 'team' ? `${t('referee.home.teamMatch')} (90${t('common.time.seconds')})` : `${t('referee.practice.setup.individual')} (60${t('common.time.seconds')})`}
-          onClose={() => { warmupTimer.stop(); setShowWarmup(false); }}
+          onClose={() => { warmupTimer.stop(); setShowWarmup(false); longWhistle(); }}
           closeLabel={t('referee.practice.scoring.warmupEnd')}
         />
       )}
@@ -892,7 +905,7 @@ export default function PracticeScoring() {
           seconds={timeoutTimer.seconds}
           isWarning={timeoutTimer.isWarning}
           subtitle={match.activeTimeout.type === 'referee' ? '' : undefined}
-          onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); }}
+          onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); longWhistle(); }}
           closeLabel={t('referee.practice.scoring.timeoutEndButton')}
         />
       )}
@@ -1161,7 +1174,7 @@ export default function PracticeScoring() {
                       >
                         <span className="text-red-300 font-semibold">{t('common.scoreActions.penaltyTalking')}</span>
                         <span className="block text-xs text-gray-400 mt-0.5">
-                          {talkingTotal % 2 === 0 ? `→ ${t('referee.practice.scoring.penaltyWarningInfo')}` : `→ ${opName} +2${t('common.units.point')}`}
+                          {talkingTotal % 2 === 0 ? `→ ${t('referee.practice.scoring.penaltyWarningInfo')}` : `→ ${opName} +1${t('common.units.point')}`}
                         </span>
                       </button>
                       {penaltyActions.filter(a => !['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'].includes(a.type)).map(action => (

@@ -16,7 +16,7 @@ export default function FavoritesView() {
   const { settings, setEnabled, setTypeEnabled, setQuietHours, setPlayerSettings, getPlayerSettings } = useNotificationSettings();
   const { history: notifHistory, unreadCount, markAllAsRead, clearAll } = useNotificationHistory();
   const [showHistory, setShowHistory] = useState(false);
-  const { pushEnabled, pushSupported, enablePush, debugInfo } = usePushNotifications(favorites);
+  const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favorites);
 
   // Always call useMatches with a stable value (no conditional hooks)
   const firstActiveTournamentId = useMemo(
@@ -89,13 +89,6 @@ export default function FavoritesView() {
       <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
         {t('spectator.favorites.title')}
       </h1>
-
-      {/* 푸시 알림 디버그 */}
-      <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.75rem', color: '#94a3b8' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '0.25rem', color: '#e2e8f0' }}>푸시 알림 상태</div>
-        <div>{debugInfo}</div>
-        <div>지원: {pushSupported ? '✅' : '❌'} | 활성: {pushEnabled ? '✅' : '❌'} | 권한: {typeof Notification !== 'undefined' ? Notification.permission : 'N/A'}</div>
-      </div>
 
       {favoritePlayers.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>

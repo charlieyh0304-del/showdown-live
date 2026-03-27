@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import { countSetWins, getEffectiveGameConfig, getMaxServes } from '@shared/utils/scoring';
 import { parseTimeDisplay } from '@shared/utils/locale';
+import { useWhistle } from '@shared/hooks/useWhistle';
 import type { ScoreHistoryEntry } from '@shared/types';
 
 export default function LiveMatchView() {
@@ -15,6 +16,11 @@ export default function LiveMatchView() {
   const [announcement, setAnnouncement] = useState('');
   const [historyOrder, setHistoryOrder] = useState<'newest' | 'oldest'>('oldest');
   const prevScoreRef = useRef('');
+  const prevHistoryLenRef = useRef(0);
+  const prevStatusRef = useRef('');
+  const prevActiveTimeoutRef = useRef<boolean>(false);
+  const prevWarmupRef = useRef<boolean>(false);
+  const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
 
   const loading = mLoading || tLoading;
 
@@ -45,6 +51,57 @@ export default function LiveMatchView() {
     }
     prevScoreRef.current = scoreStr;
   }, [match]);
+
+  // Whistle sounds based on match events (via Firebase real-time)
+  useEffect(() => {
+    if (!match) return;
+    const history = Array.isArray(match.scoreHistory) ? match.scoreHistory : [];
+    const histLen = history.length;
+    const status = match.status ?? '';
+    const hasTimeout = match.activeTimeout != null;
+    const hasWarmup = match.warmupStartTime != null;
+
+    // Match start/end whistle
+    if (prevStatusRef.current && prevStatusRef.current !== status) {
+      if (status === 'in_progress' && prevStatusRef.current === 'pending') {
+        longWhistle(); // match start
+      } else if (status === 'completed') {
+        longWhistle(); // match end
+      }
+    }
+
+    // Timeout start/end whistle
+    if (hasTimeout && !prevActiveTimeoutRef.current) {
+      longWhistle(); // timeout start
+    } else if (!hasTimeout && prevActiveTimeoutRef.current) {
+      longWhistle(); // timeout end
+    }
+
+    // Warmup start/end whistle
+    if (hasWarmup && !prevWarmupRef.current) {
+      longWhistle(); // warmup start
+    } else if (!hasWarmup && prevWarmupRef.current) {
+      longWhistle(); // warmup end
+    }
+
+    // Score event whistle (detect new history entries)
+    if (prevHistoryLenRef.current > 0 && histLen > prevHistoryLenRef.current) {
+      const latest = history[0]; // newest first
+      if (latest) {
+        if (latest.actionType === 'goal' && latest.points >= 2) {
+          goalWhistle();
+        } else if (latest.points === 1 || latest.penaltyWarning) {
+          shortWhistle();
+        }
+        // Don't whistle for non-scoring meta events (handled by status/timeout/warmup above)
+      }
+    }
+
+    prevHistoryLenRef.current = histLen;
+    prevStatusRef.current = status;
+    prevActiveTimeoutRef.current = hasTimeout;
+    prevWarmupRef.current = hasWarmup;
+  }, [match, shortWhistle, longWhistle, goalWhistle]);
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite"><p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p></div>;

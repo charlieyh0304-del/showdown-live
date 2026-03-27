@@ -19,6 +19,7 @@ import { formatTime } from '@shared/utils/locale';
 import { useCountdownTimer } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
+import { useWhistle } from '@shared/hooks/useWhistle';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import TimerModal from '../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
@@ -41,6 +42,7 @@ export default function TeamMatchScoring() {
     ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
     : DEFAULT_TEAM_CONFIG;
   const { canAct, startProcessing, done } = useDoubleClickGuard();
+  const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
@@ -58,11 +60,30 @@ export default function TeamMatchScoring() {
   const [subOutIndex, setSubOutIndex] = useState<number | null>(null);
   const [subInIndex, setSubInIndex] = useState<number | null>(null);
 
+  // Team order (출전 순서)
+  const [team1Order, setTeam1Order] = useState<{ ids: string[]; names: string[] }>({ ids: [], names: [] });
+  const [team2Order, setTeam2Order] = useState<{ ids: string[]; names: string[] }>({ ids: [], names: [] });
+
   // Coin toss flow
-  const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'court_change' | 'warmup_ask'>('toss');
+  const [coinTossStep, setCoinTossStep] = useState<'team_order' | 'toss' | 'choice' | 'court_change' | 'warmup_ask'>('team_order');
   const [tossWinner, setTossWinner] = useState<'team1' | 'team2' | null>(null);
   const [courtChangeByLoser, setCourtChangeByLoser] = useState(false);
   const [pendingChoice, setPendingChoice] = useState<'serve' | 'receive' | null>(null);
+
+  // Initialize team order from match data
+  useEffect(() => {
+    if (match?.status === 'pending') {
+      const t1 = match.team1;
+      const t2 = match.team2;
+      const teamSize = tournament?.teamRules?.teamSize ?? 3;
+      if (t1?.memberIds && team1Order.ids.length === 0) {
+        setTeam1Order({ ids: t1.memberIds.slice(0, teamSize), names: (t1.memberNames ?? []).slice(0, teamSize) });
+      }
+      if (t2?.memberIds && team2Order.ids.length === 0) {
+        setTeam2Order({ ids: t2.memberIds.slice(0, teamSize), names: (t2.memberNames ?? []).slice(0, teamSize) });
+      }
+    }
+  }, [match?.status, match?.team1?.memberIds, match?.team2?.memberIds, tournament?.teamRules?.teamSize]);
 
   // Timers
   const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
@@ -206,9 +227,11 @@ export default function TeamMatchScoring() {
       },
     ];
 
-    // Set player order from team member arrays
+    // Set player order from custom order (set in team_order step)
     const t1 = match.team1;
     const t2 = match.team2;
+    const t1Order = team1Order.ids.length > 0 ? team1Order.ids : (t1?.memberIds || []);
+    const t2Order = team2Order.ids.length > 0 ? team2Order.ids : (t2?.memberIds || []);
 
     // 실제 시작 시간으로 스케줄 자동 업데이트
     const startNow = new Date();
@@ -228,8 +251,8 @@ export default function TeamMatchScoring() {
       coinTossWinner: tossWinnerVal,
       coinTossChoice: choice,
       courtChangeByLoser,
-      team1PlayerOrder: t1?.memberIds || [],
-      team2PlayerOrder: t2?.memberIds || [],
+      team1PlayerOrder: t1Order,
+      team2PlayerOrder: t2Order,
       team1CurrentPlayerIndex: 0,
       team2CurrentPlayerIndex: 0,
       actualStartTime: actualTime,
@@ -237,7 +260,8 @@ export default function TeamMatchScoring() {
     if (!ok) {
       throw new Error(t('referee.scoring.conflictError'));
     }
-  }, [match, updateMatch, courtChangeByLoser, t]);
+    longWhistle(); // match start whistle
+  }, [match, updateMatch, courtChangeByLoser, t, longWhistle]);
 
   // Warmup (team: 90 seconds)
   const handleWarmup = useCallback(() => {
@@ -262,7 +286,8 @@ export default function TeamMatchScoring() {
     });
     warmupTimer.start(90);
     setShowWarmup(true);
-  }, [match, updateMatch, warmupTimer]);
+    longWhistle(); // warmup start whistle
+  }, [match, updateMatch, warmupTimer, longWhistle]);
 
   // Pause (GAP-5: pauseHistory)
   const handlePause = useCallback(async () => {
@@ -483,9 +508,13 @@ export default function TeamMatchScoring() {
     const nextServerName = nextServe === 'player1' ? t1Name : t2Name;
     setScoreFlash(f => f + 1);
 
-    // GAP-1: server-based score order for announce and lastAction
-    const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
-    const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
+    // Whistle: goal (2pt) = goalWhistle, foul/1pt = shortWhistle
+    if (actionType === 'goal') goalWhistle();
+    else shortWhistle();
+
+    // GAP-1: server-based score order for announce and lastAction (서브권 기준)
+    const serverScore = currentServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
+    const receiverScore = currentServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
 
     const actionDesc = toOpponent
       ? `${actorName} ${label.split(' ').slice(1).join(' ')} → ${tName} +${points}${t('common.units.point')}`
@@ -509,6 +538,7 @@ export default function TeamMatchScoring() {
         ...rotationUpdate,
       });
       if (!ok1) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+      longWhistle(); // match end whistle
       if (tournamentId) autoBackupToLocal(tournamentId);
       return;
     }
@@ -535,7 +565,7 @@ export default function TeamMatchScoring() {
     if (tournamentId) autoBackupDebounced(tournamentId);
 
     } finally { done(); }
-  }, [match, gameConfig, updateMatch, canAct, startProcessing, done, sideChangeTimer, tournamentId]);
+  }, [match, gameConfig, updateMatch, canAct, startProcessing, done, sideChangeTimer, tournamentId, goalWhistle, shortWhistle, longWhistle]);
 
   // Undo (GAP-10: include serve info in announce)
   const handleUndo = useCallback(async () => {
@@ -653,7 +683,8 @@ export default function TeamMatchScoring() {
     }
     await updateMatch(up);
     if (duration > 0) timeoutTimer.start(duration);
-  }, [match, updateMatch, timeoutTimer]);
+    longWhistle(); // timeout start whistle
+  }, [match, updateMatch, timeoutTimer, longWhistle]);
 
   // 벌점 핸들러: 경고 카운트를 scoreHistory에서 동적 계산
   const handlePenalty = useCallback(async (
@@ -705,16 +736,18 @@ export default function TeamMatchScoring() {
         serverSide: match.currentServe ?? 'player1',
       };
       await updateMatch({ scoreHistory: [warningEntry, ...prevHistory] });
+      shortWhistle(); // warning whistle
       setLastAction(`⚠️ ${t('common.matchHistory.warning', { player: actorName, action: penaltyLabel })}`);
       setAnnouncement(t('common.matchHistory.warning', { player: actorName, action: penaltyLabel }));
       } finally { done(); }
     } else {
-      // 2회 이상: 2점 실점 (handleIBSAScore has its own startProcessing/done)
+      // 2회 이상: 실점 (penalty_talking: 1점, penalty_table_pushing: 2점)
       const penaltyLabel = penaltyType === 'penalty_table_pushing' ? t('common.scoreActions.penaltyTablePushing') : t('common.scoreActions.penaltyTalking');
+      const penaltyPoints = penaltyType === 'penalty_talking' ? 1 : 2;
       const label = `${actorName} ${penaltyLabel}`;
-      handleIBSAScore(actingTeam, penaltyType, 2, true, label);
+      handleIBSAScore(actingTeam, penaltyType, penaltyPoints, true, label);
     }
-  }, [match, canAct, startProcessing, done, handleIBSAScore, updateMatch]);
+  }, [match, canAct, startProcessing, done, handleIBSAScore, updateMatch, shortWhistle]);
 
   // Substitution helpers
   const teamSize = tournament?.teamRules?.teamSize ?? 3;
@@ -884,6 +917,46 @@ export default function TeamMatchScoring() {
         <p className="text-lg text-gray-400">{t('referee.practice.setup.teamRuleSummary')}</p>
         {match.courtName && <p className="text-gray-400">{t('referee.home.court')}: {match.courtName}</p>}
 
+        {coinTossStep === 'team_order' && (() => {
+          const swapOrder = (setter: typeof setTeam1Order, order: { ids: string[]; names: string[] }, i: number, dir: -1 | 1) => {
+            const j = i + dir;
+            if (j < 0 || j >= order.ids.length) return;
+            const newIds = [...order.ids];
+            const newNames = [...order.names];
+            [newIds[i], newIds[j]] = [newIds[j], newIds[i]];
+            [newNames[i], newNames[j]] = [newNames[j], newNames[i]];
+            setter({ ids: newIds, names: newNames });
+          };
+          const renderOrder = (label: string, order: { ids: string[]; names: string[] }, setter: typeof setTeam1Order, color: string) => (
+            <div>
+              <h3 className={`text-sm font-bold ${color} mb-2`}>{label}</h3>
+              <div className="space-y-1">
+                {order.names.map((name, i) => (
+                  <div key={order.ids[i] ?? i} className="flex items-center gap-2 bg-gray-700 rounded px-3 py-2">
+                    <span className="text-gray-400 text-sm w-6">{i + 1}</span>
+                    <span className="flex-1 text-white">{name}</span>
+                    <button className="text-gray-400 hover:text-white px-1" disabled={i === 0} onClick={() => swapOrder(setter, order, i, -1)} style={{ minHeight: '36px', minWidth: '36px' }}>▲</button>
+                    <button className="text-gray-400 hover:text-white px-1" disabled={i === order.names.length - 1} onClick={() => swapOrder(setter, order, i, 1)} style={{ minHeight: '36px', minWidth: '36px' }}>▼</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+          return (
+            <div className="card w-full max-w-md space-y-4">
+              <h2 className="text-xl font-bold text-center">{t('referee.scoring.teamOrderTitle')}</h2>
+              <p className="text-sm text-gray-400 text-center">{t('referee.practice.setup.memberInfo', { reserve: '' })}</p>
+              {renderOrder(team1Name, team1Order, setTeam1Order, 'text-yellow-400')}
+              {renderOrder(team2Name, team2Order, setTeam2Order, 'text-cyan-400')}
+              <button
+                className="btn btn-primary btn-large w-full"
+                onClick={() => setCoinTossStep('toss')}
+              >
+                {t('referee.scoring.teamOrderConfirm')}
+              </button>
+            </div>
+          );
+        })()}
         {coinTossStep === 'toss' && (
           <div className="card w-full max-w-md space-y-4">
             <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
@@ -895,6 +968,9 @@ export default function TeamMatchScoring() {
                 {team2Name}
               </button>
             </div>
+            <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('team_order')} style={{ minHeight: '44px' }}>
+              {t('common.back')}
+            </button>
           </div>
         )}
         {coinTossStep === 'choice' && tossWinner && (
@@ -957,6 +1033,7 @@ export default function TeamMatchScoring() {
                     alert(String(err));
                     return;
                   }
+                  await updateMatch({ warmupUsed: true });
                   warmupTimer.start(90);
                   setShowWarmup(true);
                 }}
@@ -1087,7 +1164,7 @@ export default function TeamMatchScoring() {
           seconds={warmupTimer.seconds}
           isWarning={warmupTimer.isWarning}
           subtitle={`${t('referee.home.teamMatch')} ${t('referee.scoring.warmupStart')} (90${t('common.time.seconds')})`}
-          onClose={() => { warmupTimer.stop(); setShowWarmup(false); }}
+          onClose={() => { warmupTimer.stop(); setShowWarmup(false); longWhistle(); }}
           closeLabel={t('common.done')}
         />
       )}
@@ -1112,7 +1189,7 @@ export default function TeamMatchScoring() {
           seconds={timeoutTimer.seconds}
           isWarning={timeoutTimer.isWarning}
           subtitle={match.activeTimeout.type === 'referee' ? '' : (match.activeTimeout.playerId === match.team1Id ? team1Name : team2Name)}
-          onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); }}
+          onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); longWhistle(); }}
           closeLabel={t('referee.scoring.timeoutEnd')}
         />
       )}
@@ -1325,94 +1402,99 @@ export default function TeamMatchScoring() {
                 <span className="text-xs opacity-75">→ {team1Name} +2{t('common.units.point')}</span>
               </button>
             </div>
-            {/* penalty_talking: 1회 경고 → 2회 2점 */}
+            {/* penalty_talking: 1회 경고 → 2회 1점 */}
             <div className="grid grid-cols-2 gap-2">
               <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
                 disabled={scoringDisabled}
                 onClick={() => handlePenalty(1, 'penalty_talking')}
                 aria-label={t('referee.scoring.penaltyAriaLabel', { name: team1Name, action: t('common.scoreActions.penaltyTalking'), opponent: team2Name })}>
                 {team1Name} {t('common.scoreActions.penaltyTalking')}<br/>
-                <span className="text-xs opacity-75">+2{t('common.units.point')}</span>
+                <span className="text-xs opacity-75">+1{t('common.units.point')}</span>
               </button>
               <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3"
                 disabled={scoringDisabled}
                 onClick={() => handlePenalty(2, 'penalty_talking')}
                 aria-label={t('referee.scoring.penaltyAriaLabel', { name: team2Name, action: t('common.scoreActions.penaltyTalking'), opponent: team1Name })}>
                 {team2Name} {t('common.scoreActions.penaltyTalking')}<br/>
-                <span className="text-xs opacity-75">+2{t('common.units.point')}</span>
+                <span className="text-xs opacity-75">+1{t('common.units.point')}</span>
               </button>
             </div>
           </div>
         </div>
+
+        {/* 선수 타임아웃 (1분, 1회) */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="btn btn-secondary text-sm py-3"
+            onClick={() => handleTimeout(1, 'player')}
+            disabled={t1TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={t('referee.scoring.timeoutAriaLabel', { name: team1Name, type: t('referee.scoring.timeoutTitle.player'), duration: '1m', remaining: 1 - t1TimeoutsUsed })}
+          >
+            ⏱️ {team1Name} {t('referee.scoring.timeoutTitle.player')}
+            <span className="block text-xs opacity-75">1m | {1 - t1TimeoutsUsed}</span>
+          </button>
+          <button
+            className="btn btn-secondary text-sm py-3"
+            onClick={() => handleTimeout(2, 'player')}
+            disabled={t2TimeoutsUsed >= 1 || !!match.activeTimeout}
+            aria-label={t('referee.scoring.timeoutAriaLabel', { name: team2Name, type: t('referee.scoring.timeoutTitle.player'), duration: '1m', remaining: 1 - t2TimeoutsUsed })}
+          >
+            ⏱️ {team2Name} {t('referee.scoring.timeoutTitle.player')}
+            <span className="block text-xs opacity-75">1m | {1 - t2TimeoutsUsed}</span>
+          </button>
+        </div>
+
+        {/* 메디컬 타임아웃 (5분, 1회) */}
+        {(() => {
+          const med1Used = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === team1Name).length;
+          const med2Used = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === team2Name).length;
+          return (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-3"
+                onClick={() => handleTimeout(1, 'medical')}
+                disabled={!!match.activeTimeout || med1Used >= 1}
+                aria-label={t('referee.scoring.timeoutAriaLabel', { name: team1Name, type: t('referee.scoring.timeoutTitle.medical'), duration: '5m', remaining: 1 - med1Used })}
+              >
+                🏥 {t('referee.scoring.timeoutMedicalLabel', { name: team1Name })}
+                <span className="block text-xs opacity-75">{med1Used >= 1 ? '-' : t('referee.scoring.timeoutDurationInfo', { duration: '5m', remaining: 1 })}</span>
+              </button>
+              <button
+                className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-3"
+                onClick={() => handleTimeout(2, 'medical')}
+                disabled={!!match.activeTimeout || med2Used >= 1}
+                aria-label={t('referee.scoring.timeoutAriaLabel', { name: team2Name, type: t('referee.scoring.timeoutTitle.medical'), duration: '5m', remaining: 1 - med2Used })}
+              >
+                🏥 {t('referee.scoring.timeoutMedicalLabel', { name: team2Name })}
+                <span className="block text-xs opacity-75">{med2Used >= 1 ? '-' : t('referee.scoring.timeoutDurationInfo', { duration: '5m', remaining: 1 })}</span>
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* 레프리 타임아웃 (제한없음) */}
+        <button
+          className="btn bg-yellow-800 hover:bg-yellow-700 text-white text-sm py-3 w-full"
+          onClick={() => handleTimeout(1, 'referee')}
+          disabled={!!match.activeTimeout}
+          aria-label={t('referee.scoring.timeoutRefereeAriaLabel')}
+        >
+          🟨 {t('referee.scoring.timeoutTitle.referee')}
+        </button>
 
         <div className="flex gap-3">
           <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0} aria-label={t('common.cancel')}>↩️ {t('common.cancel')}</button>
         </div>
 
-        {/* 타임아웃 (3종류) */}
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">⏱️ {t('common.matchHistory.timeout', { player: '' })}</h3>
-          <div className="space-y-2">
-            {/* {t('referee.scoring.timeoutTitle.player')} (1분, 1회) */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                className="btn btn-secondary text-sm py-3"
-                onClick={() => handleTimeout(1, 'player')}
-                disabled={t1TimeoutsUsed >= 1 || !!match.activeTimeout}
-                aria-label={t('referee.scoring.timeoutAriaLabel', { name: team1Name, type: t('referee.scoring.timeoutTitle.player'), duration: '1m', remaining: 1 - t1TimeoutsUsed })}
-              >
-                ⏱️ {team1Name} {t('referee.scoring.timeoutTitle.player')}
-                <span className="block text-xs opacity-75">1m | {1 - t1TimeoutsUsed}</span>
-              </button>
-              <button
-                className="btn btn-secondary text-sm py-3"
-                onClick={() => handleTimeout(2, 'player')}
-                disabled={t2TimeoutsUsed >= 1 || !!match.activeTimeout}
-                aria-label={t('referee.scoring.timeoutAriaLabel', { name: team2Name, type: t('referee.scoring.timeoutTitle.player'), duration: '1m', remaining: 1 - t2TimeoutsUsed })}
-              >
-                ⏱️ {team2Name} {t('referee.scoring.timeoutTitle.player')}
-                <span className="block text-xs opacity-75">1m | {1 - t2TimeoutsUsed}</span>
-              </button>
-            </div>
-            {/* {t('referee.scoring.timeoutTitle.medical')} (5분, 1회) */}
-            {(() => {
-              const med1Used = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === team1Name).length;
-              const med2Used = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === team2Name).length;
-              return (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-3"
-                    onClick={() => handleTimeout(1, 'medical')}
-                    disabled={!!match.activeTimeout || med1Used >= 1}
-                    aria-label={t('referee.scoring.timeoutAriaLabel', { name: team1Name, type: t('referee.scoring.timeoutTitle.medical'), duration: '5m', remaining: 1 - med1Used })}
-                  >
-                    🏥 {t('referee.scoring.timeoutMedicalLabel', { name: team1Name })}
-                    <span className="block text-xs opacity-75">{med1Used >= 1 ? '-' : t('referee.scoring.timeoutDurationInfo', { duration: '5m', remaining: 1 })}</span>
-                  </button>
-                  <button
-                    className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-3"
-                    onClick={() => handleTimeout(2, 'medical')}
-                    disabled={!!match.activeTimeout || med2Used >= 1}
-                    aria-label={t('referee.scoring.timeoutAriaLabel', { name: team2Name, type: t('referee.scoring.timeoutTitle.medical'), duration: '5m', remaining: 1 - med2Used })}
-                  >
-                    🏥 {t('referee.scoring.timeoutMedicalLabel', { name: team2Name })}
-                    <span className="block text-xs opacity-75">{med2Used >= 1 ? '-' : t('referee.scoring.timeoutDurationInfo', { duration: '5m', remaining: 1 })}</span>
-                  </button>
-                </div>
-              );
-            })()}
-            {/* {t('referee.scoring.timeoutTitle.referee')} (제한없음) */}
-            <button
-              className="btn bg-yellow-800 hover:bg-yellow-700 text-white text-sm py-3 w-full"
-              onClick={() => handleTimeout(1, 'referee')}
-              disabled={!!match.activeTimeout}
-              aria-label={t('referee.scoring.timeoutRefereeAriaLabel')}
-            >
-              🟨 {t('referee.scoring.timeoutTitle.referee')}
-              <span className="block text-xs opacity-75">-</span>
-            </button>
-          </div>
-        </div>
+        {/* Dead Ball - 서브권 기준 단일 버튼 */}
+        <button
+          className="btn bg-purple-700 hover:bg-purple-600 text-white w-full"
+          disabled={scoringDisabled || match.status !== 'in_progress'}
+          onClick={() => handleDeadBall(currentServe === 'player1' ? 1 : 2)}
+          aria-label={t('common.matchHistory.deadBall', { server: serverName })}
+        >
+          🔵 {t('common.matchHistory.deadBall', { server: serverName })}
+        </button>
 
         {/* Substitution ({t('common.matchHistory.substitution')}) */}
         {(hasReserves(1) || hasReserves(2)) && (
@@ -1445,26 +1527,6 @@ export default function TeamMatchScoring() {
             )}
           </div>
         )}
-
-        {/* Dead Ball - 양쪽 모두 가능 */}
-        <div className="flex gap-3">
-          <button
-            className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
-            disabled={scoringDisabled || match.status !== 'in_progress'}
-            onClick={() => handleDeadBall(1)}
-            aria-label={t('common.matchHistory.deadBall', { server: team1Name })}
-          >
-            🔵 {team1Name}
-          </button>
-          <button
-            className="btn flex-1 bg-purple-700 hover:bg-purple-600 text-white"
-            disabled={scoringDisabled || match.status !== 'in_progress'}
-            onClick={() => handleDeadBall(2)}
-            aria-label={t('common.matchHistory.deadBall', { server: team2Name })}
-          >
-            🔵 {team2Name}
-          </button>
-        </div>
 
         {/* Warmup + Pause */}
         <div className="flex gap-3">

@@ -330,11 +330,9 @@ export default function TournamentDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-yellow-400">{tournament.name}</h1>
-          <p className="text-gray-400 mt-1">{tournament.date}{tournament.endDate ? ` ~ ${tournament.endDate}` : ''} | {tournament.type === 'individual' ? t('admin.tournamentDetail.header.typeIndividual') : tournament.type === 'team' ? t('admin.tournamentDetail.header.typeTeam') : t('admin.tournamentDetail.header.typeRandomTeamLeague')}</p>
-        </div>
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-bold text-yellow-400">{tournament.name}</h1>
+        <p className="text-gray-400">{tournament.date}{tournament.endDate ? ` ~ ${tournament.endDate}` : ''} | {tournament.type === 'individual' ? t('admin.tournamentDetail.header.typeIndividual') : tournament.type === 'team' ? t('admin.tournamentDetail.header.typeTeam') : t('admin.tournamentDetail.header.typeRandomTeamLeague')}</p>
         <button className="btn btn-secondary" onClick={() => navigate('/admin')} aria-label={t('common.back')}>
           {t('common.back')}
         </button>
@@ -416,7 +414,7 @@ export default function TournamentDetail() {
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap border-b border-gray-700 pb-2" role="tablist" aria-label={t('admin.tournamentDetail.tabListAriaLabel')} onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const idx = TAB_KEYS.findIndex(tk => tk.key === activeTab); const next = e.key === 'ArrowRight' ? (idx + 1) % TAB_KEYS.length : (idx - 1 + TAB_KEYS.length) % TAB_KEYS.length; setActiveTab(TAB_KEYS[next].key); e.currentTarget.querySelector<HTMLElement>(`#tab-${TAB_KEYS[next].key}`)?.focus(); } }}>
+      <div className="flex gap-2 flex-wrap justify-center border-b border-gray-700 pb-2" role="tablist" aria-label={t('admin.tournamentDetail.tabListAriaLabel')} onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const idx = TAB_KEYS.findIndex(tk => tk.key === activeTab); const next = e.key === 'ArrowRight' ? (idx + 1) % TAB_KEYS.length : (idx - 1 + TAB_KEYS.length) % TAB_KEYS.length; setActiveTab(TAB_KEYS[next].key); e.currentTarget.querySelector<HTMLElement>(`#tab-${TAB_KEYS[next].key}`)?.focus(); } }}>
         {TAB_KEYS.map(tab => (
           <button
             key={tab.key}
@@ -584,8 +582,6 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const { t } = useTranslation();
   const [generating, setGenerating] = useState(false);
   const [showGlobalModal, setShowGlobalModal] = useState(false);
-  const [newPlayerName, setNewPlayerName] = useState('');
-  const [newPlayerGender, setNewPlayerGender] = useState<'' | 'male' | 'female'>('');
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
@@ -693,13 +689,6 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const saveSeeds = async () => {
     await updateTournament({ seeds });
   };
-
-  const handleAddPlayer = useCallback(async () => {
-    if (!newPlayerName.trim()) return;
-    await addTournamentPlayer({ name: newPlayerName.trim(), gender: newPlayerGender || undefined });
-    setNewPlayerName('');
-    setNewPlayerGender('');
-  }, [newPlayerName, newPlayerGender, addTournamentPlayer]);
 
   const handleBulkAdd = useCallback(async () => {
     const names = bulkNames.split('\n').map(n => n.trim()).filter(n => n);
