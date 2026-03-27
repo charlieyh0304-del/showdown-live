@@ -89,6 +89,7 @@ async function registerAndGetToken(): Promise<string | null> {
 export function usePushNotifications(favorites: FavEntry[]) {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<string>('초기화 중...');
   const tokenRef = useRef<string | null>(null);
   const prevFavRef = useRef<string>('');
   const initDone = useRef(false);
@@ -103,19 +104,28 @@ export function usePushNotifications(favorites: FavEntry[]) {
       'Notification' in window;
     setPushSupported(supported);
 
-    if (!supported || Notification.permission !== 'granted') return;
+    if (!supported) { setDebugInfo('❌ 푸시 미지원 브라우저'); return; }
+    if (Notification.permission !== 'granted') { setDebugInfo(`⚠️ 알림 권한: ${Notification.permission}`); return; }
 
+    setDebugInfo('🔄 토큰 발급 중...');
     (async () => {
       try {
+        if (!VAPID_KEY) { setDebugInfo('❌ VAPID key 없음'); return; }
+        setDebugInfo(`🔑 VAPID: ${VAPID_KEY.slice(0, 10)}...`);
         const token = await registerAndGetToken();
         if (token) {
           tokenRef.current = token;
           localStorage.setItem(TOKEN_KEY, token);
           setPushEnabled(true);
+          setDebugInfo(`✅ 토큰: ${token.slice(0, 15)}... 동기화 중...`);
           await syncSubscription(token, favorites);
+          setDebugInfo(`✅ 동기화 완료 (즐겨찾기 ${favorites.length}명)`);
+        } else {
+          setDebugInfo('❌ 토큰 발급 실패 (null)');
         }
       } catch (err) {
-        console.error('[Push] Auto-init failed:', err);
+        const msg = err instanceof Error ? err.message : String(err);
+        setDebugInfo(`❌ 오류: ${msg.slice(0, 80)}`);
         const savedToken = localStorage.getItem(TOKEN_KEY);
         if (savedToken) {
           tokenRef.current = savedToken;
@@ -179,5 +189,5 @@ export function usePushNotifications(favorites: FavEntry[]) {
     }
   }, [pushEnabled]);
 
-  return { pushEnabled, pushSupported, enablePush };
+  return { pushEnabled, pushSupported, enablePush, debugInfo };
 }
