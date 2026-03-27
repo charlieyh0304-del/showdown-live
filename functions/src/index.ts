@@ -152,9 +152,14 @@ async function sendToSubscriptions(
 }
 
 // Helper to get player display info for a subscription
-function getPlayerInfo(match: Match, favoriteIds: string[]) {
+function getPlayerInfo(match: Match, favoriteIds: string[], favoriteNames?: string[]) {
   const participants = getMatchParticipants(match);
-  const favId = favoriteIds.find((id) => participants.includes(id));
+  // ID 매칭
+  let favId = favoriteIds.find((id) => participants.includes(id));
+  // 이름 매칭 폴백
+  if (!favId && favoriteNames) {
+    favId = favoriteNames.find((name) => participants.includes(name));
+  }
   if (!favId) return null;
 
   const isP1 = favId === match.player1Id || favId === match.player1Name ||
@@ -208,7 +213,7 @@ export const onMatchChange = onValueUpdated(
       // Send personalized notifications per subscription
       const matchLink = `/spectator/match/${tournamentId}/${matchId}`;
       for (const sub of subs) {
-        const info = getPlayerInfo(after, sub.favoriteIds);
+        const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
         if (!info) continue;
         const courtInfo = after.courtName ? ` (${after.courtName})` : "";
         await sendToSubscriptions([sub], {
@@ -230,7 +235,7 @@ export const onMatchChange = onValueUpdated(
 
       const resultLink = `/spectator/match/${tournamentId}/${matchId}`;
       for (const sub of subs) {
-        const info = getPlayerInfo(after, sub.favoriteIds);
+        const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
         if (!info) continue;
 
         const won = info.isP1
@@ -369,7 +374,7 @@ export const preMatchNotify = onSchedule(
 
             const preMatchLink = `/spectator/match/${tid}/${matchId}`;
             for (const sub of subs) {
-              const info = getPlayerInfo(match, sub.favoriteIds);
+              const info = getPlayerInfo(match, sub.favoriteIds, sub.favoriteNames);
               if (!info) continue;
               const courtInfo = match.courtName ? ` (${match.courtName})` : "";
               await sendToSubscriptions([sub], {
