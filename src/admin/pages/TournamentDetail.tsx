@@ -507,100 +507,62 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
   placeholder?: string;
   ariaLabel?: string;
 }) {
-  const { t: tFn } = useTranslation();
-  const tRef = useRef(tFn);
-  tRef.current = tFn;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const onSubmitRef = useRef(onSubmit);
-  onSubmitRef.current = onSubmit;
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [gender, setGender] = useState('');
+  const composingRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  const submit = useCallback(() => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed, gender);
+    setName('');
+    setGender('');
+    inputRef.current?.focus();
+  }, [name, gender, onSubmit]);
 
-    // 순수 DOM 생성 - React가 전혀 모르는 요소들
-    container.innerHTML = '';
-
-    const wrapper = document.createElement('div');
-    wrapper.style.display = 'flex';
-    wrapper.style.gap = '4px';
-
-    const input = document.createElement('input');
-    input.className = 'input';
-    input.style.flex = '1';
-    input.style.fontSize = '0.875rem';
-    const t = tRef.current;
-    input.placeholder = placeholder || t('admin.tournamentDetail.koreanInput.playerNamePlaceholder');
-    if (ariaLabel) input.setAttribute('aria-label', ariaLabel);
-
-    const select = document.createElement('select');
-    select.className = 'input';
-    select.style.width = '64px';
-    select.style.fontSize = '0.875rem';
-    select.setAttribute('aria-label', t('admin.tournamentDetail.koreanInput.genderAriaLabel'));
-    select.innerHTML = `<option value="">${t('admin.tournamentDetail.koreanInput.genderLabel')}</option><option value="male">${t('admin.tournamentDetail.koreanInput.genderMale')}</option><option value="female">${t('admin.tournamentDetail.koreanInput.genderFemale')}</option>`;
-
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-success';
-    btn.style.fontSize = '0.875rem';
-    btn.style.padding = '0.5rem 0.75rem';
-    btn.textContent = '+';
-    btn.type = 'button';
-    btn.setAttribute('aria-label', t('admin.tournamentDetail.koreanInput.addPlayerAriaLabel'));
-
-    let composing = false;
-
-    const submit = () => {
-      // compositionend 직후 value가 아직 업데이트되지 않을 수 있으므로 약간 대기
-      setTimeout(() => {
-        const name = input.value.trim();
-        if (!name) return;
-        onSubmitRef.current(name, select.value || '');
-        input.value = '';
-        select.value = '';
-        input.focus();
-      }, 10);
-    };
-
-    input.addEventListener('compositionstart', () => { composing = true; });
-    input.addEventListener('compositionend', () => {
-      composing = false;
-    });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        if (composing) {
-          // IME 조합 중 Enter → 조합 완료 대기 후 제출
-          const handler = () => {
-            input.removeEventListener('compositionend', handler);
+  return (
+    <div style={{ display: 'flex', gap: '4px' }}>
+      <input
+        ref={inputRef}
+        className="input"
+        style={{ flex: 1, fontSize: '0.875rem' }}
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onCompositionStart={() => { composingRef.current = true; }}
+        onCompositionEnd={() => { composingRef.current = false; }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !composingRef.current) {
+            e.preventDefault();
             submit();
-          };
-          input.addEventListener('compositionend', handler);
-        } else {
-          e.preventDefault();
-          submit();
-        }
-      }
-    });
-    btn.addEventListener('click', () => {
-      if (composing) {
-        // 버튼 클릭 시 조합 중이면 blur→focus로 조합 완료 후 제출
-        input.blur();
-        input.focus();
-        setTimeout(submit, 50);
-      } else {
-        submit();
-      }
-    });
-
-    wrapper.appendChild(input);
-    wrapper.appendChild(select);
-    wrapper.appendChild(btn);
-    container.appendChild(wrapper);
-
-    return () => { container.innerHTML = ''; };
-  }, []); // 마운트 1회만
-
-  return <div ref={containerRef} />;
+          }
+        }}
+        placeholder={placeholder || t('admin.tournamentDetail.koreanInput.playerNamePlaceholder')}
+        aria-label={ariaLabel}
+      />
+      <select
+        className="input"
+        style={{ width: '64px', fontSize: '0.875rem' }}
+        value={gender}
+        onChange={e => setGender(e.target.value)}
+        aria-label={t('admin.tournamentDetail.koreanInput.genderAriaLabel')}
+      >
+        <option value="">{t('admin.tournamentDetail.koreanInput.genderLabel')}</option>
+        <option value="male">{t('admin.tournamentDetail.koreanInput.genderMale')}</option>
+        <option value="female">{t('admin.tournamentDetail.koreanInput.genderFemale')}</option>
+      </select>
+      <button
+        type="button"
+        className="btn btn-success"
+        style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
+        onClick={submit}
+        aria-label={t('admin.tournamentDetail.koreanInput.addPlayerAriaLabel')}
+      >
+        +
+      </button>
+    </div>
+  );
 }
 
 // ========================
