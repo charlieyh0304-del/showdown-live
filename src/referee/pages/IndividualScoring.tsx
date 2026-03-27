@@ -1065,31 +1065,37 @@ export default function IndividualScoring() {
 
   // ===== COMPLETED =====
   if (match.status === 'completed') {
-    const winnerName = match.winnerId === match.player1Id ? player1Name : player2Name;
+    const isP2Winner = match.winnerId === match.player2Id;
+    const winnerName = isP2Winner ? player2Name : player1Name;
+    const loserName = isP2Winner ? player1Name : player2Name;
     const setWins = Array.isArray(match.sets) && match.sets.length > 0 ? countSetWins(match.sets, gameConfig) : { player1: 0, player2: 0 };
+    const winSets = isP2Winner ? setWins.player2 : setWins.player1;
+    const loseSets = isP2Winner ? setWins.player1 : setWins.player2;
     const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     return (
       <div className="min-h-screen flex flex-col p-4">
         <div className="text-center mb-4">
           <h1 className="text-3xl font-bold text-yellow-400">{t('common.matchStatus.completed')}</h1>
           <div className="text-4xl font-bold text-green-400 mt-2" role="status" aria-live="assertive">🏆 {winnerName}!</div>
-          <div className="text-2xl text-gray-300 mt-1" aria-label={`${t('common.units.set')} ${setWins.player1} : ${setWins.player2}`}>{t('common.units.set')}: {setWins.player1} - {setWins.player2}</div>
+          <div className="text-2xl text-gray-300 mt-1" aria-label={`${t('common.units.set')} ${winSets} : ${loseSets}`}>{t('common.units.set')}: {winSets} - {loseSets}</div>
         </div>
-        {/* 세트별 결과 */}
+        {/* 세트별 결과 - 승자 점수가 먼저 */}
         {match.sets && match.sets.length > 0 && (
           <div className="w-full max-w-lg mx-auto mb-4">
             <div className="grid grid-cols-1 gap-2">
               {match.sets.map((s: SetScore, i: number) => {
-                const winner = s.player1Score > s.player2Score ? player1Name : player2Name;
+                const setWinScore = isP2Winner ? s.player2Score : s.player1Score;
+                const setLoseScore = isP2Winner ? s.player1Score : s.player2Score;
+                const setWinnerName = s.player1Score > s.player2Score ? player1Name : player2Name;
                 return (
-                  <div key={i} className="flex justify-between items-center bg-gray-800 rounded px-4 py-2" aria-label={`${t('common.matchHistory.setLabel', { num: i + 1 })}: ${player1Name} ${s.player1Score} : ${player2Name} ${s.player2Score}`}>
+                  <div key={i} className="flex justify-between items-center bg-gray-800 rounded px-4 py-2" aria-label={`${t('common.matchHistory.setLabel', { num: i + 1 })}: ${winnerName} ${setWinScore} : ${loserName} ${setLoseScore}`}>
                     <span className="text-sm text-gray-400">{t('common.matchHistory.setLabel', { num: i + 1 })}</span>
                     <span className="text-lg font-bold">
-                      <span className="text-yellow-400">{s.player1Score}</span>
+                      <span className="text-green-400">{setWinScore}</span>
                       <span className="text-gray-400"> - </span>
-                      <span className="text-cyan-400">{s.player2Score}</span>
+                      <span className="text-gray-300">{setLoseScore}</span>
                     </span>
-                    <span className="text-sm text-green-400">🏆 {winner}</span>
+                    <span className="text-sm text-green-400">🏆 {setWinnerName}</span>
                   </div>
                 );
               })}

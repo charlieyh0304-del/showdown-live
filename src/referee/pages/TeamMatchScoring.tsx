@@ -1007,8 +1007,12 @@ export default function TeamMatchScoring() {
 
   // ===== COMPLETED (GAP-14: showAll) =====
   if (match.status === 'completed') {
-    const winnerName = match.winnerId === match.team1Id ? team1Name : team2Name;
+    const isT2Winner = match.winnerId === match.team2Id;
+    const winnerName = isT2Winner ? team2Name : team1Name;
+    const loserName = isT2Winner ? team1Name : team2Name;
     const finalSet = match.sets?.[0];
+    const winScore = finalSet ? (isT2Winner ? finalSet.player2Score : finalSet.player1Score) : 0;
+    const loseScore = finalSet ? (isT2Winner ? finalSet.player1Score : finalSet.player2Score) : 0;
     const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     return (
       <div className="min-h-screen flex flex-col p-4">
@@ -1017,14 +1021,14 @@ export default function TeamMatchScoring() {
           <div className="text-4xl font-bold text-green-400 mt-2" role="status" aria-live="assertive">🏆 {winnerName}!</div>
           {finalSet && (
             <div className="mt-2">
-              <div className="inline-flex items-center bg-gray-800 rounded-lg px-6 py-3 gap-4" aria-label={`${t('common.matchHistory.score')} ${team1Name} ${finalSet.player1Score} : ${team2Name} ${finalSet.player2Score}`}>
-                <span className="text-lg text-gray-300">{team1Name}</span>
+              <div className="inline-flex items-center bg-gray-800 rounded-lg px-6 py-3 gap-4" aria-label={`${t('common.matchHistory.score')} ${winnerName} ${winScore} : ${loserName} ${loseScore}`}>
+                <span className="text-lg text-gray-300">{winnerName}</span>
                 <span className="text-3xl font-bold">
-                  <span className="text-yellow-400">{finalSet.player1Score}</span>
+                  <span className="text-green-400">{winScore}</span>
                   <span className="text-gray-400"> - </span>
-                  <span className="text-cyan-400">{finalSet.player2Score}</span>
+                  <span className="text-gray-300">{loseScore}</span>
                 </span>
-                <span className="text-lg text-gray-300">{team2Name}</span>
+                <span className="text-lg text-gray-300">{loserName}</span>
               </div>
             </div>
           )}
