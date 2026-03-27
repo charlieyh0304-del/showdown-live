@@ -19,6 +19,17 @@ if (savedAccessibility) {
   document.documentElement.classList.add('mode-dark', 'font-normal');
 }
 
+// 1회 캐시 강제 삭제 (이전 SW가 캐시한 오래된 JS 제거)
+const cacheCleared = 'showdown_cache_cleared_v2';
+if (!localStorage.getItem(cacheCleared) && 'caches' in window) {
+  caches.keys().then(names => {
+    Promise.all(names.map(name => caches.delete(name))).then(() => {
+      localStorage.setItem(cacheCleared, '1');
+      window.location.reload();
+    });
+  });
+}
+
 // SW 업데이트 시 확인 후 새로고침 + 적극적 업데이트 체크
 if ('serviceWorker' in navigator) {
   let refreshing = false;
