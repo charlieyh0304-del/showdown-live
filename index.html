@@ -13,9 +13,28 @@
       })();
     </script>
     <meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
+    <script>
+      // 강제 캐시 무효화 (SW 캐시 포함) - 버전이 바뀌면 1회 실행
+      (function() {
+        var v = 'showdown_cache_v4';
+        if (!localStorage.getItem(v) && 'caches' in window) {
+          caches.keys().then(function(names) {
+            return Promise.all(names.map(function(n) { return caches.delete(n); }));
+          }).then(function() {
+            if (navigator.serviceWorker) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                regs.forEach(function(r) { r.unregister(); });
+                localStorage.setItem(v, '1');
+                location.reload();
+              });
+            } else {
+              localStorage.setItem(v, '1');
+              location.reload();
+            }
+          });
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Showdown - Tournament Management for Visually Impaired Table Sport">
     <meta name="theme-color" content="#000000">
@@ -24,9 +43,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="쇼다운">
     <link rel="apple-touch-icon" href="/icons/icon-152.png">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
     <title>Showdown</title>
     <script>
       // 1) 이전 커스텀 service-worker.js 강제 해제 (showdown-v* 캐시 사용하던 SW)
