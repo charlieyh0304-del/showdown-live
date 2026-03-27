@@ -13,6 +13,16 @@ cleanupOutdatedCaches();
 self.skipWaiting();
 clientsClaim();
 
+// HTML (navigation): 항상 네트워크 우선 (최신 JS 해시 참조 보장)
+registerRoute(
+  ({ request }) => request.mode === 'navigate',
+  new NetworkFirst({
+    cacheName: 'html-cache',
+    networkTimeoutSeconds: 3,
+    plugins: [new ExpirationPlugin({ maxEntries: 5, maxAgeSeconds: 86400 })],
+  })
+);
+
 // JS/CSS: 캐시 우선 (Vite가 해시 파일명 사용하므로 안전)
 registerRoute(
   /\.(?:js|css)$/,
