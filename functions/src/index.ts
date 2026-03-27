@@ -346,12 +346,13 @@ export const preMatchNotify = onSchedule(
         const kstDate = new Date(`${dateBase}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00+09:00`);
         const diff = kstDate.getTime() - now;
 
-        console.log(`Match ${matchId}: scheduled ${dateBase} ${timeStr} KST, diff=${Math.round(diff / 60000)}min`);
+        const diffMin = diff / 60000;
+        console.log(`Match ${matchId}: scheduled ${dateBase} ${timeStr} KST, diff=${diffMin.toFixed(1)}min`);
 
-        // 9-11 minutes before match
-        if (diff > 0 && diff <= 11 * 60 * 1000 && diff >= 9 * 60 * 1000) {
+        // 5~15분 전 알림 (넓은 윈도우, 중복 방지는 wasNotifSent로)
+        if (diff > 0 && diffMin <= 15 && diffMin >= 5) {
           const notifKey = `pre_${matchId}`;
-          console.log(`Match ${matchId} is ${Math.round(diff / 60000)}min away, sending pre-match notif`);
+          console.log(`Match ${matchId} is ${diffMin.toFixed(1)}min away, sending pre-match notif`);
 
           pendingNotifs.push((async () => {
             if (await wasNotifSent(notifKey)) {
