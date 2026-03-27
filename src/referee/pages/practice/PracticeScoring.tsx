@@ -1098,28 +1098,15 @@ export default function PracticeScoring() {
           </div>
         ))}
 
-        {/* Dead Ball */}
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">🔵 {t('common.matchHistory.deadBall', { server: '' })}</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
-              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-              onClick={() => handleDeadBall(1)}
-              aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p1Name })}
-            >
-              {p1Name} {t('common.matchHistory.deadBall', { server: '' })}
-            </button>
-            <button
-              className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
-              disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-              onClick={() => handleDeadBall(2)}
-              aria-label={t('referee.practice.scoring.deadBallAriaLabel', { name: p2Name })}
-            >
-              {p2Name} {t('common.matchHistory.deadBall', { server: '' })}
-            </button>
-          </div>
-        </div>
+        {/* Dead Ball - 서브권 기준 단일 버튼 */}
+        <button
+          className="btn bg-purple-700 hover:bg-purple-600 text-white w-full py-3"
+          disabled={!!match.activeTimeout || isPausedLocal || showSideChange || match.status !== 'in_progress'}
+          onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}
+          aria-label={t('common.matchHistory.deadBall', { server: serverName })}
+        >
+          🔵 {t('common.matchHistory.deadBall', { server: serverName })}
+        </button>
 
         {/* Penalty dropdown (per player) - same structure as real match mode */}
         <div>
