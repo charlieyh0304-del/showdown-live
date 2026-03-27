@@ -3619,6 +3619,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 </div>
                 <div className="flex items-center gap-2">
                   {match.courtName && <span className="text-sm text-gray-400">{match.courtName}</span>}
+                  {match.scheduledDate && <span className="text-sm text-gray-500">{match.scheduledDate}</span>}
                   {match.scheduledTime && <span className="text-sm text-cyan-400">{match.scheduledTime}</span>}
                   {match.walkover && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
@@ -3649,11 +3650,19 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
               {match.status === 'completed' && match.sets && (
                 <div className="flex items-center gap-2 flex-wrap mt-2">
                   <div className="flex gap-2 flex-wrap">
-                    {match.sets.map((s, i) => (
-                      <span key={i} className="px-3 py-1 bg-gray-800 rounded text-sm font-mono">
-                        {match.sets && match.sets.length > 1 ? `S${i + 1}: ` : ''}{s.player1Score}-{s.player2Score}
-                      </span>
-                    ))}
+                    {(() => {
+                      // 승자 기준으로 스코어 표시 (winnerId가 player2/team2면 스코어 순서 반전)
+                      const isP2Winner = match.winnerId === (match.player2Id || match.team2Id);
+                      return match.sets.map((s, i) => {
+                        const winScore = isP2Winner ? s.player2Score : s.player1Score;
+                        const loseScore = isP2Winner ? s.player1Score : s.player2Score;
+                        return (
+                          <span key={i} className="px-3 py-1 bg-gray-800 rounded text-sm font-mono">
+                            {match.sets && match.sets.length > 1 ? `S${i + 1}: ` : ''}{winScore}-{loseScore}
+                          </span>
+                        );
+                      });
+                    })()}
                   </div>
                   <button
                     className="btn bg-yellow-700 hover:bg-yellow-600 text-white text-xs px-3 py-1"
@@ -4021,9 +4030,14 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
                 <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
                   <span className="font-semibold">{match.team1Name ?? '?'} vs {match.team2Name ?? '?'}</span>
                   <div className="flex gap-2">
-                    {(match.sets || []).map((s, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">{s.player1Score}-{s.player2Score}</span>
-                    ))}
+                    {(() => {
+                      const isP2W = match.winnerId === (match.player2Id || match.team2Id);
+                      return (match.sets || []).map((s, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">
+                          {isP2W ? s.player2Score : s.player1Score}-{isP2W ? s.player1Score : s.player2Score}
+                        </span>
+                      ));
+                    })()}
                   </div>
                 </div>
               ))}
@@ -4098,9 +4112,14 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
               <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
                 <span className="font-semibold">{match.player1Name ?? '?'} vs {match.player2Name ?? '?'}</span>
                 <div className="flex gap-2">
-                  {(match.sets || []).map((s, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">{s.player1Score}-{s.player2Score}</span>
-                  ))}
+                  {(() => {
+                    const isP2W = match.winnerId === (match.player2Id || match.team2Id);
+                    return (match.sets || []).map((s, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">
+                        {isP2W ? s.player2Score : s.player1Score}-{isP2W ? s.player1Score : s.player2Score}
+                      </span>
+                    ));
+                  })()}
                 </div>
               </div>
             ))}
