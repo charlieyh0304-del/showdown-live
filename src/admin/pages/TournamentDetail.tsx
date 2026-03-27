@@ -551,20 +551,46 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
     let composing = false;
 
     const submit = () => {
-      const name = input.value.trim();
-      if (!name) return;
-      onSubmitRef.current(name, select.value || '');
-      input.value = '';
-      select.value = '';
-      input.focus();
+      // compositionend 직후 value가 아직 업데이트되지 않을 수 있으므로 약간 대기
+      setTimeout(() => {
+        const name = input.value.trim();
+        if (!name) return;
+        onSubmitRef.current(name, select.value || '');
+        input.value = '';
+        select.value = '';
+        input.focus();
+      }, 10);
     };
 
     input.addEventListener('compositionstart', () => { composing = true; });
-    input.addEventListener('compositionend', () => { composing = false; });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !composing) submit();
+    input.addEventListener('compositionend', () => {
+      composing = false;
     });
-    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (composing) {
+          // IME 조합 중 Enter → 조합 완료 대기 후 제출
+          const handler = () => {
+            input.removeEventListener('compositionend', handler);
+            submit();
+          };
+          input.addEventListener('compositionend', handler);
+        } else {
+          e.preventDefault();
+          submit();
+        }
+      }
+    });
+    btn.addEventListener('click', () => {
+      if (composing) {
+        // 버튼 클릭 시 조합 중이면 blur→focus로 조합 완료 후 제출
+        input.blur();
+        input.focus();
+        setTimeout(submit, 50);
+      } else {
+        submit();
+      }
+    });
 
     wrapper.appendChild(input);
     wrapper.appendChild(select);
