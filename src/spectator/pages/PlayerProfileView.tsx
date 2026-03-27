@@ -269,10 +269,8 @@ export default function PlayerProfileView() {
                       {result} ({mySetWins}-{oppSetWins})
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', color: '#d1d5db', fontSize: '0.75rem' }}>
-                    {m.scheduledDate && <span>{m.scheduledDate}</span>}
-                    {m.scheduledTime && <span>{m.scheduledTime}</span>}
-                    {m.courtName && <span>{m.courtName}</span>}
+                  <div style={{ marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.75rem' }}>
+                    {[m.scheduledDate, m.scheduledTime, m.courtName].filter(Boolean).join(' · ')}
                   </div>
                   {Array.isArray(m.sets) && m.sets.length > 0 && (
                     <div style={{ color: '#d1d5db', marginTop: '0.25rem', fontSize: '0.75rem' }}>

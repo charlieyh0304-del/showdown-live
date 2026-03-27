@@ -333,8 +333,9 @@ function IndividualMatchDetail({
 }) {
   const { t } = useTranslation();
   const sets = Array.isArray(match.sets) ? match.sets : [];
-  const currentSet = match.currentSet ?? 1;
-  const currentSetData = sets[currentSet - 1];
+  const currentSetIdx = match.currentSet ?? 0;
+  const currentSet = currentSetIdx + 1; // 표시용 (1-indexed)
+  const currentSetData = sets[currentSetIdx];
   const effectiveConfig = gameConfig ? getEffectiveGameConfig(gameConfig) : undefined;
   const setWins = countSetWins(sets, effectiveConfig);
   const hasTimeout = match.activeTimeout != null;
