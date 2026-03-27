@@ -508,19 +508,21 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
   ariaLabel?: string;
 }) {
   const { t } = useTranslation();
-  const [name, setName] = useState('');
-  const [gender, setGender] = useState('');
-  const composingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const composingRef = useRef(false);
 
   const submit = useCallback(() => {
-    const trimmed = name.trim();
+    const input = inputRef.current;
+    const select = selectRef.current;
+    if (!input) return;
+    const trimmed = input.value.trim();
     if (!trimmed) return;
-    onSubmit(trimmed, gender);
-    setName('');
-    setGender('');
-    inputRef.current?.focus();
-  }, [name, gender, onSubmit]);
+    onSubmit(trimmed, select?.value || '');
+    input.value = '';
+    if (select) select.value = '';
+    input.focus();
+  }, [onSubmit]);
 
   return (
     <div style={{ display: 'flex', gap: '4px' }}>
@@ -528,8 +530,6 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
         ref={inputRef}
         className="input"
         style={{ flex: 1, fontSize: '0.875rem' }}
-        value={name}
-        onChange={e => setName(e.target.value)}
         onCompositionStart={() => { composingRef.current = true; }}
         onCompositionEnd={() => { composingRef.current = false; }}
         onKeyDown={e => {
@@ -542,10 +542,9 @@ function KoreanNameInput({ onSubmit, placeholder, ariaLabel }: {
         aria-label={ariaLabel}
       />
       <select
+        ref={selectRef}
         className="input"
         style={{ width: '64px', fontSize: '0.875rem' }}
-        value={gender}
-        onChange={e => setGender(e.target.value)}
         aria-label={t('admin.tournamentDetail.koreanInput.genderAriaLabel')}
       >
         <option value="">{t('admin.tournamentDetail.koreanInput.genderLabel')}</option>
