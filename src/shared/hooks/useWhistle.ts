@@ -89,7 +89,7 @@ export function useWhistle() {
 
   const goalWhistle = useCallback(() => {
     playWhistleTone(300);
-    setTimeout(() => playWhistleTone(800), 400);
+    setTimeout(() => playWhistleTone(300), 400);
   }, [playWhistleTone]);
 
   return { shortWhistle, longWhistle, goalWhistle };
