@@ -16,8 +16,7 @@ export default function FavoritesView() {
   const { settings, setEnabled, setTypeEnabled, setQuietHours, setPlayerSettings, getPlayerSettings } = useNotificationSettings();
   const { history: notifHistory, unreadCount, markAllAsRead, clearAll } = useNotificationHistory();
   const [showHistory, setShowHistory] = useState(false);
-  const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
-  const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favoriteIds);
+  const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favorites);
 
   // Always call useMatches with a stable value (no conditional hooks)
   const firstActiveTournamentId = useMemo(

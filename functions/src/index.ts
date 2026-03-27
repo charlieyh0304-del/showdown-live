@@ -11,6 +11,7 @@ setGlobalOptions({ region: "us-central1" });
 interface PushSubscription {
   token: string;
   favoriteIds: string[];
+  favoriteNames?: string[];
   platform: string;
   updatedAt: number;
 }
@@ -50,7 +51,7 @@ function getMatchParticipants(match: Match): string[] {
   ].filter((v): v is string => !!v);
 }
 
-// Find subscriptions whose favorites overlap with given participant IDs
+// Find subscriptions whose favorites overlap with given participant IDs or names
 async function findSubscriptions(participantIds: string[]): Promise<PushSubscription[]> {
   const snap = await db.ref("pushSubscriptions").once("value");
   if (!snap.exists()) return [];
@@ -60,7 +61,14 @@ async function findSubscriptions(participantIds: string[]): Promise<PushSubscrip
 
   snap.forEach((child) => {
     const sub = child.val() as PushSubscription;
-    if (sub.token && sub.favoriteIds?.some((id: string) => participantSet.has(id))) {
+    if (!sub.token) return;
+    // ID 매칭
+    if (sub.favoriteIds?.some((id: string) => participantSet.has(id))) {
+      results.push(sub);
+      return;
+    }
+    // 이름 매칭 (대회 간 같은 선수가 다른 ID를 가질 수 있음)
+    if (sub.favoriteNames?.some((name: string) => participantSet.has(name))) {
       results.push(sub);
     }
   });

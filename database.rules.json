@@ -96,6 +96,7 @@
         ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt'])",
         "token": { ".validate": "newData.isString()" },
         "favoriteIds": { ".validate": true },
+        "favoriteNames": { ".validate": true },
         "platform": { ".validate": "newData.isString()" },
         "updatedAt": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }

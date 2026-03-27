@@ -22,16 +22,22 @@ function tokenToKey(token: string): string {
   return 'tk_' + Math.abs(hash).toString(36);
 }
 
-async function syncSubscription(token: string, favoriteIds: string[]) {
+interface FavEntry { id: string; name: string }
+
+async function syncSubscription(token: string, favorites: FavEntry[]) {
   const key = tokenToKey(token);
   const subRef = ref(database, `pushSubscriptions/${key}`);
+  // ID와 이름 모두 저장하여 대회 간 선수 매칭 지원
+  const favoriteIds = favorites.map(f => f.id);
+  const favoriteNames = favorites.map(f => f.name).filter(n => n && n !== '');
   await set(subRef, {
     token,
     favoriteIds,
+    favoriteNames,
     platform: getPlatform(),
     updatedAt: Date.now(),
   });
-  console.log('[Push] Synced subscription to Firebase:', key, 'favorites:', favoriteIds.length);
+  console.log('[Push] Synced subscription to Firebase:', key, 'favorites:', favoriteIds.length, 'names:', favoriteNames);
 }
 
 // 기존 firebase-messaging-sw.js 등록 정리
@@ -80,11 +86,11 @@ async function registerAndGetToken(): Promise<string | null> {
   return token || null;
 }
 
-export function usePushNotifications(favoriteIds: string[]) {
+export function usePushNotifications(favorites: FavEntry[]) {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
   const tokenRef = useRef<string | null>(null);
-  const prevFavIdsRef = useRef<string>('');
+  const prevFavRef = useRef<string>('');
   const initDone = useRef(false);
 
   // Auto-initialize: if permission already granted, get/refresh token and sync
@@ -99,7 +105,6 @@ export function usePushNotifications(favoriteIds: string[]) {
 
     if (!supported || Notification.permission !== 'granted') return;
 
-    // Auto-register FCM token (not just read from localStorage)
     (async () => {
       try {
         const token = await registerAndGetToken();
@@ -107,12 +112,10 @@ export function usePushNotifications(favoriteIds: string[]) {
           tokenRef.current = token;
           localStorage.setItem(TOKEN_KEY, token);
           setPushEnabled(true);
-          // Sync with current favoriteIds (may be empty initially, will re-sync when favorites load)
-          await syncSubscription(token, favoriteIds);
+          await syncSubscription(token, favorites);
         }
       } catch (err) {
         console.error('[Push] Auto-init failed:', err);
-        // Fallback: use saved token if available
         const savedToken = localStorage.getItem(TOKEN_KEY);
         if (savedToken) {
           tokenRef.current = savedToken;
@@ -122,19 +125,19 @@ export function usePushNotifications(favoriteIds: string[]) {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-sync when favoriteIds change (handles the "initially empty" problem)
+  // Re-sync when favorites change
   useEffect(() => {
     const token = tokenRef.current;
     if (!token || !pushEnabled) return;
 
-    const favKey = JSON.stringify(favoriteIds);
-    if (favKey === prevFavIdsRef.current) return;
-    prevFavIdsRef.current = favKey;
+    const favKey = JSON.stringify(favorites);
+    if (favKey === prevFavRef.current) return;
+    prevFavRef.current = favKey;
 
-    syncSubscription(token, favoriteIds).catch(err => {
+    syncSubscription(token, favorites).catch(err => {
       console.error('[Push] Sync failed on favorites change:', err);
     });
-  }, [favoriteIds, pushEnabled]);
+  }, [favorites, pushEnabled]);
 
   // Manual enable (button click from UI)
   const enablePush = useCallback(async (): Promise<boolean> => {
@@ -149,13 +152,13 @@ export function usePushNotifications(favoriteIds: string[]) {
       localStorage.setItem(TOKEN_KEY, token);
       setPushEnabled(true);
 
-      await syncSubscription(token, favoriteIds);
+      await syncSubscription(token, favorites);
       return true;
     } catch (err) {
       console.error('[Push] enablePush failed:', err);
       return false;
     }
-  }, [favoriteIds]);
+  }, [favorites]);
 
   // Foreground message handler
   useEffect(() => {

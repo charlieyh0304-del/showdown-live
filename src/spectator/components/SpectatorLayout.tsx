@@ -23,7 +23,7 @@ function NotificationWatcher() {
 }
 
 function NotificationWatcherInner() {
-  const { favoriteIds } = useFavorites();
+  const { favoriteIds, favorites } = useFavorites();
   const { tournaments } = useTournaments();
 
   const activeTournamentId = useMemo(
@@ -35,7 +35,7 @@ function NotificationWatcherInner() {
   const { schedule } = useSchedule(activeTournamentId);
 
   useMatchNotifications(favoriteIds, matches, schedule);
-  usePushNotifications(favoriteIds);
+  usePushNotifications(favorites);
 
   return null;
 }
