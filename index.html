@@ -16,7 +16,7 @@
     <script>
       // 강제 캐시 무효화 (SW 캐시 포함) - 버전이 바뀌면 1회 실행
       (function() {
-        var v = 'showdown_cache_v5';
+        var v = 'showdown_cache_v6';
         if (!localStorage.getItem(v) && 'caches' in window) {
           caches.keys().then(function(names) {
             return Promise.all(names.map(function(n) { return caches.delete(n); }));
