@@ -124,17 +124,29 @@ async function sendToSubscriptions(
     },
   };
 
-  const response = await admin.messaging().sendEachForMulticast(message);
-  const successCount = response.responses.filter((r) => r.success).length;
-  const failCount = response.responses.filter((r) => !r.success).length;
+  let successCount = 0;
+  let failCount = 0;
+  // 개별 전송 (한 토큰 실패가 전체를 막지 않도록)
+  const responses: { success: boolean; error?: { code: string; message: string } }[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    try {
+      const singleMsg = { ...message, tokens: undefined, token: tokens[i] };
+      await admin.messaging().send(singleMsg as admin.messaging.Message);
+      responses.push({ success: true });
+      successCount++;
+      console.log(`[FCM] Token ${i} sent OK`);
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      responses.push({ success: false, error: { code: e.code || 'unknown', message: e.message || '' } });
+      failCount++;
+      console.error(`[FCM] Token ${i} error:`, e.code, e.message);
+    }
+  }
   console.log(`[FCM] Sent to ${tokens.length} tokens: ${successCount} success, ${failCount} failed`);
-  response.responses.forEach((r, idx) => {
-    if (r.error) console.error(`[FCM] Token ${idx} error:`, r.error.code, r.error.message);
-  });
 
   // Remove invalid tokens
   const invalidTokens: string[] = [];
-  response.responses.forEach((resp, idx) => {
+  responses.forEach((resp, idx) => {
     if (resp.error &&
       (resp.error.code === "messaging/invalid-registration-token" ||
         resp.error.code === "messaging/registration-token-not-registered")) {
