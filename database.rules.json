@@ -73,6 +73,7 @@
         ".validate": "newData.hasChildren(['name', 'pin'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
         "pin": { ".validate": "newData.isString() && newData.val().length >= 10" },
+        "createdAt": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }
       }
     },
