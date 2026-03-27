@@ -357,6 +357,7 @@ export default function PracticeScoring() {
       sets[ci] = cs;
 
       const matchWinner = checkMatchWinner(sets, config);
+      if (matchWinner) setTimeout(() => longWhistle(), 500); // match end whistle after score sound
 
       // Save state first
       updateMatch({
@@ -492,9 +493,10 @@ export default function PracticeScoring() {
       serverSide: match.currentServe,
     });
     updateMatch({ scoreHistory: [entry, ...match.scoreHistory] });
+    shortWhistle(); // dead ball whistle
     setLastAction(`${actionName} ${t('common.matchHistory.deadBall', { server: sName })}`);
     setAnnouncement(`${actionName} ${t('common.matchHistory.deadBall', { server: sName })}`);
-  }, [match, updateMatch, p1Name, p2Name]);
+  }, [match, updateMatch, p1Name, p2Name, shortWhistle]);
 
   const handleSubstitution = useCallback(() => {
     if (subTeam === null || subOutIdx === null || subInIdx === null) return;

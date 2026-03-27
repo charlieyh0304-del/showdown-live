@@ -605,6 +605,7 @@ export default function IndividualScoring() {
       sets[ci] = cs;
 
       const matchWinner = checkMatchWinner(sets, gameConfig);
+      if (matchWinner) setTimeout(() => longWhistle(), 500); // match end whistle after score sound
 
       // Block scoring IMMEDIATELY to prevent race condition during 500ms delay
       setShowSetEndConfirm(true);
@@ -753,9 +754,10 @@ export default function IndividualScoring() {
       scoreHistory: [historyEntry, ...prevHistory],
     });
 
+    shortWhistle(); // dead ball whistle
     setLastAction(t('common.matchHistory.deadBall', { server: callerName }));
     setAnnouncement(t('common.matchHistory.deadBall', { server: callerName }));
-  }, [match, updateMatch]);
+  }, [match, updateMatch, shortWhistle]);
 
   // Penalty with warning logic
   const handlePenalty = useCallback(async (

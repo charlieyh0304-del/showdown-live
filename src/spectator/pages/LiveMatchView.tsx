@@ -66,7 +66,7 @@ export default function LiveMatchView() {
       if (status === 'in_progress' && prevStatusRef.current === 'pending') {
         longWhistle(); // match start
       } else if (status === 'completed') {
-        longWhistle(); // match end
+        setTimeout(() => longWhistle(), 500); // match end whistle after score sound
       }
     }
 
@@ -90,7 +90,7 @@ export default function LiveMatchView() {
       if (latest) {
         if (latest.actionType === 'goal' && latest.points >= 2) {
           goalWhistle();
-        } else if (latest.points === 1 || latest.penaltyWarning) {
+        } else if (latest.points === 1 || latest.penaltyWarning || latest.actionType === 'dead_ball') {
           shortWhistle();
         }
         // Don't whistle for non-scoring meta events (handled by status/timeout/warmup above)

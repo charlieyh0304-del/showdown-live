@@ -538,7 +538,7 @@ export default function TeamMatchScoring() {
         ...rotationUpdate,
       });
       if (!ok1) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
-      longWhistle(); // match end whistle
+      setTimeout(() => longWhistle(), 500); // match end whistle after score sound
       if (tournamentId) autoBackupToLocal(tournamentId);
       return;
     }
@@ -636,9 +636,10 @@ export default function TeamMatchScoring() {
       scoreHistory: [historyEntry, ...prevHistory],
     });
 
+    shortWhistle(); // dead ball whistle
     setLastAction(t('common.matchHistory.deadBall', { server: actionTeamName }));
     setAnnouncement(t('common.matchHistory.deadBall', { server: actionTeamName }));
-  }, [match, updateMatch]);
+  }, [match, updateMatch, shortWhistle]);
 
   const handleTimeout = useCallback(async (team: 1 | 2, type: 'player' | 'medical' | 'referee' = 'player') => {
     if (!match || match.status !== 'in_progress') return;
