@@ -404,6 +404,7 @@ export default function TournamentCreate() {
               teamSize: state.teamSize,
               rotationEnabled: state.teamRules.rotationEnabled,
               rotationInterval: state.teamRules.rotationInterval,
+              genderRatio: state.teamRules.genderRatio,
             },
           } : {}),
           formatType: 'manual',

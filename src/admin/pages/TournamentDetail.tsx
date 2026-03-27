@@ -730,12 +730,21 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       const teamSize = tournament.teamRules?.teamSize || 3;
       const genderRatio = tournament.teamRules?.genderRatio;
 
-      if (genderRatio && (genderRatio.male > 0 || genderRatio.female > 0)) {
-        const males = tournamentPlayers.filter(p => p.gender === 'male');
-        const females = tournamentPlayers.filter(p => p.gender === 'female');
+      const males = tournamentPlayers.filter(p => p.gender === 'male');
+      const females = tournamentPlayers.filter(p => p.gender === 'female');
+      const hasBothGenders = males.length > 0 && females.length > 0;
+
+      // 성별 비율 결정: 설정값 > 자동 계산 (혼성이면 균등 배분)
+      const effectiveRatio = (genderRatio && (genderRatio.male > 0 || genderRatio.female > 0))
+        ? genderRatio
+        : hasBothGenders
+          ? { male: Math.min(males.length, Math.ceil(teamSize / 2)), female: Math.max(1, teamSize - Math.min(males.length, Math.ceil(teamSize / 2))) }
+          : null;
+
+      if (effectiveRatio && hasBothGenders) {
         const teamCount = Math.floor(tournamentPlayers.length / teamSize);
-        const requiredMales = genderRatio.male * teamCount;
-        const requiredFemales = genderRatio.female * teamCount;
+        const requiredMales = effectiveRatio.male * teamCount;
+        const requiredFemales = effectiveRatio.female * teamCount;
 
         if (males.length < requiredMales || females.length < requiredFemales) {
           alert(t('admin.tournamentDetail.playersTabInline.genderShortageAlert', { requiredMale: requiredMales, requiredFemale: requiredFemales, currentMale: males.length, currentFemale: females.length }));
@@ -749,8 +758,8 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         const newTeams: Team[] = [];
         for (let i = 0; i < teamCount; i++) {
           const members = [
-            ...shuffledMales.splice(0, genderRatio.male),
-            ...shuffledFemales.splice(0, genderRatio.female),
+            ...shuffledMales.splice(0, effectiveRatio.male),
+            ...shuffledFemales.splice(0, effectiveRatio.female),
           ];
           newTeams.push({
             id: `team_${i + 1}`,
@@ -761,6 +770,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         }
         await setTeamsBulk(newTeams);
       } else {
+        // 성별 정보 없는 경우에만 단순 랜덤
         const shuffled = [...tournamentPlayers].sort(() => Math.random() - 0.5);
         const newTeams: Team[] = [];
         let teamIdx = 1;
