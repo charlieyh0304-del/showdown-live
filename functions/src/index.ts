@@ -41,14 +41,23 @@ interface ScheduleSlot {
   scheduledDate?: string;
 }
 
-// Get all participant IDs/names from a match
+// Get all participant IDs/names from a match (including team members)
 function getMatchParticipants(match: Match): string[] {
-  return [
+  const ids = [
     match.player1Id, match.player2Id,
     match.player1Name, match.player2Name,
     match.team1Id, match.team2Id,
     match.team1Name, match.team2Name,
-  ].filter((v): v is string => !!v);
+  ];
+  // Include team member IDs and names for team matches
+  const m = match as unknown as { team1?: { memberIds?: string[]; memberNames?: string[] }; team2?: { memberIds?: string[]; memberNames?: string[] } };
+  const team1 = m.team1;
+  const team2 = m.team2;
+  if (team1?.memberIds) ids.push(...team1.memberIds);
+  if (team1?.memberNames) ids.push(...team1.memberNames);
+  if (team2?.memberIds) ids.push(...team2.memberIds);
+  if (team2?.memberNames) ids.push(...team2.memberNames);
+  return ids.filter((v): v is string => !!v);
 }
 
 // Find subscriptions whose favorites overlap with given participant IDs or names

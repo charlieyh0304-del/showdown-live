@@ -30,18 +30,28 @@ function parseScheduleTime(timeStr: string, dateStr?: string): Date | null {
 }
 
 function getMatchFavInfo(match: Match, favoriteIds: string[]) {
+  // Build full participant set including team members
+  const m = match as unknown as { team1?: { memberIds?: string[]; memberNames?: string[] }; team2?: { memberIds?: string[]; memberNames?: string[] } };
+  const team1MemberIds = m.team1?.memberIds || [];
+  const team1MemberNames = m.team1?.memberNames || [];
+  const team2MemberIds = m.team2?.memberIds || [];
+  const team2MemberNames = m.team2?.memberNames || [];
+
   const matchFavById = (id: string) =>
     id === match.player1Id || id === match.player2Id ||
-    id === match.team1Id || id === match.team2Id;
+    id === match.team1Id || id === match.team2Id ||
+    team1MemberIds.includes(id) || team2MemberIds.includes(id);
   const matchFavByName = (id: string) =>
     id === match.player1Name || id === match.player2Name ||
-    id === match.team1Name || id === match.team2Name;
+    id === match.team1Name || id === match.team2Name ||
+    team1MemberNames.includes(id) || team2MemberNames.includes(id);
 
   const favId = favoriteIds.find((id) => matchFavById(id) || matchFavByName(id));
   if (!favId) return null;
 
   const isP1 = favId === match.player1Id || favId === match.player1Name ||
-    favId === match.team1Id || favId === match.team1Name;
+    favId === match.team1Id || favId === match.team1Name ||
+    team1MemberIds.includes(favId) || team1MemberNames.includes(favId);
   const favName = isP1
     ? (match.player1Name || match.team1Name || favId)
     : (match.player2Name || match.team2Name || favId);
@@ -69,12 +79,17 @@ export function useMatchNotifications(
       let changed = false;
 
       for (const match of matches) {
+        const mm = match as unknown as { team1?: { memberIds?: string[]; memberNames?: string[] }; team2?: { memberIds?: string[]; memberNames?: string[] } };
+        const t1m = mm.team1;
+        const t2m = mm.team2;
         const matchFavById = (id: string) =>
           id === match.player1Id || id === match.player2Id ||
-          id === match.team1Id || id === match.team2Id;
+          id === match.team1Id || id === match.team2Id ||
+          (t1m?.memberIds || []).includes(id) || (t2m?.memberIds || []).includes(id);
         const matchFavByName = (id: string) =>
           id === match.player1Name || id === match.player2Name ||
-          id === match.team1Name || id === match.team2Name;
+          id === match.team1Name || id === match.team2Name ||
+          (t1m?.memberNames || []).includes(id) || (t2m?.memberNames || []).includes(id);
         const isFavMatch = favoriteIds.some((id) => matchFavById(id) || matchFavByName(id));
         if (!isFavMatch) continue;
 
