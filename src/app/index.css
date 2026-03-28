@@ -479,3 +479,102 @@ a:not(.btn):not(.nav-link):not(.mode-card):not(.skip-link):hover {
   from { opacity: 0; transform: translateY(-1rem); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ===== Official Scoresheet Grid ===== */
+.scoresheet-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 transparent;
+}
+
+.scoresheet-table {
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.scoresheet-name-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  padding: 4px 6px;
+  min-width: 64px;
+  max-width: 72px;
+  border-right: 2px solid #4b5563;
+  background-color: #111827;
+}
+
+.scoresheet-wpt-cell {
+  padding: 2px 1px;
+  text-align: center;
+  min-width: 28px;
+  background-color: #111827;
+}
+
+.scoresheet-badge {
+  display: inline-block;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.scoresheet-point-cell {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid #374151;
+  position: relative;
+}
+
+.scoresheet-scored-a {
+  background-color: rgba(234, 179, 8, 0.25);
+}
+
+.scoresheet-scored-b {
+  background-color: rgba(6, 182, 212, 0.25);
+}
+
+.scoresheet-cross {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ef4444;
+  line-height: 1;
+}
+
+.scoresheet-highlight {
+  border-left: 3px solid #f59e0b !important;
+  border-right: 3px solid #f59e0b !important;
+}
+
+.scoresheet-serve-cell {
+  width: 32px;
+  min-width: 32px;
+  height: 20px;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid #1f2937;
+}
+
+.scoresheet-current-serve {
+  background-color: rgba(59, 130, 246, 0.3);
+  border: 1px solid #3b82f6;
+}
+
+.scoresheet-result-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  padding: 4px 8px;
+  min-width: 40px;
+  text-align: center;
+  background-color: #111827;
+  border-left: 2px solid #4b5563;
+}
+
+@keyframes scoreFlash {
+  0% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}

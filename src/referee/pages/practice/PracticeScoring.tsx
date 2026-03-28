@@ -27,6 +27,7 @@ import { useWhistle } from '@shared/hooks/useWhistle';
 import TimerModal from '../../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../../components/ActionToast';
+import ScoresheetGrid from '../../components/ScoresheetGrid';
 
 export default function PracticeScoring() {
   const { t } = useTranslation();
@@ -889,14 +890,25 @@ export default function PracticeScoring() {
   const foulActions = IBSA_SCORE_ACTIONS.filter(a => a.toOpponent && a.points === 1);
   const penaltyActions = IBSA_SCORE_ACTIONS.filter(a => a.toOpponent && a.points >= 2);
 
-  // Server-based score flip
-  const isFlipped = match.currentServe === 'player2';
-  const leftName = isFlipped ? p2Name : p1Name;
-  const rightName = isFlipped ? p1Name : p2Name;
-  const leftScore = isFlipped ? cs.player2Score : cs.player1Score;
-  const rightScore = isFlipped ? cs.player1Score : cs.player2Score;
-  const leftColor = isFlipped ? 'text-cyan-400' : 'text-yellow-400';
-  const rightColor = isFlipped ? 'text-yellow-400' : 'text-cyan-400';
+  // W/P/T.O. counts from score history
+  const practiceHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
+  const currentSetHistory = practiceHistory.filter(h => h.set === ci + 1);
+  const p1Warnings = currentSetHistory.filter(h => h.penaltyWarning && h.actionPlayer === p1Name).length;
+  const p2Warnings = currentSetHistory.filter(h => h.penaltyWarning && h.actionPlayer === p2Name).length;
+  const p1Penalties = currentSetHistory.filter(h =>
+    (h.actionType === 'penalty_table_pushing' || h.actionType === 'penalty_electronic' || h.actionType === 'penalty_talking')
+    && !h.penaltyWarning && h.actionPlayer === p1Name
+  ).length;
+  const p2Penalties = currentSetHistory.filter(h =>
+    (h.actionType === 'penalty_table_pushing' || h.actionType === 'penalty_electronic' || h.actionType === 'penalty_talking')
+    && !h.penaltyWarning && h.actionPlayer === p2Name
+  ).length;
+
+  // Scoresheet config
+  const isDecidingSet = matchType === 'individual' && setWins.player1 === config.SETS_TO_WIN - 1 && setWins.player2 === config.SETS_TO_WIN - 1;
+  const sideChangePoint = matchType === 'team' ? 16 : (isDecidingSet ? Math.ceil(config.POINTS_TO_WIN / 2) : config.POINTS_TO_WIN);
+  const practiceMaxPoints = config.POINTS_TO_WIN + 7;
+  const practiceServesPerTurn = matchType === 'team' ? 3 : 2;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1020,11 +1032,11 @@ export default function PracticeScoring() {
       </div>
 
       {/* Serve */}
-      <div className="bg-blue-900/50 px-4 py-2 text-center" role="status" aria-label={t('referee.practice.scoring.serveInfo', { name: serverName, current: match.serveCount + 1, max: maxServes })}>
-        <span className="text-blue-300 font-semibold">
+      <div className="bg-blue-900/50 px-4 py-1.5 flex items-center justify-center gap-3" role="status" aria-label={t('referee.practice.scoring.serveInfo', { name: serverName, current: match.serveCount + 1, max: maxServes })}>
+        <span className="text-blue-300 font-semibold text-sm">
           🎾 {t('referee.practice.scoring.serveInfo', { name: serverName, current: match.serveCount + 1, max: maxServes })}
         </span>
-        <button className="ml-3 text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label={t('referee.practice.scoring.changeServeAriaLabel')} style={{ minHeight: '44px', minWidth: '44px' }}>
+        <button className="text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label={t('referee.practice.scoring.changeServeAriaLabel')} style={{ minHeight: '44px', minWidth: '44px' }}>
           {t('referee.practice.scoring.changeServe')}
         </button>
       </div>
@@ -1047,32 +1059,27 @@ export default function PracticeScoring() {
         </div>
       )}
 
-      {/* Score display - server on left */}
-      <div className="flex border-b border-gray-700" aria-live="polite">
-        <div className="flex-1 flex flex-col items-center py-4 px-2 border-r border-gray-700" style={{ border: isFlipped ? undefined : '3px solid rgba(234,179,8,0.3)', borderRadius: 0 }}>
-          <h2 className={`text-xl font-bold ${leftColor}`}>
-            🎾 {leftName}
-          </h2>
-          {(isFlipped ? match.player2Coach : match.player1Coach) && (
-            <span className="text-xs text-gray-400">{t('referee.practice.setup.coachOptional')}: {isFlipped ? match.player2Coach : match.player1Coach}</span>
-          )}
-          <div key={`left-${scoreFlash}`} className={`text-7xl font-bold my-2 ${leftColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${leftName} ${leftScore}${t('common.units.point')}`}>
-            {leftScore}
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center py-4 px-2">
-          <h2 className={`text-xl font-bold ${rightColor}`}>
-            {rightName}
-          </h2>
-          {(isFlipped ? match.player1Coach : match.player2Coach) && (
-            <span className="text-xs text-gray-400">{t('referee.practice.setup.coachOptional')}: {isFlipped ? match.player1Coach : match.player2Coach}</span>
-          )}
-          <div key={`right-${scoreFlash}`} className={`text-7xl font-bold my-2 ${rightColor}`} style={{ animation: 'scoreFlash 0.3s ease-out' }} aria-label={`${rightName} ${rightScore}${t('common.units.point')}`}>
-            {rightScore}
-          </div>
-        </div>
+      {/* Official Scoresheet Grid */}
+      <div className="px-2 py-2" aria-live="polite">
+        <ScoresheetGrid
+          key={`practice-${ci}-${scoreFlash}`}
+          playerAName={p1Name}
+          playerBName={p2Name}
+          playerAScore={cs.player1Score}
+          playerBScore={cs.player2Score}
+          maxPoints={practiceMaxPoints}
+          highlightPoint={sideChangePoint}
+          currentServe={match.currentServe}
+          serveCount={match.serveCount}
+          servesPerTurn={practiceServesPerTurn}
+          warnings={{ player1: p1Warnings, player2: p2Warnings }}
+          penalties={{ player1: p1Penalties, player2: p2Penalties }}
+          timeouts={{ player1: match.player1Timeouts, player2: match.player2Timeouts }}
+          setLabel={`${t('common.matchHistory.setLabel', { num: ci + 1 })} — ${cs.player1Score} : ${cs.player2Score}`}
+          coachA={match.player1Coach}
+          coachB={match.player2Coach}
+        />
       </div>
-      <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
       {/* Scoring area - Player select → Action sheet */}
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
