@@ -109,6 +109,7 @@ export default function PracticeScoring() {
   const [pauseReason, setPauseReason] = useState('');
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const toggleSection = (key: string) => setExpandedSection(prev => prev === key ? null : key);
+  const [actionSheetPlayer, setActionSheetPlayer] = useState<1 | 2 | null>(null);
 
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
   const subModalTrapRef = useFocusTrap(showSubModal);
@@ -1134,119 +1135,108 @@ export default function PracticeScoring() {
       </div>
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
-      {/* Scoring area (buttons always p1 left, p2 right - muscle memory) */}
+      {/* Scoring area - Player select → Action sheet */}
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
+
+        {/* 골 버튼 (1탭 유지) */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="text-center text-yellow-400 font-bold text-lg">{p1Name}</div>
-          <div className="text-center text-cyan-400 font-bold text-lg">{p2Name}</div>
+          <button className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl" disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} ${t('common.scoreActions.goal')}`)} aria-label={t('referee.practice.scoring.goalAriaLabel', { name: p1Name })}>
+            ⚽ {p1Name}<br/>{t('common.scoreActions.goal')} +2
+          </button>
+          <button className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl" disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
+            onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} ${t('common.scoreActions.goal')}`)} aria-label={t('referee.practice.scoring.goalAriaLabel', { name: p2Name })}>
+            ⚽ {p2Name}<br/>{t('common.scoreActions.goal')} +2
+          </button>
         </div>
 
-        {/* Goal */}
+        {/* 선수 선택 → 액션 시트 */}
         <div className="grid grid-cols-2 gap-2">
-          <button
-            className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
-            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} ${t('common.scoreActions.goal')}`)}
-            aria-label={t('referee.practice.scoring.goalAriaLabel', { name: p1Name })}
-          >
-            ⚽ {t('referee.practice.scoring.goalButton', { name: p1Name })}<br/>
-            <span className="text-xs opacity-75">{t('referee.practice.scoring.goalPoints', { name: p1Name })}</span>
+          <button className={`btn text-lg py-5 font-bold rounded-xl border-2 ${actionSheetPlayer === 1 ? 'bg-yellow-700 border-yellow-400 text-white' : 'bg-gray-800 border-gray-600 text-yellow-400 hover:bg-gray-700'}`}
+            onClick={() => setActionSheetPlayer(actionSheetPlayer === 1 ? null : 1)} aria-expanded={actionSheetPlayer === 1}>
+            {p1Name}
           </button>
-          <button
-            className="btn bg-green-800 hover:bg-green-700 text-white text-lg py-5 font-bold rounded-xl"
-            disabled={!!match.activeTimeout || isPausedLocal || showSideChange}
-            onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} ${t('common.scoreActions.goal')}`)}
-            aria-label={t('referee.practice.scoring.goalAriaLabel', { name: p2Name })}
-          >
-            ⚽ {t('referee.practice.scoring.goalButton', { name: p2Name })}<br/>
-            <span className="text-xs opacity-75">{t('referee.practice.scoring.goalPoints', { name: p2Name })}</span>
+          <button className={`btn text-lg py-5 font-bold rounded-xl border-2 ${actionSheetPlayer === 2 ? 'bg-cyan-700 border-cyan-400 text-white' : 'bg-gray-800 border-gray-600 text-cyan-400 hover:bg-gray-700'}`}
+            onClick={() => setActionSheetPlayer(actionSheetPlayer === 2 ? null : 2)} aria-expanded={actionSheetPlayer === 2}>
+            {p2Name}
           </button>
         </div>
 
-        {/* Fouls */}
-        <div className="text-center text-xs text-gray-400 font-semibold">{t('referee.practice.scoring.foulSection')}</div>
-        {foulActions.map(action => (
-          <div key={action.type} className="grid grid-cols-2 gap-2">
-            <button
-              className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
-              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (action.type === 'irregular_serve' && match.currentServe !== 'player1')}
-              onClick={() => handleIBSAScore(1, action.type, action.points, true, `${p1Name} ${action.label}`)}
-              aria-label={t('referee.practice.scoring.foulAriaLabel', { name: p1Name, action: PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label, opponent: p2Name, points: action.points })}
-            >
-              🟡 {p1Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
-              <span className="text-xs opacity-75">{t('referee.practice.scoring.foulPoints', { opponent: p2Name, points: action.points })}</span>
-            </button>
-            <button
-              className="btn bg-yellow-900/80 hover:bg-yellow-800 text-yellow-100 text-sm py-3 rounded-lg"
-              disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (action.type === 'irregular_serve' && match.currentServe !== 'player2')}
-              onClick={() => handleIBSAScore(2, action.type, action.points, true, `${p2Name} ${action.label}`)}
-              aria-label={t('referee.practice.scoring.foulAriaLabel', { name: p2Name, action: PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label, opponent: p1Name, points: action.points })}
-            >
-              🟡 {p2Name} {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}<br/>
-              <span className="text-xs opacity-75">{t('referee.practice.scoring.foulPoints', { opponent: p1Name, points: action.points })}</span>
-            </button>
-          </div>
-        ))}
+        {/* 액션 시트 */}
+        {actionSheetPlayer && (() => {
+          const pNum = actionSheetPlayer;
+          const pName = pNum === 1 ? p1Name : p2Name;
+          const opName = pNum === 1 ? p2Name : p1Name;
+          const scoringDisabled = !!match.activeTimeout || isPausedLocal || showSideChange;
+          const tablePushTotal = match.scoreHistory.filter(h => h.actionType === 'penalty_table_pushing' && h.actionPlayer === pName).length;
+          const talkingTotal = match.scoreHistory.filter(h => h.actionType === 'penalty_talking' && h.actionPlayer === pName).length;
 
-        {/* 취소 + 데드볼 */}
-        <div className="flex gap-2">
-          <button className="btn btn-danger flex-1 py-3" onClick={handleUndo} disabled={match.scoreHistory.length === 0} aria-label={t('referee.practice.scoring.undoAriaLabel')}>
-            ↩️ {t('referee.practice.scoring.undoButton')}
-          </button>
-          <button className="btn bg-purple-700 hover:bg-purple-600 text-white flex-1 py-3" disabled={!!match.activeTimeout || isPausedLocal || showSideChange || match.status !== 'in_progress'} onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)} aria-label={t('common.matchHistory.deadBall', { server: serverName })}>
-            🔵 {t('common.matchHistory.deadBall', { server: '' })}
-          </button>
-        </div>
+          return (
+            <div className="bg-gray-800 rounded-xl border border-gray-600 overflow-hidden" role="region" aria-label={`${pName} actions`}>
+              <div className={`px-4 py-2 text-center font-bold text-sm ${pNum === 1 ? 'bg-yellow-900/50 text-yellow-400' : 'bg-cyan-900/50 text-cyan-400'}`}>{pName}</div>
 
-        {/* 접이식: 페널티 */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
-          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('penalty')} aria-expanded={expandedSection === 'penalty'}>
-            <span className="text-sm font-bold text-red-400">🔴 {t('common.scoreActions.penalty')}</span>
-            <span className="text-gray-400">{expandedSection === 'penalty' ? '▲' : '▼'}</span>
-          </button>
-          {expandedSection === 'penalty' && (
-            <div className="px-4 py-3 bg-gray-900/50">
-              <div className="grid grid-cols-2 gap-3">
-                {([1, 2] as const).map(playerNum => {
-                  const pName = playerNum === 1 ? p1Name : p2Name;
-                  const opName = playerNum === 1 ? p2Name : p1Name;
-                  const dropdownKey = playerNum === 1 ? 'player1' : 'player2';
-                  const isOpen = penaltyDropdown === dropdownKey;
-                  const tablePushTotal = match.scoreHistory.filter(h => h.actionType === 'penalty_table_pushing' && h.actionPlayer === pName).length;
-                  const talkingTotal = match.scoreHistory.filter(h => h.actionType === 'penalty_talking' && h.actionPlayer === pName).length;
-                  return (
-                    <div key={playerNum} className="relative" ref={playerNum === 1 ? penaltyDropdownRef : undefined}>
-                      <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3 w-full" disabled={!!match.activeTimeout || isPausedLocal || showSideChange} onClick={() => setPenaltyDropdown(isOpen ? null : dropdownKey)} aria-expanded={isOpen} aria-haspopup="true" aria-label={`${pName} ${t('common.scoreActions.penalty')}`}>
-                        {pName} {t('common.scoreActions.penalty')} ▾
-                      </button>
-                      {isOpen && (
-                        <div className="absolute z-50 left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden" ref={playerNum === 2 ? penaltyDropdownRef : undefined}>
-                          <button className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm border-b border-gray-700" onClick={() => { handlePenalty(playerNum, 'penalty_table_pushing'); setPenaltyDropdown(null); }}>
-                            <span className="text-red-300 font-semibold">{t('common.scoreActions.penaltyTablePushing')}</span>
-                            <span className="block text-xs text-gray-400 mt-0.5">{tablePushTotal % 2 === 0 ? `→ ${t('referee.practice.scoring.penaltyWarningInfo')}` : `→ ${opName} +2${t('common.units.point')}`}</span>
-                          </button>
-                          <button className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm border-b border-gray-700" onClick={() => { handlePenalty(playerNum, 'penalty_electronic'); setPenaltyDropdown(null); }}>
-                            <span className="text-red-300 font-semibold">{t('common.scoreActions.penaltyElectronic')}</span>
-                            <span className="block text-xs text-gray-400 mt-0.5">→ {opName} +2{t('common.units.point')}</span>
-                          </button>
-                          <button className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm border-b border-gray-700" onClick={() => { handlePenalty(playerNum, 'penalty_talking'); setPenaltyDropdown(null); }}>
-                            <span className="text-red-300 font-semibold">{t('common.scoreActions.penaltyTalking')}</span>
-                            <span className="block text-xs text-gray-400 mt-0.5">{talkingTotal % 2 === 0 ? `→ ${t('referee.practice.scoring.penaltyWarningInfo')}` : `→ ${opName} +1${t('common.units.point')}`}</span>
-                          </button>
-                          {penaltyActions.filter(a => !['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'].includes(a.type)).map(action => (
-                            <button key={action.type} className="w-full text-left px-4 py-3 hover:bg-red-900/50 text-sm border-b border-gray-700 last:border-0" onClick={() => { handleIBSAScore(playerNum, action.type, action.points, true, `${pName} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}`); setPenaltyDropdown(null); }}>
-                              <span className="text-red-300 font-semibold">{PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}</span>
-                              <span className="block text-xs text-gray-400 mt-0.5">→ {opName} +{action.points}{t('common.units.point')}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {/* 파울 */}
+              <div className="px-3 py-2 space-y-1">
+                <div className="text-xs text-gray-400 font-bold px-1">🟡 +1{t('common.units.point')}</div>
+                {foulActions.map(action => (
+                  (action.type !== 'irregular_serve' || match.currentServe === (pNum === 1 ? 'player1' : 'player2')) ? (
+                    <button key={action.type} className="w-full btn bg-yellow-900/70 hover:bg-yellow-800 text-yellow-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                      onClick={() => { handleIBSAScore(pNum, action.type, action.points, true, `${pName} ${action.label}`); setActionSheetPlayer(null); }}>
+                      {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label} <span className="text-xs opacity-75">→ {opName} +1</span>
+                    </button>
+                  ) : null
+                ))}
+              </div>
+
+              {/* 타임아웃 */}
+              <div className="px-3 py-2 space-y-1 border-t border-gray-700">
+                <div className="text-xs text-gray-400 font-bold px-1">⏱️ {t('referee.scoring.timeoutTitle.player')}</div>
+                <div className="flex gap-2">
+                  <button className="btn btn-secondary flex-1 text-sm py-2" onClick={() => { handleTimeout(pNum, 'player'); setActionSheetPlayer(null); }} disabled={(pNum === 1 ? match.player1Timeouts : match.player2Timeouts) >= 1 || !!match.activeTimeout}>
+                    ⏱️ 1m | {1 - (pNum === 1 ? match.player1Timeouts : match.player2Timeouts)}
+                  </button>
+                  <button className="btn bg-teal-800 hover:bg-teal-700 text-white flex-1 text-sm py-2" onClick={() => { handleTimeout(pNum, 'medical'); setActionSheetPlayer(null); }} disabled={!!match.activeTimeout || match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === pName).length >= 1}>
+                    🏥 5m
+                  </button>
+                </div>
+              </div>
+
+              {/* 페널티 */}
+              <div className="px-3 py-2 space-y-1 border-t border-gray-700">
+                <div className="text-xs text-red-400 font-bold px-1">🔴 {t('common.scoreActions.penalty')}</div>
+                <button className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                  onClick={() => { handlePenalty(pNum, 'penalty_table_pushing'); setActionSheetPlayer(null); }}>
+                  {t('common.scoreActions.penaltyTablePushing')} <span className="text-xs opacity-75">{tablePushTotal % 2 === 0 ? '(0)' : `→ ${opName} +2`}</span>
+                </button>
+                <button className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                  onClick={() => { handlePenalty(pNum, 'penalty_electronic'); setActionSheetPlayer(null); }}>
+                  {t('common.scoreActions.penaltyElectronic')} <span className="text-xs opacity-75">→ {opName} +2</span>
+                </button>
+                <button className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                  onClick={() => { handlePenalty(pNum, 'penalty_talking'); setActionSheetPlayer(null); }}>
+                  {t('common.scoreActions.penaltyTalking')} <span className="text-xs opacity-75">{talkingTotal % 2 === 0 ? '(0)' : `→ ${opName} +1`}</span>
+                </button>
+                {penaltyActions.filter(a => !['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'].includes(a.type)).map(action => (
+                  <button key={action.type} className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                    onClick={() => { handleIBSAScore(pNum, action.type, action.points, true, `${pName} ${PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label}`); setActionSheetPlayer(null); }}>
+                    {PRACTICE_DESCRIPTIVE_LABELS[action.type] || action.label} <span className="text-xs opacity-75">→ {opName} +{action.points}</span>
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+          );
+        })()}
+
+        {/* 취소 / 데드볼 / 레프리타임 */}
+        <div className="flex gap-2">
+          <button className="btn btn-danger flex-1 py-3" onClick={handleUndo} disabled={match.scoreHistory.length === 0} aria-label={t('referee.practice.scoring.undoAriaLabel')}>↩️ {t('referee.practice.scoring.undoButton')}</button>
+          <button className="btn bg-purple-700 hover:bg-purple-600 text-white flex-1 py-3" disabled={!!match.activeTimeout || isPausedLocal || showSideChange || match.status !== 'in_progress'}
+            onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)} aria-label={t('common.matchHistory.deadBall', { server: serverName })}>
+            🔵 {t('common.matchHistory.deadBall', { server: '' })}
+          </button>
+          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white flex-1 py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}>
+            🟨 {t('referee.scoring.timeoutTitle.referee')}
+          </button>
         </div>
 
         {/* History (set-grouped) */}

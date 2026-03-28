@@ -59,6 +59,7 @@ export default function TeamMatchScoring() {
   const [showSubstitution, setShowSubstitution] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const toggleSection = (key: string) => setExpandedSection(prev => prev === key ? null : key);
+  const [actionSheetPlayer, setActionSheetPlayer] = useState<1 | 2 | null>(null);
   const [subTeam, setSubTeam] = useState<1 | 2 | null>(null);
   const [subOutIndex, setSubOutIndex] = useState<number | null>(null);
   const [subInIndex, setSubInIndex] = useState<number | null>(null);
@@ -1395,141 +1396,122 @@ export default function TeamMatchScoring() {
       </div>
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
-      {/* Scoring area (buttons always team1 left, team2 right) */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">⚽ {t('common.scoreActions.goal')} (+2{t('common.units.point')})</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button className="btn btn-success text-lg py-4 font-bold"
-              disabled={scoringDisabled}
-              onClick={() => handleIBSAScore(1, 'goal', 2, false, `${team1Name} ${t('common.scoreActions.goal')}`)}
-              aria-label={`${team1Name} ${t('common.scoreActions.goal')} +2${t('common.units.point')}`}>
-              {team1Name}<br/>{t('common.scoreActions.goal')} +2{t('common.units.point')}
-            </button>
-            <button className="btn btn-success text-lg py-4 font-bold"
-              disabled={scoringDisabled}
-              onClick={() => handleIBSAScore(2, 'goal', 2, false, `${team2Name} ${t('common.scoreActions.goal')}`)}
-              aria-label={`${team2Name} ${t('common.scoreActions.goal')} +2${t('common.units.point')}`}>
-              {team2Name}<br/>{t('common.scoreActions.goal')} +2{t('common.units.point')}
-            </button>
-          </div>
+      {/* Scoring area - Player select → Action sheet */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+
+        {/* 골 버튼 (1탭 유지) */}
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn btn-success text-lg py-5 font-bold" disabled={scoringDisabled}
+            onClick={() => handleIBSAScore(1, 'goal', 2, false, `${team1Name} ${t('common.scoreActions.goal')}`)}
+            aria-label={`${team1Name} ${t('common.scoreActions.goal')} +2${t('common.units.point')}`}>
+            ⚽ {team1Name}<br/>{t('common.scoreActions.goal')} +2
+          </button>
+          <button className="btn btn-success text-lg py-5 font-bold" disabled={scoringDisabled}
+            onClick={() => handleIBSAScore(2, 'goal', 2, false, `${team2Name} ${t('common.scoreActions.goal')}`)}
+            aria-label={`${team2Name} ${t('common.scoreActions.goal')} +2${t('common.units.point')}`}>
+            ⚽ {team2Name}<br/>{t('common.scoreActions.goal')} +2
+          </button>
         </div>
 
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">🟡 +1{t('common.units.point')}</h3>
-          <div className="space-y-2">
-            {foulActions.map(action => (
-              <div key={action.type} className="grid grid-cols-2 gap-2">
-                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  disabled={scoringDisabled || (action.type === 'irregular_serve' && currentServe !== 'player1')}
-                  onClick={() => handleIBSAScore(1, action.type, action.points, true, `${team1Name} ${action.label}`)}
-                  aria-label={`${team1Name} ${action.label}. ${team2Name} +1${t('common.units.point')}`}>
-                  {team1Name} {action.label}<br/>
-                  <span className="text-xs opacity-75">→ {team2Name} +1{t('common.units.point')}</span>
+        {/* 팀 선택 → 액션 시트 */}
+        <div className="grid grid-cols-2 gap-3">
+          <button className={`btn text-lg py-5 font-bold rounded-xl border-2 ${actionSheetPlayer === 1 ? 'bg-yellow-700 border-yellow-400 text-white' : 'bg-gray-800 border-gray-600 text-yellow-400 hover:bg-gray-700'}`}
+            onClick={() => setActionSheetPlayer(actionSheetPlayer === 1 ? null : 1)} aria-expanded={actionSheetPlayer === 1}>
+            {team1Name}
+          </button>
+          <button className={`btn text-lg py-5 font-bold rounded-xl border-2 ${actionSheetPlayer === 2 ? 'bg-cyan-700 border-cyan-400 text-white' : 'bg-gray-800 border-gray-600 text-cyan-400 hover:bg-gray-700'}`}
+            onClick={() => setActionSheetPlayer(actionSheetPlayer === 2 ? null : 2)} aria-expanded={actionSheetPlayer === 2}>
+            {team2Name}
+          </button>
+        </div>
+
+        {/* 액션 시트 */}
+        {actionSheetPlayer && (() => {
+          const pNum = actionSheetPlayer;
+          const tName = pNum === 1 ? team1Name : team2Name;
+          const opName = pNum === 1 ? team2Name : team1Name;
+          const usedTimeouts = pNum === 1 ? t1TimeoutsUsed : t2TimeoutsUsed;
+          const medUsed = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === tName).length;
+
+          return (
+            <div className="bg-gray-800 rounded-xl border border-gray-600 overflow-hidden" role="region" aria-label={`${tName} actions`}>
+              <div className={`px-4 py-2 text-center font-bold text-sm ${pNum === 1 ? 'bg-yellow-900/50 text-yellow-400' : 'bg-cyan-900/50 text-cyan-400'}`}>{tName}</div>
+
+              {/* 파울 */}
+              <div className="px-3 py-2 space-y-1">
+                <div className="text-xs text-gray-400 font-bold px-1">🟡 +1{t('common.units.point')}</div>
+                {foulActions.map(action => (
+                  <button key={action.type} className="w-full btn bg-yellow-900/70 hover:bg-yellow-800 text-yellow-200 text-sm py-2 text-left px-3 rounded"
+                    disabled={scoringDisabled || (action.type === 'irregular_serve' && currentServe !== (pNum === 1 ? 'player1' : 'player2'))}
+                    onClick={() => { handleIBSAScore(pNum, action.type, action.points, true, `${tName} ${action.label}`); setActionSheetPlayer(null); }}>
+                    {action.label} <span className="text-xs opacity-75">→ {opName} +1</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* 타임아웃 */}
+              <div className="px-3 py-2 space-y-1 border-t border-gray-700">
+                <div className="text-xs text-gray-400 font-bold px-1">⏱️ {t('referee.scoring.timeoutTitle.player')}</div>
+                <div className="flex gap-2">
+                  <button className="btn btn-secondary flex-1 text-sm py-2" onClick={() => { handleTimeout(pNum, 'player'); setActionSheetPlayer(null); }} disabled={usedTimeouts >= 1 || !!match.activeTimeout}>
+                    ⏱️ 1m | {1 - usedTimeouts}
+                  </button>
+                  <button className="btn bg-teal-800 hover:bg-teal-700 text-white flex-1 text-sm py-2" onClick={() => { handleTimeout(pNum, 'medical'); setActionSheetPlayer(null); }} disabled={!!match.activeTimeout || medUsed >= 1}>
+                    🏥 5m | {medUsed >= 1 ? '-' : '1'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 페널티 */}
+              <div className="px-3 py-2 space-y-1 border-t border-gray-700">
+                <div className="text-xs text-red-400 font-bold px-1">🔴 {t('common.scoreActions.penalty')}</div>
+                <button className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                  onClick={() => { handlePenalty(pNum, 'penalty_table_pushing'); setActionSheetPlayer(null); }}>
+                  {t('common.scoreActions.penaltyTablePushing')} <span className="text-xs opacity-75">→ {opName} +2</span>
                 </button>
-                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-sm py-3"
-                  disabled={scoringDisabled || (action.type === 'irregular_serve' && currentServe !== 'player2')}
-                  onClick={() => handleIBSAScore(2, action.type, action.points, true, `${team2Name} ${action.label}`)}
-                  aria-label={`${team2Name} ${action.label}. ${team1Name} +1${t('common.units.point')}`}>
-                  {team2Name} {action.label}<br/>
-                  <span className="text-xs opacity-75">→ {team1Name} +1{t('common.units.point')}</span>
+                <button className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                  onClick={() => { handlePenalty(pNum, 'penalty_electronic'); setActionSheetPlayer(null); }}>
+                  {t('common.scoreActions.penaltyElectronic')} <span className="text-xs opacity-75">→ {opName} +2</span>
+                </button>
+                <button className="w-full btn bg-red-900/70 hover:bg-red-800 text-red-200 text-sm py-2 text-left px-3 rounded" disabled={scoringDisabled}
+                  onClick={() => { handlePenalty(pNum, 'penalty_talking'); setActionSheetPlayer(null); }}>
+                  {t('common.scoreActions.penaltyTalking')} <span className="text-xs opacity-75">→ {opName} +1</span>
                 </button>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* 취소 + 데드볼 */}
-        <div className="flex gap-3">
-          <button className="btn btn-danger flex-1" onClick={handleUndo} disabled={history.length === 0} aria-label={t('common.cancel')}>↩️ {t('common.cancel')}</button>
-          <button className="btn bg-purple-700 hover:bg-purple-600 text-white flex-1" disabled={scoringDisabled || match.status !== 'in_progress'} onClick={() => handleDeadBall(currentServe === 'player1' ? 1 : 2)} aria-label={t('common.matchHistory.deadBall', { server: serverName })}>
+              {/* 교체 */}
+              {hasReserves(pNum) && (
+                <div className="px-3 py-2 border-t border-gray-700">
+                  <button className="w-full btn bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-2 rounded" disabled={pNum === 1 ? !!match.team1SubUsed : !!match.team2SubUsed}
+                    onClick={() => { openSubstitution(pNum); setActionSheetPlayer(null); }}>
+                    🔄 {t('common.matchHistory.substitution')} {(pNum === 1 ? match.team1SubUsed : match.team2SubUsed) ? `(${t('common.done')})` : ''}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* 취소 / 데드볼 / 레프리타임 */}
+        <div className="flex gap-2">
+          <button className="btn btn-danger flex-1 py-3" onClick={handleUndo} disabled={history.length === 0} aria-label={t('common.cancel')}>↩️ {t('common.cancel')}</button>
+          <button className="btn bg-purple-700 hover:bg-purple-600 text-white flex-1 py-3" disabled={scoringDisabled || match.status !== 'in_progress'}
+            onClick={() => handleDeadBall(currentServe === 'player1' ? 1 : 2)} aria-label={t('common.matchHistory.deadBall', { server: serverName })}>
             🔵 {t('common.matchHistory.deadBall', { server: '' })}
           </button>
-        </div>
-
-        {/* 접이식: 타임아웃 */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
-          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('timeout')} aria-expanded={expandedSection === 'timeout'}>
-            <span className="text-sm font-bold text-gray-300">⏱️ {t('referee.scoring.timeoutTitle.player')} / 🏥 {t('referee.scoring.timeoutTitle.medical')} / 🟨 {t('referee.scoring.timeoutTitle.referee')}</span>
-            <span className="text-gray-400">{expandedSection === 'timeout' ? '▲' : '▼'}</span>
+          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white flex-1 py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout} aria-label={t('referee.scoring.timeoutRefereeAriaLabel')}>
+            🟨 {t('referee.scoring.timeoutTitle.referee')}
           </button>
-          {expandedSection === 'timeout' && (
-            <div className="px-4 py-3 space-y-2 bg-gray-900/50">
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn btn-secondary text-sm py-3" onClick={() => handleTimeout(1, 'player')} disabled={t1TimeoutsUsed >= 1 || !!match.activeTimeout} aria-label={t('referee.scoring.timeoutAriaLabel', { name: team1Name, type: t('referee.scoring.timeoutTitle.player'), duration: '1m', remaining: 1 - t1TimeoutsUsed })}>
-                  ⏱️ {team1Name} {t('referee.scoring.timeoutTitle.player')}<span className="block text-xs opacity-75">1m | {1 - t1TimeoutsUsed}</span>
-                </button>
-                <button className="btn btn-secondary text-sm py-3" onClick={() => handleTimeout(2, 'player')} disabled={t2TimeoutsUsed >= 1 || !!match.activeTimeout} aria-label={t('referee.scoring.timeoutAriaLabel', { name: team2Name, type: t('referee.scoring.timeoutTitle.player'), duration: '1m', remaining: 1 - t2TimeoutsUsed })}>
-                  ⏱️ {team2Name} {t('referee.scoring.timeoutTitle.player')}<span className="block text-xs opacity-75">1m | {1 - t2TimeoutsUsed}</span>
-                </button>
-              </div>
-              {(() => {
-                const med1Used = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === team1Name).length;
-                const med2Used = (match.scoreHistory || []).filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === team2Name).length;
-                return (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-3" onClick={() => handleTimeout(1, 'medical')} disabled={!!match.activeTimeout || med1Used >= 1} aria-label={t('referee.scoring.timeoutAriaLabel', { name: team1Name, type: t('referee.scoring.timeoutTitle.medical'), duration: '5m', remaining: 1 - med1Used })}>
-                      🏥 {t('referee.scoring.timeoutMedicalLabel', { name: team1Name })}<span className="block text-xs opacity-75">{med1Used >= 1 ? '-' : t('referee.scoring.timeoutDurationInfo', { duration: '5m', remaining: 1 })}</span>
-                    </button>
-                    <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-3" onClick={() => handleTimeout(2, 'medical')} disabled={!!match.activeTimeout || med2Used >= 1} aria-label={t('referee.scoring.timeoutAriaLabel', { name: team2Name, type: t('referee.scoring.timeoutTitle.medical'), duration: '5m', remaining: 1 - med2Used })}>
-                      🏥 {t('referee.scoring.timeoutMedicalLabel', { name: team2Name })}<span className="block text-xs opacity-75">{med2Used >= 1 ? '-' : t('referee.scoring.timeoutDurationInfo', { duration: '5m', remaining: 1 })}</span>
-                    </button>
-                  </div>
-                );
-              })()}
-              <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white text-sm py-3 w-full" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout} aria-label={t('referee.scoring.timeoutRefereeAriaLabel')}>
-                🟨 {t('referee.scoring.timeoutTitle.referee')}
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* 접이식: 페널티 */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
-          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('penalty')} aria-expanded={expandedSection === 'penalty'}>
-            <span className="text-sm font-bold text-red-400">🔴 {t('common.scoreActions.penalty')}</span>
-            <span className="text-gray-400">{expandedSection === 'penalty' ? '▲' : '▼'}</span>
-          </button>
-          {expandedSection === 'penalty' && (
-            <div className="px-4 py-3 space-y-2 bg-gray-900/50">
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3" disabled={scoringDisabled} onClick={() => handlePenalty(1, 'penalty_table_pushing')} aria-label={t('referee.scoring.penaltyAriaLabel', { name: team1Name, action: t('common.scoreActions.penaltyTablePushing'), opponent: team2Name })}>{team1Name} {t('common.scoreActions.penaltyTablePushing')}<br/><span className="text-xs opacity-75">+2{t('common.units.point')}</span></button>
-                <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3" disabled={scoringDisabled} onClick={() => handlePenalty(2, 'penalty_table_pushing')} aria-label={t('referee.scoring.penaltyAriaLabel', { name: team2Name, action: t('common.scoreActions.penaltyTablePushing'), opponent: team1Name })}>{team2Name} {t('common.scoreActions.penaltyTablePushing')}<br/><span className="text-xs opacity-75">+2{t('common.units.point')}</span></button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3" disabled={scoringDisabled} onClick={() => handlePenalty(1, 'penalty_electronic')} aria-label={`${team1Name} ${t('common.scoreActions.penaltyElectronic')}. ${team2Name} +2${t('common.units.point')}`}>{team1Name} {t('common.scoreActions.penaltyElectronic')}<br/><span className="text-xs opacity-75">→ {team2Name} +2{t('common.units.point')}</span></button>
-                <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3" disabled={scoringDisabled} onClick={() => handlePenalty(2, 'penalty_electronic')} aria-label={`${team2Name} ${t('common.scoreActions.penaltyElectronic')}. ${team1Name} +2${t('common.units.point')}`}>{team2Name} {t('common.scoreActions.penaltyElectronic')}<br/><span className="text-xs opacity-75">→ {team1Name} +2{t('common.units.point')}</span></button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3" disabled={scoringDisabled} onClick={() => handlePenalty(1, 'penalty_talking')} aria-label={t('referee.scoring.penaltyAriaLabel', { name: team1Name, action: t('common.scoreActions.penaltyTalking'), opponent: team2Name })}>{team1Name} {t('common.scoreActions.penaltyTalking')}<br/><span className="text-xs opacity-75">+1{t('common.units.point')}</span></button>
-                <button className="btn bg-red-900 hover:bg-red-800 text-red-200 text-sm py-3" disabled={scoringDisabled} onClick={() => handlePenalty(2, 'penalty_talking')} aria-label={t('referee.scoring.penaltyAriaLabel', { name: team2Name, action: t('common.scoreActions.penaltyTalking'), opponent: team1Name })}>{team2Name} {t('common.scoreActions.penaltyTalking')}<br/><span className="text-xs opacity-75">+1{t('common.units.point')}</span></button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 접이식: 기타 (교체/워밍업/일시정지/부전승) */}
+        {/* 접이식: 기타 (워밍업/일시정지/부전승) */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">
           <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('etc')} aria-expanded={expandedSection === 'etc'}>
-            <span className="text-sm font-bold text-gray-300">🔄 {t('common.matchHistory.substitution')} / ⏸️ {t('common.matchHistory.pause', { player: '' })} / {t('common.scoreActions.walkover')}</span>
+            <span className="text-sm font-bold text-gray-300">⏸️ {t('common.matchHistory.pause', { player: '' })} / {t('common.scoreActions.walkover')}</span>
             <span className="text-gray-400">{expandedSection === 'etc' ? '▲' : '▼'}</span>
           </button>
           {expandedSection === 'etc' && (
             <div className="px-4 py-3 space-y-3 bg-gray-900/50">
-              {(hasReserves(1) || hasReserves(2)) && (
-                <div className="flex gap-3">
-                  {hasReserves(1) && (
-                    <button className="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-3" disabled={!!match.team1SubUsed} onClick={() => openSubstitution(1)} aria-label={`${team1Name} ${t('common.matchHistory.substitution')}. ${match.team1SubUsed ? t('common.done') : '1'}`}>
-                      🔄 {team1Name} {t('common.matchHistory.substitution')}<span className="block text-xs opacity-75">{match.team1SubUsed ? t('common.done') : '1'}</span>
-                    </button>
-                  )}
-                  {hasReserves(2) && (
-                    <button className="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-sm py-3" disabled={!!match.team2SubUsed} onClick={() => openSubstitution(2)} aria-label={`${team2Name} ${t('common.matchHistory.substitution')}. ${match.team2SubUsed ? t('common.done') : '1'}`}>
-                      🔄 {team2Name} {t('common.matchHistory.substitution')}<span className="block text-xs opacity-75">{match.team2SubUsed ? t('common.done') : '1'}</span>
-                    </button>
-                  )}
-                </div>
-              )}
               <div className="flex gap-3">
                 {!match.warmupUsed && (match.currentSet ?? 0) === 0 && (
                   <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup} aria-label={`${t('referee.scoring.warmupStart')} 90${t('common.time.seconds')}`}>
