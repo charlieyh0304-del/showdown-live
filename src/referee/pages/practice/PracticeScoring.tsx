@@ -24,6 +24,7 @@ import { useCountdownTimer } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useWhistle } from '@shared/hooks/useWhistle';
+import { useVoiceCommand, type VoiceAction } from '@shared/hooks/useVoiceCommand';
 import TimerModal from '../../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../../components/ActionToast';
@@ -747,6 +748,48 @@ export default function PracticeScoring() {
     }
   }, [tossWinner, p1Name, p2Name, matchType, courtChangeByLoser, player1Coach, player2Coach, t1c, t2c, startMatch, updateMatch, warmupTimer, longWhistle]);
 
+  // Voice command handler
+  const handleVoiceAction = useCallback((action: VoiceAction) => {
+    if (match.status !== 'in_progress') return;
+    switch (action.type) {
+      case 'goal':
+        if (action.player) handleIBSAScore(action.player, 'goal', 2, false, `${action.player === 1 ? p1Name : p2Name} ${t('common.scoreActions.goal')}`);
+        break;
+      case 'foul':
+        if (action.player && action.foulType) {
+          handleIBSAScore(action.player, action.foulType as ScoreActionType, 1, true, `${action.player === 1 ? p1Name : p2Name} ${action.foulType}`);
+        }
+        break;
+      case 'dead_ball':
+        handleDeadBall(match.currentServe === 'player1' ? 1 : 2);
+        break;
+      case 'timeout_player':
+        if (action.player) handleTimeout(action.player, 'player');
+        break;
+      case 'timeout_medical':
+        if (action.player) handleTimeout(action.player, 'medical');
+        break;
+      case 'timeout_referee':
+        handleTimeout(1, 'referee');
+        break;
+      case 'penalty':
+        if (action.player && action.penaltyType) {
+          handlePenalty(action.player, action.penaltyType as 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking');
+        }
+        break;
+      case 'undo':
+        handleUndo();
+        break;
+    }
+  }, [match.status, match.currentServe, handleIBSAScore, handleDeadBall, handleTimeout, handlePenalty, handleUndo, p1Name, p2Name, t]);
+
+  const voiceCmd = useVoiceCommand({
+    player1Name: p1Name,
+    player2Name: p2Name,
+    onAction: handleVoiceAction,
+    enabled: match.status === 'in_progress',
+  });
+
   // ===== PENDING =====
   if (match.status === 'pending') {
     return (
@@ -901,6 +944,24 @@ export default function PracticeScoring() {
     <div className="min-h-screen flex flex-col">
       <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
       <ActionToast message={lastAction} />
+
+      {/* Voice command floating button */}
+      {voiceCmd.supported && match.status === 'in_progress' && (
+        <>
+          <button
+            className={`fixed bottom-20 right-4 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl transition-all ${voiceCmd.isListening ? 'bg-red-600 animate-pulse scale-110' : 'bg-blue-600 hover:bg-blue-500'}`}
+            onClick={voiceCmd.toggleListening}
+            aria-label={voiceCmd.isListening ? t('referee.scoring.voiceStop') : t('referee.scoring.voiceStart')}
+          >
+            {voiceCmd.isListening ? '⏹' : '🎤'}
+          </button>
+          {voiceCmd.isListening && voiceCmd.transcript && (
+            <div className="fixed bottom-36 right-4 z-50 bg-gray-900/95 border border-blue-500 rounded-lg px-4 py-2 max-w-[200px] text-sm text-blue-300">
+              {voiceCmd.transcript}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Warmup Timer Modal */}
       {showWarmup && warmupTimer.isRunning && (

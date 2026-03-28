@@ -950,7 +950,9 @@
       "timeoutDurationInfo": "{{duration}} | {{remaining}}",
       "timeoutUnlimited": "제한없음",
       "timeoutRefereeAriaLabel": "레프리 타임아웃 (제한없음)",
-      "penaltyAriaLabel": "{{name}} {{action}}. 1회 경고, 2회 {{opponent}} +2점"
+      "penaltyAriaLabel": "{{name}} {{action}}. 1회 경고, 2회 {{opponent}} +2점",
+      "voiceStart": "음성 명령 시작",
+      "voiceStop": "음성 명령 중지"
     },
 
     "practice": {
