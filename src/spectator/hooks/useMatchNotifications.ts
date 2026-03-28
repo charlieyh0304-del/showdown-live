@@ -143,7 +143,7 @@ export function useMatchNotifications(
 
           if (matchTime) {
             const diff = matchTime.getTime() - now;
-            if (diff > 0 && diff <= 11 * 60 * 1000 && diff >= 9 * 60 * 1000) {
+            if (diff > 0 && diff <= 10.5 * 60 * 1000) {
               if (!notifSettings || shouldNotify(notifSettings, info.favId, 'preMatch')) {
                 notifiedRef.current.add(`pre_${matchKey}`);
                 changed = true;
