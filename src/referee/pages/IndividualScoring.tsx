@@ -155,10 +155,10 @@ export default function IndividualScoring() {
   const showSideChange = !!(match?.sideChangeStartTime);
   const isPausedLocal = !!(match?.isPaused);
 
-  // 15초 안내 (타임아웃)
+  // 15초 안내 (타임아웃) - activeTimeout 존재 여부도 체크하여 종료 후 오출력 방지
   const timeoutAlerted = useRef(false);
   useEffect(() => {
-    if (!timeoutTimer.isRunning) {
+    if (!timeoutTimer.isRunning || !match?.activeTimeout) {
       timeoutAlerted.current = false;
       return;
     }
@@ -168,12 +168,12 @@ export default function IndividualScoring() {
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match?.activeTimeout]);
 
-  // 15초 안내 (사이드 체인지)
+  // 15초 안내 (사이드 체인지) - sideChangeStartTime 존재 여부도 체크
   const sideChangeAlerted = useRef(false);
   useEffect(() => {
-    if (!sideChangeTimer.isRunning) {
+    if (!sideChangeTimer.isRunning || !match?.sideChangeStartTime) {
       sideChangeAlerted.current = false;
       return;
     }
@@ -183,12 +183,12 @@ export default function IndividualScoring() {
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, match?.sideChangeStartTime]);
 
-  // 15초 안내 (워밍업)
+  // 15초 안내 (워밍업) - warmupStartTime 존재 여부도 체크
   const warmupAlerted = useRef(false);
   useEffect(() => {
-    if (!warmupTimer.isRunning) {
+    if (!warmupTimer.isRunning || !match?.warmupStartTime) {
       warmupAlerted.current = false;
       return;
     }
@@ -198,7 +198,7 @@ export default function IndividualScoring() {
       setAnnouncement(t('referee.scoring.warmupFifteenSeconds'));
       speak(t('referee.scoring.warmupFifteenSeconds'));
     }
-  }, [warmupTimer.seconds, warmupTimer.isRunning]);
+  }, [warmupTimer.seconds, warmupTimer.isRunning, match?.warmupStartTime]);
 
   // Sync warmup timer from Firebase
   useEffect(() => {
@@ -234,7 +234,13 @@ export default function IndividualScoring() {
         const duration = toType === 'medical' ? 300 : 60;
         const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
         const remaining = Math.max(0, duration - elapsed);
-        if (remaining > 0 && !timeoutTimer.isRunning) timeoutTimer.start(remaining);
+        if (remaining > 0 && !timeoutTimer.isRunning) {
+          timeoutTimer.start(remaining);
+        } else if (remaining <= 0) {
+          // 이미 시간 초과 (화면 복귀 시) - 타이머 시작하지 않고 즉시 해제
+          timeoutTimer.stop();
+          updateMatch({ activeTimeout: null });
+        }
       }
     } else {
       timeoutTimer.stop();

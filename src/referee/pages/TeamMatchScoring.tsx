@@ -113,18 +113,20 @@ export default function TeamMatchScoring() {
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
 
-  // 타임아웃 15초 알림
+  // 타임아웃 15초 알림 - activeTimeout 존재 여부 체크로 종료 후 오출력 방지
   useEffect(() => {
-    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+    if (!timeoutTimer.isRunning || !match?.activeTimeout) return;
+    if (timeoutTimer.seconds === 15) {
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match?.activeTimeout]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
-    if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
+    if (!sideChangeTimer.isRunning) return;
+    if (sideChangeTimer.seconds === 15) {
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
@@ -139,7 +141,12 @@ export default function TeamMatchScoring() {
       if (totalDuration > 0) {
         const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
         const remaining = Math.max(0, totalDuration - elapsed);
-        if (remaining > 0) timeoutTimer.start(remaining);
+        if (remaining > 0) {
+          timeoutTimer.start(remaining);
+        } else {
+          timeoutTimer.stop();
+          updateMatch({ activeTimeout: null });
+        }
       }
       // referee timeout: no auto-timer (manual end)
     } else {

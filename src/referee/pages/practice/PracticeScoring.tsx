@@ -117,23 +117,25 @@ export default function PracticeScoring() {
   const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
   const timeoutTimer = useCountdownTimer(() => updateMatch({ activeTimeout: null }));
 
-  // 15초 안내 (타임아웃)
+  // 15초 안내 (타임아웃) - activeTimeout 체크로 종료 후 오출력 방지
   useEffect(() => {
-    if (timeoutTimer.seconds === 15 && timeoutTimer.isRunning) {
+    if (!timeoutTimer.isRunning || !match.activeTimeout) return;
+    if (timeoutTimer.seconds === 15) {
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
-    if (sideChangeTimer.seconds === 15 && sideChangeTimer.isRunning) {
+    if (!sideChangeTimer.isRunning || !showSideChange) return;
+    if (sideChangeTimer.seconds === 15) {
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, showSideChange]);
 
   // 워밍업 알림: 개인전 15초 전, 팀전 30초마다 (60초/30초 경과 시)
   useEffect(() => {
@@ -177,7 +179,7 @@ export default function PracticeScoring() {
     return () => { localStorage.removeItem('showdown_practice_live'); };
   }, [match]);
 
-  // Timeout timer
+  // Timeout timer - 화면 복귀 시 이미 종료된 타임아웃 즉시 정리
   useEffect(() => {
     if (match.activeTimeout) {
       const type = match.activeTimeout.type ?? 'player';
@@ -185,7 +187,12 @@ export default function PracticeScoring() {
       if (totalDuration > 0) {
         const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
         const remaining = Math.max(0, totalDuration - elapsed);
-        if (remaining > 0) timeoutTimer.start(remaining);
+        if (remaining > 0) {
+          timeoutTimer.start(remaining);
+        } else {
+          timeoutTimer.stop();
+          updateMatch({ activeTimeout: null });
+        }
       }
       // referee timeout: no auto-timer (manual end)
     } else {
