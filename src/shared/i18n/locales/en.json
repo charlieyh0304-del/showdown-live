@@ -950,9 +950,7 @@
       "timeoutDurationInfo": "{{duration}} | {{remaining}}",
       "timeoutUnlimited": "Unlimited",
       "timeoutRefereeAriaLabel": "Referee Timeout (unlimited)",
-      "penaltyAriaLabel": "{{name}} {{action}}. 1st warning, 2nd {{opponent}} +2 pts",
-      "voiceStart": "Start voice command",
-      "voiceStop": "Stop voice command"
+      "penaltyAriaLabel": "{{name}} {{action}}. 1st warning, 2nd {{opponent}} +2 pts"
     },
 
     "practice": {
