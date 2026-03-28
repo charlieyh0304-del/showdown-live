@@ -1802,7 +1802,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}</label>
               <select className="input w-full" value={addPlayer2} onChange={e => setAddPlayer2(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team2SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player2SelectAriaLabel')}>
                 <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
-                {selectOptions.map(o => (
+                {selectOptions.filter(o => o.id !== addPlayer1).map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
@@ -2538,7 +2538,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}</label>
               <select className="input w-full" value={editPlayer2} onChange={e => setEditPlayer2(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}>
                 <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
-                {selectOptions.map(o => (
+                {selectOptions.filter(o => o.id !== editPlayer1).map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
@@ -2592,6 +2592,41 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
   const [manualEdits, setManualEdits] = useState<Record<string, { scheduledDate: string; scheduledTime: string; courtId: string; courtName: string }>>({});
   const [savingMatchId, setSavingMatchId] = useState<string | null>(null);
   const [resettingSchedule, setResettingSchedule] = useState(false);
+  const [scheduleConflict, setScheduleConflict] = useState('');
+
+  // Check if a player/team has another match at the same date+time
+  const checkPlayerTimeConflict = useCallback((matchId: string, date: string, time: string): string | null => {
+    if (!date || !time) return null;
+    const currentMatch = matches.find(m => m.id === matchId);
+    if (!currentMatch) return null;
+
+    const currentPlayerIds = currentMatch.type === 'team'
+      ? [currentMatch.team1Id, currentMatch.team2Id, currentMatch.team1Name, currentMatch.team2Name]
+      : [currentMatch.player1Id, currentMatch.player2Id, currentMatch.player1Name, currentMatch.player2Name];
+
+    for (const other of matches) {
+      if (other.id === matchId || other.status === 'completed') continue;
+      const otherEdit = manualEdits[other.id];
+      const otherDate = otherEdit?.scheduledDate || other.scheduledDate || '';
+      const otherTime = otherEdit?.scheduledTime || other.scheduledTime || '';
+      if (otherDate !== date || otherTime !== time) continue;
+
+      const otherPlayerIds = other.type === 'team'
+        ? [other.team1Id, other.team2Id, other.team1Name, other.team2Name]
+        : [other.player1Id, other.player2Id, other.player1Name, other.player2Name];
+
+      for (const pid of currentPlayerIds) {
+        if (pid && otherPlayerIds.includes(pid)) {
+          const name = pid;
+          const otherLabel = other.type === 'individual'
+            ? `${other.player1Name ?? '?'} vs ${other.player2Name ?? '?'}`
+            : `${other.team1Name ?? '?'} vs ${other.team2Name ?? '?'}`;
+          return `${name}: ${date} ${time} ${otherLabel}`;
+        }
+      }
+    }
+    return null;
+  }, [matches, manualEdits]);
 
   const getManualEdit = (match: Match) => {
     if (manualEdits[match.id]) return manualEdits[match.id];
@@ -2622,6 +2657,14 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
   const handleSaveManualEdit = useCallback(async (matchId: string) => {
     const edit = manualEdits[matchId];
     if (!edit) return;
+    // Check for player time conflict
+    const conflict = checkPlayerTimeConflict(matchId, edit.scheduledDate, edit.scheduledTime);
+    if (conflict) {
+      setScheduleConflict(conflict);
+      setTimeout(() => setScheduleConflict(''), 5000);
+      return;
+    }
+    setScheduleConflict('');
     setSavingMatchId(matchId);
     try {
       await updateMatch(matchId, {
@@ -2650,7 +2693,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
     } finally {
       setSavingMatchId(null);
     }
-  }, [manualEdits, matches, schedule, setScheduleBulk, updateMatch]);
+  }, [manualEdits, matches, schedule, setScheduleBulk, updateMatch, checkPlayerTimeConflict]);
 
   const handleResetSchedule = useCallback(async () => {
     if (!confirm(t('admin.tournamentDetail.scheduleTab.resetConfirm'))) return;
@@ -3067,6 +3110,11 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
               {resettingSchedule ? t('admin.tournamentDetail.scheduleTab.resetting') : t('admin.tournamentDetail.scheduleTab.resetScheduleButton')}
             </button>
           </div>
+          {scheduleConflict && (
+            <div className="bg-red-900/50 border border-red-600 rounded-lg p-3 text-red-300 text-sm">
+              {t('admin.tournamentDetail.scheduleTab.conflictWarning')}: {scheduleConflict}
+            </div>
+          )}
           <div className="space-y-3">
             {sortedMatches.map(match => {
               const edit = getManualEdit(match);
@@ -3091,6 +3139,9 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                       {!match.scheduledDate && !match.scheduledTime && <span className="text-gray-400">{t('admin.tournamentDetail.scheduleTab.unassignedLabel')}</span>}
                     </div>
                   </div>
+                  {match.status === 'completed' ? (
+                    <p className="text-xs text-gray-500">{t('common.matchStatus.completed')} - {t('admin.tournamentDetail.scheduleTab.completedNoEdit')}</p>
+                  ) : (
                   <div className="flex gap-3 flex-wrap items-end">
                     <div>
                       <label className="block text-xs text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.scheduleDateLabel')}</label>
@@ -3161,6 +3212,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
                       {savingMatchId === match.id ? t('admin.tournamentDetail.scheduleTab.savingButton') : t('admin.tournamentDetail.scheduleTab.saveButton')}
                     </button>
                   </div>
+                  )}
                 </div>
               );
             })}
