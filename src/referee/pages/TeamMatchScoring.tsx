@@ -936,8 +936,8 @@ export default function TeamMatchScoring() {
                   <div key={order.ids[i] ?? i} className="flex items-center gap-2 bg-gray-700 rounded px-3 py-2">
                     <span className="text-gray-400 text-sm w-6">{i + 1}</span>
                     <span className="flex-1 text-white">{name}</span>
-                    <button className="text-gray-400 hover:text-white px-1" disabled={i === 0} onClick={() => swapOrder(setter, order, i, -1)} style={{ minHeight: '36px', minWidth: '36px' }}>▲</button>
-                    <button className="text-gray-400 hover:text-white px-1" disabled={i === order.names.length - 1} onClick={() => swapOrder(setter, order, i, 1)} style={{ minHeight: '36px', minWidth: '36px' }}>▼</button>
+                    <button className="text-gray-400 hover:text-white px-1" disabled={i === 0} onClick={() => swapOrder(setter, order, i, -1)} style={{ minHeight: '36px', minWidth: '36px' }} aria-label={`${name} ${t('admin.tournamentDetail.bracketTab.orderUpAriaLabel')}`}>▲</button>
+                    <button className="text-gray-400 hover:text-white px-1" disabled={i === order.names.length - 1} onClick={() => swapOrder(setter, order, i, 1)} style={{ minHeight: '36px', minWidth: '36px' }} aria-label={`${name} ${t('admin.tournamentDetail.bracketTab.orderDownAriaLabel')}`}>▼</button>
                   </div>
                 ))}
               </div>
@@ -952,6 +952,7 @@ export default function TeamMatchScoring() {
               <button
                 className="btn btn-primary btn-large w-full"
                 onClick={() => setCoinTossStep('toss')}
+                aria-label={t('referee.scoring.teamOrderConfirm')}
               >
                 {t('referee.scoring.teamOrderConfirm')}
               </button>
@@ -962,10 +963,10 @@ export default function TeamMatchScoring() {
           <div className="card w-full max-w-md space-y-4">
             <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
             <div className="flex gap-4">
-              <button className="btn btn-primary btn-large flex-1" onClick={() => { setTossWinner('team1'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1" onClick={() => { setTossWinner('team1'); setCoinTossStep('choice'); }} aria-label={`${team1Name} ${t('referee.scoring.coinToss')}`}>
                 {team1Name}
               </button>
-              <button className="btn btn-primary btn-large flex-1" onClick={() => { setTossWinner('team2'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1" onClick={() => { setTossWinner('team2'); setCoinTossStep('choice'); }} aria-label={`${team2Name} ${t('referee.scoring.coinToss')}`}>
                 {team2Name}
               </button>
             </div>
