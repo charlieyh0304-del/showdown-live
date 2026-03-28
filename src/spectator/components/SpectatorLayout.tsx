@@ -6,6 +6,7 @@ import NotificationToast from '@shared/components/NotificationToast';
 import { useFavorites, useTournaments, useMatches, useSchedule } from '@shared/hooks/useFirebase';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import { usePushNotifications } from '@shared/hooks/usePushNotifications';
+import { useNotificationSettings } from '@shared/hooks/useNotificationSettings';
 import { useMemo } from 'react';
 
 // Global notification watcher - deferred to avoid blocking initial render
@@ -26,15 +27,20 @@ function NotificationWatcherInner() {
   const { favoriteIds, favorites } = useFavorites();
   const { tournaments } = useTournaments();
 
+  // Pick any active tournament (in_progress first, then registration, then any)
   const activeTournamentId = useMemo(
-    () => tournaments.find(t => t.status === 'in_progress')?.id || null,
+    () => tournaments.find(t => t.status === 'in_progress')?.id
+      || tournaments.find(t => t.status === 'registration')?.id
+      || tournaments[0]?.id
+      || null,
     [tournaments]
   );
 
   const { matches } = useMatches(activeTournamentId);
   const { schedule } = useSchedule(activeTournamentId);
+  const { settings: notifSettings } = useNotificationSettings();
 
-  useMatchNotifications(favoriteIds, matches, schedule);
+  useMatchNotifications(favoriteIds, matches, schedule, notifSettings);
   usePushNotifications(favorites);
 
   return null;
@@ -101,6 +107,10 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           padding: '1rem',
           paddingBottom: '5rem',
           overflowY: 'auto',
+          maxWidth: '64rem',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          width: '100%',
         }}
       >
         <ErrorBoundary>
