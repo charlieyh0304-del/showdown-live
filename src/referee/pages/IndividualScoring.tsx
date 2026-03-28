@@ -668,15 +668,38 @@ export default function IndividualScoring() {
       longWhistle(); // match end whistle
       if (tournamentId) autoBackupToLocal(tournamentId);
     } else {
+      // 세트 전환: 코트 체인지 + 1분 휴식
       sets.push(createEmptySet());
+      const p1Name = match.player1Name ?? '';
+      const p2Name = match.player2Name ?? '';
+      const currentServe = match.currentServe ?? 'player1';
+      const serverName = currentServe === 'player1' ? p1Name : p2Name;
+      const sideChangeEntry: ScoreHistoryEntry = {
+        time: formatTime(),
+        set: ci + 2,
+        scoringPlayer: '',
+        actionPlayer: '',
+        actionType: 'side_change' as ScoreActionType,
+        actionLabel: t('common.matchHistory.sideChange'),
+        points: 0,
+        scoreBefore: { player1: 0, player2: 0 },
+        scoreAfter: { player1: 0, player2: 0 },
+        server: serverName,
+        serveNumber: 1,
+        serverSide: currentServe,
+      };
+      const prevHistory = match.scoreHistory ?? [];
       await updateMatch({
         sets, currentSet: ci + 1,
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
         sideChangeUsed: false,
+        sideChangeStartTime: Date.now(),
+        scoreHistory: [sideChangeEntry, ...prevHistory],
       });
+      longWhistle(); // court change whistle
     }
     setShowSetEndConfirm(false);
-  }, [match, gameConfig, updateMatch, tournamentId, longWhistle]);
+  }, [match, gameConfig, updateMatch, tournamentId, longWhistle, t]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);

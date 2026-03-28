@@ -423,15 +423,33 @@ export default function PracticeScoring() {
         finalScore: sets.map(s => `${s.player1Score}-${s.player2Score}`).join(', '),
       });
     } else {
+      // 세트 전환: 코트 체인지 + 1분 휴식
       sets.push(createEmptySet());
+      const sideChangeEntry = createScoreHistoryEntry({
+        scoringPlayer: '',
+        actionPlayer: '',
+        actionType: 'side_change',
+        actionLabel: t('common.matchHistory.sideChange'),
+        points: 0,
+        set: ci + 2,
+        server: match.currentServe === 'player1' ? p1Name : p2Name,
+        serveNumber: 1,
+        scoreBefore: { player1: 0, player2: 0 },
+        scoreAfter: { player1: 0, player2: 0 },
+        serverSide: match.currentServe,
+      });
       updateMatch({
         sets, currentSet: ci + 1,
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
         sideChangeUsed: false,
+        scoreHistory: [sideChangeEntry, ...match.scoreHistory],
       });
+      sideChangeTimer.start(60);
+      setShowSideChange(true);
+      longWhistle(); // court change whistle
     }
     setShowSetEndConfirm(false);
-  }, [match, config, updateMatch, matchType, addSession, longWhistle]);
+  }, [match, config, updateMatch, matchType, addSession, longWhistle, sideChangeTimer, p1Name, p2Name, t]);
 
   const handleCancelSetEnd = useCallback(() => {
     setShowSetEndConfirm(false);
