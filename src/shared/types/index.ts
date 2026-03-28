@@ -257,6 +257,7 @@ export interface SetScore {
 // ===== IBSA 득점 액션 타입 =====
 export type ScoreActionType =
   | 'goal'              // 골 (+2점, 득점한 선수에게)
+  | 'foul'              // 파울 일반 (+1점, 상대에게) - 미분류
   | 'irregular_serve'   // 부정 서브 (+1점, 상대에게)
   | 'centerboard'       // 센터보드 (+1점, 상대에게)
   | 'body_touch'        // 바디터치 (+1점, 상대에게)
@@ -267,7 +268,7 @@ export type ScoreActionType =
   | 'penalty'           // 기타 벌점 (+2점, 상대에게) - 하위호환용
   | 'penalty_table_pushing'  // 테이블 푸싱 (+2점, 상대에게)
   | 'penalty_electronic'     // 전자기기 소리 (+2점, 상대에게)
-  | 'penalty_talking'        // 경기 중 말하기 (+2점, 상대에게)
+  | 'penalty_talking'        // 경기 중 말하기 (경고 후 +1점, 상대에게)
   | 'manual'            // 수동 득점/감점
   | 'timeout'           // 타임아웃 - 하위호환용
   | 'timeout_player'    // 선수 타임아웃 (1분)
@@ -303,7 +304,7 @@ export const IBSA_SCORE_ACTIONS: ScoreAction[] = [
   { type: 'mask_touch', points: 2, toOpponent: true, label: '마스크터치 +2' },
   { type: 'penalty_table_pushing', points: 2, toOpponent: true, label: '테이블 푸싱' },
   { type: 'penalty_electronic', points: 2, toOpponent: true, label: '전자기기 소리' },
-  { type: 'penalty_talking', points: 2, toOpponent: true, label: '경기 중 말하기' },
+  { type: 'penalty_talking', points: 1, toOpponent: true, label: '경기 중 말하기' },
 ];
 
 // ===== 득점 히스토리 항목 =====

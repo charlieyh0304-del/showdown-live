@@ -129,6 +129,7 @@
 
     "scoreActions": {
       "goal": "골 득점",
+      "foul": "파울",
       "irregularServe": "부정 서브",
       "centerboard": "센터보드 터치",
       "bodyTouch": "바디 터치",
@@ -923,6 +924,7 @@
       },
       "timeoutEnd": "타임아웃 종료",
       "elapsedTime": "경과 시간",
+      "classifyFoul": "파울 분류 (선택)",
       "fifteenSecondsLeft": "15초 남았습니다",
       "sideChangeFifteenSeconds": "사이드 체인지 15초 남았습니다",
       "warmupFifteenSeconds": "워밍업 15초 남았습니다",

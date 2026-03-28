@@ -129,6 +129,7 @@
 
     "scoreActions": {
       "goal": "Goal",
+      "foul": "Foul",
       "irregularServe": "Irregular Serve",
       "centerboard": "Centerboard Touch",
       "bodyTouch": "Body Touch",
@@ -923,6 +924,7 @@
       },
       "timeoutEnd": "End Timeout",
       "elapsedTime": "Elapsed Time",
+      "classifyFoul": "Classify foul (optional)",
       "fifteenSecondsLeft": "15 seconds remaining",
       "sideChangeFifteenSeconds": "Side change: 15 seconds remaining",
       "warmupFifteenSeconds": "Warm-up: 15 seconds remaining",

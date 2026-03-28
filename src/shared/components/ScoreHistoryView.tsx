@@ -5,6 +5,7 @@ import { parseTimeDisplay } from '@shared/utils/locale';
 
 const ACTION_KEY_MAP: Record<string, string> = {
   goal: 'common.scoreActions.goal',
+  foul: 'common.scoreActions.foul',
   irregular_serve: 'common.scoreActions.irregularServe',
   centerboard: 'common.scoreActions.centerboard',
   body_touch: 'common.scoreActions.bodyTouch',
