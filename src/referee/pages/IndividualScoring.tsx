@@ -1382,7 +1382,8 @@ export default function IndividualScoring() {
             onClick={() => handleDeadBall(currentServe === 'player1' ? 1 : 2)}>
             🔵 {t('common.matchHistory.deadBall', { server: '' })}
           </button>
-          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white flex-1 py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}>
+          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white flex-1 py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
+            aria-label={t('referee.scoring.timeoutTitle.referee')}>
             🟨 {t('referee.scoring.timeoutTitle.referee')}
           </button>
         </div>
@@ -1396,18 +1397,22 @@ export default function IndividualScoring() {
           {expandedSection === 'timeout' && (
             <div className="px-3 py-3 space-y-2 bg-gray-900/50">
               <div className="grid grid-cols-2 gap-2">
-                <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(1, 'player')} disabled={p1TimeoutsUsed >= 1 || !!match.activeTimeout}>
+                <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(1, 'player')} disabled={p1TimeoutsUsed >= 1 || !!match.activeTimeout}
+                  aria-label={`${player1Name} ${t('referee.scoring.timeoutTitle.player')} 1${t('common.time.minutes')}, ${t('referee.practice.scoring.playerTimeoutInfo', { remaining: 1 - p1TimeoutsUsed })}`}>
                   ⏱️ {player1Name} ({1 - p1TimeoutsUsed})
                 </button>
-                <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(2, 'player')} disabled={p2TimeoutsUsed >= 1 || !!match.activeTimeout}>
+                <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(2, 'player')} disabled={p2TimeoutsUsed >= 1 || !!match.activeTimeout}
+                  aria-label={`${player2Name} ${t('referee.scoring.timeoutTitle.player')} 1${t('common.time.minutes')}, ${t('referee.practice.scoring.playerTimeoutInfo', { remaining: 1 - p2TimeoutsUsed })}`}>
                   ⏱️ {player2Name} ({1 - p2TimeoutsUsed})
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(1, 'medical')} disabled={!!match.activeTimeout || (history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player1Name).length >= 1)}>
+                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(1, 'medical')} disabled={!!match.activeTimeout || (history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player1Name).length >= 1)}
+                  aria-label={`${player1Name} ${t('referee.scoring.timeoutTitle.medical')} 5${t('common.time.minutes')}`}>
                   🏥 {player1Name} 5m
                 </button>
-                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(2, 'medical')} disabled={!!match.activeTimeout || (history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player2Name).length >= 1)}>
+                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(2, 'medical')} disabled={!!match.activeTimeout || (history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player2Name).length >= 1)}
+                  aria-label={`${player2Name} ${t('referee.scoring.timeoutTitle.medical')} 5${t('common.time.minutes')}`}>
                   🏥 {player2Name} 5m
                 </button>
               </div>
