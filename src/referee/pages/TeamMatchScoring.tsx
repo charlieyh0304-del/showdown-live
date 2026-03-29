@@ -23,7 +23,6 @@ import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import TimerModal from '../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../components/ActionToast';
-import ScoresheetGrid from '../components/ScoresheetGrid';
 import FoulClassifyOverlay from '../components/FoulClassifyOverlay';
 
 const DEFAULT_TEAM_CONFIG = {
@@ -1186,8 +1185,6 @@ export default function TeamMatchScoring() {
     && !h.penaltyWarning && h.actionPlayer === team2Name
   ).length;
 
-  // Team: points 1-38, side change at 16
-  const teamMaxPoints = gameConfig.POINTS_TO_WIN + 7; // 31 + 7 = 38
 
   // GAP-2: disabled condition for scoring buttons
   const scoringDisabled = !!match.activeTimeout || isPausedLocal || showSideChange;
@@ -1348,25 +1345,36 @@ export default function TeamMatchScoring() {
         <button className="text-xs text-blue-400 underline" onClick={handleChangeServe} aria-label={t('common.matchHistory.serve')} style={{ minHeight: '44px', minWidth: '44px' }}>{t('common.matchHistory.serve')}</button>
       </div>
 
-      {/* Official Scoresheet Grid */}
-      <div className="px-2 py-2" aria-live="polite">
-        <ScoresheetGrid
-          key={`team-${scoreFlash}`}
-          playerAName={team1Name}
-          playerBName={team2Name}
-          playerAScore={currentSet.player1Score}
-          playerBScore={currentSet.player2Score}
-          maxPoints={teamMaxPoints}
-          highlightPoint={16}
-          currentServe={currentServe}
-          serveCount={serveCountVal}
-          servesPerTurn={3}
-          warnings={{ player1: p1Warnings, player2: p2Warnings }}
-          penalties={{ player1: p1Penalties, player2: p2Penalties }}
-          timeouts={{ player1: t1TimeoutsUsed, player2: t2TimeoutsUsed }}
-          setLabel={`${t('referee.home.teamMatch')} — ${currentSet.player1Score} : ${currentSet.player2Score}`}
-        />
+      {/* Score display */}
+      <div className="flex border-b border-gray-700" aria-live="polite">
+        <div className="flex-1 flex flex-col items-center py-3 px-2 border-r border-gray-700" style={currentServe === 'player1' ? { borderLeft: '3px solid rgba(234,179,8,0.4)' } : undefined}>
+          <h2 className="text-lg font-bold text-yellow-400">
+            {currentServe === 'player1' && '🎾 '}{team1Name}
+          </h2>
+          <div key={`t1-${scoreFlash}`} className="text-7xl font-bold my-1 text-yellow-400" style={{ animation: 'scoreFlash 0.3s ease-out' }}>
+            {currentSet.player1Score}
+          </div>
+          <div className="flex gap-1.5 mt-1">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-800/60 text-amber-300 font-bold">W{p1Warnings}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-800/60 text-red-300 font-bold">P{p1Penalties}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-800/60 text-blue-300 font-bold">T{t1TimeoutsUsed}</span>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center py-3 px-2" style={currentServe === 'player2' ? { borderRight: '3px solid rgba(6,182,212,0.4)' } : undefined}>
+          <h2 className="text-lg font-bold text-cyan-400">
+            {currentServe === 'player2' && '🎾 '}{team2Name}
+          </h2>
+          <div key={`t2-${scoreFlash}`} className="text-7xl font-bold my-1 text-cyan-400" style={{ animation: 'scoreFlash 0.3s ease-out' }}>
+            {currentSet.player2Score}
+          </div>
+          <div className="flex gap-1.5 mt-1">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-800/60 text-amber-300 font-bold">W{p2Warnings}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-800/60 text-red-300 font-bold">P{p2Penalties}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-800/60 text-blue-300 font-bold">T{t2TimeoutsUsed}</span>
+          </div>
+        </div>
       </div>
+      <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
       {/* Scoring area - 4 main buttons */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
