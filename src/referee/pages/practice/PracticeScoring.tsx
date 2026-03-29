@@ -365,13 +365,15 @@ export default function PracticeScoring() {
 
       // Show confirmation after 500ms delay
       setTimeout(() => {
+        const setWinnerName = setWinner === 1 ? p1Name : p2Name;
+        const winScore = setWinner === 1 ? cs.player1Score : cs.player2Score;
+        const loseScore = setWinner === 1 ? cs.player2Score : cs.player1Score;
+        const setWinsCalc = countSetWins(sets, config);
+
         if (matchWinner) {
-          const winnerName = matchWinner === 1 ? p1Name : p2Name;
-          const setWinsCalc = countSetWins(sets, config);
-          setSetEndMessage(`${winnerName}! (${t('common.units.set')} ${setWinsCalc.player1}:${setWinsCalc.player2})\n${t('common.matchHistory.score')}: ${cs.player1Score} - ${cs.player2Score}`);
+          setSetEndMessage(`🏆 ${setWinnerName}!\n${t('common.matchHistory.score')}: ${winScore} - ${loseScore}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
         } else {
-          const setWinsCalc = countSetWins(sets, config);
-          setSetEndMessage(`${t('common.matchHistory.setLabel', { num: ci + 1 })}?\n\n${t('common.matchHistory.score')}: ${cs.player1Score} - ${cs.player2Score}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
+          setSetEndMessage(`${setWinnerName} ${t('common.matchHistory.setLabel', { num: ci + 1 })} ${winScore} - ${loseScore}\n\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
         }
         setShowSetEndConfirm(true);
       }, 500);
@@ -419,8 +421,10 @@ export default function PracticeScoring() {
         finalScore: sets.map(s => `${s.player1Score}-${s.player2Score}`).join(', '),
       });
     } else {
-      // 세트 전환: 코트 체인지 + 1분 휴식
+      // 세트 전환: 코트 체인지 + 1분 휴식 + 서브권 교대
       sets.push(createEmptySet());
+      const nextSetServe: 'player1' | 'player2' = match.currentServe === 'player1' ? 'player2' : 'player1';
+      const nextServerName = nextSetServe === 'player1' ? p1Name : p2Name;
       const sideChangeEntry = createScoreHistoryEntry({
         scoringPlayer: '',
         actionPlayer: '',
@@ -428,14 +432,15 @@ export default function PracticeScoring() {
         actionLabel: t('common.matchHistory.sideChange'),
         points: 0,
         set: ci + 2,
-        server: match.currentServe === 'player1' ? p1Name : p2Name,
+        server: nextServerName,
         serveNumber: 1,
         scoreBefore: { player1: 0, player2: 0 },
         scoreAfter: { player1: 0, player2: 0 },
-        serverSide: match.currentServe,
+        serverSide: nextSetServe,
       });
       updateMatch({
         sets, currentSet: ci + 1,
+        currentServe: nextSetServe, serveCount: 0,
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
         sideChangeUsed: false,
         scoreHistory: [sideChangeEntry, ...match.scoreHistory],

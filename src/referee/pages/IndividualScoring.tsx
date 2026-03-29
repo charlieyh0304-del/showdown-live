@@ -628,14 +628,16 @@ export default function IndividualScoring() {
 
       // Show dialog message after 500ms delay (dialog already blocks via showSetEndConfirm)
       setTimeout(() => {
+        const setWinnerName = setWinner === 1 ? p1Name : p2Name;
+        const winScore = setWinner === 1 ? cs.player1Score : cs.player2Score;
+        const loseScore = setWinner === 1 ? cs.player2Score : cs.player1Score;
+        const setWinsCalc = countSetWins(sets, gameConfig);
+
         if (matchWinner) {
-          const winnerName = matchWinner === 1 ? p1Name : p2Name;
-          const setWinsCalc = countSetWins(sets, gameConfig);
-          setSetEndMessage(`${winnerName}! (${t('common.units.set')} ${setWinsCalc.player1}:${setWinsCalc.player2})\n${t('common.matchHistory.score')}: ${cs.player1Score} - ${cs.player2Score}`);
+          setSetEndMessage(`🏆 ${setWinnerName}!\n${t('common.matchHistory.score')}: ${winScore} - ${loseScore}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
           setIsMatchEnd(true);
         } else {
-          const setWinsCalc = countSetWins(sets, gameConfig);
-          setSetEndMessage(`${t('common.matchHistory.setLabel', { num: ci + 1 })}?\n\n${t('common.matchHistory.score')}: ${cs.player1Score} - ${cs.player2Score}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
+          setSetEndMessage(`${setWinnerName} ${t('common.matchHistory.setLabel', { num: ci + 1 })} ${winScore} - ${loseScore}\n\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
           setIsMatchEnd(false);
         }
       }, 500);
@@ -675,12 +677,13 @@ export default function IndividualScoring() {
       longWhistle(); // match end whistle
       if (tournamentId) autoBackupToLocal(tournamentId);
     } else {
-      // 세트 전환: 코트 체인지 + 1분 휴식
+      // 세트 전환: 코트 체인지 + 1분 휴식 + 서브권 교대
       sets.push(createEmptySet());
       const p1Name = match.player1Name ?? '';
       const p2Name = match.player2Name ?? '';
       const currentServe = match.currentServe ?? 'player1';
-      const serverName = currentServe === 'player1' ? p1Name : p2Name;
+      const nextSetServe: 'player1' | 'player2' = currentServe === 'player1' ? 'player2' : 'player1';
+      const nextServerName = nextSetServe === 'player1' ? p1Name : p2Name;
       const sideChangeEntry: ScoreHistoryEntry = {
         time: formatTime(),
         set: ci + 2,
@@ -691,13 +694,14 @@ export default function IndividualScoring() {
         points: 0,
         scoreBefore: { player1: 0, player2: 0 },
         scoreAfter: { player1: 0, player2: 0 },
-        server: serverName,
+        server: nextServerName,
         serveNumber: 1,
-        serverSide: currentServe,
+        serverSide: nextSetServe,
       };
       const prevHistory = match.scoreHistory ?? [];
       await updateMatch({
         sets, currentSet: ci + 1,
+        currentServe: nextSetServe, serveCount: 0,
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
         sideChangeUsed: false,
         sideChangeStartTime: Date.now(),
