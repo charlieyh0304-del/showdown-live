@@ -1,5 +1,5 @@
 import { type ReactNode, useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
 import NotificationToast from '@shared/components/NotificationToast';
@@ -46,6 +46,28 @@ function NotificationWatcherInner() {
   return null;
 }
 
+/** Extract tournament ID from pathname like /spectator/tournament/abc123/players */
+function useTournamentContext() {
+  const location = useLocation();
+  const match = location.pathname.match(/^\/spectator\/tournament\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
+const navLinkStyle = {
+  flex: 1,
+  textAlign: 'center' as const,
+  display: 'flex',
+  flexDirection: 'column' as const,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  padding: '0.625rem 0.25rem',
+  textDecoration: 'none',
+  fontSize: '0.8125rem',
+  fontWeight: 'bold' as const,
+  gap: '0.125rem',
+  minHeight: '56px',
+};
+
 interface SpectatorLayoutProps {
   children: ReactNode;
 }
@@ -53,14 +75,13 @@ interface SpectatorLayoutProps {
 export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const tournamentId = useTournamentContext();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Global notification watcher */}
       <NotificationWatcher />
       <NotificationToast />
-
-      {/* Skip navigation - handled by global skip-link in App.tsx */}
 
       {/* Header */}
       <header
@@ -71,24 +92,28 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           padding: '0.75rem 1rem',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'center',
+          position: 'relative',
         }}
       >
-        <button
-          onClick={() => navigate('/spectator')}
-          className="btn"
-          style={{
-            background: 'none',
-            color: 'var(--color-secondary)',
-            padding: '0.5rem 0.75rem',
-            fontSize: '1.1rem',
-          }}
-          aria-label={t('spectator.layout.homeAriaLabel')}
-        >
-          {t('spectator.layout.homeButton')}
-        </button>
+        {tournamentId ? (
+          <button
+            onClick={() => navigate('/spectator')}
+            className="btn"
+            style={{
+              background: 'none',
+              color: 'var(--color-secondary)',
+              padding: '0.5rem 0.75rem',
+              fontSize: '1.1rem',
+              position: 'absolute',
+              left: '0.5rem',
+            }}
+            aria-label={t('spectator.layout.backToListAriaLabel')}
+          >
+            {t('spectator.layout.backToList')}
+          </button>
+        ) : null}
         <span
-          aria-hidden="true"
           style={{
             fontSize: '1.5rem',
             fontWeight: 'bold',
@@ -118,7 +143,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
         </ErrorBoundary>
       </main>
 
-      {/* Bottom tab navigation */}
+      {/* Bottom tab navigation - context-aware */}
       <nav
         style={{
           position: 'fixed',
@@ -132,67 +157,89 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
         }}
         aria-label={t('spectator.layout.bottomNavAriaLabel')}
       >
-        <NavLink
-          to="/spectator"
-          end
-          className={({ isActive }) =>
-            isActive ? 'nav-link active' : 'nav-link'
-          }
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-            textDecoration: 'none',
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-          }}
-          aria-label={t('spectator.layout.tournamentsAriaLabel')}
-        >
-          {t('spectator.layout.tournaments')}
-        </NavLink>
-        <NavLink
-          to="/spectator/favorites"
-          className={({ isActive }) =>
-            isActive ? 'nav-link active' : 'nav-link'
-          }
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-            textDecoration: 'none',
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-          }}
-          aria-label={t('spectator.layout.favoritesAriaLabel')}
-        >
-          {t('spectator.layout.favorites')}
-        </NavLink>
-        <NavLink
-          to="/spectator/practice"
-          className={({ isActive }) =>
-            isActive ? 'nav-link active' : 'nav-link'
-          }
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-            textDecoration: 'none',
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-          }}
-          aria-label={t('spectator.layout.practiceAriaLabel')}
-        >
-          {t('spectator.layout.practice')}
-        </NavLink>
+        {tournamentId ? (
+          /* Tournament context: 5 tabs */
+          <>
+            <NavLink
+              to={`/spectator/tournament/${tournamentId}`}
+              end
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.tournamentTab.overviewAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#9889;</span>
+              {t('spectator.layout.tournamentTab.overview')}
+            </NavLink>
+            <NavLink
+              to={`/spectator/tournament/${tournamentId}/players`}
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.tournamentTab.playersAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128101;</span>
+              {t('spectator.layout.tournamentTab.players')}
+            </NavLink>
+            <NavLink
+              to={`/spectator/tournament/${tournamentId}/standings`}
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.tournamentTab.standingsAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127942;</span>
+              {t('spectator.layout.tournamentTab.standings')}
+            </NavLink>
+            <NavLink
+              to={`/spectator/tournament/${tournamentId}/schedule`}
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.tournamentTab.scheduleAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128197;</span>
+              {t('spectator.layout.tournamentTab.schedule')}
+            </NavLink>
+            <NavLink
+              to={`/spectator/tournament/${tournamentId}/referees`}
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.tournamentTab.refereesAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128084;</span>
+              {t('spectator.layout.tournamentTab.referees')}
+            </NavLink>
+          </>
+        ) : (
+          /* Home context: 3 tabs */
+          <>
+            <NavLink
+              to="/spectator"
+              end
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.tournamentsAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127942;</span>
+              {t('spectator.layout.tournaments')}
+            </NavLink>
+            <NavLink
+              to="/spectator/favorites"
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.favoritesAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#11088;</span>
+              {t('spectator.layout.favorites')}
+            </NavLink>
+            <NavLink
+              to="/spectator/practice"
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              style={navLinkStyle}
+              aria-label={t('spectator.layout.practiceAriaLabel')}
+            >
+              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127947;</span>
+              {t('spectator.layout.practice')}
+            </NavLink>
+          </>
+        )}
       </nav>
     </div>
   );

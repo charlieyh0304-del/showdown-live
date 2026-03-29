@@ -12,9 +12,16 @@ export default function SpectatorRoutes() {
     <SpectatorLayout>
       <Routes>
         <Route path="/" element={<SpectatorHome />} />
-        <Route path="/tournament/:id" element={<TournamentView />} />
+        {/* Tournament context routes - 5 bottom tabs */}
+        <Route path="/tournament/:id" element={<TournamentView viewTab="overview" />} />
+        <Route path="/tournament/:id/players" element={<TournamentView viewTab="players" />} />
+        <Route path="/tournament/:id/standings" element={<TournamentView viewTab="standings" />} />
+        <Route path="/tournament/:id/schedule" element={<TournamentView viewTab="schedule" />} />
+        <Route path="/tournament/:id/referees" element={<TournamentView viewTab="referees" />} />
+        {/* Detail views */}
         <Route path="/match/:tournamentId/:matchId" element={<LiveMatchView />} />
         <Route path="/player/:tournamentId/:playerName" element={<PlayerProfileView />} />
+        {/* Home context routes */}
         <Route path="/favorites" element={<FavoritesView />} />
         <Route path="/practice" element={<PracticeWatchView />} />
         <Route path="*" element={<Navigate to="" replace />} />

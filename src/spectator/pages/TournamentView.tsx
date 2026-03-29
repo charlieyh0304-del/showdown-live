@@ -1,28 +1,18 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useTournament, useMatches, useFavorites, useSchedule } from '@shared/hooks/useFirebase';
+import { useTournament, useMatches, useFavorites, useSchedule, useReferees, useTournamentReferees } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
 import { parseTimeDisplay } from '@shared/utils/locale';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { requestNotificationPermission } from '@shared/utils/notifications';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
-import type { Match, PlayerRanking, TeamRanking } from '@shared/types';
+import type { Match, PlayerRanking, TeamRanking, Referee } from '@shared/types';
 
-type TabId = 'live' | 'bracket' | 'groups' | 'ranking' | 'players' | 'history';
+/** URL-based tab: mapped from the route path segment after tournament/:id */
+type ViewTab = 'overview' | 'players' | 'standings' | 'schedule' | 'referees';
 
-const TAB_IDS: TabId[] = ['live', 'bracket', 'groups', 'ranking', 'players', 'history'];
-
-const TAB_LABEL_KEYS: Record<TabId, string> = {
-  live: 'spectator.tournament.tabs.live',
-  bracket: 'spectator.tournament.tabs.bracket',
-  groups: 'spectator.tournament.tabs.groups',
-  ranking: 'spectator.tournament.tabs.ranking',
-  players: 'spectator.tournament.tabs.players',
-  history: 'spectator.tournament.tabs.history',
-};
-
-export default function TournamentView() {
+export default function TournamentView({ viewTab = 'overview' }: { viewTab?: ViewTab }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -31,8 +21,9 @@ export default function TournamentView() {
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
   const { schedule } = useSchedule(id || null);
 
-  const getTabLabel = (tab: TabId) => t(TAB_LABEL_KEYS[tab]);
   const getTournamentTypeLabel = (type: string) => t(`common.tournamentType.${type}`);
+  const { referees } = useReferees();
+  const { assignments } = useTournamentReferees(id || null);
 
   useMatchNotifications(favoriteIds, matches, schedule);
 
@@ -43,7 +34,6 @@ export default function TournamentView() {
     }
   }, [toggleFavorite]);
 
-  const [activeTab, setActiveTab] = useState<TabId>('live');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const playerPanelRef = useRef<HTMLDivElement>(null);
@@ -197,7 +187,7 @@ export default function TournamentView() {
   return (
     <div>
       {/* Tournament header */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
           {tournament.name}
         </h1>
@@ -377,9 +367,9 @@ export default function TournamentView() {
         </div>
       )}
 
-      {/* Stage filter - 풀리그 전용 대회에서는 예선/본선 구분 불필요 */}
-      {!isFullLeagueOnly && (stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto' }} role="group" aria-label={t('spectator.tournament.stageFilter.label')}>
+      {/* Stage filter - shown on standings and schedule views */}
+      {(viewTab === 'standings' || viewTab === 'schedule') && !isFullLeagueOnly && (stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', justifyContent: 'center' }} role="group" aria-label={t('spectator.tournament.stageFilter.label')}>
           {([
             { key: 'all' as const, label: t('spectator.tournament.stageFilter.all'), count: matches.length },
             { key: 'qualifying' as const, label: t('spectator.tournament.stageFilter.qualifying'), count: stageMap.qualifying.length },
@@ -403,66 +393,32 @@ export default function TournamentView() {
         </div>
       )}
 
-      {/* Tab navigation */}
-      <div
-        role="tablist"
-        aria-label={t('spectator.tournament.tabAriaLabel')}
-        onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const vt = TAB_IDS.filter(tab => tab !== 'groups' || hasGroupStage); const ci = vt.indexOf(activeTab); const ni = e.key === 'ArrowRight' ? (ci + 1) % vt.length : (ci - 1 + vt.length) % vt.length; setActiveTab(vt[ni]); e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[ni]?.focus(); } }}
-        style={{
-          display: 'flex',
-          gap: '0.25rem',
-          marginBottom: '1rem',
-          backgroundColor: '#1f2937',
-          borderRadius: '0.5rem',
-          padding: '0.25rem',
-        }}
-      >
-        {TAB_IDS.filter((tab) => {
-          if (tab === 'groups') {
-            return hasGroupStage;
-          }
-          return true;
-        }).map((tab) => (
-          <button
-            key={tab}
-            role="tab"
-            aria-selected={activeTab === tab}
-            aria-controls={`panel-${tab}`}
-            tabIndex={activeTab === tab ? 0 : -1}
-            className={activeTab === tab ? 'btn btn-primary' : 'btn'}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              padding: '0.5rem',
-              fontSize: '1rem',
-              color: activeTab === tab ? '#000' : '#d1d5db',
-              backgroundColor: activeTab === tab ? undefined : 'transparent',
-            }}
-          >
-            {getTabLabel(tab)}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab panels */}
-      <div role="tabpanel" id={`panel-${activeTab}`} aria-label={getTabLabel(activeTab)}>
-        {activeTab === 'live' && (
+      {/* View content based on bottom nav tab */}
+      <div role="region" aria-label={t(`spectator.layout.tournamentTab.${viewTab}`)}>
+        {viewTab === 'overview' && (
           <LiveTab matches={matches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
         )}
-        {activeTab === 'bracket' && (
-          <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
-        )}
-        {activeTab === 'groups' && (
-          <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} />
-        )}
-        {activeTab === 'ranking' && (
-          <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
-        )}
-        {activeTab === 'players' && (
+        {viewTab === 'players' && (
           <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} tournamentId={id!} navigate={navigate} />
         )}
-        {activeTab === 'history' && (
+        {viewTab === 'standings' && (
+          <>
+            <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
+            {hasGroupStage && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} />
+              </div>
+            )}
+            <div style={{ marginTop: '1.5rem' }}>
+              <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
+            </div>
+          </>
+        )}
+        {viewTab === 'schedule' && (
           <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
+        )}
+        {viewTab === 'referees' && (
+          <RefereesTab referees={referees} assignments={assignments} matches={matches} />
         )}
       </div>
     </div>
@@ -3010,6 +2966,168 @@ function HistoryTab({
           <button className="btn btn-sm btn-secondary" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===== Referees Tab =====
+function RefereesTab({
+  referees,
+  assignments,
+  matches,
+}: {
+  referees: Referee[];
+  assignments: Record<string, { assignedMatchIds: string[] }>;
+  matches: Match[];
+}) {
+  const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedRefereeId, setExpandedRefereeId] = useState<string | null>(null);
+
+  // Build list of referees assigned to this tournament
+  const tournamentReferees = useMemo(() => {
+    const refIds = new Set<string>();
+    for (const m of matches) {
+      if (m.refereeId) refIds.add(m.refereeId);
+      if (m.assistantRefereeId) refIds.add(m.assistantRefereeId);
+    }
+    for (const rid of Object.keys(assignments)) {
+      refIds.add(rid);
+    }
+
+    return Array.from(refIds).map(rid => {
+      const refData = referees.find(r => r.id === rid);
+      const assignedMatchIds = assignments[rid]?.assignedMatchIds || [];
+      const matchAssigned = matches.filter(m => m.refereeId === rid || m.assistantRefereeId === rid);
+      const allMatchIds = [...new Set([...assignedMatchIds, ...matchAssigned.map(m => m.id)])];
+      const refMatches = allMatchIds
+        .map(mid => matches.find(m => m.id === mid))
+        .filter((m): m is Match => !!m);
+
+      return {
+        id: rid,
+        name: refData?.name || matches.find(m => m.refereeId === rid)?.refereeName || matches.find(m => m.assistantRefereeId === rid)?.assistantRefereeName || rid,
+        role: refData?.role || 'main',
+        matches: refMatches,
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [referees, assignments, matches]);
+
+  const filteredReferees = useMemo(() => {
+    if (!searchQuery.trim()) return tournamentReferees;
+    const q = searchQuery.trim().toLowerCase();
+    return tournamentReferees.filter(r => r.name.toLowerCase().includes(q));
+  }, [tournamentReferees, searchQuery]);
+
+  if (tournamentReferees.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">
+          {t('spectator.tournament.referees.noReferees')}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          className="input"
+          style={{ width: '100%' }}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder={t('spectator.tournament.referees.searchPlaceholder')}
+          aria-label={t('spectator.tournament.referees.searchAriaLabel')}
+        />
+      </div>
+
+      <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '1rem', textAlign: 'center' }}>
+        {t('spectator.tournament.referees.count', { count: filteredReferees.length })}
+      </p>
+
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {filteredReferees.map(refItem => {
+          const isExpanded = expandedRefereeId === refItem.id;
+          const completedCount = refItem.matches.filter(m => m.status === 'completed').length;
+          const liveCount = refItem.matches.filter(m => m.status === 'in_progress').length;
+
+          return (
+            <li key={refItem.id}>
+              <button
+                className="card"
+                onClick={() => setExpandedRefereeId(isExpanded ? null : refItem.id)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  border: isExpanded ? '2px solid var(--color-primary)' : '2px solid #374151',
+                }}
+                aria-expanded={isExpanded}
+                aria-label={`${refItem.name}, ${t('spectator.tournament.referees.matchCount', { count: refItem.matches.length })}`}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{refItem.name}</span>
+                    <span style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: '#9ca3af' }}>
+                      ({refItem.role === 'main' ? t('spectator.tournament.referees.mainReferee') : t('spectator.tournament.referees.assistantReferee')})
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    {liveCount > 0 && (
+                      <span style={{ backgroundColor: '#ef4444', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                        {t('spectator.tournament.referees.live')} {liveCount}
+                      </span>
+                    )}
+                    <span style={{ color: '#d1d5db', fontSize: '0.875rem' }}>
+                      {t('spectator.tournament.referees.matchSummary', { completed: completedCount, total: refItem.matches.length })}
+                    </span>
+                    <span style={{ color: '#9ca3af', fontSize: '1.25rem' }} aria-hidden="true">
+                      {isExpanded ? '\u25B2' : '\u25BC'}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {isExpanded && refItem.matches.length > 0 && (
+                <div style={{ marginTop: '0.5rem', paddingLeft: '0.5rem', borderLeft: '3px solid #374151' }} role="list" aria-label={t('spectator.tournament.referees.assignedMatches')}>
+                  {refItem.matches.map(m => {
+                    const isIndividual = m.type === 'individual';
+                    const p1 = isIndividual ? m.player1Name : m.team1Name;
+                    const p2 = isIndividual ? m.player2Name : m.team2Name;
+                    const statusColor = m.status === 'completed' ? '#22c55e' : m.status === 'in_progress' ? '#ef4444' : '#9ca3af';
+
+                    return (
+                      <div
+                        key={m.id}
+                        role="listitem"
+                        className="card"
+                        style={{ marginBottom: '0.5rem', padding: '0.75rem', border: '1px solid #374151' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                            {p1 || '?'} vs {p2 || '?'}
+                          </span>
+                          <span style={{ color: statusColor, fontWeight: 'bold', fontSize: '0.875rem' }}>
+                            {m.status === 'completed' ? t('common.matchStatus.completed')
+                              : m.status === 'in_progress' ? t('common.matchStatus.inProgress')
+                              : t('common.matchStatus.pending')}
+                          </span>
+                        </div>
+                        {m.courtId && (
+                          <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                            {t('spectator.liveMatch.court')}: {m.courtId}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

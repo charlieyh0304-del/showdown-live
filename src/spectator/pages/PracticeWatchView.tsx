@@ -79,7 +79,7 @@ export default function PracticeWatchView() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-yellow-400">{t('spectator.practiceWatch.title')}</h1>
+      <h1 className="text-3xl font-bold text-yellow-400 text-center">{t('spectator.practiceWatch.title')}</h1>
 
       <div className="flex gap-2" role="tablist" aria-label={t('spectator.practiceWatch.filterAriaLabel')} onKeyDown={e => {
         if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {

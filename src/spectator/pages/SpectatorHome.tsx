@@ -46,7 +46,7 @@ export default function SpectatorHome() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center' }}>
         {t('spectator.home.title')}
       </h1>
 
@@ -145,9 +145,9 @@ export default function SpectatorHome() {
 
       {/* 연습 경기 관람 */}
       <button
-        className="card w-full text-left p-4"
+        className="card w-full p-4"
         onClick={() => navigate('/spectator/practice')}
-        style={{ border: '2px solid #7c3aed', cursor: 'pointer' }}
+        style={{ border: '2px solid #7c3aed', cursor: 'pointer', textAlign: 'center' }}
       >
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc' }}>{t('spectator.home.practiceWatch')}</h2>
         <p style={{ color: '#d1d5db', fontSize: '0.875rem', marginTop: '0.25rem' }}>{t('spectator.home.practiceWatchDescription')}</p>

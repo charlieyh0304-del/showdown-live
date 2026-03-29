@@ -1136,7 +1136,21 @@
       "favorites": "즐겨찾기",
       "favoritesAriaLabel": "즐겨찾기",
       "practice": "연습",
-      "practiceAriaLabel": "연습 경기"
+      "practiceAriaLabel": "연습 경기",
+      "backToList": "←",
+      "backToListAriaLabel": "대회 목록으로 돌아가기",
+      "tournamentTab": {
+        "overview": "대회",
+        "overviewAriaLabel": "대회 개요 및 실시간 경기",
+        "players": "선수",
+        "playersAriaLabel": "선수 목록",
+        "standings": "순위",
+        "standingsAriaLabel": "순위표",
+        "schedule": "일정",
+        "scheduleAriaLabel": "경기 일정 및 기록",
+        "referees": "심판",
+        "refereesAriaLabel": "심판 목록 및 배정"
+      }
     },
 
     "home": {
@@ -1183,6 +1197,18 @@
         "qualifying": "예선",
         "finals": "본선",
         "ranking": "순위결정전"
+      },
+      "referees": {
+        "noReferees": "배정된 심판이 없습니다",
+        "searchPlaceholder": "심판 이름 검색",
+        "searchAriaLabel": "심판 검색",
+        "count": "총 {{count}}명",
+        "mainReferee": "주심",
+        "assistantReferee": "부심",
+        "live": "진행중",
+        "matchCount": "배정 경기 {{count}}건",
+        "matchSummary": "{{completed}}/{{total}} 완료",
+        "assignedMatches": "배정된 경기 목록"
       },
       "playerRecord": {
         "title": "{{player}} 경기 기록",

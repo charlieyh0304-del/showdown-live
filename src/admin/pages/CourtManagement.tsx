@@ -122,7 +122,7 @@ export default function CourtManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="text-center space-y-4">
         <h1 className="text-3xl font-bold text-yellow-400">{t('admin.courts.title')}</h1>
         <button className="btn btn-primary" onClick={openAdd} aria-label={t('admin.courts.addCourt')}>
           {t('admin.courts.addCourt')}
@@ -174,7 +174,7 @@ export default function CourtManagement() {
           onKeyDown={handleKeyDown}
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="court-modal-title">
-            <h2 id="court-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
+            <h2 id="court-modal-title" className="text-2xl font-bold text-yellow-400 mb-4 text-center">
               {modalMode === 'add' ? t('admin.courts.addCourt') : t('admin.courts.editCourt')}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">

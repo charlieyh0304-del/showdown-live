@@ -133,7 +133,7 @@ export default function PlayerProfileView() {
         >
           {t('spectator.playerProfile.backButton')}
         </button>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#facc15' }}>{decodedName}</h1>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#facc15', textAlign: 'center' }}>{decodedName}</h1>
         {playerInfo && (
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
             {playerInfo.club && (
@@ -159,7 +159,7 @@ export default function PlayerProfileView() {
       {/* Stats */}
       {completedMatches.length > 0 && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>{t('spectator.playerProfile.record')}</h2>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem', textAlign: 'center' }}>{t('spectator.playerProfile.record')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
             <div>
               <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#22c55e' }}>{stats.wins}</p>
@@ -179,7 +179,7 @@ export default function PlayerProfileView() {
 
       {/* Upcoming matches */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem' }}>
+        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem', textAlign: 'center' }}>
           {t('spectator.playerProfile.upcomingCount', { count: upcomingMatches.length })}
         </h2>
         {upcomingMatches.length === 0 ? (
@@ -220,7 +220,7 @@ export default function PlayerProfileView() {
 
       {/* Completed matches */}
       <div className="card">
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#22c55e', marginBottom: '0.75rem' }}>
+        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#22c55e', marginBottom: '0.75rem', textAlign: 'center' }}>
           {t('spectator.playerProfile.completedCount', { count: completedMatches.length })}
         </h2>
         {completedMatches.length === 0 ? (

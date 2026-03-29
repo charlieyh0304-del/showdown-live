@@ -117,7 +117,7 @@ export default function RefereeManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="text-center space-y-4">
         <h1 className="text-3xl font-bold text-yellow-400">{t('admin.referees.title')}</h1>
         <button className="btn btn-primary" onClick={openAdd} aria-label={t('admin.referees.addReferee')}>
           {t('admin.referees.addReferee')}
@@ -169,7 +169,7 @@ export default function RefereeManagement() {
           onKeyDown={handleKeyDown}
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="referee-modal-title">
-            <h2 id="referee-modal-title" className="text-2xl font-bold text-yellow-400 mb-4">
+            <h2 id="referee-modal-title" className="text-2xl font-bold text-yellow-400 mb-4 text-center">
               {modalMode === 'add' ? t('admin.referees.addReferee') : t('admin.referees.editReferee')}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">

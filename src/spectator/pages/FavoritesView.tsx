@@ -86,7 +86,7 @@ export default function FavoritesView() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center' }}>
         {t('spectator.favorites.title')}
       </h1>
 

@@ -1136,7 +1136,21 @@
       "favorites": "Favorites",
       "favoritesAriaLabel": "Favorites",
       "practice": "Practice",
-      "practiceAriaLabel": "Practice matches"
+      "practiceAriaLabel": "Practice matches",
+      "backToList": "←",
+      "backToListAriaLabel": "Back to tournament list",
+      "tournamentTab": {
+        "overview": "Overview",
+        "overviewAriaLabel": "Tournament overview and live matches",
+        "players": "Players",
+        "playersAriaLabel": "Player list",
+        "standings": "Standings",
+        "standingsAriaLabel": "Standings table",
+        "schedule": "Schedule",
+        "scheduleAriaLabel": "Match schedule and results",
+        "referees": "Referees",
+        "refereesAriaLabel": "Referee list and assignments"
+      }
     },
 
     "home": {
@@ -1183,6 +1197,18 @@
         "qualifying": "Qualifying",
         "finals": "Finals",
         "ranking": "Ranking Match"
+      },
+      "referees": {
+        "noReferees": "No referees assigned",
+        "searchPlaceholder": "Search referee name",
+        "searchAriaLabel": "Search referees",
+        "count": "{{count}} total",
+        "mainReferee": "Head Referee",
+        "assistantReferee": "Assistant Referee",
+        "live": "Live",
+        "matchCount": "{{count}} matches assigned",
+        "matchSummary": "{{completed}}/{{total}} completed",
+        "assignedMatches": "Assigned matches"
       },
       "playerRecord": {
         "title": "{{player}} Match Record",
