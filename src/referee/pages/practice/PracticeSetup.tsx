@@ -162,7 +162,7 @@ export default function PracticeSetup() {
             <fieldset>
               <legend className="block mb-2 text-gray-300">{t('referee.practice.setup.setsToWin')}</legend>
               <div className="flex gap-2" role="radiogroup" aria-label={t('referee.practice.setup.setsToWin')}>
-                {[1, 3, 5, 7, 9].map(v => (
+                {[1, 3, 5].map(v => (
                   <button key={v} role="radio" aria-checked={maxSets === v} className={`btn flex-1 ${maxSets === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setMaxSets(v)} aria-label={`${v}${t('common.units.set')}${maxSets === v ? `, ${t('common.accessibility.selected')}` : ''}`}>
                     {v}{t('common.units.set')}
                   </button>
