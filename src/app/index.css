@@ -227,18 +227,27 @@ button, a, input, select {
   font-size: 1.25rem;
   font-weight: 600;
   border-radius: 0.5rem;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
   text-decoration: none;
   color: inherit;
+  border-bottom: 3px solid transparent;
 }
 
 .nav-link:hover {
-  background-color: #1f2937;
+  background-color: #374151;
+  border-bottom-color: #6b7280;
 }
 
 .nav-link.active {
   background-color: #ffff00;
   color: #000000;
+  border-bottom: 3px solid #ffff00;
+  font-weight: 800;
+}
+
+.nav-link:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: -2px;
 }
 
 /* 모달 배경 */
@@ -388,10 +397,12 @@ button, a, input, select {
 
 .mode-high-contrast .nav-link {
   border: 2px solid transparent;
+  border-bottom: 3px solid transparent;
 }
 
 .mode-high-contrast .nav-link.active {
   border-color: #FFD700;
+  border-bottom: 3px solid #FFD700;
   background-color: #FFD700;
   color: #000000;
 }

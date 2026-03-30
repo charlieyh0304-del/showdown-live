@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect } from 'react';
+import { type ReactNode, useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
@@ -7,7 +7,6 @@ import { useFavorites, useTournaments, useMatches, useSchedule } from '@shared/h
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { useNotificationSettings } from '@shared/hooks/useNotificationSettings';
-import { useMemo } from 'react';
 
 // Global notification watcher - deferred to avoid blocking initial render
 function NotificationWatcher() {
@@ -75,7 +74,28 @@ interface SpectatorLayoutProps {
 export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const location = useLocation();
   const tournamentId = useTournamentContext();
+
+  const isTabActive = useCallback((path: string, exact = false) => {
+    if (exact) return location.pathname === path;
+    return location.pathname.startsWith(path);
+  }, [location.pathname]);
+
+  const handleNavKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    const tabs = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
+    const currentIdx = Array.from(tabs).findIndex(tab => tab === document.activeElement);
+    if (currentIdx === -1) return;
+
+    let nextIdx = currentIdx;
+    if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + tabs.length) % tabs.length;
+    else return;
+
+    e.preventDefault();
+    tabs[nextIdx].focus();
+    tabs[nextIdx].click();
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -145,6 +165,8 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
 
       {/* Bottom tab navigation - context-aware */}
       <nav
+        role="tablist"
+        onKeyDown={handleNavKeyDown}
         style={{
           position: 'fixed',
           bottom: 0,
@@ -165,6 +187,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               end
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}`, true)}
+              aria-current={isTabActive(`/spectator/tournament/${tournamentId}`, true) ? 'page' : undefined}
               aria-label={t('spectator.layout.tournamentTab.overviewAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#9889;</span>
@@ -174,6 +199,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to={`/spectator/tournament/${tournamentId}/players`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/players`)}
+              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/players`) ? 'page' : undefined}
               aria-label={t('spectator.layout.tournamentTab.playersAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128101;</span>
@@ -183,6 +211,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to={`/spectator/tournament/${tournamentId}/standings`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/standings`)}
+              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/standings`) ? 'page' : undefined}
               aria-label={t('spectator.layout.tournamentTab.standingsAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127942;</span>
@@ -192,6 +223,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to={`/spectator/tournament/${tournamentId}/schedule`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/schedule`)}
+              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/schedule`) ? 'page' : undefined}
               aria-label={t('spectator.layout.tournamentTab.scheduleAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128197;</span>
@@ -201,6 +235,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to={`/spectator/tournament/${tournamentId}/referees`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/referees`)}
+              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/referees`) ? 'page' : undefined}
               aria-label={t('spectator.layout.tournamentTab.refereesAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128084;</span>
@@ -215,6 +252,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               end
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive('/spectator', true)}
+              aria-current={isTabActive('/spectator', true) ? 'page' : undefined}
               aria-label={t('spectator.layout.tournamentsAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127942;</span>
@@ -224,6 +264,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to="/spectator/favorites"
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive('/spectator/favorites')}
+              aria-current={isTabActive('/spectator/favorites') ? 'page' : undefined}
               aria-label={t('spectator.layout.favoritesAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#11088;</span>
@@ -233,6 +276,9 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to="/spectator/practice"
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               style={navLinkStyle}
+              role="tab"
+              aria-selected={isTabActive('/spectator/practice')}
+              aria-current={isTabActive('/spectator/practice') ? 'page' : undefined}
               aria-label={t('spectator.layout.practiceAriaLabel')}
             >
               <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127947;</span>

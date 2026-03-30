@@ -38,7 +38,7 @@ export default function RefereeLayout() {
           {t('common.logout')}
         </button>
       </header>
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="flex-1 w-full max-w-3xl mx-auto">
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>

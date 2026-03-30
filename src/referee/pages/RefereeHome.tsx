@@ -108,7 +108,7 @@ export default function RefereeHome() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-yellow-400 mb-4">{t('referee.home.title')}</h1>
+      <h1 className="text-2xl font-bold text-yellow-400 mb-4 text-center">{t('referee.home.title')}</h1>
 
       {/* Active match recovery prompt */}
       {recoveryMatch && (
@@ -234,6 +234,17 @@ export default function RefereeHome() {
           })}
         </div>
       )}
+
+      {/* Practice mode link */}
+      <div className="mt-6 text-center">
+        <button
+          className="btn btn-accent"
+          onClick={() => navigate('/referee/practice')}
+          aria-label={t('referee.login.practiceAriaLabel')}
+        >
+          {t('referee.login.practiceMode')}
+        </button>
+      </div>
     </div>
   );
 }

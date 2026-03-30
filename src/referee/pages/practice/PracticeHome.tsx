@@ -49,6 +49,14 @@ export default function PracticeHome() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-6">
+      <button
+        className="btn btn-accent mb-4"
+        onClick={() => navigate('/referee/games')}
+        aria-label={t('common.back')}
+      >
+        ← {t('common.back')}
+      </button>
+
       <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>
         {t('referee.practice.home.title')}
       </h1>

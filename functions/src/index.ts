@@ -97,6 +97,10 @@ async function sendToSubscriptions(
 
   // 공통 메시지 페이로드 (token 제외)
   const basePayload = {
+    notification: {
+      title: notification.title,
+      body: notification.body,
+    },
     data: {
       title: notification.title,
       body: notification.body,
@@ -108,11 +112,20 @@ async function sendToSubscriptions(
     webpush: {
       headers: { Urgency: "high", TTL: "86400" },
       fcmOptions: { link },
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-96.png",
+        tag,
+        requireInteraction: true,
+        renotify: true,
+      },
     },
     android: { priority: "high" as const },
     apns: {
       headers: { "apns-push-type": "alert", "apns-priority": "10" },
-      payload: { aps: { "content-available": 1, sound: "default" } },
+      payload: { aps: { alert: { title: notification.title, body: notification.body }, "content-available": 1, sound: "default" } },
     },
   };
 

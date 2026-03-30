@@ -31,7 +31,7 @@ export default function PracticeLayout() {
           {t('referee.practice.layout.exitButton')}
         </button>
       </header>
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="flex-1 w-full max-w-3xl mx-auto">
         <Outlet />
       </main>
     </div>

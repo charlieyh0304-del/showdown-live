@@ -86,7 +86,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </button>
         </nav>
       </header>
-      <main id="main-content" className="flex-1 p-4">
+      <main id="main-content" className="flex-1 p-4 w-full max-w-5xl mx-auto">
         <ErrorBoundary>
           {children}
         </ErrorBoundary>

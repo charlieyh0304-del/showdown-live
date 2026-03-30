@@ -512,7 +512,7 @@ export default function TournamentCreate() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6" ref={stepRef} tabIndex={-1} style={{ outline: 'none' }}>
-      <h1 className="text-3xl font-bold text-yellow-400">{t('admin.tournamentCreate.title')}</h1>
+      <h1 className="text-3xl font-bold text-yellow-400 text-center">{t('admin.tournamentCreate.title')}</h1>
       <StepIndicator currentStep={state.step} totalSteps={4} labels={stepLabels} />
 
       {/* Step 1: 기본 정보 */}

@@ -210,7 +210,7 @@ export default function AdminSettings() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold text-yellow-400">{t('admin.settings.title')}</h1>
+      <h1 className="text-3xl font-bold text-yellow-400 text-center">{t('admin.settings.title')}</h1>
 
       {/* 현재 로그인 정보 */}
       <div className="card">
