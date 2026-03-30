@@ -392,8 +392,8 @@ export const preMatchNotify = onSchedule(
         const diffMin = diff / 60000;
         console.log(`Match ${matchId}: scheduled ${dateBase} ${timeStr} KST, diff=${diffMin.toFixed(1)}min`);
 
-        // 15분 전 ~ 경기 시작 후 5분 (배포 등으로 놓친 경우 복구, 중복 방지는 wasNotifSent)
-        if (diffMin <= 15 && diffMin >= -5) {
+        // 10분 전 ~ 경기 시작 후 5분 (cron 1분 간격이므로 실제 10분 전후 도착)
+        if (diffMin <= 10 && diffMin >= -5) {
           const notifKey = `pre_${matchId}`;
           console.log(`Match ${matchId} is ${diffMin.toFixed(1)}min away, sending pre-match notif`);
 
