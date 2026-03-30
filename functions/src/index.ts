@@ -89,8 +89,8 @@ async function sendToSubscriptions(
   subs: PushSubscription[],
   notification: { title: string; body: string },
   link = "/spectator",
-) {
-  if (subs.length === 0) return;
+): Promise<number> {
+  if (subs.length === 0) return 0;
 
   const tokens = subs.map((s) => s.token);
   const tag = `showdown-${Date.now()}`;
@@ -182,6 +182,7 @@ async function sendToSubscriptions(
       await db.ref().update(updates);
     }
   }
+  return successCount;
 }
 
 // Helper to get player display info for a subscription
@@ -245,16 +246,17 @@ export const onMatchChange = onValueUpdated(
 
       // Send personalized notifications per subscription
       const matchLink = `/spectator/match/${tournamentId}/${matchId}`;
+      let totalSent = 0;
       for (const sub of subs) {
         const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
         if (!info) continue;
         const courtInfo = after.courtName ? ` (${after.courtName})` : "";
-        await sendToSubscriptions([sub], {
+        totalSent += await sendToSubscriptions([sub], {
           title: `⚡ ${info.favName} 경기 시작!`,
           body: `vs ${info.oppName}${courtInfo}`,
         }, matchLink);
       }
-      await markNotifSent(notifKey);
+      if (totalSent > 0) await markNotifSent(notifKey);
     }
 
     // Match completed
@@ -267,6 +269,7 @@ export const onMatchChange = onValueUpdated(
       if (subs.length === 0) return;
 
       const resultLink = `/spectator/match/${tournamentId}/${matchId}`;
+      let totalSent = 0;
       for (const sub of subs) {
         const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
         if (!info) continue;
@@ -283,12 +286,12 @@ export const onMatchChange = onValueUpdated(
           })
           .join(", ");
 
-        await sendToSubscriptions([sub], {
+        totalSent += await sendToSubscriptions([sub], {
           title: `${won ? "🏆" : "😢"} ${info.favName} ${won ? "승리" : "패배"}`,
           body: `vs ${info.oppName} (${scores})`,
         }, resultLink);
       }
-      await markNotifSent(notifKey);
+      if (totalSent > 0) await markNotifSent(notifKey);
     }
   },
 );
@@ -406,17 +409,18 @@ export const preMatchNotify = onSchedule(
             if (subs.length === 0) return;
 
             const preMatchLink = `/spectator/match/${tid}/${matchId}`;
+            let totalSent = 0;
             for (const sub of subs) {
               const info = getPlayerInfo(match, sub.favoriteIds, sub.favoriteNames);
               if (!info) continue;
               const courtInfo = match.courtName ? ` (${match.courtName})` : "";
-              await sendToSubscriptions([sub], {
+              totalSent += await sendToSubscriptions([sub], {
                 title: `📢 ${info.favName} 경기 10분 전`,
                 body: `vs ${info.oppName}${courtInfo}`,
               }, preMatchLink);
               console.log(`Sent pre-match notif for ${info.favName} to ${sub.platform}`);
             }
-            await markNotifSent(notifKey);
+            if (totalSent > 0) await markNotifSent(notifKey);
           })());
         }
       }
