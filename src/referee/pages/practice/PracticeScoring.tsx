@@ -98,15 +98,29 @@ export default function PracticeScoring() {
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
   const subModalTrapRef = useFocusTrap(showSubModal);
 
-  // Timers
-  const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
-  const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
-  const timeoutTimer = useCountdownTimer(() => updateMatch({ activeTimeout: null }));
+  // Timers - longWhistle plays when timer auto-completes
+  const sideChangeTimer = useCountdownTimer(() => { setShowSideChange(false); setSideChangeConfirmed(false); longWhistle(); });
+  const warmupTimer = useCountdownTimer(() => { setShowWarmup(false); longWhistle(); });
+  const timeoutTimer = useCountdownTimer(() => { updateMatch({ activeTimeout: null }); longWhistle(); });
 
-  // 15초 안내 (타임아웃) - activeTimeout 체크로 종료 후 오출력 방지
+  // Range-based warning tracking (handles mobile interval throttling)
+  const timerWarningsRef = useRef<Set<string>>(new Set());
+
+  // 30초/15초 안내 (타임아웃) - range-based for mobile reliability
   useEffect(() => {
-    if (!timeoutTimer.isRunning || !match.activeTimeout) return;
-    if (timeoutTimer.seconds === 15) {
+    if (!timeoutTimer.isRunning || !match.activeTimeout) {
+      timerWarningsRef.current.delete('timeout_30');
+      timerWarningsRef.current.delete('timeout_15');
+      return;
+    }
+    if (timeoutTimer.seconds <= 30 && !timerWarningsRef.current.has('timeout_30')) {
+      timerWarningsRef.current.add('timeout_30');
+      setLastAction(`⚠️ 30${t('common.time.seconds')}`);
+      setAnnouncement(`30${t('common.time.seconds')}`);
+      speak(`30${t('common.time.seconds')}`);
+    }
+    if (timeoutTimer.seconds <= 15 && !timerWarningsRef.current.has('timeout_15')) {
+      timerWarningsRef.current.add('timeout_15');
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
@@ -115,36 +129,47 @@ export default function PracticeScoring() {
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
-    if (!sideChangeTimer.isRunning || !showSideChange) return;
-    if (sideChangeTimer.seconds === 15) {
+    if (!sideChangeTimer.isRunning || !showSideChange) {
+      timerWarningsRef.current.delete('sideChange_15');
+      return;
+    }
+    if (sideChangeTimer.seconds <= 15 && !timerWarningsRef.current.has('sideChange_15')) {
+      timerWarningsRef.current.add('sideChange_15');
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, showSideChange]);
 
-  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다 (60초/30초 경과 시)
+  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다 - range-based for mobile reliability
   useEffect(() => {
-    if (warmupTimer.isRunning) {
-      if (matchType === 'team') {
-        // 90초 워밍업: 60초(첫 선수 교대), 30초(두번째 선수 교대)에 알림
-        if (warmupTimer.seconds === 60) {
-          setLastAction(`⚠️ 30${t('common.time.seconds')}`);
-          setAnnouncement(`30${t('common.time.seconds')}`);
-          speak(`30${t('common.time.seconds')}`);
-        }
-        if (warmupTimer.seconds === 30) {
-          setLastAction(`⚠️ 30${t('common.time.seconds')}`);
-          setAnnouncement(`30${t('common.time.seconds')}`);
-          speak(`30${t('common.time.seconds')}`);
-        }
-      } else {
-        // 60초 워밍업: 15초 전 알림
-        if (warmupTimer.seconds === 15) {
-          setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
-          setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-          speak(t('referee.scoring.fifteenSecondsLeft'));
-        }
+    if (!warmupTimer.isRunning) {
+      timerWarningsRef.current.delete('warmup_60');
+      timerWarningsRef.current.delete('warmup_30');
+      timerWarningsRef.current.delete('warmup_15');
+      return;
+    }
+    if (matchType === 'team') {
+      // 90초 워밍업: 60초 남음(첫 선수 교대), 30초 남음(두번째 선수 교대)에 알림
+      if (warmupTimer.seconds <= 60 && !timerWarningsRef.current.has('warmup_60')) {
+        timerWarningsRef.current.add('warmup_60');
+        setLastAction(`⚠️ 60${t('common.time.seconds')}`);
+        setAnnouncement(`60${t('common.time.seconds')}`);
+        speak(`60${t('common.time.seconds')}`);
+      }
+      if (warmupTimer.seconds <= 30 && !timerWarningsRef.current.has('warmup_30')) {
+        timerWarningsRef.current.add('warmup_30');
+        setLastAction(`⚠️ 30${t('common.time.seconds')}`);
+        setAnnouncement(`30${t('common.time.seconds')}`);
+        speak(`30${t('common.time.seconds')}`);
+      }
+    } else {
+      // 60초 워밍업: 15초 전 알림
+      if (warmupTimer.seconds <= 15 && !timerWarningsRef.current.has('warmup_15')) {
+        timerWarningsRef.current.add('warmup_15');
+        setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
+        setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
+        speak(t('referee.scoring.fifteenSecondsLeft'));
       }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning, matchType]);
@@ -716,7 +741,7 @@ export default function PracticeScoring() {
     if (withWarmup) {
       warmupTimer.start(matchType === 'team' ? 90 : 60);
       setShowWarmup(true);
-      longWhistle(); // warmup start whistle
+      // 워밍업 선택 시 시작 휘슬 없음 - 종료 시에만 길게 울림
     } else {
       longWhistle(); // match start whistle
     }
