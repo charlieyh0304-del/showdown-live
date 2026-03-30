@@ -110,6 +110,7 @@ export default function IndividualScoring() {
   const [setEndMessage, setSetEndMessage] = useState('');
   const [isMatchEnd, setIsMatchEnd] = useState(false);
   // Warmup & SideChange derived from Firebase state
+  const [pendingSideChange, setPendingSideChange] = useState(false);
   // Coin toss
   const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'court_change' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
@@ -578,6 +579,7 @@ export default function IndividualScoring() {
         sideChangeUsed: true, scoreHistory: newHistory,
       });
       if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+      setPendingSideChange(true);
       return;
     }
 
@@ -634,6 +636,7 @@ export default function IndividualScoring() {
         scoreHistory: [sideChangeEntry, ...prevHistory],
       });
       longWhistle(); // court change whistle
+      setPendingSideChange(true);
     }
     setShowSetEndConfirm(false);
   }, [match, gameConfig, updateMatch, tournamentId, longWhistle, t]);
@@ -1162,7 +1165,20 @@ export default function IndividualScoring() {
         />
       )}
 
-      {/* Side Change Timer Modal */}
+      {/* Side Change: Phase 1 - Prompt */}
+      {pendingSideChange && !showSideChange && (
+        <TimerModal
+          title={t('common.matchHistory.sideChange')}
+          seconds={0}
+          isWarning={false}
+          subtitle={t('common.matchHistory.sideChange')}
+          onClose={() => { setPendingSideChange(false); updateMatch({ sideChangeStartTime: Date.now() }); }}
+          closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}
+          required
+        />
+      )}
+
+      {/* Side Change: Phase 2 - Timer countdown */}
       {showSideChange && (
         <TimerModal
           title={t('common.matchHistory.sideChange')}
@@ -1264,7 +1280,7 @@ export default function IndividualScoring() {
       {/* Scoring area - 4 main buttons (1-tap each) */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {(() => {
-          const scoringDisabled = !!match.activeTimeout || showSideChange || (showWarmup && warmupTimer.isRunning);
+          const scoringDisabled = !!match.activeTimeout || showSideChange || pendingSideChange || (showWarmup && warmupTimer.isRunning);
           return (
             <>
               {/* Row 1: 골 +2 */}
@@ -1291,19 +1307,12 @@ export default function IndividualScoring() {
                 </button>
               </div>
 
-              {/* Row 2.5: 데드볼 */}
-              <div className="grid grid-cols-2 gap-3">
-                <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
-                  disabled={scoringDisabled || match.status !== 'in_progress'}
-                  onClick={() => handleDeadBall(1)}>
-                  🔵 {player1Name} {t('common.matchHistory.deadBall', { server: '' }).trim()}
-                </button>
-                <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
-                  disabled={scoringDisabled || match.status !== 'in_progress'}
-                  onClick={() => handleDeadBall(2)}>
-                  🔵 {player2Name} {t('common.matchHistory.deadBall', { server: '' }).trim()}
-                </button>
-              </div>
+              {/* Row 2.5: 데드볼 (서브권 선수 기준) */}
+              <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3 w-full"
+                disabled={scoringDisabled || match.status !== 'in_progress'}
+                onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
+                🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
+              </button>
             </>
           );
         })()}

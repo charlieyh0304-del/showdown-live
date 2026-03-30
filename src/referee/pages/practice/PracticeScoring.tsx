@@ -64,6 +64,7 @@ export default function PracticeScoring() {
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
   const [showSideChange, setShowSideChange] = useState(false);
+  const [sideChangeConfirmed, setSideChangeConfirmed] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSetEndConfirm, setShowSetEndConfirm] = useState(false);
   const [setEndMessage, setSetEndMessage] = useState('');
@@ -898,14 +899,27 @@ export default function PracticeScoring() {
         />
       )}
 
-      {/* Side Change Timer */}
-      {showSideChange && (
+      {/* Side Change: Phase 1 - Prompt */}
+      {showSideChange && !sideChangeConfirmed && (
+        <TimerModal
+          title={t('referee.practice.scoring.sideChangeTitle')}
+          seconds={0}
+          isWarning={false}
+          subtitle={t('common.matchHistory.sideChange')}
+          onClose={() => { setSideChangeConfirmed(true); sideChangeTimer.start(60); }}
+          closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}
+          required
+        />
+      )}
+
+      {/* Side Change: Phase 2 - Timer countdown */}
+      {showSideChange && sideChangeConfirmed && (
         <TimerModal
           title={t('referee.practice.scoring.sideChangeTitle')}
           seconds={sideChangeTimer.seconds}
           isWarning={sideChangeTimer.isWarning}
           subtitle={t('referee.practice.scoring.sideChangeSubtitle')}
-          onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); }}
+          onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); setSideChangeConfirmed(false); }}
           closeLabel={t('referee.practice.scoring.confirmButton')}
           required
         />
@@ -1082,17 +1096,11 @@ export default function PracticeScoring() {
           );
         })()}
 
-        {/* Dead ball buttons (2-column) */}
-        <div className="grid grid-cols-2 gap-3">
-          <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
-            onClick={() => handleDeadBall(1)}>
-            🔵 {p1Name} {t('common.matchHistory.deadBall', { server: '' })}
-          </button>
-          <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
-            onClick={() => handleDeadBall(2)}>
-            🔵 {p2Name} {t('common.matchHistory.deadBall', { server: '' })}
-          </button>
-        </div>
+        {/* Dead ball button (서브권 기준) */}
+        <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3 w-full" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
+          onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
+          🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
+        </button>
 
         {/* Row 3: 취소 / 레프리타임 */}
         <div className="grid grid-cols-2 gap-3">
