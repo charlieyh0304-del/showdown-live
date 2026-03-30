@@ -59,12 +59,14 @@ export function useMatchNotifications(
   matches: Match[],
   schedule: ScheduleSlot[],
   notifSettings?: NotificationSettings,
+  pushEnabled = false,
 ) {
   const { t } = useTranslation();
   const notifiedRef = useRef<Set<string>>(loadNotified());
 
   useEffect(() => {
-    if (favoriteIds.length === 0) return;
+    // FCM 푸시가 활성화된 경우 서버가 모든 알림을 처리하므로 클라이언트 알림 불필요
+    if (favoriteIds.length === 0 || pushEnabled) return;
 
     const checkNotifications = () => {
       let changed = false;
@@ -150,5 +152,5 @@ export function useMatchNotifications(
     checkNotifications();
     const interval = setInterval(checkNotifications, 30000);
     return () => clearInterval(interval);
-  }, [favoriteIds, matches, schedule, t, notifSettings]);
+  }, [favoriteIds, matches, schedule, t, notifSettings, pushEnabled]);
 }

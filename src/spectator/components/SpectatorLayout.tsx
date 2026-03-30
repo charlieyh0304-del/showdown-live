@@ -39,8 +39,8 @@ function NotificationWatcherInner() {
   const { schedule } = useSchedule(activeTournamentId);
   const { settings: notifSettings } = useNotificationSettings();
 
-  useMatchNotifications(favoriteIds, matches, schedule, notifSettings);
-  usePushNotifications(favorites);
+  const { pushEnabled } = usePushNotifications(favorites);
+  useMatchNotifications(favoriteIds, matches, schedule, notifSettings, pushEnabled);
 
   return null;
 }
