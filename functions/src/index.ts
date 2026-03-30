@@ -95,7 +95,7 @@ async function sendToSubscriptions(
   const tokens = subs.map((s) => s.token);
   const tag = `showdown-${Date.now()}`;
 
-  // 공통 메시지 페이로드 (token 제외)
+  // notification + data 메시지: 백그라운드/잠금 화면에서 OS가 자동 표시
   const basePayload = {
     notification: {
       title: notification.title,
@@ -120,12 +120,34 @@ async function sendToSubscriptions(
         tag,
         requireInteraction: true,
         renotify: true,
+        vibrate: [200, 100, 200],
+        actions: [{ action: "open", title: "\uC5F4\uAE30" }],
       },
     },
-    android: { priority: "high" as const },
+    android: {
+      priority: "high" as const,
+      ttl: 86400000,
+      notification: {
+        channelId: "showdown_match",
+        priority: "max" as const,
+        defaultVibrateTimings: true,
+        defaultSound: true,
+        visibility: "public" as const,
+      },
+    },
     apns: {
-      headers: { "apns-push-type": "alert", "apns-priority": "10" },
-      payload: { aps: { alert: { title: notification.title, body: notification.body }, "content-available": 1, sound: "default" } },
+      headers: {
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+      },
+      payload: {
+        aps: {
+          alert: { title: notification.title, body: notification.body },
+          sound: "default",
+          "content-available": 1,
+          "interruption-level": "time-sensitive",
+        },
+      },
     },
   };
 

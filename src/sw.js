@@ -85,17 +85,35 @@ function showPushNotification(data) {
     data: { link: data.link || '/spectator' },
     requireInteraction: true,
     renotify: true,
+    vibrate: [200, 100, 200],
+    silent: false,
   };
   return self.registration.showNotification(title, options);
 }
 
-// Firebase SDK 백그라운드 메시지 핸들러 (data-only 메시지 → SW가 직접 표시)
+// 중복 표시 방지: 최근 표시한 tag 추적
+const recentTags = new Set();
+
+function showOnce(data) {
+  const tag = data.tag || `showdown-${Date.now()}`;
+  if (recentTags.has(tag)) return Promise.resolve();
+  recentTags.add(tag);
+  setTimeout(() => recentTags.delete(tag), 30000);
+  return showPushNotification({ ...data, tag });
+}
+
+// Firebase SDK 백그라운드 메시지 핸들러
+// notification+data 메시지: Firebase SDK가 자동 표시 → 이 핸들러 호출 안 됨
+// data-only 메시지: 이 핸들러가 호출되어 수�� 표시
 messaging.onBackgroundMessage((payload) => {
+  console.log('[SW] onBackgroundMessage:', JSON.stringify(payload));
   const data = payload.data || payload.notification || {};
-  return showPushNotification(data);
+  return showOnce(data);
 });
 
-// Raw push 이벤트 폴백 (Firebase SDK가 처리하지 못한 경우)
+// Raw push 이벤트 폴백
+// Firebase SDK가 notification 메��지를 자동 표시��므로, 여기서는
+// FCM이 아닌 메시지만 처리 (중복 방지)
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -106,11 +124,11 @@ self.addEventListener('push', (event) => {
     return;
   }
 
-  // Firebase SDK가 이미 처리한 경우 스킵 (notification 필드 있으면 SDK가 자동 표시)
-  if (data.fcmMessageId || data.notification) return;
+  // FCM 메시지는 Firebase SDK가 처리 (notification → 자동 표시, data → onBackgroundMessage)
+  if (data.fcmMessageId || data.from || data.notification) return;
 
-  const notifData = data.data || data.notification || data;
-  event.waitUntil(showPushNotification(notifData));
+  const notifData = data.data || data;
+  event.waitUntil(showOnce(notifData));
 });
 
 // 알림 클릭 → 해당 경기 관람 화면으로 이동
