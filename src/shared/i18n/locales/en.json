@@ -141,7 +141,8 @@
       "penaltyTablePushing": "Table Pushing",
       "penaltyElectronic": "Electronic Device Noise",
       "penaltyTalking": "Talking During Play",
-      "walkover": "Walkover"
+      "walkover": "Walkover",
+      "serveMiss": "Serve Miss"
     },
 
     "matchHistory": {

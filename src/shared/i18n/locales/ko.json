@@ -141,7 +141,8 @@
       "penaltyTablePushing": "테이블 푸싱",
       "penaltyElectronic": "전자기기 소리",
       "penaltyTalking": "경기 중 말하기",
-      "walkover": "부전승"
+      "walkover": "부전승",
+      "serveMiss": "서브 미스"
     },
 
     "matchHistory": {

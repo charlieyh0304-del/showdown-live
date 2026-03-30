@@ -22,7 +22,8 @@ export default function PracticeSetup() {
   const [player2Name, setPlayer2Name] = useState(t('referee.practice.setup.practicePlayerB'));
   const [player1Coach, setPlayer1Coach] = useState('');
   const [player2Coach, setPlayer2Coach] = useState('');
-  const [setsToWin, setSetsToWin] = useState(2);
+  const [maxSets, setMaxSets] = useState(3); // 총 세트 수 (1, 3, 5, 7, 9)
+  const setsToWin = Math.ceil(maxSets / 2); // 선승 수 자동 계산
 
   const emptyTeam = (defaultName: string): TeamData => ({
     name: defaultName,
@@ -81,7 +82,7 @@ export default function PracticeSetup() {
   const handleStart = () => {
     const config = matchType === 'team'
       ? { SETS_TO_WIN: 1, MAX_SETS: 1, POINTS_TO_WIN: 31, MIN_POINT_DIFF: 2 }
-      : { SETS_TO_WIN: setsToWin, MAX_SETS: setsToWin * 2 - 1, POINTS_TO_WIN: 11, MIN_POINT_DIFF: 2 };
+      : { SETS_TO_WIN: setsToWin, MAX_SETS: maxSets, POINTS_TO_WIN: 11, MIN_POINT_DIFF: 2 };
 
     const p1 = matchType === 'team' ? (teams[0]?.name || t('referee.practice.setup.teamA')) : player1Name;
     const p2 = matchType === 'team' ? (teams[1]?.name || t('referee.practice.setup.teamB')) : player2Name;
@@ -121,7 +122,7 @@ export default function PracticeSetup() {
             role="radio"
             aria-checked={matchType === 'individual'}
             className={`btn flex-1 text-lg py-4 ${matchType === 'individual' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-            onClick={() => { setMatchType('individual'); setSetsToWin(2); }}
+            onClick={() => { setMatchType('individual'); setMaxSets(3); }}
             aria-label={`${t('referee.practice.setup.individual')}${matchType === 'individual' ? `, ${t('common.accessibility.selected')}` : ''}`}
           >
             {t('referee.practice.setup.individual')}
@@ -161,14 +162,14 @@ export default function PracticeSetup() {
             <fieldset>
               <legend className="block mb-2 text-gray-300">{t('referee.practice.setup.setsToWin')}</legend>
               <div className="flex gap-2" role="radiogroup" aria-label={t('referee.practice.setup.setsToWin')}>
-                {[1, 2, 3, 4, 5].map(v => (
-                  <button key={v} role="radio" aria-checked={setsToWin === v} className={`btn flex-1 ${setsToWin === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setSetsToWin(v)} aria-label={`${t('referee.practice.setup.setLabel', { count: v })}${setsToWin === v ? `, ${t('common.accessibility.selected')}` : ''}`}>
-                    {t('referee.practice.setup.setLabel', { count: v })}
+                {[1, 3, 5, 7, 9].map(v => (
+                  <button key={v} role="radio" aria-checked={maxSets === v} className={`btn flex-1 ${maxSets === v ? 'btn-primary' : 'bg-gray-700 text-white'}`} onClick={() => setMaxSets(v)} aria-label={`${v}${t('common.units.set')}${maxSets === v ? `, ${t('common.accessibility.selected')}` : ''}`}>
+                    {v}{t('common.units.set')}
                   </button>
                 ))}
               </div>
             </fieldset>
-            <p className="text-cyan-400 font-semibold text-center">{t('referee.practice.setup.ruleSummary', { setsToWin, maxSets: setsToWin * 2 - 1 })}</p>
+            <p className="text-cyan-400 font-semibold text-center">{t('referee.practice.setup.ruleSummary', { setsToWin, maxSets })}</p>
           </div>
         </>
       ) : (

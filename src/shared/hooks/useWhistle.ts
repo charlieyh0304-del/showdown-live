@@ -87,8 +87,8 @@ export function useWhistle() {
   const goalWhistle = useCallback(() => {
     const ctx = getCtx();
     const now = ctx.currentTime;
-    playTone(ctx, now, 300);        // 0~300ms: first blast
-    playTone(ctx, now + 0.6, 300);  // 600~900ms: second blast (300ms gap)
+    playTone(ctx, now, 250);        // 0~250ms: first blast
+    playTone(ctx, now + 0.4, 250);  // 400~650ms: second blast (150ms gap)
   }, [getCtx, playTone]);
 
   // Pre-warm AudioContext on user gesture (call during setup UI interactions)

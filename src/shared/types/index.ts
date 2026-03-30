@@ -280,6 +280,7 @@ export type ScoreActionType =
   | 'correction'        // 점수 수정 (관리자)
   | 'walkover'          // 부전승
   | 'dead_ball'         // 데드볼 (재서브)
+  | 'serve_miss'        // 서브 미스 (점수 없이 서브 넘김)
   | 'coin_toss'         // 동전던지기
   | 'warmup_start'      // 워밍업 시작
   | 'match_start'       // 경기 시작

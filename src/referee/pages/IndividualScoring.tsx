@@ -532,7 +532,7 @@ export default function IndividualScoring() {
     const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
     const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
     setAnnouncement(
-      `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${t('referee.scoring.firstServe', { name: nextServerName })}`
+      `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes('individual')}`
     );
 
     // Set winner check with confirmation dialog
@@ -610,8 +610,17 @@ export default function IndividualScoring() {
       sets.push(createEmptySet());
       const p1Name = match.player1Name ?? '';
       const p2Name = match.player2Name ?? '';
-      const currentServe = match.currentServe ?? 'player1';
-      const nextSetServe: 'player1' | 'player2' = currentServe === 'player1' ? 'player2' : 'player1';
+      // IBSA: 이전 세트 첫 서브의 반대 선수가 다음 세트 첫 서브
+      const nextSetIndex = ci + 1;
+      let nextSetServe: 'player1' | 'player2';
+      if (match.coinTossWinner && match.coinTossChoice) {
+        const firstSetServer: 'player1' | 'player2' = match.coinTossChoice === 'serve'
+          ? (match.coinTossWinner === 'team1' ? 'player1' : 'player2')
+          : (match.coinTossWinner === 'team1' ? 'player2' : 'player1');
+        nextSetServe = nextSetIndex % 2 === 0 ? firstSetServer : (firstSetServer === 'player1' ? 'player2' : 'player1');
+      } else {
+        nextSetServe = (match.currentServe ?? 'player1') === 'player1' ? 'player2' : 'player1';
+      }
       const nextServerName = nextSetServe === 'player1' ? p1Name : p2Name;
       const sideChangeEntry: ScoreHistoryEntry = {
         time: formatTime(),

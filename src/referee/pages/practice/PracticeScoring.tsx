@@ -107,7 +107,7 @@ export default function PracticeScoring() {
   // Range-based warning tracking (handles mobile interval throttling)
   const timerWarningsRef = useRef<Set<string>>(new Set());
 
-  // 30초/15초 안내 (타임아웃) - range-based for mobile reliability
+  // 30초/15초 안내 (타임아웃) - TimerModal 내부에만 표시 (ActionToast 중복 방지)
   useEffect(() => {
     if (!timeoutTimer.isRunning || !match.activeTimeout) {
       timerWarningsRef.current.delete('timeout_30');
@@ -117,19 +117,13 @@ export default function PracticeScoring() {
     }
     if (timeoutTimer.seconds <= 30 && !timerWarningsRef.current.has('timeout_30')) {
       timerWarningsRef.current.add('timeout_30');
-      const msg = `30${t('common.time.seconds')}`;
-      setTimerWarningText(msg);
-      setLastAction(`⚠️ ${msg}`);
-      setAnnouncement(msg);
-      speak(msg);
+      setTimerWarningText(`30${t('common.time.seconds')}`);
+      speak(`30${t('common.time.seconds')}`);
     }
     if (timeoutTimer.seconds <= 15 && !timerWarningsRef.current.has('timeout_15')) {
       timerWarningsRef.current.add('timeout_15');
-      const msg = t('referee.scoring.fifteenSecondsLeft');
-      setTimerWarningText(msg);
-      setLastAction(`⚠️ ${msg}`);
-      setAnnouncement(msg);
-      speak(msg);
+      setTimerWarningText(t('referee.scoring.fifteenSecondsLeft'));
+      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout]);
 
@@ -142,15 +136,12 @@ export default function PracticeScoring() {
     }
     if (sideChangeTimer.seconds <= 15 && !timerWarningsRef.current.has('sideChange_15')) {
       timerWarningsRef.current.add('sideChange_15');
-      const msg = t('referee.scoring.fifteenSecondsLeft');
-      setTimerWarningText(msg);
-      setLastAction(`⚠️ ${msg}`);
-      setAnnouncement(msg);
-      speak(msg);
+      setTimerWarningText(t('referee.scoring.fifteenSecondsLeft'));
+      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, showSideChange]);
 
-  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다 - range-based for mobile reliability
+  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다
   useEffect(() => {
     if (!warmupTimer.isRunning) {
       timerWarningsRef.current.delete('warmup_60');
@@ -162,28 +153,19 @@ export default function PracticeScoring() {
     if (matchType === 'team') {
       if (warmupTimer.seconds <= 60 && !timerWarningsRef.current.has('warmup_60')) {
         timerWarningsRef.current.add('warmup_60');
-        const msg = `60${t('common.time.seconds')}`;
-        setTimerWarningText(msg);
-        setLastAction(`⚠️ ${msg}`);
-        setAnnouncement(msg);
-        speak(msg);
+        setTimerWarningText(`60${t('common.time.seconds')}`);
+        speak(`60${t('common.time.seconds')}`);
       }
       if (warmupTimer.seconds <= 30 && !timerWarningsRef.current.has('warmup_30')) {
         timerWarningsRef.current.add('warmup_30');
-        const msg = `30${t('common.time.seconds')}`;
-        setTimerWarningText(msg);
-        setLastAction(`⚠️ ${msg}`);
-        setAnnouncement(msg);
-        speak(msg);
+        setTimerWarningText(`30${t('common.time.seconds')}`);
+        speak(`30${t('common.time.seconds')}`);
       }
     } else {
       if (warmupTimer.seconds <= 15 && !timerWarningsRef.current.has('warmup_15')) {
         timerWarningsRef.current.add('warmup_15');
-        const msg = t('referee.scoring.fifteenSecondsLeft');
-        setTimerWarningText(msg);
-        setLastAction(`⚠️ ${msg}`);
-        setAnnouncement(msg);
-        speak(msg);
+        setTimerWarningText(t('referee.scoring.fifteenSecondsLeft'));
+        speak(t('referee.scoring.fifteenSecondsLeft'));
       }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning, matchType]);
@@ -346,7 +328,8 @@ export default function PracticeScoring() {
 
     const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
     const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
-    const announceBase = `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${t('referee.scoring.firstServe', { name: nextServerName })}`;
+    const nextServeDisplay = `${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes(matchType)}`;
+    const announceBase = `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServeDisplay}`;
     setAnnouncement(rotationAnnounce ? `${announceBase}. ${rotationAnnounce}` : announceBase);
 
     // Set winner check with confirmation
@@ -422,8 +405,18 @@ export default function PracticeScoring() {
       });
     } else {
       // 세트 전환: 코트 체인지 + 1분 휴식 + 서브권 교대
+      // IBSA: 이전 세트 첫 서브의 반대 선수가 다음 세트 첫 서브
       sets.push(createEmptySet());
-      const nextSetServe: 'player1' | 'player2' = match.currentServe === 'player1' ? 'player2' : 'player1';
+      const nextSetIndex = ci + 1;
+      let nextSetServe: 'player1' | 'player2';
+      if (match.coinTossWinner && match.coinTossChoice) {
+        const firstSetServer: 'player1' | 'player2' = match.coinTossChoice === 'serve'
+          ? (match.coinTossWinner === 'team1' ? 'player1' : 'player2')
+          : (match.coinTossWinner === 'team1' ? 'player2' : 'player1');
+        nextSetServe = nextSetIndex % 2 === 0 ? firstSetServer : (firstSetServer === 'player1' ? 'player2' : 'player1');
+      } else {
+        nextSetServe = match.currentServe === 'player1' ? 'player2' : 'player1';
+      }
       const nextServerName = nextSetServe === 'player1' ? p1Name : p2Name;
       const sideChangeEntry = createScoreHistoryEntry({
         scoringPlayer: '',
@@ -489,6 +482,41 @@ export default function PracticeScoring() {
     const newServer = match.currentServe === 'player1' ? p2Name : p1Name;
     setAnnouncement(`${t('common.matchHistory.serve')}: ${newServer}`);
   }, [match, updateMatch, p1Name, p2Name]);
+
+  // Serve Miss - 서브권 있는 선수만 (점수 변동 없이 서브 넘김)
+  const handleServeMiss = useCallback(() => {
+    if (match.status !== 'in_progress' || match.isPaused || match.activeTimeout) return;
+    if (showSideChange) return;
+    const ci = match.currentSet;
+    const cs = match.sets[ci];
+    if (!cs) return;
+    const sName = match.currentServe === 'player1' ? p1Name : p2Name;
+    const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
+    const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
+      match.currentServe, match.serveCount, matchType,
+    );
+    const entry = createScoreHistoryEntry({
+      scoringPlayer: '',
+      actionPlayer: sName,
+      actionType: 'serve_miss',
+      actionLabel: `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`,
+      points: 0,
+      set: ci + 1,
+      server: sName,
+      serveNumber: match.serveCount + 1,
+      scoreBefore,
+      scoreAfter: scoreBefore,
+      serverSide: match.currentServe,
+    });
+    updateMatch({
+      currentServe: nextServe, serveCount: nextCount,
+      scoreHistory: [entry, ...match.scoreHistory],
+    });
+    shortWhistle();
+    const nextServerName = nextServe === 'player1' ? p1Name : p2Name;
+    setLastAction(`${sName} ${t('common.scoreActions.serveMiss', '서브 미스')} | ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes(matchType)}`);
+    setAnnouncement(`${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}. ${nextServerName} ${t('common.matchHistory.serve')}`);
+  }, [match, updateMatch, p1Name, p2Name, matchType, showSideChange, shortWhistle]);
 
   // Dead Ball - 양쪽 모두 가능
   const handleDeadBall = useCallback((player: 1 | 2) => {
@@ -755,7 +783,7 @@ export default function PracticeScoring() {
     if (withWarmup) {
       warmupTimer.start(matchType === 'team' ? 90 : 60);
       setShowWarmup(true);
-      // 워밍업 선택 시 시작 휘슬 없음 - 종료 시에만 길게 울림
+      longWhistle(); // warmup start whistle
     } else {
       longWhistle(); // match start whistle
     }
@@ -1138,11 +1166,17 @@ export default function PracticeScoring() {
           );
         })()}
 
-        {/* Dead ball button (서브권 기준) */}
-        <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3 w-full" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
-          onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
-          🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
-        </button>
+        {/* Dead ball & Serve miss */}
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
+            onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
+            🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
+          </button>
+          <button className="btn bg-orange-700 hover:bg-orange-600 text-white py-3" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
+            onClick={handleServeMiss}>
+            🎾 {t('common.scoreActions.serveMiss', '서브 미스')}
+          </button>
+        </div>
 
         {/* Row 3: 취소 / 레프리타임 */}
         <div className="grid grid-cols-2 gap-3">
