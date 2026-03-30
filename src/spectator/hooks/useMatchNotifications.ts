@@ -95,8 +95,8 @@ export function useMatchNotifications(
           if (!notifSettings || shouldNotify(notifSettings, info.favId, 'matchStart')) {
             notifiedRef.current.add(`start_${matchKey}`);
             changed = true;
-            const title = t('spectator.notifications.matchStarted', { name: info.favName });
-            const body = `vs ${info.oppName}${match.courtName ? ` (${match.courtName})` : ''}`;
+            const title = t('spectator.notifications.matchStarted', { favName: info.favName, oppName: info.oppName });
+            const body = match.courtName ? `(${match.courtName})` : '';
             sendNotification(title, body, `start_${matchKey}`);
             addNotificationToHistory({
               type: 'matchStart',
@@ -125,8 +125,8 @@ export function useMatchNotifications(
                 return `${my}-${opp}`;
               })
               .join(', ');
-            const title = `${info.favName} ${wonById ? t('spectator.notifications.win') : t('spectator.notifications.loss')}`;
-            const body = `vs ${info.oppName} (${scores})`;
+            const title = `${info.favName} vs ${info.oppName} ${wonById ? t('spectator.notifications.win') : t('spectator.notifications.loss')}`;
+            const body = scores;
             sendNotification(title, body, `result_${matchKey}`);
             addNotificationToHistory({
               type: 'matchComplete',

@@ -1375,8 +1375,8 @@
     "notifications": {
       "win": "승리!",
       "loss": "패배",
-      "preMatch": "{{name}} 경기 10분 전",
-      "matchStarted": "{{name}} 경기 시작!"
+      "preMatch": "{{favName}} vs {{oppName}} 경기 10분 전",
+      "matchStarted": "{{favName}} vs {{oppName}} 경기 시작!"
     },
 
     "practiceWatch": {
