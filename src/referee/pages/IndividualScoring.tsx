@@ -125,8 +125,6 @@ export default function IndividualScoring() {
       updateMatch({ [field]: value || undefined });
     }, 500);
   }, [updateMatch]);
-  // Pause - derived from Firebase match.isPaused
-  const [pauseElapsed, setPauseElapsed] = useState(0);
   // Penalty & timeout dropdowns
   const [penaltyDropdown, setPenaltyDropdown] = useState<PenaltyDropdownKey>(null);
   const penaltyDropdownRef = useRef<HTMLDivElement>(null);
@@ -154,7 +152,6 @@ export default function IndividualScoring() {
   // Derive modal visibility from Firebase state
   const showWarmup = !!(match?.warmupStartTime);
   const showSideChange = !!(match?.sideChangeStartTime);
-  const isPausedLocal = !!(match?.isPaused);
 
   // 15초 안내 (타임아웃) - activeTimeout 존재 여부도 체크하여 종료 후 오출력 방지
   const timeoutAlerted = useRef(false);
@@ -258,16 +255,6 @@ export default function IndividualScoring() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [penaltyDropdown]);
-
-  // Pause elapsed time counter - derived from Firebase pauseStartTime
-  useEffect(() => {
-    if (!isPausedLocal || !match?.pauseStartTime) { setPauseElapsed(0); return; }
-    setPauseElapsed(Math.floor((Date.now() - match.pauseStartTime) / 1000));
-    const interval = setInterval(() => {
-      setPauseElapsed(Math.floor((Date.now() - match.pauseStartTime!) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPausedLocal, match?.pauseStartTime]);
 
   // Sync coach from match (always prefer Firebase value)
   useEffect(() => {
@@ -410,66 +397,6 @@ export default function IndividualScoring() {
     longWhistle(); // warmup start whistle
   }, [match, updateMatch, longWhistle]);
 
-  // Pause
-  const handlePause = useCallback(async () => {
-    if (!match || match.status !== 'in_progress' || isPausedLocal) return;
-    const reason = prompt(t('referee.scoring.pausePrompt'));
-    if (reason === null) return;
-    const pauseEntry = {
-      time: formatTime(),
-      reason: reason || t('referee.scoring.noReason'),
-      set: (match.currentSet ?? 0) + 1,
-    };
-    const prevPauseHistory = match.pauseHistory ?? [];
-    const currentSetData = match.sets?.[match.currentSet ?? 0];
-    const pauseHistoryEntry: ScoreHistoryEntry = {
-      time: formatTime(),
-      set: (match.currentSet ?? 0) + 1,
-      scoringPlayer: '',
-      actionPlayer: reason || t('referee.scoring.noReason'),
-      actionType: 'pause' as ScoreActionType,
-      actionLabel: t('common.matchHistory.pause', { player: '' }),
-      points: 0,
-      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
-      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
-      server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
-      serveNumber: (match.serveCount ?? 0) + 1,
-      serverSide: match.currentServe ?? 'player1',
-    };
-    const prevScoreHistory = match.scoreHistory ?? [];
-    await updateMatch({
-      isPaused: true, pauseReason: reason || t('referee.scoring.noReason'), pauseStartTime: Date.now(),
-      pauseHistory: [...prevPauseHistory, pauseEntry],
-      scoreHistory: [pauseHistoryEntry, ...prevScoreHistory],
-    });
-  }, [match, updateMatch, isPausedLocal]);
-
-  const handleResume = useCallback(async () => {
-    if (!match) return;
-    const prevPauseHistory = match.pauseHistory ?? [];
-    const updated = [...prevPauseHistory];
-    if (updated.length > 0) {
-      updated[updated.length - 1] = { ...updated[updated.length - 1], duration: pauseElapsed };
-    }
-    const currentSetData = match.sets?.[match.currentSet ?? 0];
-    const resumeHistoryEntry: ScoreHistoryEntry = {
-      time: formatTime(),
-      set: (match.currentSet ?? 0) + 1,
-      scoringPlayer: '',
-      actionPlayer: `${Math.floor(pauseElapsed / 60)}${t('common.time.minutes')} ${pauseElapsed % 60}${t('common.time.seconds')}`,
-      actionType: 'resume' as ScoreActionType,
-      actionLabel: '',
-      points: 0,
-      scoreBefore: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
-      scoreAfter: { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 },
-      server: match.currentServe === 'player1' ? (match.player1Name ?? '') : (match.player2Name ?? ''),
-      serveNumber: (match.serveCount ?? 0) + 1,
-      serverSide: match.currentServe ?? 'player1',
-    };
-    const prevScoreHistory = match.scoreHistory ?? [];
-    await updateMatch({ isPaused: false, pauseReason: '', pauseStartTime: undefined, pauseHistory: updated, scoreHistory: [resumeHistoryEntry, ...prevScoreHistory] });
-  }, [match, updateMatch, pauseElapsed]);
-
   // Walkover (부전승)
   const handleWalkover = useCallback(async (winnerPlayer: 1 | 2) => {
     if (!match) return;
@@ -537,7 +464,7 @@ export default function IndividualScoring() {
   ) => {
     if (!canAct()) return;
     if (!match?.sets || match.currentSet === undefined) return;
-    if (match.status !== 'in_progress' || match.isPaused) return;
+    if (match.status !== 'in_progress') return;
     if (match.activeTimeout) return;
     if (showSetEndConfirm) return;
     if (showSideChange) return;
@@ -648,7 +575,7 @@ export default function IndividualScoring() {
     if (shouldSideChange('individual', cs, match.sideChangeUsed ?? false, sets, gameConfig) && !match.activeTimeout) {
       const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
-        sideChangeUsed: true, sideChangeStartTime: Date.now(), scoreHistory: newHistory,
+        sideChangeUsed: true, scoreHistory: newHistory,
       });
       if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
       return;
@@ -704,7 +631,6 @@ export default function IndividualScoring() {
         currentServe: nextSetServe, serveCount: 0,
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
         sideChangeUsed: false,
-        sideChangeStartTime: Date.now(),
         scoreHistory: [sideChangeEntry, ...prevHistory],
       });
       longWhistle(); // court change whistle
@@ -759,7 +685,7 @@ export default function IndividualScoring() {
   // Dead Ball - player: 1 or 2 (who called dead ball)
   const handleDeadBall = useCallback(async (callingPlayer: 1 | 2) => {
     if (!match?.sets || match.currentSet === undefined) return;
-    if (match.status !== 'in_progress' || match.isPaused) return;
+    if (match.status !== 'in_progress') return;
     if (match.activeTimeout) return;
 
     const currentSetData = match.sets[match.currentSet ?? 0];
@@ -802,7 +728,7 @@ export default function IndividualScoring() {
   ) => {
     // Note: canAct() is NOT called here to avoid double-guard with handleIBSAScore
     if (!match?.sets || match.currentSet === undefined) return;
-    if (match.status !== 'in_progress' || match.isPaused) return;
+    if (match.status !== 'in_progress') return;
     if (match.activeTimeout) return;
     if (showSetEndConfirm || showSideChange) return;
     if (showWarmup && warmupTimer.isRunning) return;
@@ -1276,20 +1202,6 @@ export default function IndividualScoring() {
         </div>
       )}
 
-      {/* Pause Banner */}
-      {isPausedLocal && (
-        <div className="bg-orange-900/80 px-4 py-3 flex items-center justify-between" role="status" aria-live="polite" aria-label={t('common.matchHistory.pause', { player: '' })}>
-          <div>
-            <span className="text-orange-300 font-bold">⏸️ {t('common.matchHistory.pause', { player: '' })}</span>
-            <span className="text-orange-200 ml-3" aria-label={`${t('referee.scoring.elapsedTime')} ${Math.floor(pauseElapsed / 60)}${t('common.time.minutes')} ${pauseElapsed % 60}${t('common.time.seconds')}`}>
-              {Math.floor(pauseElapsed / 60)}:{(pauseElapsed % 60).toString().padStart(2, '0')}
-            </span>
-            {match.pauseReason && <span className="text-orange-200/70 ml-3 text-sm">({match.pauseReason})</span>}
-          </div>
-          <button className="btn btn-success text-sm px-4 py-1" onClick={handleResume} aria-label={t('common.confirm')}>▶</button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
@@ -1352,7 +1264,7 @@ export default function IndividualScoring() {
       {/* Scoring area - 4 main buttons (1-tap each) */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {(() => {
-          const scoringDisabled = !!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning);
+          const scoringDisabled = !!match.activeTimeout || showSideChange || (showWarmup && warmupTimer.isRunning);
           return (
             <>
               {/* Row 1: 골 +2 */}
@@ -1378,104 +1290,123 @@ export default function IndividualScoring() {
                   🟡 {player2Name} {t('common.scoreActions.foul')}<br/><span className="text-sm font-normal">→ {player1Name} +1</span>
                 </button>
               </div>
+
+              {/* Row 2.5: 데드볼 */}
+              <div className="grid grid-cols-2 gap-3">
+                <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+                  disabled={scoringDisabled || match.status !== 'in_progress'}
+                  onClick={() => handleDeadBall(1)}>
+                  🔵 {player1Name} {t('common.matchHistory.deadBall', { server: '' }).trim()}
+                </button>
+                <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3"
+                  disabled={scoringDisabled || match.status !== 'in_progress'}
+                  onClick={() => handleDeadBall(2)}>
+                  🔵 {player2Name} {t('common.matchHistory.deadBall', { server: '' }).trim()}
+                </button>
+              </div>
             </>
           );
         })()}
 
-        {/* Row 3: 취소 / 데드볼 / 레프리타임 */}
-        <div className="flex gap-2">
-          <button className="btn btn-danger flex-1 py-3" onClick={handleUndo} disabled={history.length === 0}>↩️ {t('common.cancel')}</button>
-          <button className="btn bg-purple-700 hover:bg-purple-600 text-white flex-1 py-3"
-            disabled={!!match.activeTimeout || isPausedLocal || showSideChange || (showWarmup && warmupTimer.isRunning) || match.status !== 'in_progress'}
-            onClick={() => handleDeadBall(currentServe === 'player1' ? 1 : 2)}>
-            🔵 {t('common.matchHistory.deadBall', { server: '' })}
-          </button>
-          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white flex-1 py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
+        {/* Row 3: 취소 / 레프리타임 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn btn-danger py-3" onClick={handleUndo} disabled={history.length === 0}>↩️ {t('common.cancel')}</button>
+          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
             aria-label={t('referee.scoring.timeoutTitle.referee')}>
             🟨 {t('referee.scoring.timeoutTitle.referee')}
           </button>
         </div>
 
-        {/* 접이식: 타임아웃 / 페널티 */}
+        {/* 접이식: 타임아웃 */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">
           <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('timeout')} aria-expanded={expandedSection === 'timeout'}>
-            <span className="text-sm font-bold text-gray-300">⏱️ {t('referee.scoring.timeoutTitle.player')} / 🔴 {t('common.scoreActions.penalty')}</span>
+            <span className="text-sm font-bold text-gray-300">⏱️ {t('referee.scoring.timeoutTitle.player')}</span>
             <span className="text-gray-400">{expandedSection === 'timeout' ? '▲' : '▼'}</span>
           </button>
           {expandedSection === 'timeout' && (
             <div className="px-3 py-3 space-y-2 bg-gray-900/50">
               <div className="grid grid-cols-2 gap-2">
                 <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(1, 'player')} disabled={p1TimeoutsUsed >= 1 || !!match.activeTimeout}
-                  aria-label={`${player1Name} ${t('referee.scoring.timeoutTitle.player')} 1${t('common.time.minutes')}, ${t('referee.practice.scoring.playerTimeoutInfo', { remaining: 1 - p1TimeoutsUsed })}`}>
-                  ⏱️ {player1Name} ({1 - p1TimeoutsUsed})
+                  aria-label={`${player1Name} ${t('referee.scoring.timeoutTitle.player')} (${1 - p1TimeoutsUsed}/1)`}>
+                  ⏱️ {player1Name} {t('referee.scoring.timeoutTitle.player')} ({1 - p1TimeoutsUsed}/1)
                 </button>
                 <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(2, 'player')} disabled={p2TimeoutsUsed >= 1 || !!match.activeTimeout}
-                  aria-label={`${player2Name} ${t('referee.scoring.timeoutTitle.player')} 1${t('common.time.minutes')}, ${t('referee.practice.scoring.playerTimeoutInfo', { remaining: 1 - p2TimeoutsUsed })}`}>
-                  ⏱️ {player2Name} ({1 - p2TimeoutsUsed})
+                  aria-label={`${player2Name} ${t('referee.scoring.timeoutTitle.player')} (${1 - p2TimeoutsUsed}/1)`}>
+                  ⏱️ {player2Name} {t('referee.scoring.timeoutTitle.player')} ({1 - p2TimeoutsUsed}/1)
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(1, 'medical')} disabled={!!match.activeTimeout || (history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player1Name).length >= 1)}
-                  aria-label={`${player1Name} ${t('referee.scoring.timeoutTitle.medical')} 5${t('common.time.minutes')}`}>
-                  🏥 {player1Name} 5m
-                </button>
-                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(2, 'medical')} disabled={!!match.activeTimeout || (history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player2Name).length >= 1)}
-                  aria-label={`${player2Name} ${t('referee.scoring.timeoutTitle.medical')} 5${t('common.time.minutes')}`}>
-                  🏥 {player2Name} 5m
-                </button>
-              </div>
-              <div className="border-t border-gray-700 pt-2">
-                <div className="text-xs text-red-400 font-bold px-1 mb-1">🔴 {t('common.scoreActions.penalty')}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'] as const).map(pType => (
-                    <button key={`p1-${pType}`} className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2 rounded"
-                      disabled={!!match.activeTimeout || isPausedLocal}
-                      onClick={() => handlePenalty(1, pType)}>
-                      {player1Name} {t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`)}
-                    </button>
-                  ))}
-                  {(['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'] as const).map(pType => (
-                    <button key={`p2-${pType}`} className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2 rounded"
-                      disabled={!!match.activeTimeout || isPausedLocal}
-                      onClick={() => handlePenalty(2, pType)}>
-                      {player2Name} {t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`)}
-                    </button>
-                  ))}
-                </div>
+                {(() => {
+                  const p1MedicalUsed = history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player1Name).length;
+                  const p2MedicalUsed = history.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === player2Name).length;
+                  return (
+                    <>
+                      <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(1, 'medical')} disabled={!!match.activeTimeout || p1MedicalUsed >= 1}
+                        aria-label={`${player1Name} ${t('referee.scoring.timeoutTitle.medical')} (${1 - p1MedicalUsed}/1)`}>
+                        🏥 {player1Name} {t('referee.scoring.timeoutTitle.medical')} ({1 - p1MedicalUsed}/1)
+                      </button>
+                      <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(2, 'medical')} disabled={!!match.activeTimeout || p2MedicalUsed >= 1}
+                        aria-label={`${player2Name} ${t('referee.scoring.timeoutTitle.medical')} (${1 - p2MedicalUsed}/1)`}>
+                        🏥 {player2Name} {t('referee.scoring.timeoutTitle.medical')} ({1 - p2MedicalUsed}/1)
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
         </div>
 
-        {/* 접이식: 기타 (워밍업/일시정지/부전승) */}
+        {/* 접이식: 페널티 */}
+        <div className="border border-gray-700 rounded-lg overflow-hidden">
+          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('penalty')} aria-expanded={expandedSection === 'penalty'}>
+            <span className="text-sm font-bold text-gray-300">🔴 {t('common.scoreActions.penalty')}</span>
+            <span className="text-gray-400">{expandedSection === 'penalty' ? '▲' : '▼'}</span>
+          </button>
+          {expandedSection === 'penalty' && (
+            <div className="px-3 py-3 space-y-2 bg-gray-900/50">
+              <div className="grid grid-cols-2 gap-2">
+                {(['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'] as const).map(pType => (
+                  <button key={`p1-${pType}`} className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2 rounded"
+                    disabled={!!match.activeTimeout}
+                    onClick={() => handlePenalty(1, pType)}>
+                    {player1Name} {t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`)}
+                  </button>
+                ))}
+                {(['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'] as const).map(pType => (
+                  <button key={`p2-${pType}`} className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2 rounded"
+                    disabled={!!match.activeTimeout}
+                    onClick={() => handlePenalty(2, pType)}>
+                    {player2Name} {t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 접이식: 기타 (워밍업/부전승) */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">
           <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('etc')} aria-expanded={expandedSection === 'etc'}>
-            <span className="text-sm font-bold text-gray-300">⏸️ {t('common.matchHistory.pause', { player: '' })} / {t('common.scoreActions.walkover')}</span>
+            <span className="text-sm font-bold text-gray-300">⚙️ {t('common.scoreActions.walkover')}</span>
             <span className="text-gray-400">{expandedSection === 'etc' ? '▲' : '▼'}</span>
           </button>
           {expandedSection === 'etc' && (
             <div className="px-4 py-3 space-y-3 bg-gray-900/50">
-              <div className="flex gap-3">
-                {!match.warmupUsed && (match.currentSet ?? 0) === 0 && (
+              {!match.warmupUsed && (match.currentSet ?? 0) === 0 && (
+                <div className="flex gap-3">
                   <button className="btn flex-1 bg-orange-700 hover:bg-orange-600 text-white" onClick={handleWarmup}>
                     🔥 {t('referee.scoring.warmupStart')} 60{t('common.time.seconds')}
                   </button>
-                )}
-                {!isPausedLocal && (
-                  <button className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white" onClick={handlePause}>
-                    ⏸️ {t('common.matchHistory.pause', { player: '' })}
-                  </button>
-                )}
-              </div>
-              <div className="border-t border-gray-700 pt-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <button className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2" onClick={() => handleWalkover(1)} disabled={match.status !== 'in_progress' && match.status !== 'pending'}>
-                    {player1Name} {t('common.scoreActions.walkover')}
-                  </button>
-                  <button className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2" onClick={() => handleWalkover(2)} disabled={match.status !== 'in_progress' && match.status !== 'pending'}>
-                    {player2Name} {t('common.scoreActions.walkover')}
-                  </button>
                 </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2" onClick={() => handleWalkover(1)} disabled={match.status !== 'in_progress' && match.status !== 'pending'}>
+                  {player1Name} {t('common.scoreActions.walkover')}
+                </button>
+                <button className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2" onClick={() => handleWalkover(2)} disabled={match.status !== 'in_progress' && match.status !== 'pending'}>
+                  {player2Name} {t('common.scoreActions.walkover')}
+                </button>
               </div>
             </div>
           )}
