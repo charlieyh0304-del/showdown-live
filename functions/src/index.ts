@@ -252,8 +252,8 @@ export const onMatchChange = onValueUpdated(
         if (!info) continue;
         const courtInfo = after.courtName ? ` (${after.courtName})` : "";
         totalSent += await sendToSubscriptions([sub], {
-          title: `⚡ ${info.favName} vs ${info.oppName}`,
-          body: `경기 시작!${courtInfo}`,
+          title: `⚡ ${info.favName} vs ${info.oppName} 경기 시작!${courtInfo ? courtInfo : ""}`,
+          body: "",
         }, matchLink);
       }
       if (totalSent > 0) await markNotifSent(notifKey);
@@ -287,8 +287,8 @@ export const onMatchChange = onValueUpdated(
           .join(", ");
 
         totalSent += await sendToSubscriptions([sub], {
-          title: `${won ? "🏆" : "😢"} ${info.favName} vs ${info.oppName}`,
-          body: `${won ? "승리" : "패배"} (${scores})`,
+          title: `${won ? "🏆" : "😢"} ${info.favName} vs ${info.oppName} ${won ? "승리" : "패배"}`,
+          body: scores,
         }, resultLink);
       }
       if (totalSent > 0) await markNotifSent(notifKey);
@@ -415,8 +415,8 @@ export const preMatchNotify = onSchedule(
               if (!info) continue;
               const courtInfo = match.courtName ? ` (${match.courtName})` : "";
               totalSent += await sendToSubscriptions([sub], {
-                title: `📢 ${info.favName} vs ${info.oppName}`,
-                body: `경기 10분 전입니다.${courtInfo}`,
+                title: `📢 ${info.favName} vs ${info.oppName} 경기 10분 전${courtInfo ? courtInfo : ""}`,
+                body: "",
               }, preMatchLink);
               console.log(`Sent pre-match notif for ${info.favName} to ${sub.platform}`);
             }
