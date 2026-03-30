@@ -124,8 +124,8 @@ self.addEventListener('push', (event) => {
     return;
   }
 
-  // FCM 메시지는 Firebase SDK가 처리 (notification → 자동 표시, data → onBackgroundMessage)
-  if (data.fcmMessageId || data.from || data.notification) return;
+  // Firebase SDK가 이미 처리한 FCM 메시지는 스킵 (중복 방지)
+  if (data.fcmMessageId) return;
 
   const notifData = data.data || data;
   event.waitUntil(showOnce(notifData));

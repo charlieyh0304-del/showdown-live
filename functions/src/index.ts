@@ -120,20 +120,10 @@ async function sendToSubscriptions(
         tag,
         requireInteraction: true,
         renotify: true,
-        vibrate: [200, 100, 200],
-        actions: [{ action: "open", title: "\uC5F4\uAE30" }],
       },
     },
     android: {
       priority: "high" as const,
-      ttl: 86400000,
-      notification: {
-        channelId: "showdown_match",
-        priority: "max" as const,
-        defaultVibrateTimings: true,
-        defaultSound: true,
-        visibility: "public" as const,
-      },
     },
     apns: {
       headers: {
@@ -144,8 +134,7 @@ async function sendToSubscriptions(
         aps: {
           alert: { title: notification.title, body: notification.body },
           sound: "default",
-          "content-available": 1,
-          "interruption-level": "time-sensitive",
+          contentAvailable: true,
         },
       },
     },
