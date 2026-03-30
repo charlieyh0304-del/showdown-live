@@ -10,9 +10,11 @@ interface TimerModalProps {
   closeLabel?: string;
   /** If true, close button is hidden until timer reaches 0. Used for mandatory side changes. */
   required?: boolean;
+  /** Warning text shown prominently inside the modal (e.g., "15초 남음") */
+  warningText?: string;
 }
 
-export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel, required }: TimerModalProps) {
+export default function TimerModal({ title, seconds, isWarning, subtitle, onClose, closeLabel, required, warningText }: TimerModalProps) {
   const { t } = useTranslation();
   const effectiveCloseLabel = closeLabel || t('common.close');
   // If required, don't allow Escape to close
@@ -37,6 +39,11 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
         >
           {display}
         </div>
+        {warningText && (
+          <div className="text-2xl font-bold text-red-400 animate-pulse" aria-live="assertive">
+            ⚠️ {warningText}
+          </div>
+        )}
         {subtitle && <p className="text-xl text-gray-300">{subtitle}</p>}
         {(!required || timerDone) && (
           <button className="btn btn-danger btn-large" onClick={onClose} aria-label={effectiveCloseLabel}>

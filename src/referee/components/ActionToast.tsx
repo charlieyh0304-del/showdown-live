@@ -27,7 +27,8 @@ export default function ActionToast({ message }: ActionToastProps) {
       key={key}
       role="status"
       aria-live="polite"
-      className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-gray-800 border border-gray-600 text-white px-5 py-3 rounded-xl shadow-lg text-center max-w-sm animate-toast"
+      className="fixed top-16 left-1/2 -translate-x-1/2 bg-gray-800 border border-gray-600 text-white px-5 py-3 rounded-xl shadow-lg text-center max-w-sm animate-toast"
+      style={{ zIndex: 200 }}
     >
       <style>{`
         @keyframes toastFadeInOut {

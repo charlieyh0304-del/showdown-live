@@ -34,7 +34,7 @@ export default function PracticeScoring() {
   const [searchParams] = useSearchParams();
   const { addSession } = usePracticeHistory();
   const { canAct, startProcessing, done } = useDoubleClickGuard();
-  const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
+  const { shortWhistle, longWhistle, goalWhistle, initAudio } = useWhistle();
 
   const matchType = (searchParams.get('type') || 'individual') as 'individual' | 'team';
   const p1Name = searchParams.get('p1') || t('referee.practice.setup.practicePlayerA');
@@ -94,6 +94,7 @@ export default function PracticeScoring() {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const toggleSection = (key: string) => setExpandedSection(prev => prev === key ? null : key);
   const [foulClassify, setFoulClassify] = useState<{ player: 1 | 2 } | null>(null);
+  const [timerWarningText, setTimerWarningText] = useState('');
 
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
   const subModalTrapRef = useFocusTrap(showSubModal);
@@ -111,19 +112,24 @@ export default function PracticeScoring() {
     if (!timeoutTimer.isRunning || !match.activeTimeout) {
       timerWarningsRef.current.delete('timeout_30');
       timerWarningsRef.current.delete('timeout_15');
+      setTimerWarningText('');
       return;
     }
     if (timeoutTimer.seconds <= 30 && !timerWarningsRef.current.has('timeout_30')) {
       timerWarningsRef.current.add('timeout_30');
-      setLastAction(`⚠️ 30${t('common.time.seconds')}`);
-      setAnnouncement(`30${t('common.time.seconds')}`);
-      speak(`30${t('common.time.seconds')}`);
+      const msg = `30${t('common.time.seconds')}`;
+      setTimerWarningText(msg);
+      setLastAction(`⚠️ ${msg}`);
+      setAnnouncement(msg);
+      speak(msg);
     }
     if (timeoutTimer.seconds <= 15 && !timerWarningsRef.current.has('timeout_15')) {
       timerWarningsRef.current.add('timeout_15');
-      setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
-      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
+      const msg = t('referee.scoring.fifteenSecondsLeft');
+      setTimerWarningText(msg);
+      setLastAction(`⚠️ ${msg}`);
+      setAnnouncement(msg);
+      speak(msg);
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout]);
 
@@ -131,13 +137,16 @@ export default function PracticeScoring() {
   useEffect(() => {
     if (!sideChangeTimer.isRunning || !showSideChange) {
       timerWarningsRef.current.delete('sideChange_15');
+      setTimerWarningText('');
       return;
     }
     if (sideChangeTimer.seconds <= 15 && !timerWarningsRef.current.has('sideChange_15')) {
       timerWarningsRef.current.add('sideChange_15');
-      setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
-      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
+      const msg = t('referee.scoring.fifteenSecondsLeft');
+      setTimerWarningText(msg);
+      setLastAction(`⚠️ ${msg}`);
+      setAnnouncement(msg);
+      speak(msg);
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, showSideChange]);
 
@@ -147,29 +156,34 @@ export default function PracticeScoring() {
       timerWarningsRef.current.delete('warmup_60');
       timerWarningsRef.current.delete('warmup_30');
       timerWarningsRef.current.delete('warmup_15');
+      setTimerWarningText('');
       return;
     }
     if (matchType === 'team') {
-      // 90초 워밍업: 60초 남음(첫 선수 교대), 30초 남음(두번째 선수 교대)에 알림
       if (warmupTimer.seconds <= 60 && !timerWarningsRef.current.has('warmup_60')) {
         timerWarningsRef.current.add('warmup_60');
-        setLastAction(`⚠️ 60${t('common.time.seconds')}`);
-        setAnnouncement(`60${t('common.time.seconds')}`);
-        speak(`60${t('common.time.seconds')}`);
+        const msg = `60${t('common.time.seconds')}`;
+        setTimerWarningText(msg);
+        setLastAction(`⚠️ ${msg}`);
+        setAnnouncement(msg);
+        speak(msg);
       }
       if (warmupTimer.seconds <= 30 && !timerWarningsRef.current.has('warmup_30')) {
         timerWarningsRef.current.add('warmup_30');
-        setLastAction(`⚠️ 30${t('common.time.seconds')}`);
-        setAnnouncement(`30${t('common.time.seconds')}`);
-        speak(`30${t('common.time.seconds')}`);
+        const msg = `30${t('common.time.seconds')}`;
+        setTimerWarningText(msg);
+        setLastAction(`⚠️ ${msg}`);
+        setAnnouncement(msg);
+        speak(msg);
       }
     } else {
-      // 60초 워밍업: 15초 전 알림
       if (warmupTimer.seconds <= 15 && !timerWarningsRef.current.has('warmup_15')) {
         timerWarningsRef.current.add('warmup_15');
-        setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
-        setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-        speak(t('referee.scoring.fifteenSecondsLeft'));
+        const msg = t('referee.scoring.fifteenSecondsLeft');
+        setTimerWarningText(msg);
+        setLastAction(`⚠️ ${msg}`);
+        setAnnouncement(msg);
+        speak(msg);
       }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning, matchType]);
@@ -765,10 +779,10 @@ export default function PracticeScoring() {
           <div className="card w-full max-w-md space-y-4">
             <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
             <div className="flex gap-4">
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player1'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player1'); setCoinTossStep('choice'); }}>
                 {p1Name}
               </button>
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player2'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player2'); setCoinTossStep('choice'); }}>
                 {p2Name}
               </button>
             </div>
@@ -921,6 +935,7 @@ export default function PracticeScoring() {
           subtitle={matchType === 'team' ? `${t('referee.home.teamMatch')} (90${t('common.time.seconds')})` : `${t('referee.practice.setup.individual')} (60${t('common.time.seconds')})`}
           onClose={() => { warmupTimer.stop(); setShowWarmup(false); longWhistle(); }}
           closeLabel={t('referee.practice.scoring.warmupEnd')}
+          warningText={timerWarningText}
         />
       )}
 
@@ -947,6 +962,7 @@ export default function PracticeScoring() {
           onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); setSideChangeConfirmed(false); }}
           closeLabel={t('referee.practice.scoring.confirmButton')}
           required
+          warningText={timerWarningText}
         />
       )}
 
@@ -959,6 +975,7 @@ export default function PracticeScoring() {
           subtitle={match.activeTimeout.type === 'referee' ? '' : undefined}
           onClose={() => { timeoutTimer.stop(); updateMatch({ activeTimeout: null }); longWhistle(); }}
           closeLabel={t('referee.practice.scoring.timeoutEndButton')}
+          warningText={timerWarningText}
         />
       )}
 
