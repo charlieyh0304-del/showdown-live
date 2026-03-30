@@ -52,7 +52,7 @@ function useTournamentContext() {
   return match ? match[1] : null;
 }
 
-const navLinkStyle = {
+const baseNavStyle = {
   flex: 1,
   textAlign: 'center' as const,
   display: 'flex',
@@ -62,10 +62,17 @@ const navLinkStyle = {
   padding: '0.625rem 0.25rem',
   textDecoration: 'none',
   fontSize: '0.8125rem',
-  fontWeight: 'bold' as const,
   gap: '0.125rem',
   minHeight: '56px',
 };
+
+const getNavStyle = ({ isActive }: { isActive: boolean }) => ({
+  ...baseNavStyle,
+  backgroundColor: isActive ? '#ffff00' : 'transparent',
+  color: isActive ? '#000000' : '#d1d5db',
+  fontWeight: isActive ? 800 : 600,
+  borderBottom: isActive ? '3px solid #ffff00' : '3px solid transparent',
+} as const);
 
 interface SpectatorLayoutProps {
   children: ReactNode;
@@ -186,7 +193,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to={`/spectator/tournament/${tournamentId}`}
               end
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive(`/spectator/tournament/${tournamentId}`, true)}
               aria-current={isTabActive(`/spectator/tournament/${tournamentId}`, true) ? 'page' : undefined}
@@ -198,7 +205,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             <NavLink
               to={`/spectator/tournament/${tournamentId}/players`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/players`)}
               aria-current={isTabActive(`/spectator/tournament/${tournamentId}/players`) ? 'page' : undefined}
@@ -210,7 +217,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             <NavLink
               to={`/spectator/tournament/${tournamentId}/standings`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/standings`)}
               aria-current={isTabActive(`/spectator/tournament/${tournamentId}/standings`) ? 'page' : undefined}
@@ -222,7 +229,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             <NavLink
               to={`/spectator/tournament/${tournamentId}/schedule`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/schedule`)}
               aria-current={isTabActive(`/spectator/tournament/${tournamentId}/schedule`) ? 'page' : undefined}
@@ -234,7 +241,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             <NavLink
               to={`/spectator/tournament/${tournamentId}/referees`}
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/referees`)}
               aria-current={isTabActive(`/spectator/tournament/${tournamentId}/referees`) ? 'page' : undefined}
@@ -251,7 +258,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
               to="/spectator"
               end
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive('/spectator', true)}
               aria-current={isTabActive('/spectator', true) ? 'page' : undefined}
@@ -263,7 +270,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             <NavLink
               to="/spectator/favorites"
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive('/spectator/favorites')}
               aria-current={isTabActive('/spectator/favorites') ? 'page' : undefined}
@@ -275,7 +282,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
             <NavLink
               to="/spectator/practice"
               className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={navLinkStyle}
+              style={getNavStyle}
               role="tab"
               aria-selected={isTabActive('/spectator/practice')}
               aria-current={isTabActive('/spectator/practice') ? 'page' : undefined}
