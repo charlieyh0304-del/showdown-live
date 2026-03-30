@@ -88,7 +88,10 @@ async function registerAndGetToken(): Promise<string | null> {
 }
 
 export function usePushNotifications(favorites: FavEntry[]) {
-  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(() => {
+    // 토큰이 localStorage에 있으면 푸시 활성 상태로 시작 (비동기 갱신 전 클라이언트 알림 차단)
+    return !!localStorage.getItem(TOKEN_KEY) && Notification.permission === 'granted';
+  });
   const [pushSupported, setPushSupported] = useState(true);
   const [debugInfo, setDebugInfo] = useState<string>('초기화 중...');
   const tokenRef = useRef<string | null>(null);
