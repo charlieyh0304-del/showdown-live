@@ -340,7 +340,7 @@ export default function TournamentDetail() {
 
       {tournament.status === 'draft' && (
         <div className="card bg-purple-900/30 border-purple-500 p-4">
-          <h3 className="text-lg font-bold text-purple-400 mb-2">{t('admin.tournamentDetail.simulation.title')}</h3>
+          <h3 className="text-lg font-bold text-purple-400 mb-2 text-center">{t('admin.tournamentDetail.simulation.title')}</h3>
           <p className="text-gray-400 text-sm mb-4">{t('admin.tournamentDetail.simulation.description')}</p>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -787,7 +787,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       {!isManualTeam && (
       <div className="card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-xl font-bold">{t('admin.tournamentDetail.playersTab.tournamentPlayers')} ({tournamentPlayers.length}{t('common.units.person')})</h2>
+          <h2 className="text-xl font-bold text-center">{t('admin.tournamentDetail.playersTab.tournamentPlayers')} ({tournamentPlayers.length}{t('common.units.person')})</h2>
           <button
             className="btn btn-secondary"
             onClick={() => setShowGlobalModal(true)}
@@ -833,7 +833,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         </div>
 
         {tournamentPlayers.length === 0 ? (
-          <p className="text-gray-400">{t('admin.tournamentDetail.playersTab.noPlayers')}</p>
+          <p className="text-gray-400 text-center">{t('admin.tournamentDetail.playersTab.noPlayers')}</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
             {tournamentPlayers.map(p => (
@@ -862,7 +862,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
       {isTeamType && (
         <div className="card space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <h2 className="text-xl font-bold">{t('admin.tournamentDetail.playersTabInline.teamCompositionTitle', { count: teams.length })}</h2>
+            <h2 className="text-xl font-bold text-center">{t('admin.tournamentDetail.playersTabInline.teamCompositionTitle', { count: teams.length })}</h2>
             <div className="flex gap-2">
               {tournament.type === 'randomTeamLeague' && (
                 <button
@@ -882,7 +882,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
 
           {/* 팀 카드 목록 */}
           {teams.length === 0 ? (
-            <p className="text-gray-400">{t('admin.tournamentDetail.playersTabInline.noTeams')}</p>
+            <p className="text-gray-400 text-center">{t('admin.tournamentDetail.playersTabInline.noTeams')}</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {teams.map(team => {
@@ -1257,7 +1257,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
             aria-modal="true"
             aria-labelledby="add-team-modal-title"
           >
-            <h3 id="add-team-modal-title" className="text-xl font-bold text-yellow-400">{t('admin.tournamentDetail.addTeamModal.title')}</h3>
+            <h3 id="add-team-modal-title" className="text-xl font-bold text-yellow-400 text-center">{t('admin.tournamentDetail.addTeamModal.title')}</h3>
 
             <div>
               <label htmlFor="new-team-name" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.addTeamModal.teamNameLabel')}</label>
@@ -1348,7 +1348,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         <div className="modal-backdrop" onClick={() => setShowGlobalModal(false)} onKeyDown={e => { if (e.key === 'Escape') setShowGlobalModal(false); }}>
           <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="global-player-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="global-player-modal-title" className="text-xl font-bold">{t('admin.tournamentDetail.playersTab.importFromGlobal')}</h2>
+              <h2 id="global-player-modal-title" className="text-xl font-bold text-center">{t('admin.tournamentDetail.playersTab.importFromGlobal')}</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={() => setShowGlobalModal(false)}
@@ -1358,7 +1358,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               </button>
             </div>
             {globalPlayers.length === 0 ? (
-              <p className="text-gray-400">{t('admin.tournamentDetail.globalPlayerModal.noGlobalPlayers')}</p>
+              <p className="text-gray-400 text-center">{t('admin.tournamentDetail.globalPlayerModal.noGlobalPlayers')}</p>
             ) : (
               <div className="space-y-2 mb-4">
                 {globalPlayers.map(p => {
@@ -1762,7 +1762,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h2 className="text-xl font-bold">{t('admin.tournamentDetail.bracketTab.title')}</h2>
+        <h2 className="text-xl font-bold text-center">{t('admin.tournamentDetail.bracketTab.title')}</h2>
         <div className="flex gap-2 flex-wrap">
           {!isManualMode && (
             <button
@@ -2395,7 +2395,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
       {matches.length === 0 ? (
         <div className="card text-center py-8">
-          <p className="text-gray-400">{t('admin.tournamentDetail.bracketTab.noBracket')}</p>
+          <p className="text-gray-400 text-center">{t('admin.tournamentDetail.bracketTab.noBracket')}</p>
           {isManualMode && (
             <p className="text-yellow-400 text-sm mt-2">{t('admin.tournamentDetail.bracketTab.manualAddHint')}</p>
           )}
@@ -2899,7 +2899,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
   return (
     <div className="space-y-6">
       <div className="card space-y-4">
-        <h2 className="text-xl font-bold">{t('admin.tournamentDetail.scheduleTab.title')}</h2>
+        <h2 className="text-xl font-bold text-center">{t('admin.tournamentDetail.scheduleTab.title')}</h2>
         <div className="flex gap-4 flex-wrap">
           <div>
             <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.dateLabel')}</label>
@@ -3042,12 +3042,12 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
         >
           {generating ? t('admin.tournamentDetail.scheduleTab.generating') : t('admin.tournamentDetail.scheduleTab.generateButton')}
         </button>
-        {courts.length === 0 && <p className="text-gray-400">{t('admin.tournamentDetail.scheduleTab.noCourts')}</p>}
+        {courts.length === 0 && <p className="text-gray-400 text-center">{t('admin.tournamentDetail.scheduleTab.noCourts')}</p>}
       </div>
 
       {timeSlotsByDate.length > 0 && timeSlotsByDate.some(d => d.rows.length > 0) && (
         <div className="card overflow-x-auto">
-          <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.scheduleTab.scheduleGridTitle')}</h2>
+          <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.scheduleTab.scheduleGridTitle')}</h2>
           {timeSlotsByDate.map(({ date, rows }) => {
             if (rows.length === 0) return null;
             return (
@@ -3100,7 +3100,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
       {matches.length > 0 && (
         <div className="card space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <h2 className="text-xl font-bold">{t('admin.tournamentDetail.scheduleTab.individualScheduleTitle')}</h2>
+            <h2 className="text-xl font-bold text-center">{t('admin.tournamentDetail.scheduleTab.individualScheduleTitle')}</h2>
             <button
               className="btn bg-red-700 hover:bg-red-600 text-white"
               onClick={handleResetSchedule}
@@ -3557,7 +3557,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
       {/* 대회 단계 관리 */}
       {toArray(tournament.stages).length > 0 && (
         <div className="card space-y-4">
-          <h3 className="text-xl font-bold text-yellow-400">{t('admin.tournamentDetail.statusTab.stageManagement')}</h3>
+          <h3 className="text-xl font-bold text-yellow-400 text-center">{t('admin.tournamentDetail.statusTab.stageManagement')}</h3>
           {toArray(tournament.stages).map((stage) => {
             const stageMatches = matches.filter(m =>
               m.stageId === stage.id ||
@@ -3640,7 +3640,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
       <div className="space-y-3" aria-live="polite">
         {filtered.length === 0 ? (
           <div className="card text-center py-8">
-            <p className="text-gray-400">{t('admin.tournamentDetail.statusTab.noMatches')}</p>
+            <p className="text-gray-400 text-center">{t('admin.tournamentDetail.statusTab.noMatches')}</p>
           </div>
         ) : (
           filtered.slice((statusPage - 1) * STATUS_PAGE_SIZE, statusPage * STATUS_PAGE_SIZE).map(match => (
@@ -3735,7 +3735,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         <div className="modal-backdrop" onClick={closeCorrectionModal} onKeyDown={e => { if (e.key === 'Escape') closeCorrectionModal(); }}>
           <div className="card max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="correction-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="correction-modal-title" className="text-xl font-bold">{t('admin.tournamentDetail.correctionModal.title')}</h2>
+              <h2 id="correction-modal-title" className="text-xl font-bold text-center">{t('admin.tournamentDetail.correctionModal.title')}</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={closeCorrectionModal}
@@ -3835,7 +3835,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         <div className="modal-backdrop" onClick={closeWalkoverModal} onKeyDown={e => { if (e.key === 'Escape') closeWalkoverModal(); }}>
           <div className="card max-w-md w-full" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="walkover-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 id="walkover-modal-title" className="text-xl font-bold text-orange-400">{t('admin.tournamentDetail.walkoverModal.title')}</h2>
+              <h2 id="walkover-modal-title" className="text-xl font-bold text-orange-400 text-center">{t('admin.tournamentDetail.walkoverModal.title')}</h2>
               <button
                 className="text-gray-400 hover:text-white font-bold text-xl"
                 onClick={closeWalkoverModal}
@@ -4028,9 +4028,9 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
         </div>
 
         <div className="card overflow-x-auto">
-          <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.teamRankingTitle')}</h2>
+          <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.teamRankingTitle')}</h2>
           {rankings.length === 0 ? (
-            <p className="text-gray-400">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
+            <p className="text-gray-400 text-center">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
           ) : (
             <table className="w-full border-collapse" aria-label={t('admin.tournamentDetail.rankingTab.teamRankingAriaLabel')}>
               <thead>
@@ -4064,7 +4064,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
         {/* Completed matches list (most recent first) */}
         {completedMatchesSorted.length > 0 && (
           <div className="card">
-            <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
+            <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
             <div className="space-y-2">
               {completedMatchesSorted.map(match => (
                 <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
@@ -4106,9 +4106,9 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
       </div>
 
       <div className="card overflow-x-auto">
-        <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.individualRankingTitle')}</h2>
+        <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.individualRankingTitle')}</h2>
         {rankings.length === 0 ? (
-          <p className="text-gray-400">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
+          <p className="text-gray-400 text-center">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
         ) : (
           <table className="w-full border-collapse" aria-label={t('admin.tournamentDetail.rankingTab.individualRankingAriaLabel')}>
             <thead>
@@ -4146,7 +4146,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
       {/* Completed matches list (most recent first) */}
       {completedMatchesSorted.length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-bold mb-4">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
+          <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
           <div className="space-y-2">
             {completedMatchesSorted.map(match => (
               <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">

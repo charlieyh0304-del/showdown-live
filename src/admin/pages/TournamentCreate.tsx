@@ -590,7 +590,7 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.basicInfo.typeSelection')}</h2>
+            <h2 className="text-xl font-bold text-center">{t('admin.tournamentCreate.basicInfo.typeSelection')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -626,7 +626,7 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.presets.title')}</h2>
+            <h2 className="text-xl font-bold text-center">{t('admin.tournamentCreate.presets.title')}</h2>
             {state.type !== 'individual' && (
               <p className="text-gray-400 text-sm">
                 {t('admin.tournamentCreate.presets.presetHint')}
@@ -673,7 +673,7 @@ export default function TournamentCreate() {
       {state.step === 2 && (
         <div className="space-y-6">
           <div className="card space-y-6">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-center">
               {state.type === 'team' ? t('admin.tournamentCreate.participants.teamCount') : state.type === 'randomTeamLeague' ? t('admin.tournamentCreate.participants.playerCount') : t('admin.tournamentCreate.participants.participantCount')}
             </h2>
             <NumberStepper
@@ -698,7 +698,7 @@ export default function TournamentCreate() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.tournamentMode.title')}</h2>
+            <h2 className="text-xl font-bold text-center">{t('admin.tournamentCreate.tournamentMode.title')}</h2>
             <div className="space-y-2" role="radiogroup" aria-label={t('admin.tournamentCreate.tournamentMode.selectionAriaLabel')}>
               <button
                 role="radio"
@@ -765,7 +765,7 @@ export default function TournamentCreate() {
 
           {state.tournamentMode === 'manual' && (
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold text-yellow-400">{t('admin.tournamentCreate.manualMode.title')}</h2>
+            <h2 className="text-xl font-bold text-yellow-400 text-center">{t('admin.tournamentCreate.manualMode.title')}</h2>
             <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3" role="note">
               <p className="text-yellow-300 text-sm font-semibold">{t('admin.tournamentCreate.manualMode.allManualNote')}</p>
               <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.manualMode.allManualDescription')}</p>
@@ -1000,7 +1000,7 @@ export default function TournamentCreate() {
 
           {state.tournamentMode === 'group_tournament' && (
           <div className="card space-y-4">
-            <h2 className="text-xl font-bold">{t('admin.tournamentCreate.groupQualifying.title')}</h2>
+            <h2 className="text-xl font-bold text-center">{t('admin.tournamentCreate.groupQualifying.title')}</h2>
 
             <div className="space-y-4 mt-4 pl-4 border-l-2 border-yellow-400">
                 <NumberStepper
@@ -1143,7 +1143,7 @@ export default function TournamentCreate() {
 
           {(state.type === 'team' || state.type === 'randomTeamLeague') && (
             <div className="card space-y-4">
-              <h2 className="text-xl font-bold">{t('admin.tournamentCreate.teamSettings.title')}</h2>
+              <h2 className="text-xl font-bold text-center">{t('admin.tournamentCreate.teamSettings.title')}</h2>
               <NumberStepper
                 label={t('admin.tournamentCreate.teamSettings.teamSize')}
                 value={state.teamSize}

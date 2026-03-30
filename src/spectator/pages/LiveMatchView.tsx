@@ -124,12 +124,12 @@ export default function LiveMatchView() {
       <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
 
       <button className="btn" onClick={() => navigate(`/spectator/tournament/${tournamentId}`)}
-        style={{ background: 'none', color: 'var(--color-secondary)', padding: '0.5rem 0', marginBottom: '1rem', fontSize: '1rem' }}>
+        style={{ background: 'none', color: 'var(--color-secondary)', padding: '0.5rem 0', marginBottom: '1rem', fontSize: '1rem', display: 'block', margin: '0 auto 1rem auto' }}>
         {t('spectator.liveMatch.backToTournament')}
       </button>
 
       {/* 상태 표시 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }} role="status" aria-live="polite">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem' }} role="status" aria-live="polite">
         {isLive && (
           <>
             <span className="animate-pulse" style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#ef4444' }} aria-hidden="true" />
@@ -141,7 +141,7 @@ export default function LiveMatchView() {
         {match.isPaused && <span style={{ color: '#fbbf24', fontWeight: 'bold', marginLeft: '0.5rem' }}><span aria-hidden="true">{'⏸ '}</span>{t('spectator.liveMatch.pausedStatus')}</span>}
       </div>
 
-      {tournament && <p style={{ color: '#d1d5db', marginBottom: '1rem' }}>{tournament.name}</p>}
+      {tournament && <p style={{ color: '#d1d5db', marginBottom: '1rem', textAlign: 'center' }}>{tournament.name}</p>}
 
       {match.type === 'individual' ? (
         <IndividualMatchDetail match={match} gameConfig={tournament?.gameConfig} />
@@ -155,7 +155,7 @@ export default function LiveMatchView() {
       )}
 
       {/* 경기장/심판 */}
-      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db', alignItems: 'center' }}>
+      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db', alignItems: 'center', justifyContent: 'center' }}>
         {match.courtName && <span>{t('spectator.liveMatch.court')}: {match.courtName}</span>}
         {match.refereeName && <span>{t('spectator.liveMatch.mainReferee')}: {match.refereeName}</span>}
         {match.assistantRefereeName && <span>{t('spectator.liveMatch.assistantReferee')}: {match.assistantRefereeName}</span>}

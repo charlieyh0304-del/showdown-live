@@ -210,7 +210,7 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
 
       {searchResults && (
         <div style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem', textAlign: 'center' }}>
             {t('spectator.tournament.searchResults', { count: searchResults.length })}
           </h2>
           {searchResults.map(match => {
@@ -818,7 +818,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
         <GroupStageView matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
         {finalsMatches.length > 0 && (
           <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '1rem', borderBottom: '2px solid rgba(74, 222, 128, 0.3)', paddingBottom: '0.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '1rem', borderBottom: '2px solid rgba(74, 222, 128, 0.3)', paddingBottom: '0.5rem', textAlign: 'center' }}>
               {t('spectator.tournament.stageFilter.finals')}
             </h2>
             <FinalsView matches={finalsMatches} onSelectPlayer={onSelectPlayer} />
@@ -826,7 +826,7 @@ function BracketTab({ matches, tournamentType, onSelectPlayer }: { matches: Matc
         )}
         {rankingMatches.length > 0 && (
           <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '1rem', borderBottom: '2px solid rgba(192, 132, 252, 0.3)', paddingBottom: '0.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '1rem', borderBottom: '2px solid rgba(192, 132, 252, 0.3)', paddingBottom: '0.5rem', textAlign: 'center' }}>
               {t('spectator.tournament.stageFilter.ranking')}
             </h2>
             <RankingMatchesView matches={rankingMatches} onSelectPlayer={onSelectPlayer} />
@@ -1282,6 +1282,7 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
             marginBottom: '0.75rem',
             borderBottom: '1px solid rgba(192, 132, 252, 0.3)',
             paddingBottom: '0.5rem',
+            textAlign: 'center',
           }}>
             {roundLabel}
           </h3>
@@ -1313,7 +1314,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {groups.map(([groupId, groupMatches]) => (
         <div key={groupId} className="card">
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15', marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15', marginBottom: '1rem', textAlign: 'center' }}>
             {groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}
           </h3>
 
@@ -1363,7 +1364,7 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = fal
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+      <p style={{ fontSize: '0.875rem', color: '#9ca3af', textAlign: 'center' }}>
         {isFullLeague ? t('spectator.tournament.view.fullLeagueProgress', { completed: totalCompleted, total: totalMatches }) : t('spectator.tournament.view.groupProgress', { groups: groups.length, completed: totalCompleted, total: totalMatches })}
       </p>
       {groups.map(([groupId, gMatches]) => {
@@ -1993,7 +1994,7 @@ function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {groups.map(([groupId, groupMatches]) => (
         <div key={groupId} className="card">
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem' }}>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem', textAlign: 'center' }}>
             {groupId === 'default' ? t('spectator.tournament.view.overallRanking') : t('spectator.tournament.view.groupRanking', { id: groupId })}
           </h3>
           <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
@@ -2474,7 +2475,7 @@ function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggl
           aria-label={t('spectator.tournament.searchAriaLabel')}
         />
       </div>
-      <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+      <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem', textAlign: 'center' }}>
         {isTeam
           ? `총 ${filteredPlayers.length}${t('common.units.team')}`
           : t('spectator.tournament.view.playerCount', { count: filteredPlayers.length })
@@ -2814,7 +2815,7 @@ function HistoryTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+      <p style={{ fontSize: '0.875rem', color: '#9ca3af', textAlign: 'center' }}>
         {t('spectator.tournament.view.historySummary', { total: matches.length, completed: completedCount, inProgress: inProgressCount, pending: pendingCount })}
       </p>
 

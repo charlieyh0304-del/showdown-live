@@ -42,8 +42,8 @@ export default function NumberStepper({ label, value, min, max, step = 1, onChan
 
   return (
     <div>
-      <label className="block mb-2 font-semibold text-lg">{label}</label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <label className="block mb-2 font-semibold text-lg text-center">{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
         <button
           className="btn btn-danger"
           style={{ width: '64px', height: '64px', fontSize: '2rem', flexShrink: 0 }}

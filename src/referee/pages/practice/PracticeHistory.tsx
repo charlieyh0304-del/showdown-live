@@ -78,7 +78,7 @@ export default function PracticeHistory() {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex justify-center gap-4">
         <button className="btn btn-accent flex-1" onClick={() => navigate('/referee/practice')} aria-label={t('common.back')}>{t('common.back')}</button>
         {sessions.length > 0 && (
           <button className="btn btn-danger flex-1" onClick={() => { clearHistory(); localStorage.removeItem('showdown_practice_completed'); }} aria-label={t('referee.practice.history.deleteAllAriaLabel')}>{t('referee.practice.history.deleteAll')}</button>

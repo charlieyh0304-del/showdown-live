@@ -766,13 +766,13 @@ export default function PracticeScoring() {
   if (match.status === 'pending') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 p-4">
-        <h1 className="text-3xl font-bold" style={{ color: '#c084fc' }}>{t('referee.practice.home.title')}</h1>
-        <div className="flex items-center gap-8 text-2xl">
+        <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>{t('referee.practice.home.title')}</h1>
+        <div className="flex items-center justify-center gap-8 text-2xl">
           <span className="text-yellow-400 font-bold">{p1Name}</span>
           <span className="text-gray-400">vs</span>
           <span className="text-cyan-400 font-bold">{p2Name}</span>
         </div>
-        <p className="text-gray-400">
+        <p className="text-gray-400 text-center">
           {matchType === 'team' ? t('referee.practice.scoring.rulesDisplayTeam') : t('referee.practice.scoring.rulesDisplay', { points: config.POINTS_TO_WIN, setsToWin: config.SETS_TO_WIN })}
         </p>
 
@@ -803,9 +803,11 @@ export default function PracticeScoring() {
                 {t('referee.scoring.receiveChoice')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('referee.practice.scoring.coinTossBackAriaLabel')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('referee.practice.scoring.coinTossBackAriaLabel')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'court_change' && tossWinner && (
@@ -830,9 +832,11 @@ export default function PracticeScoring() {
                 {t('referee.scoring.courtChangeNoButton')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'warmup_ask' && pendingFirstServe && (
@@ -854,7 +858,9 @@ export default function PracticeScoring() {
           </div>
         )}
 
-        <button className="btn btn-accent" onClick={() => navigate('/referee/practice/setup')}>{t('common.back')}</button>
+        <div className="text-center">
+          <button className="btn btn-accent" onClick={() => navigate('/referee/practice/setup')}>{t('common.back')}</button>
+        </div>
       </div>
     );
   }
@@ -876,7 +882,7 @@ export default function PracticeScoring() {
             </div>
           );
         })}
-        <p className="text-gray-400">{t('referee.practice.scoring.totalActions', { count: match.actionLog.length, seconds: Math.floor((match.completedAt! - match.startedAt) / 1000) })}</p>
+        <p className="text-gray-400 text-center">{t('referee.practice.scoring.totalActions', { count: match.actionLog.length, seconds: Math.floor((match.completedAt! - match.startedAt) / 1000) })}</p>
 
         {match.scoreHistory.length > 0 && (
           <div className="w-full max-w-lg mx-auto flex-1 min-h-0">
@@ -884,7 +890,7 @@ export default function PracticeScoring() {
           </div>
         )}
 
-        <div className="flex gap-4">
+        <div className="flex justify-center gap-4">
           <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/practice/setup')}>{t('referee.practice.home.startPractice')}</button>
           <button className="btn btn-secondary btn-large" onClick={() => navigate('/referee/practice')}>{t('common.home')}</button>
         </div>
@@ -1249,7 +1255,7 @@ export default function PracticeScoring() {
       {/* Set history */}
       {sets.length > 1 && (
         <div className="bg-gray-900 border-t border-gray-700 px-4 py-3">
-          <div className="flex gap-4 overflow-x-auto">
+          <div className="flex justify-center gap-4 overflow-x-auto">
             {sets.map((s: SetScore, i: number) => (
               <div key={i} className={`text-center px-3 py-1 rounded ${i === ci ? 'bg-gray-700' : ''}`} aria-label={`${t('referee.practice.scoring.setLabel', { num: i + 1 })}: ${p1Name} ${s.player1Score} vs ${p2Name} ${s.player2Score}${i === ci ? ` ${t('referee.practice.scoring.currentSetLabel')}` : ''}`} aria-current={i === ci ? 'true' : undefined}>
                 <div className="text-xs text-gray-400">{t('referee.practice.scoring.setLabel', { num: i + 1 })}</div>

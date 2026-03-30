@@ -980,7 +980,7 @@ export default function IndividualScoring() {
           <span className="text-gray-400">vs</span>
           <span className="text-cyan-400 font-bold">{player2Name}</span>
         </div>
-        {match.courtName && <p className="text-gray-400 text-lg">{t('referee.home.court')}: {match.courtName}</p>}
+        {match.courtName && <p className="text-gray-400 text-lg text-center">{t('referee.home.court')}: {match.courtName}</p>}
 
         <div className="card w-full max-w-md space-y-3">
           <h2 className="text-lg font-bold text-center text-gray-300">{t('referee.practice.setup.coachOptional')}</h2>
@@ -1035,9 +1035,11 @@ export default function IndividualScoring() {
                 {t('referee.scoring.receiveChoice')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'court_change' && tossWinner && (
@@ -1062,9 +1064,11 @@ export default function IndividualScoring() {
                 {t('referee.scoring.courtChangeNoButton')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'warmup_ask' && pendingFirstServe && (
@@ -1099,15 +1103,17 @@ export default function IndividualScoring() {
                 {t('referee.scoring.matchStartLabel')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('choice'); setPendingFirstServe(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('choice'); setPendingFirstServe(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
 
         <div className="card w-full max-w-md space-y-4">
           <div className="border-t border-gray-700 pt-3">
-            <h3 className="text-sm font-bold text-gray-400 mb-2">{t('common.scoreActions.walkover')}</h3>
+            <h3 className="text-sm font-bold text-gray-400 mb-2 text-center">{t('common.scoreActions.walkover')}</h3>
             <div className="grid grid-cols-2 gap-2">
               <button
                 className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
@@ -1125,7 +1131,9 @@ export default function IndividualScoring() {
           </div>
         </div>
 
-        <button className="btn btn-accent" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
+        <div className="text-center">
+          <button className="btn btn-accent" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
+        </div>
       </div>
     );
   }
@@ -1498,8 +1506,8 @@ export default function IndividualScoring() {
       {/* Set history */}
       {sets.length > 1 && (
         <div className="bg-gray-900 border-t border-gray-700 px-4 py-3">
-          <h3 className="text-sm font-bold text-gray-400 mb-2">{t('common.matchHistory.setResult')}</h3>
-          <div className="flex gap-4 overflow-x-auto">
+          <h3 className="text-sm font-bold text-gray-400 mb-2 text-center">{t('common.matchHistory.setResult')}</h3>
+          <div className="flex justify-center gap-4 overflow-x-auto">
             {sets.map((s: SetScore, i: number) => (
               <div key={i} className={`text-center px-3 py-1 rounded ${i === currentSetIndex ? 'bg-gray-700' : ''}`} aria-label={`${t('common.matchHistory.setLabel', { num: i + 1 })}: ${player1Name} ${s.player1Score} : ${player2Name} ${s.player2Score}`} aria-current={i === currentSetIndex ? 'true' : undefined}>
                 <div className="text-xs text-gray-400">{t('common.matchHistory.setLabel', { num: i + 1 })}</div>

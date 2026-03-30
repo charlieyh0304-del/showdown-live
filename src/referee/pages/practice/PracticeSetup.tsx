@@ -168,7 +168,7 @@ export default function PracticeSetup() {
                 ))}
               </div>
             </fieldset>
-            <p className="text-cyan-400 font-semibold">{t('referee.practice.setup.ruleSummary', { setsToWin, maxSets: setsToWin * 2 - 1 })}</p>
+            <p className="text-cyan-400 font-semibold text-center">{t('referee.practice.setup.ruleSummary', { setsToWin, maxSets: setsToWin * 2 - 1 })}</p>
           </div>
         </>
       ) : (
@@ -274,12 +274,12 @@ export default function PracticeSetup() {
           )}
 
           <div className="card">
-            <p className="text-cyan-400 font-semibold">{t('referee.practice.setup.teamRuleSummary')}</p>
+            <p className="text-cyan-400 font-semibold text-center">{t('referee.practice.setup.teamRuleSummary')}</p>
           </div>
         </>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex justify-center gap-4">
         <button className="btn btn-success btn-large flex-1" onClick={handleStart} disabled={!canStart} aria-label={t('referee.practice.setup.startAriaLabel')}>{t('referee.practice.setup.startButton')}</button>
         <button className="btn btn-accent flex-1" onClick={() => navigate('/referee/practice')} aria-label={t('common.back')}>{t('common.back')}</button>
       </div>

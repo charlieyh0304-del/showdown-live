@@ -14,7 +14,7 @@ export default function AccessDenied({ mode, message }: AccessDeniedProps) {
 
   return (
     <div
-      className="flex flex-col items-center justify-center min-h-screen p-8 text-center"
+      className="flex flex-col items-center justify-center min-h-screen p-8 text-center w-full mx-auto max-w-lg"
       role="alert"
     >
       <div

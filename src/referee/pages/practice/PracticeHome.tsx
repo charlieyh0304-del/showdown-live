@@ -49,13 +49,15 @@ export default function PracticeHome() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-6">
-      <button
-        className="btn btn-accent mb-4"
-        onClick={() => navigate('/referee/games')}
-        aria-label={t('common.back')}
-      >
-        ← {t('common.back')}
-      </button>
+      <div className="text-center">
+        <button
+          className="btn btn-accent mb-4"
+          onClick={() => navigate('/referee/games')}
+          aria-label={t('common.back')}
+        >
+          ← {t('common.back')}
+        </button>
+      </div>
 
       <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>
         {t('referee.practice.home.title')}
@@ -109,7 +111,7 @@ export default function PracticeHome() {
 
       <div className="grid gap-4">
         <button
-          className="card hover:bg-gray-800 transition-colors text-left p-6 border-2 border-transparent hover:border-gray-600"
+          className="card hover:bg-gray-800 transition-colors text-center p-6 border-2 border-transparent hover:border-gray-600"
           style={{ borderLeftColor: '#22c55e', borderLeftWidth: '8px' }}
           onClick={() => navigate('/referee/practice/setup')}
           aria-label={t('referee.practice.home.startAriaLabel')}
@@ -118,7 +120,7 @@ export default function PracticeHome() {
           <p className="text-gray-400 mt-1">{t('referee.practice.home.startDescription')}</p>
         </button>
         <button
-          className="card hover:bg-gray-800 transition-colors text-left p-6 border-2 border-transparent hover:border-gray-600"
+          className="card hover:bg-gray-800 transition-colors text-center p-6 border-2 border-transparent hover:border-gray-600"
           style={{ borderLeftColor: '#f59e0b', borderLeftWidth: '8px' }}
           onClick={() => navigate('/referee/practice/history')}
           aria-label={t('referee.practice.home.historyAriaLabel')}
@@ -131,7 +133,7 @@ export default function PracticeHome() {
       {/* Completed practice matches */}
       {completedMatches.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-center gap-4">
             <h2 className="text-lg font-bold text-gray-300">{t('referee.practice.home.completedMatches')}</h2>
             <button
               className="btn bg-red-700 hover:bg-red-600 text-white text-xs px-3 py-1"

@@ -25,8 +25,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="flex items-center justify-center min-h-screen bg-gray-900" role="alert">
-          <div className="card text-center max-w-md">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 w-full" role="alert">
+          <div className="card text-center max-w-md w-full mx-auto">
             <h2 className="text-2xl font-bold text-red-500 mb-4">{i18n.t('common.error.occurred')}</h2>
             <p className="text-gray-400 mb-4">{this.state.error?.message || i18n.t('common.error.unknown')}</p>
             {import.meta.env.DEV && this.state.error?.stack && (

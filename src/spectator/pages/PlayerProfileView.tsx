@@ -135,7 +135,7 @@ export default function PlayerProfileView() {
         </button>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#facc15', textAlign: 'center' }}>{decodedName}</h1>
         {playerInfo && (
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.25rem', justifyContent: 'center' }}>
             {playerInfo.club && (
               <span style={{ fontSize: '0.875rem', backgroundColor: '#1f2937', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', color: '#60a5fa' }}>
                 {playerInfo.club}
@@ -153,7 +153,7 @@ export default function PlayerProfileView() {
             )}
           </div>
         )}
-        <p style={{ color: '#d1d5db', marginTop: '0.25rem' }}>{tournament.name}</p>
+        <p style={{ color: '#d1d5db', marginTop: '0.25rem', textAlign: 'center' }}>{tournament.name}</p>
       </div>
 
       {/* Stats */}
@@ -183,7 +183,7 @@ export default function PlayerProfileView() {
           {t('spectator.playerProfile.upcomingCount', { count: upcomingMatches.length })}
         </h2>
         {upcomingMatches.length === 0 ? (
-          <p style={{ color: '#d1d5db' }}>{t('spectator.playerProfile.noUpcoming')}</p>
+          <p style={{ color: '#d1d5db', textAlign: 'center' }}>{t('spectator.playerProfile.noUpcoming')}</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {hasMultipleUpcomingDates ? (
@@ -224,7 +224,7 @@ export default function PlayerProfileView() {
           {t('spectator.playerProfile.completedCount', { count: completedMatches.length })}
         </h2>
         {completedMatches.length === 0 ? (
-          <p style={{ color: '#d1d5db' }}>{t('spectator.playerProfile.noCompleted')}</p>
+          <p style={{ color: '#d1d5db', textAlign: 'center' }}>{t('spectator.playerProfile.noCompleted')}</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {completedMatches.map(m => {

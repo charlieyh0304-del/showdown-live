@@ -67,14 +67,16 @@ export default function SetGroupedHistory({ history, sets, showAll = false }: Se
 
   return (
     <div className="space-y-4">
-      <button
-        className="text-xs text-blue-400 underline"
-        onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
-        aria-label={sortOrder === 'newest' ? t('common.matchHistory.sortNewestAriaLabel') : t('common.matchHistory.sortOldestAriaLabel')}
-        style={{ minHeight: '44px', minWidth: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-      >
-        {sortOrder === 'newest' ? t('common.matchHistory.newestSortButton') : t('common.matchHistory.oldestSortButton')}
-      </button>
+      <div className="text-center">
+        <button
+          className="text-xs text-blue-400 underline"
+          onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')}
+          aria-label={sortOrder === 'newest' ? t('common.matchHistory.sortNewestAriaLabel') : t('common.matchHistory.sortOldestAriaLabel')}
+          style={{ minHeight: '44px', minWidth: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {sortOrder === 'newest' ? t('common.matchHistory.newestSortButton') : t('common.matchHistory.oldestSortButton')}
+        </button>
+      </div>
       {setNums.map(setNum => {
         let entries = [...groups[setNum]];
         if (sortOrder === 'newest') entries = entries.reverse();

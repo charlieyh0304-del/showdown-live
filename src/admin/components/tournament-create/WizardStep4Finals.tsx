@@ -302,7 +302,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
     <div className="space-y-6">
       {/* Format selection */}
       <div className="card space-y-4">
-        <h2 className="text-xl font-bold">{state.hasGroupStage ? t('admin.tournamentCreate.finals.formatTitle') : t('admin.tournamentCreate.finals.tournamentFormat')}</h2>
+        <h2 className="text-xl font-bold text-center">{state.hasGroupStage ? t('admin.tournamentCreate.finals.formatTitle') : t('admin.tournamentCreate.finals.tournamentFormat')}</h2>
         <div
           className="grid grid-cols-1 sm:grid-cols-3 gap-3"
           role="radiogroup"
@@ -334,7 +334,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {/* Start round */}
       {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
-          <h3 className="text-lg font-semibold mb-2">{t('admin.tournamentCreate.finals.startRound')}</h3>
+          <h3 className="text-lg font-semibold mb-2 text-center">{t('admin.tournamentCreate.finals.startRound')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
               { value: 32, label: t('admin.tournamentCreate.finals.round32') },
@@ -369,7 +369,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {state.hasGroupStage && state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
           <fieldset>
-            <legend className="text-xl font-bold mb-4">{t('admin.tournamentCreate.finals.bracketArrangement')}</legend>
+            <legend className="text-xl font-bold mb-4 text-center">{t('admin.tournamentCreate.finals.bracketArrangement')}</legend>
             <div className="space-y-3" role="radiogroup" aria-label={t('admin.tournamentCreate.finals.bracketArrangement')}>
               {ARRANGEMENT_OPTION_KEYS.map((opt) => (
                 <button
@@ -565,7 +565,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
           <fieldset>
-            <legend className="text-xl font-bold mb-4">{t('admin.tournamentCreate.matchRules.title')}</legend>
+            <legend className="text-xl font-bold mb-4 text-center">{t('admin.tournamentCreate.matchRules.title')}</legend>
 
             <NumberStepper
               label={t('admin.tournamentCreate.matchRules.finalsSets', { maxSets, setsToWin })}
@@ -658,7 +658,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       {/* Ranking match */}
       {state.finalsFormat !== 'round_robin' && (
         <div className="card space-y-4">
-          <h2 className="text-xl font-bold">{t('admin.tournamentCreate.finals.rankingMatchTitle')}</h2>
+          <h2 className="text-xl font-bold text-center">{t('admin.tournamentCreate.finals.rankingMatchTitle')}</h2>
           <label className="flex items-center justify-between cursor-pointer">
             <span className="text-lg font-semibold">{t('admin.tournamentCreate.finals.rankingMatchToggle')}</span>
             <ToggleSwitch

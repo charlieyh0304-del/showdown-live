@@ -112,9 +112,9 @@ export default function RefereeHome() {
 
       {/* Active match recovery prompt */}
       {recoveryMatch && (
-        <div className="card border-yellow-500 mb-4 p-4">
+        <div className="card border-yellow-500 mb-4 p-4 text-center">
           <p className="text-yellow-300 font-bold mb-2">{t('referee.home.activeMatchRecovery')}</p>
-          <div className="flex gap-2">
+          <div className="flex justify-center gap-2">
             <button
               className="btn btn-primary"
               onClick={() => {
@@ -144,7 +144,7 @@ export default function RefereeHome() {
       )}
 
       {/* Tab buttons */}
-      <div className="flex gap-2 mb-4" role="tablist" aria-label={t('referee.home.viewModeAriaLabel')}>
+      <div className="flex justify-center gap-2 mb-4" role="tablist" aria-label={t('referee.home.viewModeAriaLabel')}>
         <button
           role="tab"
           aria-selected={viewMode === 'active'}
@@ -162,7 +162,7 @@ export default function RefereeHome() {
           {t('referee.home.completedTab')} ({completedMatches.length})
         </button>
       </div>
-      <div className="flex gap-2 mb-6">
+      <div className="flex justify-center gap-2 mb-6">
         <button
           className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${showOnlyMine ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
           onClick={() => setShowOnlyMine(true)}

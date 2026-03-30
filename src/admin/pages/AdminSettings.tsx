@@ -205,7 +205,7 @@ export default function AdminSettings() {
   }, [admins, session]);
 
   if (loading) {
-    return <div className="flex justify-center p-8" aria-live="polite"><p className="text-gray-300 animate-pulse">{t('common.loading')}</p></div>;
+    return <div className="flex items-center justify-center p-8" aria-live="polite"><p className="text-gray-300 animate-pulse">{t('common.loading')}</p></div>;
   }
 
   return (
@@ -214,8 +214,8 @@ export default function AdminSettings() {
 
       {/* 현재 로그인 정보 */}
       <div className="card">
-        <h2 className="text-xl font-bold mb-3">{t('admin.settings.currentLogin')}</h2>
-        <p className="text-gray-300">
+        <h2 className="text-xl font-bold mb-3 text-center">{t('admin.settings.currentLogin')}</h2>
+        <p className="text-gray-300 text-center">
           {session?.adminName ?? t('app.modeSelector.adminMode')}
           {session?.adminId && <span className="text-gray-400 text-sm ml-2">(ID: {session.adminId.slice(0, 8)})</span>}
         </p>
@@ -339,7 +339,7 @@ export default function AdminSettings() {
         )}
 
         {admins.length === 0 ? (
-          <p className="text-gray-400">{t('admin.settings.noAdmins')}</p>
+          <p className="text-gray-400 text-center">{t('admin.settings.noAdmins')}</p>
         ) : (
           <div className="space-y-2">
             {admins.map(admin => (
@@ -368,8 +368,8 @@ export default function AdminSettings() {
       </div>
       {/* 시뮬레이션 샘플 이름 */}
       <div className="card">
-        <h2 className="text-xl font-bold mb-3">{t('admin.settings.sampleNames')}</h2>
-        <p className="text-gray-400 text-sm mb-4">
+        <h2 className="text-xl font-bold mb-3 text-center">{t('admin.settings.sampleNames')}</h2>
+        <p className="text-gray-400 text-sm mb-4 text-center">
           {t('admin.settings.sampleNamesDescription')}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

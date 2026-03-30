@@ -199,12 +199,24 @@ button, a, input, select {
   color: #9ca3af;
 }
 
+/* 중앙 정렬 컨테이너 */
+.container-centered {
+  width: 100%;
+  max-width: 64rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
 /* 카드 */
 .card {
   background-color: #111827;
   border-radius: 0.75rem;
   padding: 1.5rem;
   border: 1px solid #1f2937;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* 점수 표시 */
@@ -270,6 +282,9 @@ button, a, input, select {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }
 
 /* 애니메이션 */

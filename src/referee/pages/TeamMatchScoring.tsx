@@ -948,8 +948,8 @@ export default function TeamMatchScoring() {
             {match.team2?.coachName && <div className="text-sm text-gray-400">{match.team2.coachName}</div>}
           </div>
         </div>
-        <p className="text-lg text-gray-400">{t('referee.practice.setup.teamRuleSummary')}</p>
-        {match.courtName && <p className="text-gray-400">{t('referee.home.court')}: {match.courtName}</p>}
+        <p className="text-lg text-gray-400 text-center">{t('referee.practice.setup.teamRuleSummary')}</p>
+        {match.courtName && <p className="text-gray-400 text-center">{t('referee.home.court')}: {match.courtName}</p>}
 
         {coinTossStep === 'team_order' && (() => {
           const swapOrder = (setter: typeof setTeam1Order, order: { ids: string[]; names: string[] }, i: number, dir: -1 | 1) => {
@@ -1003,9 +1003,11 @@ export default function TeamMatchScoring() {
                 {team2Name}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('team_order')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('team_order')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'choice' && tossWinner && (
@@ -1022,9 +1024,11 @@ export default function TeamMatchScoring() {
                 {t('referee.scoring.receiveChoice')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'court_change' && tossWinner && (
@@ -1049,9 +1053,11 @@ export default function TeamMatchScoring() {
                 {t('referee.scoring.courtChangeNoButton')}
               </button>
             </div>
-            <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-              {t('common.back')}
-            </button>
+            <div className="text-center">
+              <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
+                {t('common.back')}
+              </button>
+            </div>
           </div>
         )}
         {coinTossStep === 'warmup_ask' && tossWinner && pendingChoice && (
@@ -1094,7 +1100,7 @@ export default function TeamMatchScoring() {
         )}
         <div className="card w-full max-w-md space-y-4">
           <div className="border-t border-gray-700 pt-3">
-            <h3 className="text-sm font-bold text-gray-400 mb-2">{t('common.scoreActions.walkover')}</h3>
+            <h3 className="text-sm font-bold text-gray-400 mb-2 text-center">{t('common.scoreActions.walkover')}</h3>
             <div className="grid grid-cols-2 gap-2">
               <button
                 className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
@@ -1112,7 +1118,9 @@ export default function TeamMatchScoring() {
           </div>
         </div>
 
-        <button className="btn btn-accent" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
+        <div className="text-center">
+          <button className="btn btn-accent" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
+        </div>
       </div>
     );
   }
@@ -1148,7 +1156,7 @@ export default function TeamMatchScoring() {
         {/* 상세 경기 기록 */}
         {history.length > 0 && (
           <div className="w-full max-w-lg mx-auto flex-1 flex flex-col min-h-0">
-            <h3 className="text-lg font-bold text-gray-300 mb-2">{t('common.matchHistory.titleWithCount', { count: history.length })}</h3>
+            <h3 className="text-lg font-bold text-gray-300 mb-2 text-center">{t('common.matchHistory.titleWithCount', { count: history.length })}</h3>
             <div className="flex-1 min-h-0">
               <ScoreHistoryView history={history} sets={match.sets ?? []} />
             </div>

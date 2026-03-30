@@ -241,8 +241,8 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
         aria-modal="true"
         aria-labelledby="delete-modal-title"
       >
-        <h2 id="delete-modal-title" className="text-2xl font-bold text-red-500 mb-4">{t('admin.deleteModal.title')}</h2>
-        <p className="text-lg mb-4">
+        <h2 id="delete-modal-title" className="text-2xl font-bold text-red-500 mb-4 text-center">{t('admin.deleteModal.title')}</h2>
+        <p className="text-lg mb-4 text-center">
           {t('admin.deleteModal.confirmMessage', { name: tournamentName })}
         </p>
         <div className="mb-4">

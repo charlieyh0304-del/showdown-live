@@ -51,25 +51,27 @@ function AppContent() {
         {routeAnnouncement}
       </div>
 
-      <div className="min-h-screen bg-black text-white">
-        <OfflineIndicator />
-        <ConnectionStatus />
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center min-h-screen">
-              <LoadingSpinner message={t('common.pageLoading')} />
-            </div>
-          }
-        >
-          <Routes>
-            <Route path="/" element={<ModeSelector />} />
-            <Route path="/admin/*" element={<AdminRoutes />} />
-            <Route path="/referee/*" element={<RefereeRoutes />} />
-            <Route path="/spectator/*" element={<SpectatorRoutes />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-        <AccessibilityMenu />
+      <div className="min-h-screen bg-black text-white flex flex-col items-center">
+        <div className="w-full max-w-5xl mx-auto flex-1 flex flex-col">
+          <OfflineIndicator />
+          <ConnectionStatus />
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-screen">
+                <LoadingSpinner message={t('common.pageLoading')} />
+              </div>
+            }
+          >
+            <Routes>
+              <Route path="/" element={<ModeSelector />} />
+              <Route path="/admin/*" element={<AdminRoutes />} />
+              <Route path="/referee/*" element={<RefereeRoutes />} />
+              <Route path="/spectator/*" element={<SpectatorRoutes />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+          <AccessibilityMenu />
+        </div>
       </div>
     </>
   );

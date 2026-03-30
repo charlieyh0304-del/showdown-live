@@ -163,7 +163,7 @@ export default function FavoritesView() {
 
           {/* Notification settings */}
           <div className="card" style={{ marginTop: '1.5rem', border: '1px solid #374151' }}>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem', textAlign: 'center' }}>
               {t('spectator.favorites.notifications.title')}
             </h2>
             {notifPermission === 'unsupported' && !pushSupported ? (

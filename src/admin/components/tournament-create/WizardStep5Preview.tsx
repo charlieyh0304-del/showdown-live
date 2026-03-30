@@ -185,7 +185,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-yellow-400">{t('admin.preview.title')}</h2>
+      <h2 className="text-2xl font-bold text-yellow-400 text-center">{t('admin.preview.title')}</h2>
 
       {/* 수동 모드 배너 */}
       {state.tournamentMode === 'manual' && (

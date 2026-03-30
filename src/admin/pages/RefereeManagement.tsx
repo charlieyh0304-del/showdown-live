@@ -234,8 +234,8 @@ export default function RefereeManagement() {
           onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
         >
           <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="referee-delete-title">
-            <h2 id="referee-delete-title" className="text-2xl font-bold text-red-500 mb-4">{t('admin.referees.deleteReferee')}</h2>
-            <p className="text-lg mb-6">{t('admin.referees.deleteConfirmMessage', { name: deleteTarget.name })}</p>
+            <h2 id="referee-delete-title" className="text-2xl font-bold text-red-500 mb-4 text-center">{t('admin.referees.deleteReferee')}</h2>
+            <p className="text-lg mb-6 text-center">{t('admin.referees.deleteConfirmMessage', { name: deleteTarget.name })}</p>
             <div className="flex gap-4">
               <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label={t('common.delete')}>
                 {t('common.delete')}
