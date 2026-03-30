@@ -392,9 +392,8 @@ export const preMatchNotify = onSchedule(
         const diffMin = diff / 60000;
         console.log(`Match ${matchId}: scheduled ${dateBase} ${timeStr} KST, diff=${diffMin.toFixed(1)}min`);
 
-        // 정확히 10분 전: cron 1분 간격이므로 9~10분 윈도우에서 1회 트리거
-        // 놓친 경우 복구: -5분까지 허용 (중복 방지는 wasNotifSent)
-        if (diffMin <= 10 && diffMin > 9) {
+        // 10분 전 ~ 경기 시작 시점: 첫 진입 시 1회만 발송 (중복 방지는 wasNotifSent)
+        if (diffMin <= 10 && diffMin >= 0) {
           const notifKey = `pre_${matchId}`;
           console.log(`Match ${matchId} is ${diffMin.toFixed(1)}min away, sending pre-match notif`);
 
