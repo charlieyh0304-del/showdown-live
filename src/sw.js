@@ -106,8 +106,8 @@ self.addEventListener('push', (event) => {
     return;
   }
 
-  // Firebase SDK가 이미 처리한 경우 스킵
-  if (data.fcmMessageId) return;
+  // Firebase SDK가 이미 처리한 경우 스킵 (notification 필드 있으면 SDK가 자동 표시)
+  if (data.fcmMessageId || data.notification) return;
 
   const notifData = data.data || data.notification || data;
   event.waitUntil(showPushNotification(notifData));
