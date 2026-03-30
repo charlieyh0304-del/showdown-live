@@ -21,14 +21,6 @@ function saveNotified(notified: Set<string>) {
   } catch { /* ignore */ }
 }
 
-function parseScheduleTime(timeStr: string, dateStr?: string): Date | null {
-  const match = timeStr.match(/(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  const d = dateStr ? new Date(dateStr) : new Date();
-  d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
-  return d;
-}
-
 function getMatchFavInfo(match: Match, favoriteIds: string[]) {
   // Build full participant set including team members
   const m = match as unknown as { team1?: { memberIds?: string[]; memberNames?: string[] }; team2?: { memberIds?: string[]; memberNames?: string[] } };
@@ -75,7 +67,6 @@ export function useMatchNotifications(
     if (favoriteIds.length === 0) return;
 
     const checkNotifications = () => {
-      const now = Date.now();
       let changed = false;
 
       for (const match of matches) {
@@ -147,37 +138,8 @@ export function useMatchNotifications(
           }
         }
 
-        // Pre-match notification (10 min before)
-        if (match.status === 'pending' && !notifiedRef.current.has(`pre_${matchKey}`)) {
-          const matchTime = match.scheduledTime
-            ? parseScheduleTime(match.scheduledTime, match.scheduledDate)
-            : (() => {
-                const slot = schedule.find((s) => s.matchId === matchKey);
-                return slot?.scheduledTime ? parseScheduleTime(slot.scheduledTime, slot.scheduledDate) : null;
-              })();
-
-          if (matchTime) {
-            const diff = matchTime.getTime() - now;
-            if (diff > 0 && diff <= 10.5 * 60 * 1000) {
-              if (!notifSettings || shouldNotify(notifSettings, info.favId, 'preMatch')) {
-                notifiedRef.current.add(`pre_${matchKey}`);
-                changed = true;
-                const title = t('spectator.notifications.preMatch', { name: info.favName });
-                const body = `vs ${info.oppName}${match.courtName ? ` (${match.courtName})` : ''}`;
-                sendNotification(title, body, `pre_${matchKey}`);
-                addNotificationToHistory({
-                  type: 'preMatch',
-                  title,
-                  body,
-                  playerName: info.favName || '',
-                  playerId: info.favId,
-                  matchId: matchKey,
-                  tournamentId: match.tournamentId,
-                });
-              }
-            }
-          }
-        }
+        // Pre-match notification: 서버 FCM(preMatchNotify)이 정확히 10분 전에 발송
+        // 클라이언트에서는 중복 발송하지 않음
       }
 
       if (changed) {
