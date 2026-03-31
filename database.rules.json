@@ -79,9 +79,9 @@
       "$tournamentId": { ".write": "auth != null" }
     },
     "pushSubscriptions": {
-      ".read": "auth != null",
+      ".read": true,
       "$tokenKey": {
-        ".write": "auth != null",
+        ".write": true,
         ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt'])",
         "token": { ".validate": "newData.isString() && newData.val().length <= 500" },
         "favoriteIds": { ".validate": true },
