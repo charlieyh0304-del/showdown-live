@@ -1517,13 +1517,26 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
       const hasGroups = groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0);
 
+      // 기존 경기 쌍 수집 (중복 방지)
+      const existingMatchPairs = new Set<string>();
+      for (const m of matches) {
+        const p1 = m.player1Id || m.team1Id || '';
+        const p2 = m.player2Id || m.team2Id || '';
+        if (p1 && p2) {
+          existingMatchPairs.add([p1, p2].sort().join('__'));
+        }
+      }
+
       if (hasGroups && !isTeamType) {
-        // 조별 라운드로빈: 각 조 내에서 라운드로빈
-        let round = 1;
+        // 조별 라운드로빈: 각 조 내에서 라운드로빈 (기존 대진 제외)
+        let round = matches.length + 1;
+        let skipped = 0;
         for (const group of groupAssignment) {
           const playerIds = group.playerIds;
           for (let i = 0; i < playerIds.length; i++) {
             for (let j = i + 1; j < playerIds.length; j++) {
+              const pairKey = [playerIds[i], playerIds[j]].sort().join('__');
+              if (existingMatchPairs.has(pairKey)) { skipped++; continue; }
               const p1 = tournamentPlayers.find(p => p.id === playerIds[i]);
               const p2 = tournamentPlayers.find(p => p.id === playerIds[j]);
               if (!p1 || !p2) continue;
@@ -1545,16 +1558,27 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                 groupId: group.id,
                 ...(qualifyingStage ? { stageId: qualifyingStage.id } : {}),
               });
+              existingMatchPairs.add(pairKey);
               round++;
             }
           }
         }
+        if (skipped > 0 && newMatches.length > 0) {
+          alert(t('admin.tournamentDetail.bracketTab.duplicateSkipped', { skipped, created: newMatches.length, defaultValue: `이미 존재하는 ${skipped}경기는 건너뛰고 ${newMatches.length}경기를 생성합니다.` }));
+        } else if (skipped > 0 && newMatches.length === 0) {
+          alert(t('admin.tournamentDetail.bracketTab.allDuplicate', { defaultValue: '모든 대진이 이미 생성되어 있습니다.' }));
+          setGenerating(false);
+          return;
+        }
       } else if (!isTeamType) {
-        // Individual round-robin (전체 풀리그)
+        // Individual round-robin (전체 풀리그, 기존 대진 제외)
         const players = [...tournamentPlayers];
-        let round = 1;
+        let round = matches.length + 1;
+        let skipped = 0;
         for (let i = 0; i < players.length; i++) {
           for (let j = i + 1; j < players.length; j++) {
+            const pairKey = [players[i].id, players[j].id].sort().join('__');
+            if (existingMatchPairs.has(pairKey)) { skipped++; continue; }
             newMatches.push({
               tournamentId: tournament.id,
               type: 'individual',
@@ -1571,16 +1595,27 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               winnerId: null,
               createdAt: now,
             });
+            existingMatchPairs.add(pairKey);
             round++;
           }
         }
+        if (skipped > 0 && newMatches.length > 0) {
+          alert(t('admin.tournamentDetail.bracketTab.duplicateSkipped', { skipped, created: newMatches.length, defaultValue: `이미 존재하는 ${skipped}경기는 건너뛰고 ${newMatches.length}경기를 생성합니다.` }));
+        } else if (skipped > 0 && newMatches.length === 0) {
+          alert(t('admin.tournamentDetail.bracketTab.allDuplicate', { defaultValue: '모든 대진이 이미 생성되어 있습니다.' }));
+          setGenerating(false);
+          return;
+        }
       } else {
-        // Team round-robin: single 31-point match per team vs team
-        let round = 1;
+        // Team round-robin (기존 대진 제외)
+        let round = matches.length + 1;
+        let skipped = 0;
         for (let i = 0; i < teams.length; i++) {
           for (let j = i + 1; j < teams.length; j++) {
             const t1 = teams[i];
             const t2 = teams[j];
+            const pairKey = [t1.id, t2.id].sort().join('__');
+            if (existingMatchPairs.has(pairKey)) { skipped++; continue; }
 
             newMatches.push({
               tournamentId: tournament.id,
@@ -1600,16 +1635,28 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               winnerId: null,
               createdAt: now,
             });
+            existingMatchPairs.add(pairKey);
             round++;
           }
         }
+        if (skipped > 0 && newMatches.length > 0) {
+          alert(t('admin.tournamentDetail.bracketTab.duplicateSkipped', { skipped, created: newMatches.length, defaultValue: `이미 존재하는 ${skipped}경기는 건너뛰고 ${newMatches.length}경기를 생성합니다.` }));
+        } else if (skipped > 0 && newMatches.length === 0) {
+          alert(t('admin.tournamentDetail.bracketTab.allDuplicate', { defaultValue: '모든 대진이 이미 생성되어 있습니다.' }));
+          setGenerating(false);
+          return;
+        }
       }
 
+      if (newMatches.length === 0) {
+        setGenerating(false);
+        return;
+      }
       await setMatchesBulk(newMatches);
     } finally {
       setGenerating(false);
     }
-  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages]);
+  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages, matches, t]);
 
   const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId' | 'assistantRefereeId', value: string) => {
     const data: Partial<Match> = { [field]: value || undefined };
