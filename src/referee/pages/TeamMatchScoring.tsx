@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { speak } from '@shared/utils/locale';
@@ -46,8 +46,8 @@ export default function TeamMatchScoring() {
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
-  const [showSideChange, setShowSideChange] = useState(false);
-  const [sideChangeConfirmed, setSideChangeConfirmed] = useState(false);
+  const [pendingSideChange, setPendingSideChange] = useState(false);
+  const [sideChangeDismissed, setSideChangeDismissed] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   // Warmup
   const [showWarmup, setShowWarmup] = useState(false);
@@ -85,8 +85,15 @@ export default function TeamMatchScoring() {
     }
   }, [match?.status, match?.team1?.memberIds, match?.team2?.memberIds, tournament?.teamRules?.teamSize]);
 
+  // Derive side change visibility from Firebase state (survives refresh)
+  // sideChangeDismissed: 로컬에서 즉시 닫기 (Firebase 업데이트 실패해도 UI 복귀)
+  const showSideChange = !!(match?.sideChangeStartTime) && !sideChangeDismissed;
+
   // Timers
-  const sideChangeTimer = useCountdownTimer(() => setShowSideChange(false));
+  const sideChangeTimer = useCountdownTimer(() => {
+    if (match) updateMatch({ sideChangeStartTime: null });
+    longWhistle();
+  });
   const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
   const timeoutTimer = useCountdownTimer(() => {
     if (match) updateMatch({ activeTimeout: null });
@@ -122,14 +129,37 @@ export default function TeamMatchScoring() {
   }, [timeoutTimer.seconds, timeoutTimer.isRunning, match?.activeTimeout]);
 
   // 15초 안내 (사이드 체인지)
+  const sideChangeAlerted = useRef(false);
   useEffect(() => {
-    if (!sideChangeTimer.isRunning) return;
-    if (sideChangeTimer.seconds === 15) {
+    if (!sideChangeTimer.isRunning || !match?.sideChangeStartTime) {
+      sideChangeAlerted.current = false;
+      return;
+    }
+    if (sideChangeTimer.seconds === 15 && !sideChangeAlerted.current) {
+      sideChangeAlerted.current = true;
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, match?.sideChangeStartTime]);
+
+  // Sync sideChange timer from Firebase (survives refresh/re-entry)
+  useEffect(() => {
+    if (match?.sideChangeStartTime) {
+      // 이미 dismiss한 상태면 Firebase 정리만 시도하고 모달 다시 안 띄움
+      if (sideChangeDismissed) {
+        updateMatch({ sideChangeStartTime: null });
+        return;
+      }
+      const elapsed = Math.floor((Date.now() - match.sideChangeStartTime) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      if (remaining > 0 && !sideChangeTimer.isRunning) sideChangeTimer.start(remaining);
+      else if (remaining <= 0) updateMatch({ sideChangeStartTime: null });
+    } else {
+      sideChangeTimer.stop();
+      setSideChangeDismissed(false); // Firebase 정리 완료 시에만 리셋
+    }
+  }, [match?.sideChangeStartTime, sideChangeDismissed]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -468,7 +498,7 @@ export default function TeamMatchScoring() {
         ...rotationUpdate,
       });
       if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
-      setShowSideChange(true);
+      setPendingSideChange(true);
       return;
     }
 
@@ -517,6 +547,16 @@ export default function TeamMatchScoring() {
       serveCount: 0,
     });
   }, [match, updateMatch]);
+
+  // Serve Miss - 서브권 있는 팀이 1점 실점 (상대에게 +1)
+  const handleServeMiss = useCallback(() => {
+    if (!match) return;
+    const servingTeam = match.currentServe === 'player1' ? 1 : 2;
+    const t1Name = match.team1Name ?? t('referee.home.team1Default');
+    const t2Name = match.team2Name ?? t('referee.home.team2Default');
+    const sName = servingTeam === 1 ? t1Name : t2Name;
+    handleIBSAScore(servingTeam as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`);
+  }, [match, handleIBSAScore, t]);
 
   // Dead Ball - 양쪽 모두 가능
   const handleDeadBall = useCallback(async (team: 1 | 2) => {
@@ -1101,7 +1141,7 @@ export default function TeamMatchScoring() {
 
 
   // GAP-2: disabled condition for scoring buttons
-  const scoringDisabled = !!match.activeTimeout || showSideChange;
+  const scoringDisabled = !!match.activeTimeout || showSideChange || pendingSideChange;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1120,27 +1160,38 @@ export default function TeamMatchScoring() {
         />
       )}
 
-      {/* Side Change: Phase 1 - Prompt */}
-      {showSideChange && !sideChangeConfirmed && (
+      {/* Side Change: Phase 1 - Prompt (local state, before Firebase timer starts) */}
+      {pendingSideChange && !showSideChange && (
         <TimerModal
           title={`${t('common.matchHistory.sideChange')}! (16${t('common.units.point')})`}
           seconds={0}
           isWarning={false}
           subtitle={t('common.matchHistory.sideChange')}
-          onClose={() => { setSideChangeConfirmed(true); sideChangeTimer.start(60); }}
+          onClose={async () => {
+            setPendingSideChange(false);
+            const ok = await updateMatch({ sideChangeStartTime: Date.now() });
+            if (!ok) {
+              setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨'));
+            }
+          }}
           closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}
           required
         />
       )}
 
-      {/* Side Change: Phase 2 - Timer countdown */}
-      {showSideChange && sideChangeConfirmed && (
+      {/* Side Change: Phase 2 - Timer countdown (Firebase-driven, survives refresh) */}
+      {showSideChange && (
         <TimerModal
           title={`${t('common.matchHistory.sideChange')}! (16${t('common.units.point')})`}
           seconds={sideChangeTimer.seconds}
           isWarning={sideChangeTimer.isWarning}
           subtitle={`1${t('common.time.minutes')}`}
-          onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); setSideChangeConfirmed(false); }}
+          onClose={() => {
+            sideChangeTimer.stop();
+            setSideChangeDismissed(true);  // 즉시 UI 닫기
+            updateMatch({ sideChangeStartTime: null });  // Firebase 백그라운드 정리
+            longWhistle();
+          }}
           closeLabel={t('common.confirm')}
           required
         />
@@ -1315,11 +1366,17 @@ export default function TeamMatchScoring() {
           </button>
         </div>
 
-        {/* Row 2.5: 데드볼 (서브권 기준) */}
-        <button className="btn bg-purple-700 hover:bg-purple-600 text-white text-base py-3 font-bold w-full" disabled={scoringDisabled || match.status !== 'in_progress'}
-          onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
-          🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
-        </button>
+        {/* Row 2.5: 데드볼 + 서브 미스 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn bg-purple-700 hover:bg-purple-600 text-white text-base py-3 font-bold" disabled={scoringDisabled || match.status !== 'in_progress'}
+            onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
+            🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
+          </button>
+          <button className="btn bg-orange-700 hover:bg-orange-600 text-white text-base py-3 font-bold" disabled={scoringDisabled || match.status !== 'in_progress'}
+            onClick={handleServeMiss}>
+            🎾 {t('common.scoreActions.serveMiss', '서브 미스')}
+          </button>
+        </div>
 
         {/* Row 3: 취소 / 레프리타임 */}
         <div className="grid grid-cols-2 gap-2">

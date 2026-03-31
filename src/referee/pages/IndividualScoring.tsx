@@ -111,6 +111,7 @@ export default function IndividualScoring() {
   const [isMatchEnd, setIsMatchEnd] = useState(false);
   // Warmup & SideChange derived from Firebase state
   const [pendingSideChange, setPendingSideChange] = useState(false);
+  const [sideChangeDismissed, setSideChangeDismissed] = useState(false);
   // Coin toss
   const [coinTossStep, setCoinTossStep] = useState<'toss' | 'choice' | 'court_change' | 'warmup_ask'>('toss');
   const [tossWinner, setTossWinner] = useState<'player1' | 'player2' | null>(null);
@@ -141,10 +142,10 @@ export default function IndividualScoring() {
 
   // Timers - driven by Firebase timestamps
   const sideChangeTimer = useCountdownTimer(() => {
-    if (match) updateMatch({ sideChangeStartTime: undefined });
+    if (match) updateMatch({ sideChangeStartTime: null });
   });
   const warmupTimer = useCountdownTimer(() => {
-    if (match) updateMatch({ warmupStartTime: undefined });
+    if (match) updateMatch({ warmupStartTime: null });
   });
   const timeoutTimer = useCountdownTimer(() => {
     if (match) updateMatch({ activeTimeout: null });
@@ -152,7 +153,7 @@ export default function IndividualScoring() {
 
   // Derive modal visibility from Firebase state
   const showWarmup = !!(match?.warmupStartTime);
-  const showSideChange = !!(match?.sideChangeStartTime);
+  const showSideChange = !!(match?.sideChangeStartTime) && !sideChangeDismissed;
 
   // 15초 안내 (타임아웃) - activeTimeout 존재 여부도 체크하여 종료 후 오출력 방지
   const timeoutAlerted = useRef(false);
@@ -205,7 +206,7 @@ export default function IndividualScoring() {
       const elapsed = Math.floor((Date.now() - match.warmupStartTime) / 1000);
       const remaining = Math.max(0, 60 - elapsed);
       if (remaining > 0 && !warmupTimer.isRunning) warmupTimer.start(remaining);
-      else if (remaining <= 0) updateMatch({ warmupStartTime: undefined });
+      else if (remaining <= 0) updateMatch({ warmupStartTime: null });
     } else {
       warmupTimer.stop();
     }
@@ -214,14 +215,20 @@ export default function IndividualScoring() {
   // Sync sideChange timer from Firebase
   useEffect(() => {
     if (match?.sideChangeStartTime) {
+      // 이미 dismiss한 상태면 Firebase 정리만 시도하고 모달 다시 안 띄움
+      if (sideChangeDismissed) {
+        updateMatch({ sideChangeStartTime: null });
+        return;
+      }
       const elapsed = Math.floor((Date.now() - match.sideChangeStartTime) / 1000);
       const remaining = Math.max(0, 60 - elapsed);
       if (remaining > 0 && !sideChangeTimer.isRunning) sideChangeTimer.start(remaining);
-      else if (remaining <= 0) updateMatch({ sideChangeStartTime: undefined });
+      else if (remaining <= 0) updateMatch({ sideChangeStartTime: null });
     } else {
       sideChangeTimer.stop();
+      setSideChangeDismissed(false); // Firebase 정리 완료 시에만 리셋
     }
-  }, [match?.sideChangeStartTime]);
+  }, [match?.sideChangeStartTime, sideChangeDismissed]);
 
   // Start timeout timer when activeTimeout changes
   useEffect(() => {
@@ -693,6 +700,16 @@ export default function IndividualScoring() {
       serveCount: 0,
     });
   }, [match, updateMatch]);
+
+  // Serve Miss - 서브권 있는 선수가 1점 실점 (상대에게 +1)
+  const handleServeMiss = useCallback(async () => {
+    if (!match) return;
+    const servingPlayer = match.currentServe === 'player1' ? 1 : 2;
+    const p1 = match.player1Name ?? t('referee.home.player1Default');
+    const p2 = match.player2Name ?? t('referee.home.player2Default');
+    const sName = servingPlayer === 1 ? p1 : p2;
+    await handleIBSAScore(servingPlayer as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`);
+  }, [match, handleIBSAScore, t]);
 
   // Dead Ball - player: 1 or 2 (who called dead ball)
   const handleDeadBall = useCallback(async (callingPlayer: 1 | 2) => {
@@ -1169,7 +1186,7 @@ export default function IndividualScoring() {
           seconds={warmupTimer.seconds}
           isWarning={warmupTimer.isWarning}
           subtitle={`${t('referee.practice.setup.individual')} ${t('referee.scoring.warmupStart')} (60${t('common.time.seconds')})`}
-          onClose={() => { warmupTimer.stop(); updateMatch({ warmupStartTime: undefined }); longWhistle(); }}
+          onClose={() => { warmupTimer.stop(); updateMatch({ warmupStartTime: null }); longWhistle(); }}
           closeLabel={t('common.done')}
         />
       )}
@@ -1181,7 +1198,14 @@ export default function IndividualScoring() {
           seconds={0}
           isWarning={false}
           subtitle={t('common.matchHistory.sideChange')}
-          onClose={() => { setPendingSideChange(false); updateMatch({ sideChangeStartTime: Date.now() }); }}
+          onClose={async () => {
+            setPendingSideChange(false);
+            const ok = await updateMatch({ sideChangeStartTime: Date.now() });
+            if (!ok) {
+              // Firebase 실패 시에도 경기 진행 가능하도록 바로 해제
+              setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨'));
+            }
+          }}
           closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}
           required
         />
@@ -1194,7 +1218,11 @@ export default function IndividualScoring() {
           seconds={sideChangeTimer.seconds}
           isWarning={sideChangeTimer.isWarning}
           subtitle={`1${t('common.time.minutes')}`}
-          onClose={() => { sideChangeTimer.stop(); updateMatch({ sideChangeStartTime: undefined }); }}
+          onClose={() => {
+            sideChangeTimer.stop();
+            setSideChangeDismissed(true);  // 즉시 UI 닫기
+            updateMatch({ sideChangeStartTime: null });  // Firebase 백그라운드 정리
+          }}
           closeLabel={t('common.confirm')}
           required
         />
@@ -1316,12 +1344,19 @@ export default function IndividualScoring() {
                 </button>
               </div>
 
-              {/* Row 2.5: 데드볼 (서브권 선수 기준) */}
-              <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3 w-full"
-                disabled={scoringDisabled || match.status !== 'in_progress'}
-                onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
-                🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
-              </button>
+              {/* Row 2.5: 데드볼 + 서브 미스 */}
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3 font-bold"
+                  disabled={scoringDisabled || match.status !== 'in_progress'}
+                  onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
+                  🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
+                </button>
+                <button className="btn bg-orange-700 hover:bg-orange-600 text-white py-3 font-bold"
+                  disabled={scoringDisabled || match.status !== 'in_progress'}
+                  onClick={handleServeMiss}>
+                  🎾 {t('common.scoreActions.serveMiss', '서브 미스')}
+                </button>
+              </div>
             </>
           );
         })()}

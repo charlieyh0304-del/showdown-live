@@ -371,9 +371,9 @@ export interface Match {
   pauseHistory?: { time: string; reason: string; set: number; duration?: number }[];
   // 워밍업
   warmupUsed?: boolean;
-  warmupStartTime?: number;        // 워밍업 시작 시각 (타이머 동기화용)
+  warmupStartTime?: number | null;  // 워밍업 시작 시각 (null = Firebase에서 삭제)
   // 사이드체인지 타이머 동기화
-  sideChangeStartTime?: number;    // 사이드체인지 시작 시각
+  sideChangeStartTime?: number | null;    // 사이드체인지 시작 시각 (null = Firebase에서 삭제)
   // 선수 교체 사용 여부
   team1SubUsed?: boolean;
   team2SubUsed?: boolean;

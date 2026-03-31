@@ -18,9 +18,9 @@ import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/
 import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import { simulateTournament } from '@shared/utils/simulation';
-import { buildGroupAssignment } from '@shared/utils/tournament';
+import { buildGroupAssignment, calculateMatchCount } from '@shared/utils/tournament';
 import { getSampleNames } from './AdminSettings';
-import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup, SetScore, ScoreHistoryEntry }  from '@shared/types';
+import type { Match, Team, Player, MatchStatus, ScheduleSlot, SeedEntry, StageGroup, SetScore, ScoreHistoryEntry, Tournament }  from '@shared/types';
 
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -464,12 +464,14 @@ export default function TournamentDetail() {
         )}
         {activeTab === 'schedule' && (
           <ScheduleTab
+            tournament={tournament}
             matches={matches}
             courts={courts}
             referees={referees}
             schedule={schedule}
             setScheduleBulk={setScheduleBulk}
             updateMatch={updateMatch}
+            participantCount={isTeamType ? teams.length : tournamentPlayers.length}
           />
         )}
         {activeTab === 'status' && (
@@ -1436,6 +1438,22 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
   const isManualMode = tournament.formatType === 'manual';
 
+  // 설정 기반 예상 경기 수 계산
+  const expectedMatchCount = useMemo(() => {
+    const participantCount = isTeamType ? teams.length : tournamentPlayers.length;
+    const stages = toArray(tournament.stages);
+    const hasGroupStage = stages.some(s => s.type === 'qualifying');
+    const hasFinalsStage = stages.some(s => s.type === 'finals');
+    const groupCount = tournament.qualifyingConfig?.groupCount || 1;
+    const advanceCount = tournament.finalsConfig?.advanceCount || 0;
+    const rankingMatch = tournament.rankingMatchConfig || {
+      enabled: false, thirdPlace: false, fifthToEighth: false,
+      fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4,
+    };
+    const finalsStartRound = tournament.finalsConfig?.startingRound;
+    return calculateMatchCount(participantCount, hasGroupStage, groupCount, hasFinalsStage, advanceCount, rankingMatch, finalsStartRound);
+  }, [isTeamType, teams.length, tournamentPlayers.length, tournament.stages, tournament.qualifyingConfig, tournament.finalsConfig, tournament.rankingMatchConfig]);
+
   // Load saved group assignments from tournament stages
   useEffect(() => {
     const stages = toArray(tournament.stages);
@@ -1563,10 +1581,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             }
           }
         }
-        if (skipped > 0 && newMatches.length > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateSkipped', { skipped, created: newMatches.length, defaultValue: `이미 존재하는 ${skipped}경기는 건너뛰고 ${newMatches.length}경기를 생성합니다.` }));
-        } else if (skipped > 0 && newMatches.length === 0) {
-          alert(t('admin.tournamentDetail.bracketTab.allDuplicate', { defaultValue: '모든 대진이 이미 생성되어 있습니다.' }));
+        if (skipped > 0) {
+          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped, defaultValue: `중복된 대진이 ${skipped}건 발견되었습니다. 대진 생성이 취소되었습니다.` }));
           setGenerating(false);
           return;
         }
@@ -1599,10 +1615,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             round++;
           }
         }
-        if (skipped > 0 && newMatches.length > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateSkipped', { skipped, created: newMatches.length, defaultValue: `이미 존재하는 ${skipped}경기는 건너뛰고 ${newMatches.length}경기를 생성합니다.` }));
-        } else if (skipped > 0 && newMatches.length === 0) {
-          alert(t('admin.tournamentDetail.bracketTab.allDuplicate', { defaultValue: '모든 대진이 이미 생성되어 있습니다.' }));
+        if (skipped > 0) {
+          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped, defaultValue: `중복된 대진이 ${skipped}건 발견되었습니다. 대진 생성이 취소되었습니다.` }));
           setGenerating(false);
           return;
         }
@@ -1639,10 +1653,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
             round++;
           }
         }
-        if (skipped > 0 && newMatches.length > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateSkipped', { skipped, created: newMatches.length, defaultValue: `이미 존재하는 ${skipped}경기는 건너뛰고 ${newMatches.length}경기를 생성합니다.` }));
-        } else if (skipped > 0 && newMatches.length === 0) {
-          alert(t('admin.tournamentDetail.bracketTab.allDuplicate', { defaultValue: '모든 대진이 이미 생성되어 있습니다.' }));
+        if (skipped > 0) {
+          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped, defaultValue: `중복된 대진이 ${skipped}건 발견되었습니다. 대진 생성이 취소되었습니다.` }));
           setGenerating(false);
           return;
         }
@@ -1652,11 +1664,24 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         setGenerating(false);
         return;
       }
+
+      // 설정된 최대 경기 수 초과 검증
+      const maxAllowed = expectedMatchCount.total;
+      const totalAfterCreate = matches.length + newMatches.length;
+      if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
+        alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
+          max: maxAllowed, current: matches.length, newCount: newMatches.length, total: totalAfterCreate,
+          defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 ${newMatches.length}경기 = ${totalAfterCreate}경기\n대진 생성이 취소되었습니다.`,
+        }));
+        setGenerating(false);
+        return;
+      }
+
       await setMatchesBulk(newMatches);
     } finally {
       setGenerating(false);
     }
-  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages, matches, t]);
+  }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages, matches, t, expectedMatchCount.total]);
 
   const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId' | 'assistantRefereeId', value: string) => {
     const data: Partial<Match> = { [field]: value || undefined };
@@ -1689,6 +1714,29 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
   const handleAddMatch = useCallback(async () => {
     if (!addPlayer1 || !addPlayer2 || addPlayer1 === addPlayer2) return;
+
+    // 중복 대진 검증
+    const pairKey = [addPlayer1, addPlayer2].sort().join('__');
+    const isDuplicate = matches.some(m => {
+      const p1 = m.player1Id || m.team1Id || '';
+      const p2 = m.player2Id || m.team2Id || '';
+      return p1 && p2 && [p1, p2].sort().join('__') === pairKey;
+    });
+    if (isDuplicate) {
+      alert(t('admin.tournamentDetail.bracketTab.addMatchDuplicate', { defaultValue: '이미 동일한 대진이 존재합니다. 경기를 추가할 수 없습니다.' }));
+      return;
+    }
+
+    // 경기 수 초과 검증
+    const maxAllowed = expectedMatchCount.total;
+    if (maxAllowed > 0 && matches.length + 1 > maxAllowed) {
+      alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
+        max: maxAllowed, current: matches.length, newCount: 1, total: matches.length + 1,
+        defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 1경기 = ${matches.length + 1}경기\n경기를 추가할 수 없습니다.`,
+      }));
+      return;
+    }
+
     const now = Date.now();
     const maxRound = matches.length > 0 ? Math.max(...matches.map(m => m.round ?? 0)) : 0;
     if (isTeamType) {
@@ -1740,7 +1788,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     setAddPlayer2('');
     setAddGroupId('');
     setShowAddForm(false);
-  }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, addMatch]);
+  }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, addMatch, expectedMatchCount.total, t]);
 
   const handleDeleteMatch = useCallback(async (matchId: string) => {
     if (!confirm(t('admin.tournamentDetail.bracketTab.deleteMatchConfirm'))) return;
@@ -2202,6 +2250,25 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                 <button
                   className="btn btn-accent w-full"
                   onClick={async () => {
+                    // 본선 대진 경기 수 초과 검증
+                    const maxAllowed = expectedMatchCount.total;
+                    const totalAfterCreate = matches.length + matchCount;
+                    if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
+                      alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
+                        max: maxAllowed, current: matches.length, newCount: matchCount, total: totalAfterCreate,
+                        defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 ${matchCount}경기 = ${totalAfterCreate}경기\n대진 생성이 취소되었습니다.`,
+                      }));
+                      return;
+                    }
+                    // 본선 대진 중복 검증
+                    const existingFinalsMatches = matches.filter(m => m.stageId === finalsStage.id);
+                    if (existingFinalsMatches.length > 0) {
+                      alert(t('admin.tournamentDetail.bracketTab.finalsDuplicateBlocked', {
+                        count: existingFinalsMatches.length,
+                        defaultValue: `이미 본선 대진이 ${existingFinalsMatches.length}건 생성되어 있습니다. 중복 생성이 불가합니다.`,
+                      }));
+                      return;
+                    }
                     const now = Date.now();
                     const newMatches: Omit<Match, 'id'>[] = [];
                     for (let i = 0; i < matchCount; i++) {
@@ -2692,15 +2759,17 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 // Schedule Tab
 // ========================
 interface ScheduleTabProps {
+  tournament: Pick<Tournament, 'stages' | 'qualifyingConfig' | 'finalsConfig' | 'rankingMatchConfig'>;
   matches: Match[];
   courts: { id: string; name: string }[];
   referees: { id: string; name: string }[];
   schedule: ScheduleSlot[];
   setScheduleBulk: (slots: Omit<ScheduleSlot, 'id'>[]) => Promise<void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
+  participantCount: number;
 }
 
-function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, updateMatch }: ScheduleTabProps) {
+function ScheduleTab({ tournament, matches, courts, referees, schedule, setScheduleBulk, updateMatch, participantCount }: ScheduleTabProps) {
   const { t } = useTranslation();
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
@@ -2847,8 +2916,46 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
     });
   }, [matches]);
 
+  // 설정 기반 예상 경기 수 계산
+  const expectedMatchCount = useMemo(() => {
+    const stages = toArray(tournament.stages) as { type?: string }[];
+    const hasGroupStage = stages.some(s => s.type === 'qualifying');
+    const hasFinalsStage = stages.some(s => s.type === 'finals');
+    const groupCount = tournament.qualifyingConfig?.groupCount || 1;
+    const advanceCount = tournament.finalsConfig?.advanceCount || 0;
+    const rankingMatch = tournament.rankingMatchConfig || {
+      enabled: false, thirdPlace: false, fifthToEighth: false,
+      fifthToEighthFormat: 'simple' as const, classificationGroups: false, classificationGroupSize: 4,
+    };
+    const finalsStartRound = tournament.finalsConfig?.startingRound;
+    return calculateMatchCount(participantCount, hasGroupStage, groupCount, hasFinalsStage, advanceCount, rankingMatch, finalsStartRound);
+  }, [tournament.stages, tournament.qualifyingConfig, tournament.finalsConfig, tournament.rankingMatchConfig, participantCount]);
+
   const generateSchedule = useCallback(async () => {
     if (courts.length === 0 || matches.length === 0) return;
+
+    // 경기 수 초과 검증
+    const maxAllowed = expectedMatchCount.total;
+    if (maxAllowed > 0 && matches.length > maxAllowed) {
+      alert(t('admin.tournamentDetail.scheduleTab.matchCountExceeded', {
+        max: maxAllowed, current: matches.length,
+        defaultValue: `현재 경기 수(${matches.length}경기)가 설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n스케줄 생성이 취소되었습니다.`,
+      }));
+      return;
+    }
+
+    // 스케줄 중복 검증 (이미 스케줄이 배정된 경기 존재 여부)
+    if (!onlyUnassigned) {
+      const alreadyScheduled = matches.filter(m => m.scheduledDate && (m.status === 'pending' || m.status === 'in_progress'));
+      if (alreadyScheduled.length > 0) {
+        const confirmed = confirm(t('admin.tournamentDetail.scheduleTab.overwriteConfirm', {
+          count: alreadyScheduled.length,
+          defaultValue: `이미 스케줄이 배정된 경기가 ${alreadyScheduled.length}건 있습니다.\n기존 스케줄을 덮어쓰시겠습니까?`,
+        }));
+        if (!confirmed) return;
+      }
+    }
+
     setGenerating(true);
     try {
       const targetMatches = onlyUnassigned
@@ -2998,7 +3105,7 @@ function ScheduleTab({ matches, courts, referees, schedule, setScheduleBulk, upd
     } finally {
       setGenerating(false);
     }
-  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch]);
+  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch, expectedMatchCount.total, t]);
 
   // Group schedule by date, then by time
   const dates = useMemo(() => {
