@@ -1781,6 +1781,19 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           >
             {t('admin.tournamentDetail.bracketTab.addMatchButton')}
           </button>
+          {matches.length > 0 && (tournament.status === 'draft' || tournament.status === 'registration') && (
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                if (confirm(t('admin.tournamentDetail.bracketTab.confirmBracket', '대진표를 확정하고 대회를 시작하시겠습니까?'))) {
+                  await updateTournament({ status: 'in_progress' });
+                }
+              }}
+              aria-label={t('admin.tournamentDetail.bracketTab.confirmBracketAriaLabel', '대진표 확정 및 대회 시작')}
+            >
+              {t('admin.tournamentDetail.bracketTab.confirmBracketButton', '대진표 확정')}
+            </button>
+          )}
         </div>
       </div>
 
