@@ -875,8 +875,8 @@ export default function TeamMatchScoring() {
                   <div key={order.ids[i] ?? i} className="flex items-center gap-2 bg-gray-700 rounded px-3 py-2">
                     <span className="text-gray-400 text-sm w-6">{i + 1}</span>
                     <span className="flex-1 text-white">{name}</span>
-                    <button className="text-gray-400 hover:text-white px-1" disabled={i === 0} onClick={() => swapOrder(setter, order, i, -1)} style={{ minHeight: '36px', minWidth: '36px' }} aria-label={`${name} ${t('admin.tournamentDetail.bracketTab.orderUpAriaLabel')}`}>▲</button>
-                    <button className="text-gray-400 hover:text-white px-1" disabled={i === order.names.length - 1} onClick={() => swapOrder(setter, order, i, 1)} style={{ minHeight: '36px', minWidth: '36px' }} aria-label={`${name} ${t('admin.tournamentDetail.bracketTab.orderDownAriaLabel')}`}>▼</button>
+                    <button className="text-gray-400 hover:text-white px-1" disabled={i === 0} onClick={() => swapOrder(setter, order, i, -1)} style={{ minHeight: '44px', minWidth: '44px' }} aria-label={`${name} ${t('admin.tournamentDetail.bracketTab.orderUpAriaLabel')}`}>▲</button>
+                    <button className="text-gray-400 hover:text-white px-1" disabled={i === order.names.length - 1} onClick={() => swapOrder(setter, order, i, 1)} style={{ minHeight: '44px', minWidth: '44px' }} aria-label={`${name} ${t('admin.tournamentDetail.bracketTab.orderDownAriaLabel')}`}>▼</button>
                   </div>
                 ))}
               </div>

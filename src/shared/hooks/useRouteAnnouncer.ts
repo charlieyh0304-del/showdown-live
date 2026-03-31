@@ -65,12 +65,13 @@ export function useRouteAnnouncer() {
     requestAnimationFrame(() => {
       const mainContent = document.getElementById('main-content');
       const h1 = mainContent?.querySelector('h1') || document.querySelector('h1');
-      if (h1 instanceof HTMLElement) {
-        h1.setAttribute('tabindex', '-1');
-        h1.focus({ preventScroll: false });
-      } else if (mainContent instanceof HTMLElement) {
-        mainContent.setAttribute('tabindex', '-1');
-        mainContent.focus({ preventScroll: false });
+      const target = h1 || mainContent;
+      if (target instanceof HTMLElement) {
+        target.setAttribute('tabindex', '-1');
+        target.focus({ preventScroll: false });
+        // Remove tabindex after focus to avoid persistent tab stop
+        const cleanup = () => { target.removeAttribute('tabindex'); target.removeEventListener('blur', cleanup); };
+        target.addEventListener('blur', cleanup);
       }
     });
   }, [location.pathname, t]);
