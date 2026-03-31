@@ -322,14 +322,12 @@ export default function PracticeScoring() {
     const actionDesc = toOpponent
       ? `${actorName} ${label.split(' ').slice(1).join(' ')} → ${pName} +${points}${t('common.units.point')}`
       : `${pName} ${t('common.scoreActions.goal')}! +${points}${t('common.units.point')}`;
-    setLastAction(rotationAnnounce
-      ? `${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2} | ${rotationAnnounce}`
-      : `${actionDesc} | ${scoreAfter.player1} : ${scoreAfter.player2}`);
-
-    const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
-    const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
     const nextServeDisplay = `${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes(matchType)}`;
-    const announceBase = `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServeDisplay}`;
+    setLastAction(rotationAnnounce
+      ? `${actionDesc} | ${p1Name} ${scoreAfter.player1} : ${scoreAfter.player2} ${p2Name} | ${nextServeDisplay} | ${rotationAnnounce}`
+      : `${actionDesc} | ${p1Name} ${scoreAfter.player1} : ${scoreAfter.player2} ${p2Name} | ${nextServeDisplay}`);
+
+    const announceBase = `${pName} ${points}${t('common.units.point')}. ${p1Name} ${scoreAfter.player1} : ${scoreAfter.player2} ${p2Name}. ${nextServeDisplay}`;
     setAnnouncement(rotationAnnounce ? `${announceBase}. ${rotationAnnounce}` : announceBase);
 
     // Set winner check with confirmation
@@ -1150,14 +1148,8 @@ export default function PracticeScoring() {
           </button>
         </div>
 
-        {/* Row 3: 취소 / 레프리타임 */}
-        <div className="grid grid-cols-2 gap-3">
-          <button className="btn btn-danger py-3" onClick={handleUndo} disabled={match.scoreHistory.length === 0}>↩️ {t('referee.practice.scoring.undoButton')}</button>
-          <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
-            aria-label={t('referee.scoring.timeoutTitle.referee')}>
-            🟨 {t('referee.scoring.timeoutTitle.referee')}
-          </button>
-        </div>
+        {/* Row 3: 취소 */}
+        <button className="btn btn-danger py-3 w-full" onClick={handleUndo} disabled={match.scoreHistory.length === 0}>↩️ {t('referee.practice.scoring.undoButton')}</button>
 
         {/* 접이식: 타임아웃 */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">
@@ -1187,6 +1179,10 @@ export default function PracticeScoring() {
                   🏥 {p2Name} {t('referee.scoring.timeoutTitle.medical')} ({1 - match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p2Name).length}/1)
                 </button>
               </div>
+              <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white text-sm py-2 w-full" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
+                aria-label={t('referee.scoring.timeoutTitle.referee')}>
+                🟨 {t('referee.scoring.timeoutTitle.referee')}
+              </button>
             </div>
           )}
         </div>
@@ -1219,29 +1215,21 @@ export default function PracticeScoring() {
           )}
         </div>
 
-        {/* 접이식: 기타 */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
-          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('etc')} aria-expanded={expandedSection === 'etc'}>
-            <span className="text-sm font-bold text-gray-300">⚙️ {t('referee.practice.scoring.etcSection', '기타')}</span>
-            <span className="text-gray-400">{expandedSection === 'etc' ? '▲' : '▼'}</span>
-          </button>
-          {expandedSection === 'etc' && (
-            <div className="px-3 py-2 bg-gray-900/50">
-              <div className="flex gap-2">
-                {matchType === 'team' && (match.team1Members?.length ?? 0) > 3 && !match.team1SubUsed && (
-                  <button className="btn flex-1 bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm" onClick={() => { setSubTeam(1); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }} disabled={!!match.activeTimeout || showSideChange}>
-                    🔄 {p1Name}
-                  </button>
-                )}
-                {matchType === 'team' && (match.team2Members?.length ?? 0) > 3 && !match.team2SubUsed && (
-                  <button className="btn flex-1 bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm" onClick={() => { setSubTeam(2); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }} disabled={!!match.activeTimeout || showSideChange}>
-                    🔄 {p2Name}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* 팀전: 선수 교체 */}
+        {matchType === 'team' && ((match.team1Members?.length ?? 0) > 3 || (match.team2Members?.length ?? 0) > 3) && (
+          <div className="grid grid-cols-2 gap-2">
+            {(match.team1Members?.length ?? 0) > 3 && !match.team1SubUsed && (
+              <button className="btn bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm" onClick={() => { setSubTeam(1); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }} disabled={!!match.activeTimeout || showSideChange}>
+                🔄 {p1Name} {t('common.matchHistory.substitution')}
+              </button>
+            )}
+            {(match.team2Members?.length ?? 0) > 3 && !match.team2SubUsed && (
+              <button className="btn bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm" onClick={() => { setSubTeam(2); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }} disabled={!!match.activeTimeout || showSideChange}>
+                🔄 {p2Name} {t('common.matchHistory.substitution')}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* History */}
         <div>
