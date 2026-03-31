@@ -959,7 +959,7 @@ export default function PracticeScoring() {
           seconds={sideChangeTimer.seconds}
           isWarning={sideChangeTimer.isWarning}
           subtitle={t('referee.practice.scoring.sideChangeSubtitle')}
-          onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); setSideChangeConfirmed(false); }}
+          onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); setSideChangeConfirmed(false); longWhistle(); }}
           closeLabel={t('referee.practice.scoring.confirmButton')}
           required
           warningText={timerWarningText}
