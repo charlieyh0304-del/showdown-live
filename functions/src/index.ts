@@ -95,8 +95,9 @@ async function sendToSubscriptions(
   const tokens = subs.map((s) => s.token);
   const tag = `showdown-${Date.now()}`;
 
-  // data-only 메시지: Service Worker의 onBackgroundMessage가 항상 호출되어 직접 알림 표시
-  // notification 필드가 있으면 브라우저가 자동 처리하여 SW 핸들러가 호출 안 됨 (모바일 문제)
+  // webpush.notification: 브라우저가 직접 OS 알림 표시 (iOS Safari 포함)
+  // data: 포그라운드 onMessage에서 인앱 알림용
+  // 최상위 notification 없음: SW onBackgroundMessage 호출 보장 (Chrome)
   const basePayload = {
     data: {
       title: notification.title,
@@ -108,6 +109,15 @@ async function sendToSubscriptions(
     },
     webpush: {
       headers: { Urgency: "high", TTL: "86400" },
+      notification: {
+        title: notification.title,
+        body: notification.body || "",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-96.png",
+        tag,
+        requireInteraction: true,
+        renotify: true,
+      },
     },
     android: {
       priority: "high" as const,
@@ -119,6 +129,8 @@ async function sendToSubscriptions(
       },
       payload: {
         aps: {
+          alert: { title: notification.title, body: notification.body || "" },
+          sound: "default",
           contentAvailable: true,
         },
       },
