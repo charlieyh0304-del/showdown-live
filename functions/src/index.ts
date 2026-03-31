@@ -95,15 +95,12 @@ async function sendToSubscriptions(
   const tokens = subs.map((s) => s.token);
   const tag = `showdown-${Date.now()}`;
 
-  // notification + data 메시지: 백그라운드/잠금 화면에서 OS가 자동 표시
+  // data-only 메시지: Service Worker의 onBackgroundMessage가 항상 호출되어 직접 알림 표시
+  // notification 필드가 있으면 브라우저가 자동 처리하여 SW 핸들러가 호출 안 됨 (모바일 문제)
   const basePayload = {
-    notification: {
-      title: notification.title,
-      body: notification.body,
-    },
     data: {
       title: notification.title,
-      body: notification.body,
+      body: notification.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-96.png",
       tag,
@@ -111,16 +108,6 @@ async function sendToSubscriptions(
     },
     webpush: {
       headers: { Urgency: "high", TTL: "86400" },
-      fcmOptions: { link },
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        icon: "/icons/icon-192.png",
-        badge: "/icons/icon-96.png",
-        tag,
-        requireInteraction: true,
-        renotify: true,
-      },
     },
     android: {
       priority: "high" as const,
@@ -132,8 +119,6 @@ async function sendToSubscriptions(
       },
       payload: {
         aps: {
-          alert: { title: notification.title, body: notification.body },
-          sound: "default",
           contentAvailable: true,
         },
       },
@@ -227,13 +212,21 @@ export const onMatchChange = onValueUpdated(
   async (event) => {
     const before = event.data.before.val() as Match | null;
     const after = event.data.after.val() as Match | null;
-    if (!before || !after) return;
-
     const matchId = event.params.matchId;
     const tournamentId = event.params.tournamentId;
+
+    if (!before || !after) {
+      console.log(`[onMatchChange] ${tournamentId}/${matchId}: before=${!!before} after=${!!after} — skipping`);
+      return;
+    }
+
     const participants = getMatchParticipants(after);
-    console.log(`[onMatchChange] ${tournamentId}/${matchId}: ${before.status} → ${after.status}, participants: ${participants.length}`);
+    console.log(`[onMatchChange] ${tournamentId}/${matchId}: ${before.status} → ${after.status}, participants: ${participants.length}, names: ${[after.player1Name, after.player2Name, after.team1Name, after.team2Name].filter(Boolean).join(", ")}`);
     if (participants.length === 0) return;
+
+    // 전체 구독 수 확인 (디버그)
+    const allSubsSnap = await db.ref("pushSubscriptions").once("value");
+    const totalSubs = allSubsSnap.exists() ? Object.keys(allSubsSnap.val()).length : 0;
 
     // Match started
     if (before.status !== "in_progress" && after.status === "in_progress") {
@@ -241,7 +234,7 @@ export const onMatchChange = onValueUpdated(
       if (await wasNotifSent(notifKey)) { console.log(`[onMatchChange] Already sent: ${notifKey}`); return; }
 
       const subs = await findSubscriptions(participants);
-      console.log(`[onMatchChange] Match started ${matchId}: ${subs.length} subscribers found`);
+      console.log(`[onMatchChange] Match started ${matchId}: ${subs.length}/${totalSubs} subscribers matched, participants: [${participants.join(", ")}]`);
       if (subs.length === 0) return;
 
       // Send personalized notifications per subscription
@@ -265,7 +258,7 @@ export const onMatchChange = onValueUpdated(
       if (await wasNotifSent(notifKey)) return;
 
       const subs = await findSubscriptions(participants);
-      console.log(`[onMatchChange] Match completed ${matchId}: ${subs.length} subscribers found`);
+      console.log(`[onMatchChange] Match completed ${matchId}: ${subs.length}/${totalSubs} subscribers matched`);
       if (subs.length === 0) return;
 
       const resultLink = `/spectator/match/${tournamentId}/${matchId}`;

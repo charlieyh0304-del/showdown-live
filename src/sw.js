@@ -102,18 +102,14 @@ function showOnce(data) {
   return showPushNotification({ ...data, tag });
 }
 
-// Firebase SDK 백그라운드 메시지 핸들러
-// notification+data 메시지: Firebase SDK가 자동 표시 → 이 핸들러 호출 안 됨
-// data-only 메시지: 이 핸들러가 호출되어 수�� 표시
+// Firebase SDK 백그라운드 메시지 핸들러 (data-only 메시지)
 messaging.onBackgroundMessage((payload) => {
   console.log('[SW] onBackgroundMessage:', JSON.stringify(payload));
-  const data = payload.data || payload.notification || {};
+  const data = payload.data || {};
   return showOnce(data);
 });
 
-// Raw push 이벤트 폴백
-// Firebase SDK가 notification 메��지를 자동 표시��므로, 여기서는
-// FCM이 아닌 메시지만 처리 (중복 방지)
+// Raw push 이벤트 폴백 (onBackgroundMessage 미처리 시 안전장치)
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -124,10 +120,9 @@ self.addEventListener('push', (event) => {
     return;
   }
 
-  // Firebase SDK가 이미 처리한 FCM 메시지는 스킵 (중복 방지)
-  if (data.fcmMessageId) return;
-
   const notifData = data.data || data;
+  if (!notifData.title) return;
+
   event.waitUntil(showOnce(notifData));
 });
 
