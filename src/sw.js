@@ -65,11 +65,11 @@ importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyCG8Jk9OSLjUkF130UYn4chfsGzJxAdrek',
-  authDomain: 'showdown-b5cc7.firebaseapp.com',
-  projectId: 'showdown-b5cc7',
-  messagingSenderId: '1038346272318',
-  appId: '1:1038346272318:web:2650e73ef4810b310fdb6f',
+  apiKey: __FIREBASE_API_KEY__,
+  authDomain: __FIREBASE_AUTH_DOMAIN__,
+  projectId: __FIREBASE_PROJECT_ID__,
+  messagingSenderId: __FIREBASE_MESSAGING_SENDER_ID__,
+  appId: __FIREBASE_APP_ID__,
 });
 
 const messaging = firebase.messaging();

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
@@ -13,10 +13,17 @@ const buildVersion = [
   String(now.getMinutes()).padStart(2, '0'),
 ].join('')
 
-export default defineConfig({
-        base: process.env.DEPLOY_TARGET === 'github' ? '/showdown-live/' : '/',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  return {
+    base: process.env.DEPLOY_TARGET === 'github' ? '/showdown-live/' : '/',
   define: {
     __BUILD_VERSION__: JSON.stringify(buildVersion),
+    __FIREBASE_API_KEY__: JSON.stringify(env.VITE_FIREBASE_API_KEY || ''),
+    __FIREBASE_AUTH_DOMAIN__: JSON.stringify(env.VITE_FIREBASE_AUTH_DOMAIN || ''),
+    __FIREBASE_PROJECT_ID__: JSON.stringify(env.VITE_FIREBASE_PROJECT_ID || ''),
+    __FIREBASE_MESSAGING_SENDER_ID__: JSON.stringify(env.VITE_FIREBASE_MESSAGING_SENDER_ID || ''),
+    __FIREBASE_APP_ID__: JSON.stringify(env.VITE_FIREBASE_APP_ID || ''),
   },
   plugins: [
     {
@@ -82,4 +89,5 @@ export default defineConfig({
       '@spectator': resolve(__dirname, './src/spectator'),
     },
   },
+}
 })

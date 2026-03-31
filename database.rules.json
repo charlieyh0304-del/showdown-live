@@ -2,7 +2,7 @@
   "rules": {
     "config": {
       "adminPin": {
-        ".read": true,
+        ".read": "auth != null",
         ".write": "auth != null && (!data.exists() || newData.exists())",
         ".validate": "newData.isString() && newData.val().length >= 10"
       },
@@ -11,17 +11,17 @@
       }
     },
     "admins": {
-      ".read": true,
+      ".read": "auth != null",
       "$adminId": {
         ".write": "auth != null",
-        ".validate": "newData.hasChildren(['name', 'pin'])"
+        ".validate": "newData.hasChildren(['name', 'pin']) && newData.child('name').isString() && newData.child('pin').isString() && newData.child('pin').val().length >= 10"
       }
     },
     "tournaments": {
       ".read": true,
       "$tournamentId": {
         ".write": "auth != null",
-        ".validate": "newData.hasChildren(['name', 'status'])"
+        ".validate": "newData.hasChildren(['name', 'status']) && newData.child('name').isString() && newData.child('status').isString()"
       }
     },
     "matches": {
@@ -31,6 +31,8 @@
         "$matchId": {
           ".validate": "newData.hasChildren(['tournamentId', 'status']) && (!data.exists() || !data.child('updatedAt').exists() || !newData.child('updatedAt').exists() || newData.child('updatedAt').val() > data.child('updatedAt').val())",
           "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'in_progress' || newData.val() === 'completed')" },
+          "tournamentId": { ".validate": "newData.isString()" },
+          "type": { ".validate": "!newData.exists() || (newData.isString() && (newData.val() === 'individual' || newData.val() === 'team'))" },
           "$other": { ".validate": true }
         }
       }
@@ -55,21 +57,21 @@
       ".read": true,
       "$playerId": {
         ".write": "auth != null",
-        ".validate": "newData.hasChildren(['name'])"
+        ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
       }
     },
     "referees": {
-      ".read": true,
+      ".read": "auth != null",
       "$refereeId": {
         ".write": "auth != null",
-        ".validate": "newData.hasChildren(['name'])"
+        ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
       }
     },
     "courts": {
       ".read": true,
       "$courtId": {
         ".write": "auth != null",
-        ".validate": "newData.hasChildren(['name'])"
+        ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
       }
     },
     "notifications": {
@@ -77,14 +79,14 @@
       "$tournamentId": { ".write": "auth != null" }
     },
     "pushSubscriptions": {
-      ".read": true,
+      ".read": "auth != null",
       "$tokenKey": {
-        ".write": true,
+        ".write": "auth != null",
         ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt'])",
-        "token": { ".validate": "newData.isString()" },
+        "token": { ".validate": "newData.isString() && newData.val().length <= 500" },
         "favoriteIds": { ".validate": true },
         "favoriteNames": { ".validate": true },
-        "platform": { ".validate": "newData.isString()" },
+        "platform": { ".validate": "newData.isString() && newData.val().length <= 50" },
         "updatedAt": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }
       }

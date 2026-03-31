@@ -4,8 +4,8 @@ import { ref, set } from 'firebase/database';
 import app, { database } from '@shared/config/firebase';
 import { sendNotification } from '@shared/utils/notifications';
 
-// VAPID key 하드코딩 (공개 키 - Firebase Console > Cloud Messaging에서 발급)
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BCKuVDWZNroVnvYuGRtwCILYFHMDZCNzwDpg2Nw-1RxYzmVyGkyG4asHcakAHDxvJoW6GzwANT9YeZCF3TWEEdU';
+// VAPID key - 환경변수에서만 로드 (하드코딩 제거)
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 const TOKEN_KEY = 'showdown_fcm_token';
 
 function getPlatform(): string {
