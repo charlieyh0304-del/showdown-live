@@ -18,6 +18,7 @@ const ACTION_KEY_MAP: Record<string, string> = {
   penalty_electronic: 'common.scoreActions.penaltyElectronic',
   penalty_talking: 'common.scoreActions.penaltyTalking',
   walkover: 'common.scoreActions.walkover',
+  serve_miss: 'common.scoreActions.serveMiss',
 };
 
 const META_ACTION_TYPES = new Set([
@@ -153,7 +154,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                     : (actionLabel || h.actionType || '');
                   const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                   return (
-                    <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117', contentVisibility: 'auto', containIntrinsicSize: '0 40px' }}>
+                    <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117',  }}>
                       <div>{timeStr} {icon} {desc}</div>
                       {!hideScore && <div style={{ fontSize: '0.75rem' }}>{t('common.matchHistory.score')}: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}</div>}
                     </div>
@@ -170,7 +171,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                 const actionColor = isGoal ? '#22c55e' : h.points >= 2 ? '#ef4444' : '#eab308';
 
                 return (
-                  <div key={`${setNum}-${i}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem', contentVisibility: 'auto', containIntrinsicSize: '0 40px' }}>
+                  <div key={`${setNum}-${i}`} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1f2937', fontSize: '0.875rem',  }}>
                     <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
                       🎾 {h.server || '?'} {t('common.matchHistory.serve')} {h.serveNumber ? t('common.matchHistory.serveNumber', { num: h.serveNumber }) : ''} {timeStr && `· ${timeStr}`}
                     </div>
