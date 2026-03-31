@@ -106,69 +106,67 @@ export default function PracticeScoring() {
 
   // Range-based warning tracking (handles mobile interval throttling)
   const timerWarningsRef = useRef<Set<string>>(new Set());
+  const warningClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showWarning = useCallback((msg: string) => {
+    setTimerWarningText(msg);
+    speak(msg);
+    if (warningClearRef.current) clearTimeout(warningClearRef.current);
+    warningClearRef.current = setTimeout(() => setTimerWarningText(''), 3000);
+  }, []);
 
-  // 30초/15초 안내 (타임아웃) - TimerModal 내부에만 표시 (ActionToast 중복 방지)
+  // 30초/15초 안내 (타임아웃) - TimerModal 내부 표시 + TTS
   useEffect(() => {
     if (!timeoutTimer.isRunning || !match.activeTimeout) {
       timerWarningsRef.current.delete('timeout_30');
       timerWarningsRef.current.delete('timeout_15');
-      setTimerWarningText('');
       return;
     }
     if (timeoutTimer.seconds <= 30 && !timerWarningsRef.current.has('timeout_30')) {
       timerWarningsRef.current.add('timeout_30');
-      setTimerWarningText(`30${t('common.time.seconds')}`);
-      speak(`30${t('common.time.seconds')}`);
+      showWarning(`30${t('common.time.seconds')}`);
     }
     if (timeoutTimer.seconds <= 15 && !timerWarningsRef.current.has('timeout_15')) {
       timerWarningsRef.current.add('timeout_15');
-      setTimerWarningText(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
+      showWarning(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout, showWarning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
     if (!sideChangeTimer.isRunning || !showSideChange) {
       timerWarningsRef.current.delete('sideChange_15');
-      setTimerWarningText('');
       return;
     }
     if (sideChangeTimer.seconds <= 15 && !timerWarningsRef.current.has('sideChange_15')) {
       timerWarningsRef.current.add('sideChange_15');
-      setTimerWarningText(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
+      showWarning(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, showSideChange]);
+  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, showSideChange, showWarning]);
 
-  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다
+  // 워밍업 알림: 개인전 15초 전, 팀전 30초마다 + TTS
   useEffect(() => {
     if (!warmupTimer.isRunning) {
       timerWarningsRef.current.delete('warmup_60');
       timerWarningsRef.current.delete('warmup_30');
       timerWarningsRef.current.delete('warmup_15');
-      setTimerWarningText('');
       return;
     }
     if (matchType === 'team') {
       if (warmupTimer.seconds <= 60 && !timerWarningsRef.current.has('warmup_60')) {
         timerWarningsRef.current.add('warmup_60');
-        setTimerWarningText(`60${t('common.time.seconds')}`);
-        speak(`60${t('common.time.seconds')}`);
+        showWarning(`60${t('common.time.seconds')}`);
       }
       if (warmupTimer.seconds <= 30 && !timerWarningsRef.current.has('warmup_30')) {
         timerWarningsRef.current.add('warmup_30');
-        setTimerWarningText(`30${t('common.time.seconds')}`);
-        speak(`30${t('common.time.seconds')}`);
+        showWarning(`30${t('common.time.seconds')}`);
       }
     } else {
       if (warmupTimer.seconds <= 15 && !timerWarningsRef.current.has('warmup_15')) {
         timerWarningsRef.current.add('warmup_15');
-        setTimerWarningText(t('referee.scoring.fifteenSecondsLeft'));
-        speak(t('referee.scoring.fifteenSecondsLeft'));
+        showWarning(t('referee.scoring.fifteenSecondsLeft'));
       }
     }
-  }, [warmupTimer.seconds, warmupTimer.isRunning, matchType]);
+  }, [warmupTimer.seconds, warmupTimer.isRunning, matchType, showWarning]);
 
   // localStorage sharing (spectator mode)
   useEffect(() => {

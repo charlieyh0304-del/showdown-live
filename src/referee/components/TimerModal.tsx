@@ -34,13 +34,11 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
         <h2 className="text-3xl font-bold text-yellow-400">{title}</h2>
         <div
           className={`text-8xl font-bold my-4 ${isWarning ? 'animate-pulse text-red-400' : 'text-white'}`}
-          aria-live="polite"
-          aria-label={t('common.time.remaining', { display })}
         >
           {display}
         </div>
         {warningText && (
-          <div className="text-2xl font-bold text-red-400 animate-pulse" aria-live="assertive">
+          <div className="text-2xl font-bold text-red-400 animate-pulse">
             ⚠️ {warningText}
           </div>
         )}
@@ -51,7 +49,7 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
           </button>
         )}
         {required && !timerDone && (
-          <p className="text-sm text-gray-400" aria-live="polite">{t('common.time.waitForTimer')}</p>
+          <p className="text-sm text-gray-400">{t('common.time.waitForTimer')}</p>
         )}
       </div>
     </div>
