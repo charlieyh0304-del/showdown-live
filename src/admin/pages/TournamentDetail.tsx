@@ -1755,9 +1755,30 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
   const hasActiveMatches = matches.some(m => m.status === 'in_progress');
   const canGenerate = (isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2) && !hasActiveMatches;
+  // Build player/team options with group info
+  const getGroupName = (playerId: string) => {
+    for (const g of groupAssignment) {
+      if (g.playerIds.includes(playerId)) return g.name;
+    }
+    return '';
+  };
   const selectOptions = isTeamType
-    ? teams.map(t => ({ id: t.id, name: t.name }))
-    : tournamentPlayers.map(p => ({ id: p.id, name: p.name }));
+    ? teams.map(t => ({ id: t.id, name: t.name, group: '' }))
+    : tournamentPlayers.map(p => ({ id: p.id, name: p.name, group: getGroupName(p.id) }));
+
+  // Track existing match pairs to filter out completed pairings
+  const existingPairs = useMemo(() => {
+    const pairs = new Set<string>();
+    for (const m of matches) {
+      const p1 = m.player1Id || m.team1Id || '';
+      const p2 = m.player2Id || m.team2Id || '';
+      if (p1 && p2) {
+        pairs.add(`${p1}__${p2}`);
+        pairs.add(`${p2}__${p1}`);
+      }
+    }
+    return pairs;
+  }, [matches]);
 
   return (
     <div className="space-y-6">
@@ -1813,7 +1834,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               <select className="input w-full" value={addPlayer1} onChange={e => setAddPlayer1(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team1SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player1SelectAriaLabel')}>
                 <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                 {selectOptions.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                  <option key={o.id} value={o.id}>{o.group ? `[${o.group}] ${o.name}` : o.name}</option>
                 ))}
               </select>
             </div>
@@ -1821,8 +1842,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team2Label') : t('admin.tournamentDetail.bracketTab.player2Label')}</label>
               <select className="input w-full" value={addPlayer2} onChange={e => setAddPlayer2(e.target.value)} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team2SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player2SelectAriaLabel')}>
                 <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
-                {selectOptions.filter(o => o.id !== addPlayer1).map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                {selectOptions.filter(o => o.id !== addPlayer1 && !existingPairs.has(`${addPlayer1}__${o.id}`)).map(o => (
+                  <option key={o.id} value={o.id}>{o.group ? `[${o.group}] ${o.name}` : o.name}</option>
                 ))}
               </select>
             </div>
