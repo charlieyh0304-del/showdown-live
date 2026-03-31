@@ -531,6 +531,7 @@ export default function TournamentCreate() {
                 }}
                 placeholder={t('admin.tournamentCreate.basicInfo.tournamentNamePlaceholder')}
                 aria-label={t('admin.tournamentCreate.basicInfo.tournamentNameAriaLabel')}
+                aria-required="true"
                 aria-invalid={!!fieldErrors.name}
                 aria-describedby={fieldErrors.name ? 'name-error' : undefined}
               />

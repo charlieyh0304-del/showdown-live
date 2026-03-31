@@ -146,6 +146,9 @@ function AdminPinSetup() {
             placeholder={t('admin.pinSetup.pinPlaceholder')}
             autoComplete="new-password"
             aria-label={t('admin.pinSetup.pinInputAriaLabel')}
+            aria-required="true"
+            aria-invalid={!!error}
+            aria-describedby={error ? 'pin-setup-error' : undefined}
           />
         </div>
         <div>
@@ -159,9 +162,11 @@ function AdminPinSetup() {
             placeholder={t('admin.pinSetup.confirmPlaceholder')}
             autoComplete="new-password"
             aria-label={t('admin.pinSetup.confirmInputAriaLabel')}
+            aria-required="true"
+            aria-invalid={!!error}
           />
         </div>
-        {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
+        {error && <p id="pin-setup-error" className="text-red-500 font-semibold" role="alert">{error}</p>}
         <button type="submit" className="btn btn-primary w-full" disabled={saving} aria-label={t('admin.pinSetup.submitAriaLabel')}>
           {saving ? t('common.saving') : t('admin.pinSetup.submitButton')}
         </button>
@@ -253,10 +258,13 @@ function AdminLogin({ onLogin }: { onLogin: (pin: string) => Promise<boolean> })
             placeholder={t('admin.login.pinPlaceholder')}
             autoComplete="current-password"
             aria-label={t('admin.login.pinInputAriaLabel')}
+            aria-required="true"
+            aria-invalid={!!error}
+            aria-describedby={error ? 'admin-login-error' : undefined}
             disabled={isLocked}
           />
         </div>
-        {error && <p className="text-red-500 font-semibold" role="alert">{error}</p>}
+        {error && <p id="admin-login-error" className="text-red-500 font-semibold" role="alert">{error}</p>}
         {isLocked && (
           <p className="text-orange-400 font-semibold text-center" role="alert">
             {t('admin.login.retryAfter', { seconds: lockoutSeconds })}

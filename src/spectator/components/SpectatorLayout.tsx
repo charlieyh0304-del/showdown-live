@@ -172,6 +172,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
 
       {/* Bottom tab navigation - context-aware */}
       <nav
+        aria-label={t('spectator.nav.label', '관람 탭 메뉴')}
         role="tablist"
         onKeyDown={handleNavKeyDown}
         style={{
@@ -184,7 +185,6 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           display: 'flex',
           zIndex: 40,
         }}
-        aria-label={t('spectator.layout.bottomNavAriaLabel')}
       >
         {tournamentId ? (
           /* Tournament context: 5 tabs */

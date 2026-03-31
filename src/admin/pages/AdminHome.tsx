@@ -257,9 +257,11 @@ function DeleteConfirmModal({ tournamentName, onConfirm, onCancel, deleting }: {
             onKeyDown={e => { if (e.key === 'Enter' && password && !isLocked && !verifying) handleConfirmWithPassword(); }}
             placeholder={t('admin.deleteModal.adminPinPlaceholder')}
             aria-label={t('admin.deleteModal.adminPinPlaceholder')}
+            aria-invalid={!!passwordError}
+            aria-describedby={passwordError ? 'admin-password-error' : undefined}
             disabled={isLocked}
           />
-          {passwordError && <p className="text-red-500 text-sm mt-1" role="alert">{passwordError}</p>}
+          {passwordError && <p id="admin-password-error" className="text-red-500 text-sm mt-1" role="alert">{passwordError}</p>}
           {isLocked && (
             <p className="text-orange-400 text-sm mt-1" role="alert">
               {t('admin.login.retryAfter', { seconds: lockoutSeconds })}

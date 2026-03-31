@@ -1127,6 +1127,9 @@
   },
 
   "spectator": {
+    "nav": {
+      "label": "관람 탭 메뉴"
+    },
     "layout": {
       "headerAriaLabel": "쇼다운 관람",
       "homeButton": "← 관람 홈",

@@ -137,6 +137,7 @@ export default function RefereeLogin() {
 
         {error && (
           <div
+            id="referee-pin-error"
             className="bg-red-900 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6 text-center text-lg"
             role="alert"
             aria-live="assertive"
@@ -229,6 +230,9 @@ export default function RefereeLogin() {
               placeholder={t('referee.login.pinPlaceholder')}
               autoFocus
               aria-label={t('referee.login.pinAriaLabel')}
+              aria-required="true"
+              aria-invalid={!!error}
+              aria-describedby={error ? 'referee-pin-error' : undefined}
               disabled={isLocked}
             />
             {isLocked && (
