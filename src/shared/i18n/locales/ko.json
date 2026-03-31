@@ -169,6 +169,7 @@
       "warmup": "워밍업",
       "playerRotation": "선수 교체",
       "sideChange": "사이드 체인지",
+      "resumeMatch": "경기 재개",
       "noDetailedHistory": "상세 경기 기록이 없습니다.",
       "setResult": "세트 결과",
       "andMore": "... 외 {{count}}개",

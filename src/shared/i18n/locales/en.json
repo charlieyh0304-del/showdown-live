@@ -169,6 +169,7 @@
       "warmup": "Warm-up",
       "playerRotation": "Player Rotation",
       "sideChange": "Side Change",
+      "resumeMatch": "Resume Match",
       "noDetailedHistory": "No detailed match history available.",
       "setResult": "Set Result",
       "andMore": "... and {{count}} more",

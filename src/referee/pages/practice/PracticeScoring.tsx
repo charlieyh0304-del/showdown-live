@@ -943,9 +943,9 @@ export default function PracticeScoring() {
           title={t('referee.practice.scoring.sideChangeTitle')}
           seconds={0}
           isWarning={false}
-          subtitle={t('common.matchHistory.sideChange')}
-          onClose={() => { setSideChangeConfirmed(true); sideChangeTimer.start(60); }}
-          closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}
+          subtitle={t('referee.practice.scoring.sideChangeSubtitle')}
+          onClose={() => { setSideChangeConfirmed(true); sideChangeTimer.start(60); longWhistle(); }}
+          closeLabel={`⏱️ ${t('referee.practice.scoring.sideChangeSubtitle')} ${t('common.start')}`}
           required
         />
       )}
@@ -958,7 +958,7 @@ export default function PracticeScoring() {
           isWarning={sideChangeTimer.isWarning}
           subtitle={t('referee.practice.scoring.sideChangeSubtitle')}
           onClose={() => { sideChangeTimer.stop(); setShowSideChange(false); setSideChangeConfirmed(false); longWhistle(); }}
-          closeLabel={t('referee.practice.scoring.confirmButton')}
+          closeLabel={`🎾 ${t('common.matchHistory.resumeMatch', '경기 재개')}`}
           required
           warningText={timerWarningText}
         />
