@@ -483,40 +483,12 @@ export default function PracticeScoring() {
     setAnnouncement(`${t('common.matchHistory.serve')}: ${newServer}`);
   }, [match, updateMatch, p1Name, p2Name]);
 
-  // Serve Miss - 서브권 있는 선수만 (점수 변동 없이 서브 넘김)
+  // Serve Miss - 서브권 있는 선수가 1점 실점 (상대에게 +1)
   const handleServeMiss = useCallback(() => {
-    if (match.status !== 'in_progress' || match.isPaused || match.activeTimeout) return;
-    if (showSideChange) return;
-    const ci = match.currentSet;
-    const cs = match.sets[ci];
-    if (!cs) return;
-    const sName = match.currentServe === 'player1' ? p1Name : p2Name;
-    const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
-    const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
-      match.currentServe, match.serveCount, matchType,
-    );
-    const entry = createScoreHistoryEntry({
-      scoringPlayer: '',
-      actionPlayer: sName,
-      actionType: 'serve_miss',
-      actionLabel: `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`,
-      points: 0,
-      set: ci + 1,
-      server: sName,
-      serveNumber: match.serveCount + 1,
-      scoreBefore,
-      scoreAfter: scoreBefore,
-      serverSide: match.currentServe,
-    });
-    updateMatch({
-      currentServe: nextServe, serveCount: nextCount,
-      scoreHistory: [entry, ...match.scoreHistory],
-    });
-    shortWhistle();
-    const nextServerName = nextServe === 'player1' ? p1Name : p2Name;
-    setLastAction(`${sName} ${t('common.scoreActions.serveMiss', '서브 미스')} | ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes(matchType)}`);
-    setAnnouncement(`${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}. ${nextServerName} ${t('common.matchHistory.serve')}`);
-  }, [match, updateMatch, p1Name, p2Name, matchType, showSideChange, shortWhistle]);
+    const servingPlayer = match.currentServe === 'player1' ? 1 : 2;
+    const sName = servingPlayer === 1 ? p1Name : p2Name;
+    handleIBSAScore(servingPlayer as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`);
+  }, [match.currentServe, p1Name, p2Name, handleIBSAScore, t]);
 
   // Dead Ball - 양쪽 모두 가능
   const handleDeadBall = useCallback((player: 1 | 2) => {
