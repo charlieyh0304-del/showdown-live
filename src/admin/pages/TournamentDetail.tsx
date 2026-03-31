@@ -3673,7 +3673,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                     <button
                       className="btn bg-orange-600 hover:bg-orange-500 text-white text-xs px-3 py-1"
                       onClick={() => openWalkoverModal(match)}
-                      aria-label={t('admin.tournamentDetail.statusTab.walkoverButton')}
+                      aria-label={`${match.type === 'individual' ? `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}` : `${match.team1Name ?? '?'} vs ${match.team2Name ?? '?'}`} ${t('admin.tournamentDetail.statusTab.walkoverButton')}`}
                     >
                       {t('admin.tournamentDetail.statusTab.walkoverButton')}
                     </button>
