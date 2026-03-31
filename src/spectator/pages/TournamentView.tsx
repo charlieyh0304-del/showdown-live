@@ -2984,6 +2984,7 @@ function RefereesTab({
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedRefereeId, setExpandedRefereeId] = useState<string | null>(null);
+  const [matchFilter, setMatchFilter] = useState<'all' | 'in_progress' | 'completed' | 'pending'>('all');
 
   // Build list of referees assigned to this tournament
   const tournamentReferees = useMemo(() => {
@@ -3090,41 +3091,81 @@ function RefereesTab({
                 </div>
               </button>
 
-              {isExpanded && refItem.matches.length > 0 && (
-                <div style={{ marginTop: '0.5rem', paddingLeft: '0.5rem', borderLeft: '3px solid #374151' }} role="list" aria-label={t('spectator.tournament.referees.assignedMatches')}>
-                  {refItem.matches.map(m => {
-                    const isIndividual = m.type === 'individual';
-                    const p1 = isIndividual ? m.player1Name : m.team1Name;
-                    const p2 = isIndividual ? m.player2Name : m.team2Name;
-                    const statusColor = m.status === 'completed' ? '#22c55e' : m.status === 'in_progress' ? '#ef4444' : '#9ca3af';
+              {isExpanded && refItem.matches.length > 0 && (() => {
+                const inProgressMatches = refItem.matches.filter(m => m.status === 'in_progress');
+                const completedMatches = refItem.matches.filter(m => m.status === 'completed');
+                const pendingMatches = refItem.matches.filter(m => m.status !== 'in_progress' && m.status !== 'completed');
+                const filteredMatches = matchFilter === 'all' ? refItem.matches
+                  : matchFilter === 'in_progress' ? inProgressMatches
+                  : matchFilter === 'completed' ? completedMatches
+                  : pendingMatches;
 
-                    return (
-                      <div
-                        key={m.id}
-                        role="listitem"
-                        className="card"
-                        style={{ marginBottom: '0.5rem', padding: '0.75rem', border: '1px solid #374151' }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
-                          <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>
-                            {p1 || '?'} vs {p2 || '?'}
-                          </span>
-                          <span style={{ color: statusColor, fontWeight: 'bold', fontSize: '0.875rem' }}>
-                            {m.status === 'completed' ? t('common.matchStatus.completed')
-                              : m.status === 'in_progress' ? t('common.matchStatus.inProgress')
-                              : t('common.matchStatus.pending')}
-                          </span>
-                        </div>
-                        {m.courtId && (
-                          <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                            {t('spectator.liveMatch.court')}: {m.courtId}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                return (
+                  <div style={{ marginTop: '0.5rem', paddingLeft: '0.5rem', borderLeft: '3px solid #374151' }}>
+                    {/* Status filter tabs */}
+                    <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                      {([
+                        { key: 'all' as const, label: `${t('common.all', '전체')} (${refItem.matches.length})`, color: '#6b7280' },
+                        { key: 'in_progress' as const, label: `${t('common.matchStatus.inProgress')} (${inProgressMatches.length})`, color: '#ef4444' },
+                        { key: 'pending' as const, label: `${t('common.matchStatus.pending')} (${pendingMatches.length})`, color: '#9ca3af' },
+                        { key: 'completed' as const, label: `${t('common.matchStatus.completed')} (${completedMatches.length})`, color: '#22c55e' },
+                      ]).map(tab => (
+                        <button
+                          key={tab.key}
+                          className="btn"
+                          style={{
+                            fontSize: '0.75rem', padding: '4px 10px',
+                            background: matchFilter === tab.key ? tab.color : '#1f2937',
+                            color: matchFilter === tab.key ? '#fff' : '#9ca3af',
+                            border: matchFilter === tab.key ? 'none' : '1px solid #374151',
+                          }}
+                          onClick={() => setMatchFilter(matchFilter === tab.key ? 'all' : tab.key)}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div role="list" aria-label={t('spectator.tournament.referees.assignedMatches')}>
+                      {filteredMatches.length === 0 ? (
+                        <p style={{ color: '#6b7280', fontSize: '0.875rem', textAlign: 'center', padding: '1rem' }}>
+                          {t('common.noResults', '해당 경기가 없습니다')}
+                        </p>
+                      ) : filteredMatches.map(m => {
+                        const isIndividual = m.type === 'individual';
+                        const p1 = isIndividual ? m.player1Name : m.team1Name;
+                        const p2 = isIndividual ? m.player2Name : m.team2Name;
+                        const statusColor = m.status === 'completed' ? '#22c55e' : m.status === 'in_progress' ? '#ef4444' : '#9ca3af';
+
+                        return (
+                          <div
+                            key={m.id}
+                            role="listitem"
+                            className="card"
+                            style={{ marginBottom: '0.5rem', padding: '0.75rem', border: '1px solid #374151' }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                                {p1 || '?'} vs {p2 || '?'}
+                              </span>
+                              <span style={{ color: statusColor, fontWeight: 'bold', fontSize: '0.875rem' }}>
+                                {m.status === 'completed' ? t('common.matchStatus.completed')
+                                  : m.status === 'in_progress' ? t('common.matchStatus.inProgress')
+                                  : t('common.matchStatus.pending')}
+                              </span>
+                            </div>
+                            {m.courtName && (
+                              <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                                {m.courtName}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </li>
           );
         })}
