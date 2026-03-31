@@ -1,9 +1,9 @@
-import { useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatches, useTournament, usePlayers } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
-import type { Match } from '@shared/types';
+import type { Match, TournamentStage } from '@shared/types';
 
 export default function PlayerProfileView() {
   const { tournamentId: rawTournamentId, playerName } = useParams<{ tournamentId: string; playerName: string }>();
@@ -26,19 +26,6 @@ export default function PlayerProfileView() {
       m.team1Name === decodedName || m.team2Name === decodedName
     );
   }, [matches, decodedName]);
-
-  const upcomingMatches = useMemo(() => {
-    return playerMatches
-      .filter(m => m.status === 'pending' || m.status === 'in_progress')
-      .sort((a, b) => {
-        const dateA = a.scheduledDate || '';
-        const dateB = b.scheduledDate || '';
-        if (dateA !== dateB) return dateA.localeCompare(dateB);
-        const timeA = a.scheduledTime || '';
-        const timeB = b.scheduledTime || '';
-        return timeA.localeCompare(timeB);
-      });
-  }, [playerMatches]);
 
   const completedMatches = useMemo(() => {
     return playerMatches
@@ -76,16 +63,6 @@ export default function PlayerProfileView() {
     document.title = decodedName ? t('spectator.playerProfile.pageTitle', { name: decodedName }) : t('spectator.playerProfile.defaultPageTitle');
   }, [decodedName, t]);
 
-  // Group upcoming by date (must be before early returns to maintain hook order)
-  const upcomingDateGroups = useMemo(() => {
-    const dates = [...new Set(upcomingMatches.map(m => m.scheduledDate || ''))].sort();
-    return dates.map(date => ({
-      date,
-      matches: upcomingMatches.filter(m => (m.scheduledDate || '') === date),
-    }));
-  }, [upcomingMatches]);
-
-  const hasMultipleUpcomingDates = upcomingDateGroups.length > 1 || (upcomingDateGroups.length === 1 && upcomingDateGroups[0].date !== '');
 
   if (loading) {
     return (
@@ -177,117 +154,204 @@ export default function PlayerProfileView() {
         </div>
       )}
 
-      {/* Upcoming matches */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem', textAlign: 'center' }}>
-          {t('spectator.playerProfile.upcomingCount', { count: upcomingMatches.length })}
-        </h2>
-        {upcomingMatches.length === 0 ? (
-          <p style={{ color: '#d1d5db', textAlign: 'center' }}>{t('spectator.playerProfile.noUpcoming')}</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {hasMultipleUpcomingDates ? (
-              upcomingDateGroups.map(({ date, matches: dateMatches }) => (
-                <div key={date || 'no-date'}>
-                  <h3 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.5rem' }}>
-                    {date || t('spectator.playerProfile.dateUnspecified')}
-                  </h3>
-                  {dateMatches.map(m => (
-                    <ScheduleMatchCard
+      {/* Matches grouped by stage + status tabs */}
+      <PlayerMatchesByStage
+        playerMatches={playerMatches}
+        stages={tournament.stages}
+        decodedName={decodedName}
+        tournamentId={tournamentId!}
+        navigate={navigate}
+        getOpponent={getOpponent}
+        getMatchResult={getMatchResult}
+      />
+    </div>
+  );
+}
+
+function PlayerMatchesByStage({
+  playerMatches, stages, decodedName, tournamentId, navigate, getOpponent, getMatchResult,
+}: {
+  playerMatches: Match[];
+  stages?: TournamentStage[];
+  decodedName: string;
+  tournamentId: string;
+  navigate: ReturnType<typeof import('react-router-dom').useNavigate>;
+  getOpponent: (m: Match) => string;
+  getMatchResult: (m: Match) => string | null;
+}) {
+  const { t } = useTranslation();
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'pending' | 'completed'>('all');
+
+  const stageMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (stages) {
+      const stageArr = Array.isArray(stages) ? stages : Object.values(stages) as TournamentStage[];
+      stageArr.forEach(s => map.set(s.id, s.name));
+    }
+    return map;
+  }, [stages]);
+
+  const stageGroups = useMemo(() => {
+    // Collect unique stage IDs in order
+    const stageIds: string[] = [];
+    const seen = new Set<string>();
+    for (const m of playerMatches) {
+      const sid = m.stageId || '__none__';
+      if (!seen.has(sid)) { seen.add(sid); stageIds.push(sid); }
+    }
+
+    // Sort: use stage order if available, else keep original
+    if (stages) {
+      const stageArr = Array.isArray(stages) ? stages : Object.values(stages) as TournamentStage[];
+      const orderMap = new Map(stageArr.map(s => [s.id, s.order ?? 0]));
+      stageIds.sort((a, b) => (orderMap.get(a) ?? 999) - (orderMap.get(b) ?? 999));
+    }
+
+    return stageIds.map(sid => ({
+      stageId: sid,
+      stageName: sid === '__none__' ? '' : (stageMap.get(sid) || sid),
+      matches: playerMatches.filter(m => (m.stageId || '__none__') === sid),
+    }));
+  }, [playerMatches, stages, stageMap]);
+
+  const hasStages = stageGroups.length > 1 || (stageGroups.length === 1 && stageGroups[0].stageId !== '__none__');
+
+  const inProgressCount = playerMatches.filter(m => m.status === 'in_progress').length;
+  const pendingCount = playerMatches.filter(m => m.status === 'pending' || (m.status as string) === 'scheduled').length;
+  const completedCount = playerMatches.filter(m => m.status === 'completed').length;
+
+  const filterMatch = (m: Match) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'in_progress') return m.status === 'in_progress';
+    if (statusFilter === 'pending') return m.status === 'pending' || (m.status as string) === 'scheduled';
+    return m.status === 'completed';
+  };
+
+  return (
+    <div>
+      {/* Status filter tabs */}
+      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {([
+          { key: 'all' as const, label: `${t('common.all', '전체')} ${playerMatches.length}`, color: '#6b7280' },
+          { key: 'in_progress' as const, label: `${t('common.matchStatus.inProgress')} ${inProgressCount}`, color: '#ef4444' },
+          { key: 'pending' as const, label: `${t('common.matchStatus.pending')} ${pendingCount}`, color: '#eab308' },
+          { key: 'completed' as const, label: `${t('common.matchStatus.completed')} ${completedCount}`, color: '#22c55e' },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            className="btn"
+            style={{
+              fontSize: '0.8rem', padding: '6px 12px',
+              background: statusFilter === tab.key ? tab.color : '#1f2937',
+              color: statusFilter === tab.key ? '#fff' : '#9ca3af',
+              border: statusFilter === tab.key ? 'none' : '1px solid #374151',
+              fontWeight: statusFilter === tab.key ? 'bold' : 'normal',
+            }}
+            onClick={() => setStatusFilter(statusFilter === tab.key ? 'all' : tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Stage groups */}
+      {stageGroups.map(({ stageId, stageName, matches: stageMatches }) => {
+        const filtered = stageMatches.filter(filterMatch);
+        if (filtered.length === 0) return null;
+
+        return (
+          <div key={stageId} className="card" style={{ marginBottom: '1rem' }}>
+            {hasStages && (
+              <h2 style={{
+                fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '0.75rem',
+                color: '#60a5fa', borderBottom: '2px solid rgba(96,165,250,0.3)', paddingBottom: '0.5rem',
+              }}>
+                {stageName}
+              </h2>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {filtered.map(m => {
+                if (m.status === 'completed') {
+                  return (
+                    <CompletedMatchCard
                       key={m.id}
                       match={m}
+                      decodedName={decodedName}
                       opponent={getOpponent(m)}
+                      result={getMatchResult(m)}
                       navigate={navigate}
-                      tournamentId={tournamentId!}
+                      tournamentId={tournamentId}
                     />
-                  ))}
-                </div>
-              ))
-            ) : (
-              upcomingMatches.map(m => (
-                <ScheduleMatchCard
-                  key={m.id}
-                  match={m}
-                  opponent={getOpponent(m)}
-                  navigate={navigate}
-                  tournamentId={tournamentId!}
-                />
-              ))
-            )}
+                  );
+                }
+                return (
+                  <ScheduleMatchCard
+                    key={m.id}
+                    match={m}
+                    opponent={getOpponent(m)}
+                    navigate={navigate}
+                    tournamentId={tournamentId}
+                  />
+                );
+              })}
+            </div>
           </div>
-        )}
-      </div>
+        );
+      })}
 
-      {/* Completed matches */}
-      <div className="card">
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#22c55e', marginBottom: '0.75rem', textAlign: 'center' }}>
-          {t('spectator.playerProfile.completedCount', { count: completedMatches.length })}
-        </h2>
-        {completedMatches.length === 0 ? (
-          <p style={{ color: '#d1d5db', textAlign: 'center' }}>{t('spectator.playerProfile.noCompleted')}</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {completedMatches.map(m => {
-              const result = getMatchResult(m);
-              const opponent = getOpponent(m);
-              const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
-              const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? countSetWins(m.sets) : { player1: 0, player2: 0 };
-              const mySetWins = isP1 ? setWins.player1 : setWins.player2;
-              const oppSetWins = isP1 ? setWins.player2 : setWins.player1;
-
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => navigate(`/spectator/match/${tournamentId}/${m.id}`)}
-                  style={{
-                    backgroundColor: '#1f2937',
-                    borderRadius: '0.5rem',
-                    padding: '0.75rem',
-                    fontSize: '0.875rem',
-                    width: '100%',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    border: 'none',
-                    color: 'inherit',
-                    display: 'block',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
-                      {m.roundLabel && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>
-                      )}
-                      {m.groupId && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}{t('common.units.group')}</span>
-                      )}
-                    </div>
-                    <span style={{
-                      fontWeight: 'bold',
-                      color: result === t('spectator.playerProfile.win') ? '#22c55e' : '#ef4444',
-                    }}>
-                      {result} ({mySetWins}-{oppSetWins})
-                    </span>
-                  </div>
-                  <div style={{ marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.75rem' }}>
-                    {[m.scheduledDate, m.scheduledTime, m.courtName].filter(Boolean).join(' · ')}
-                  </div>
-                  {Array.isArray(m.sets) && m.sets.length > 0 && (
-                    <div style={{ color: '#d1d5db', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-                      {m.sets.map((s) => {
-                        const myScore = isP1 ? s.player1Score : s.player2Score;
-                        const oppScore = isP1 ? s.player2Score : s.player1Score;
-                        return `${myScore}-${oppScore}`;
-                      }).join(' / ')}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {playerMatches.filter(filterMatch).length === 0 && (
+        <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+          <p style={{ color: '#6b7280' }}>{t('common.noResults', '해당 경기가 없습니다')}</p>
+        </div>
+      )}
     </div>
+  );
+}
+
+function CompletedMatchCard({
+  match: m, decodedName, opponent, result, navigate, tournamentId,
+}: {
+  match: Match; decodedName: string; opponent: string; result: string | null;
+  navigate: ReturnType<typeof import('react-router-dom').useNavigate>; tournamentId: string;
+}) {
+  const { t } = useTranslation();
+  const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
+  const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? countSetWins(m.sets) : { player1: 0, player2: 0 };
+  const mySetWins = isP1 ? setWins.player1 : setWins.player2;
+  const oppSetWins = isP1 ? setWins.player2 : setWins.player1;
+
+  return (
+    <button
+      onClick={() => navigate(`/spectator/match/${tournamentId}/${m.id}`)}
+      style={{
+        backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.75rem',
+        fontSize: '0.875rem', width: '100%', textAlign: 'left',
+        cursor: 'pointer', border: 'none', color: 'inherit', display: 'block',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
+          {m.roundLabel && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>}
+          {m.groupId && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}{t('common.units.group')}</span>}
+        </div>
+        <span style={{ fontWeight: 'bold', color: result === t('spectator.playerProfile.win') ? '#22c55e' : '#ef4444' }}>
+          {result} ({mySetWins}-{oppSetWins})
+        </span>
+      </div>
+      <div style={{ marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.75rem' }}>
+        {[m.scheduledDate, m.scheduledTime, m.courtName].filter(Boolean).join(' · ')}
+      </div>
+      {Array.isArray(m.sets) && m.sets.length > 0 && (
+        <div style={{ color: '#d1d5db', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+          {m.sets.map(s => {
+            const myScore = isP1 ? s.player1Score : s.player2Score;
+            const oppScore = isP1 ? s.player2Score : s.player1Score;
+            return `${myScore}-${oppScore}`;
+          }).join(' / ')}
+        </div>
+      )}
+    </button>
   );
 }
 
