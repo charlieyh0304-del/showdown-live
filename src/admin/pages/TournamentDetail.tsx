@@ -1781,15 +1781,21 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
           >
             {t('admin.tournamentDetail.bracketTab.addMatchButton')}
           </button>
-          {matches.length > 0 && (tournament.status === 'draft' || tournament.status === 'registration') && (
+          {matches.length > 0 && tournament.status !== 'completed' && (
             <button
               className="btn btn-primary"
               onClick={async () => {
-                if (confirm(t('admin.tournamentDetail.bracketTab.confirmBracket', '대진표를 확정하고 대회를 시작하시겠습니까?'))) {
-                  await updateTournament({ status: 'in_progress' });
+                const msg = tournament.status === 'in_progress' || tournament.status === 'paused'
+                  ? t('admin.tournamentDetail.bracketTab.confirmBracketUpdate', '대진표 변경사항을 확정하시겠습니까?')
+                  : t('admin.tournamentDetail.bracketTab.confirmBracket', '대진표를 확정하고 대회를 시작하시겠습니까?');
+                if (confirm(msg)) {
+                  if (tournament.status !== 'in_progress') {
+                    await updateTournament({ status: 'in_progress' });
+                  }
+                  alert(t('admin.tournamentDetail.bracketTab.bracketConfirmed', '대진표가 확정되었습니다.'));
                 }
               }}
-              aria-label={t('admin.tournamentDetail.bracketTab.confirmBracketAriaLabel', '대진표 확정 및 대회 시작')}
+              aria-label={t('admin.tournamentDetail.bracketTab.confirmBracketAriaLabel', '대진표 확정')}
             >
               {t('admin.tournamentDetail.bracketTab.confirmBracketButton', '대진표 확정')}
             </button>
