@@ -25,12 +25,30 @@ function tokenToKey(token: string): string {
 
 interface FavEntry { id: string; name: string }
 
+const PREV_TOKEN_KEY = 'showdown_fcm_prev_token';
+
 async function syncSubscription(token: string, favorites: FavEntry[]) {
   const key = tokenToKey(token);
   const subRef = ref(database, `pushSubscriptions/${key}`);
-  // ID와 이름 모두 저장하여 대회 간 선수 매칭 지원
   const favoriteIds = favorites.map(f => f.id);
   const favoriteNames = favorites.map(f => f.name).filter(n => n && n !== '');
+
+  // 이전 토큰이 다르면 이전 구독 삭제 (토큰 갱신 시 stale 방지)
+  const prevToken = localStorage.getItem(PREV_TOKEN_KEY);
+  if (prevToken && prevToken !== token) {
+    const prevKey = tokenToKey(prevToken);
+    if (prevKey !== key) {
+      try {
+        const { remove: fbRemove } = await import('firebase/database');
+        await fbRemove(ref(database, `pushSubscriptions/${prevKey}`));
+        console.log('[Push] Removed old subscription:', prevKey);
+      } catch (e) {
+        console.warn('[Push] Failed to remove old subscription:', e);
+      }
+    }
+  }
+  localStorage.setItem(PREV_TOKEN_KEY, token);
+
   await set(subRef, {
     token,
     favoriteIds,
