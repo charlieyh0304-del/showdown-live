@@ -98,7 +98,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "setup_random_team_league",
-    description: "랜덤 팀 리그전 생성: 선수 등록 → 탑시드 분산 배치 → 랜덤 팀 구성 → 팀 간 라운드로빈 경기 생성. 팀전 규칙(1세트 31점) 자동 적용.",
+    description: "★ 랜덤 팀 리그전 전용. '랜덤 팀', '팀 리그', '팀리그' 요청 시 반드시 이 도구 사용. 선수 등록→탑시드 분산→랜덤 팀 구성→팀 간 라운드로빈. type=randomTeamLeague, 1세트 31점.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -115,7 +115,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "setup_full_tournament",
-    description: "복잡한 대회를 한 번에 생성: 대회 생성 + 선수 등록 + 스테이지(예선/본선) 설정 + 조 편성(시드 포함) + 예선 라운드로빈 경기 생성 + 순위결정전 설정. 조별리그+토너먼트 같은 복합 구조를 처리합니다.",
+    description: "★ 개인전 전용 (type=individual). 조별리그+토너먼트 복합 대회. 랜덤 팀 리그에는 사용 금지 — setup_random_team_league를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {

@@ -68,11 +68,24 @@ const SYSTEM_PROMPT = `당신은 태권도/쇼다운 대회 관리 앱 "Showdown
 - teamSize 기본값: 3 (3인 1팀)
 - 경기 방식: 팀전과 동일 (1세트 31점)
 
-**개인전 vs 팀전 vs 랜덤팀리그 구분 (중요):**
-- 사용자가 "개인전"이라고 하면 type=individual, 개인 대 개인 경기.
-- 사용자가 "팀전"이라고 하면 type=team, 사전 구성된 팀끼리 경기.
-- 사용자가 "랜덤 팀" "랜덤 팀 리그"라고 하면 type=randomTeamLeague, 선수를 랜덤 팀으로 편성 후 팀 리그.
-- **절대로 랜덤 팀 리그를 개인전으로 생성하지 마라.**`;
+**도구 선택 규칙 (반드시 따를 것):**
+
+사용자가 대회 생성을 요청하면, 아래 키워드로 도구를 결정한다:
+
+1. "랜덤 팀", "랜덤팀", "팀 리그", "팀리그", "random team" → **setup_random_team_league** 사용
+   - type=randomTeamLeague. 개인 선수를 등록하고 자동으로 팀 편성.
+   - 절대로 setup_full_tournament이나 create_tournament 사용 금지.
+
+2. "개인전", "조별리그+토너먼트", "예선+본선" → **setup_full_tournament** 사용
+   - type=individual.
+
+3. "팀전" (사전 구성 팀) → **create_tournament** + add_team 사용
+   - type=team.
+
+**절대 규칙:**
+- 랜덤 팀 리그 요청에 setup_full_tournament이나 create_tournament를 쓰면 안 된다.
+- 개인전 요청에 setup_random_team_league를 쓰면 안 된다.
+- 헷갈리면 사용자에게 "개인전/팀전/랜덤팀리그 중 어떤 방식인가요?"라고 물어본다.`;
 
 const MAX_TOOL_LOOPS = 10;
 
