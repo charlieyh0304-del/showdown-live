@@ -24,8 +24,19 @@ const SYSTEM_PROMPT = `당신은 태권도/쇼다운 대회 관리 앱 "Showdown
 대회 관련 정보:
 - 대회 유형: individual(개인전), team(팀전), randomTeamLeague(랜덤 팀 리그)
 - 대진 방식: round_robin(라운드로빈), single_elimination(싱글엘리미), group_knockout(조별+토너먼트), manual(수동)
-- 경기 설정: winScore(승리 점수), setsToWin(승리 세트 수)
-- 스케줄: 코트별 시간 배정, 경기 간격 설정 가능`;
+- 스케줄: 코트별 시간 배정, 경기 간격 설정 가능
+
+**세트 용어 (중요):**
+- "3세트" = 3세트 경기 = 2세트 선승 (setsToWin=2)
+- "5세트" = 5세트 경기 = 3세트 선승 (setsToWin=3)
+- setsToWin은 "이기는 데 필요한 세트 수"이다. 사용자가 "3세트"라고 하면 setsToWin=2로 설정.
+- simulate_matches 사용 시 setsToWin을 명시하지 않으면 대회 설정값을 자동 사용함.
+- winScore: 세트당 승리 점수 (기본 11)
+
+**본선 대진:**
+- setup_full_tournament는 예선 경기만 자동 생성함.
+- 본선(16강/8강/결승 등)은 예선 완료 후 수동으로 관리 페이지에서 구성해야 함.
+- 본선 경기가 필요하면 add_match 도구로 개별 추가 가능.`;
 
 const MAX_TOOL_LOOPS = 10;
 

@@ -111,7 +111,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
         advancePerGroup: { type: "number", description: "조당 본선 진출자 수 (예: 2)" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수 이름 목록 (각 조에 1명씩 배치)" },
         qualifyingWinScore: { type: "number", description: "예선 승리 점수 (기본 11)" },
-        qualifyingSetsToWin: { type: "number", description: "예선 세트 수 (기본 3)" },
+        qualifyingSetsToWin: { type: "number", description: "예선 승리 세트 수 (3세트=2, 5세트=3, 기본 2)" },
         finalsFormat: { type: "string", enum: ["single_elimination", "double_elimination"], description: "본선 방식 (기본 single_elimination)" },
         thirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
         fifthToEighth: { type: "boolean", description: "5~8위 결정전 (기본 false)" },
@@ -278,15 +278,15 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "simulate_matches",
-    description: "경기 시뮬레이션: pending 상태인 경기들을 랜덤 점수로 완료 처리. 테스트/데모용. stageId나 groupId로 필터 가능.",
+    description: "경기 시뮬레이션: pending 상태인 경기들을 랜덤 점수로 완료 처리. setsToWin 미지정 시 대회 설정값 자동 사용. 3세트=setsToWin:2, 5세트=setsToWin:3.",
     input_schema: {
       type: "object" as const,
       properties: {
         tournamentId: { type: "string" },
         stageId: { type: "string", description: "특정 스테이지만 (선택)" },
         groupId: { type: "string", description: "특정 조만 (선택)" },
-        winScore: { type: "number", description: "승리 점수 (기본 11)" },
-        setsToWin: { type: "number", description: "승리 세트 수 (기본 3)" },
+        winScore: { type: "number", description: "세트당 승리 점수 (미지정 시 대회 설정 사용)" },
+        setsToWin: { type: "number", description: "승리 세트 수: 3세트=2, 5세트=3 (미지정 시 대회 설정 사용)" },
       },
       required: ["tournamentId"],
     },
@@ -436,7 +436,7 @@ export async function executeTool(
         const advancePerGroup = (input.advancePerGroup as number) || 2;
         const seeds = (input.seeds as string[]) || [];
         const qualWinScore = (input.qualifyingWinScore as number) || 11;
-        const qualSetsToWin = (input.qualifyingSetsToWin as number) || 3;
+        const qualSetsToWin = (input.qualifyingSetsToWin as number) || 2;
         const finalsFormat = (input.finalsFormat as string) || "single_elimination";
         const thirdPlace = input.thirdPlace !== false;
         const fifthToEighth = (input.fifthToEighth as boolean) || false;
@@ -739,10 +739,15 @@ export async function executeTool(
       // --- Write: Schedule (고급) ---
       case "simulate_matches": {
         const tid = input.tournamentId as string;
-        const winScore = (input.winScore as number) || 11;
-        const setsToWin = (input.setsToWin as number) || 3;
         const stageId = input.stageId as string | undefined;
         const groupId = input.groupId as string | undefined;
+
+        // 대회 설정에서 세트 수/점수 자동 로드
+        const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
+        const tourData = tourSnap.exists() ? tourSnap.val() as Record<string, unknown> : {};
+        const gameConfig = tourData.gameConfig as { winScore?: number; setsToWin?: number } | undefined;
+        const winScore = (input.winScore as number) || gameConfig?.winScore || 11;
+        const setsToWin = (input.setsToWin as number) || gameConfig?.setsToWin || 2;
 
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
