@@ -4006,9 +4006,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 {allDone && stage.type === 'qualifying' && (
                   <div className="mt-3 space-y-2">
                     <p className="text-green-400 text-sm font-semibold">{t('admin.tournamentDetail.statusTab.qualifyingDone')}</p>
-                    <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} aria-label={t('admin.tournamentDetail.statusTab.createFinalsBracket')}>
-                      {t('admin.tournamentDetail.statusTab.createFinalsBracket')}
-                    </button>
+                    {tournament.type !== 'randomTeamLeague' && (
+                      <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} aria-label={t('admin.tournamentDetail.statusTab.createFinalsBracket')}>
+                        {t('admin.tournamentDetail.statusTab.createFinalsBracket')}
+                      </button>
+                    )}
                   </div>
                 )}
                 {allDone && stage.type === 'finals' && (

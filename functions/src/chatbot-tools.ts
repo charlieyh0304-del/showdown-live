@@ -1299,7 +1299,7 @@ export async function executeTool(
           bulk[`matches/${tid}/${mid}/currentSet`] = sets.length - 1;
           bulk[`matches/${tid}/${mid}/status`] = "completed";
           bulk[`matches/${tid}/${mid}/winnerId`] = winnerId;
-          bulk[`matches/${tid}/${mid}/scoreHistory`] = history;
+          bulk[`matches/${tid}/${mid}/scoreHistory`] = history.reverse(); // newest first (앱 형식과 동일)
           bulk[`matches/${tid}/${mid}/updatedAt`] = now;
         }
 
