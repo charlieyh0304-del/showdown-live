@@ -235,16 +235,40 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
+  // Long press → 패널 열기 + 음성 입력 바로 시작
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handlePointerDown = useCallback(() => {
+    longPressTimer.current = setTimeout(() => {
+      setIsOpen(true);
+      setTimeout(() => startListening(), 200);
+      longPressTimer.current = null;
+    }, 500);
+  }, [startListening]);
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      openChat(); // 짧은 탭 → 일반 열기
+    }
+  }, [openChat]);
+  const handlePointerCancel = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }, []);
+
   if (!isOpen) {
     return (
       <>
       <div aria-live="polite" className="sr-only">
-        {config.title} 닫힘. 버튼을 눌러 열 수 있습니다.
+        {config.title} 닫힘. 버튼을 눌러 열 수 있습니다. 길게 누르면 음성 입력이 시작됩니다.
       </div>
       <button
-        onClick={openChat}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onContextMenu={e => e.preventDefault()}
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110"
-        aria-label={`${config.title} (Ctrl+K)`} title={`${config.title} (Ctrl+K)`}
+        aria-label={`${config.title} — 탭: 열기, 길게 누르기: 음성 입력`}
+        title={`${config.title} — 길게 누르면 음성 입력`}
         style={{ minWidth: '56px', minHeight: '56px' }}
       >
         {config.icon === '🤖' ? '💬' : config.icon}
