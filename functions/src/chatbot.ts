@@ -86,7 +86,7 @@ export const chatbot = onRequest(
     const actions: Array<{ tool: string; input: Record<string, unknown>; result: string }> = [];
 
     // Retry with model fallback on overload
-    const MODELS = ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"];
+    const MODELS = ["claude-haiku-4-5-20251001"];
     const MAX_RETRIES = 2;
 
     async function callClaude(msgs: Anthropic.MessageParam[], model: string): Promise<Anthropic.Message> {
