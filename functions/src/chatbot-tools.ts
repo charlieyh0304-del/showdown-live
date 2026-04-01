@@ -1253,35 +1253,46 @@ export async function executeTool(
           const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
           results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
-          // scoreHistory 생성 (경기 기록지 + 관람 화면용)
+          // scoreHistory 생성 — 득점 과정 시뮬레이션
           const p1n = (match.player1Name || match.team1Name || "P1") as string;
           const p2n = (match.player2Name || match.team2Name || "P2") as string;
+          // p1id/p2id는 winnerId에서 이미 사용
           const history: Array<Record<string, unknown>> = [];
+          let t = now;
+
+          // 경기 시작
+          history.push({
+            time: new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+            set: 1, scoringPlayer: "", actionPlayer: "",
+            actionType: "match_start", actionLabel: "경기 시작",
+            points: 0, server: p1n, serveNumber: 1,
+            scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },
+            serverSide: "player1",
+          });
+
           for (let si = 0; si < sets.length; si++) {
             const s = sets[si];
-            const setWinnerName = s.player1Score > s.player2Score ? p1n : p2n;
-            // 경기 시작
-            if (si === 0) {
+            // 세트 내 득점 과정 (2점 골 위주)
+            let sc1 = 0, sc2 = 0;
+            while (sc1 < s.player1Score || sc2 < s.player2Score) {
+              t += 15000 + Math.floor(Math.random() * 30000); // 15~45초 간격
+              const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
+              const pts = Math.random() < 0.7 ? 2 : 1; // 70% 골(2점), 30% 파울(1점)
+              const prevSc = { player1: sc1, player2: sc2 };
+              if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); }
+              else { sc2 = Math.min(sc2 + pts, s.player2Score); }
+              const scorer = p1Turn ? p1n : p2n;
               history.push({
-                time: new Date(now + si * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-                set: si + 1, scoringPlayer: "", actionPlayer: "",
-                actionType: "match_start", actionLabel: "경기 시작",
-                points: 0, server: p1n, serveNumber: 1,
-                scoreBefore: { player1: 0, player2: 0 },
-                scoreAfter: { player1: 0, player2: 0 },
+                time: new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+                set: si + 1, scoringPlayer: scorer, actionPlayer: scorer,
+                actionType: pts === 2 ? "goal" : "foul",
+                actionLabel: pts === 2 ? `${scorer} 골 +2` : `${scorer} 파울 +1`,
+                points: pts, server: p1n, serveNumber: 1,
+                scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 },
                 serverSide: "player1",
               });
+              if (history.length > 80) break; // 안전 제한
             }
-            // 세트 결과
-            history.push({
-              time: new Date(now + (si + 1) * 60000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-              set: si + 1, scoringPlayer: setWinnerName, actionPlayer: setWinnerName,
-              actionType: "goal", actionLabel: `세트${si + 1} 종료 (${s.player1Score}:${s.player2Score})`,
-              points: 0, server: p1n, serveNumber: 1,
-              scoreBefore: { player1: 0, player2: 0 },
-              scoreAfter: { player1: s.player1Score, player2: s.player2Score },
-              serverSide: "player1",
-            });
           }
 
           bulk[`matches/${tid}/${mid}/sets`] = sets;
@@ -1391,7 +1402,13 @@ export async function executeTool(
         const rankingConfig2 = tour2.rankingMatchConfig as Record<string, unknown> | undefined;
         const stages2 = (tour2.stages || []) as Array<Record<string, unknown>>;
         const qualStage2 = stages2.find(s => s.type === "qualifying");
-        const finalsStageId2 = (stages2.find(s => s.type === "finals")?.id as string) || `stage_finals_${tid}`;
+        let finalsStageId2 = stages2.find(s => s.type === "finals")?.id as string | undefined;
+        if (!finalsStageId2) {
+          // finals 스테이지가 없으면 자동 생성
+          finalsStageId2 = `stage_finals_${tid}`;
+          const newStages = [...stages2, { id: finalsStageId2, type: "finals", format: "single_elimination", status: "pending" }];
+          await db.ref(`tournaments/${tid}/stages`).set(newStages);
+        }
         const advancePerGroup2 = (input.advancePerGroup as number) || (finalsConfig2?.advancePerGroup as number) || 2;
         const includeThirdPlace2 = input.includeThirdPlace !== false && (rankingConfig2?.thirdPlace !== false);
         const includeFifthToEighth2 = (input.includeFifthToEighth as boolean) || (rankingConfig2?.fifthToEighth as boolean) || false;

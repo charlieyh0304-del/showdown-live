@@ -2654,7 +2654,13 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         </div>
       ) : (
         <div className="space-y-3" role="list" aria-label={`${t('admin.tournamentDetail.bracketTab.title')} (${matches.length})`}>
-          {matches.map((match, matchIdx) => (
+          {[...matches].sort((a, b) => {
+            // 예선(groupId 있음) → 본선(stageId에 finals) → 기타
+            const aIsQual = a.groupId ? 0 : 1;
+            const bIsQual = b.groupId ? 0 : 1;
+            if (aIsQual !== bIsQual) return aIsQual - bIsQual;
+            return (a.createdAt ?? 0) - (b.createdAt ?? 0);
+          }).map((match, matchIdx) => (
             <div key={match.id} className="card space-y-3" role="listitem" aria-setsize={matches.length} aria-posinset={matchIdx + 1}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
