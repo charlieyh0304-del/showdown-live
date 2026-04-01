@@ -204,15 +204,21 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // --- Write: Schedule ---
   {
     name: "generate_schedule",
-    description: "스케줄 자동 생성. 경기들을 코트/시간에 배정.",
+    description: "고급 스케줄 자동 생성. 선수 휴식 시간, 연속 경기 방지, 점심시간 제외, 마감/다음날 시작 등 복잡한 조건 지원.",
     input_schema: {
       type: "object" as const,
       properties: {
         tournamentId: { type: "string" },
         startTime: { type: "string", description: "HH:MM (기본 09:00)" },
-        endTime: { type: "string", description: "HH:MM (기본 23:00)" },
+        endTime: { type: "string", description: "HH:MM (기본 19:00)" },
         intervalMinutes: { type: "number", description: "경기 간격 분 (기본 30)" },
-        scheduleDate: { type: "string", description: "YYYY-MM-DD" },
+        playerRestMinutes: { type: "number", description: "선수당 최소 휴식 시간 분 (기본 60, 연속 경기 방지)" },
+        scheduleDate: { type: "string", description: "YYYY-MM-DD 시작 날짜" },
+        nextDayStartTime: { type: "string", description: "다음날 시작 시간 HH:MM (기본 09:00)" },
+        breakStart: { type: "string", description: "휴식 시작 HH:MM (예: 12:00 점심)" },
+        breakEnd: { type: "string", description: "휴식 종료 HH:MM (예: 13:00)" },
+        stageFilter: { type: "string", description: "stageId 필터 (예선/본선 구분, 선택)" },
+        onlyUnassigned: { type: "boolean", description: "미배정 경기만 (기본 false)" },
       },
       required: ["tournamentId"],
     },
@@ -471,77 +477,214 @@ export async function executeTool(
         return JSON.stringify({ success: true, count: matches.length, message: `${matches.length}경기 라운드로빈 생성 완료` });
       }
 
-      // --- Write: Schedule ---
+      // --- Write: Schedule (고급) ---
       case "generate_schedule": {
         const tid = input.tournamentId as string;
         const startTime = (input.startTime as string) || "09:00";
-        const endTime = (input.endTime as string) || "23:00";
+        const endTime = (input.endTime as string) || "19:00";
         const interval = (input.intervalMinutes as number) || 30;
+        const playerRest = (input.playerRestMinutes as number) || 60;
         const scheduleDate = (input.scheduleDate as string) || new Date().toISOString().split("T")[0];
+        const nextDayStart = (input.nextDayStartTime as string) || startTime;
+        const breakStartStr = input.breakStart as string | undefined;
+        const breakEndStr = input.breakEnd as string | undefined;
+        const stageFilter = input.stageFilter as string | undefined;
+        const onlyUnassigned = (input.onlyUnassigned as boolean) || false;
 
-        const [sh, sm] = startTime.split(":").map(Number);
-        const [eh, em] = endTime.split(":").map(Number);
-        const dayStart = sh * 60 + sm;
-        const dayEnd = eh * 60 + em;
+        const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+        const dayStart = toMin(startTime);
+        const dayEnd = toMin(endTime);
+        const nextDayStartMin = toMin(nextDayStart);
+        const breakStart = breakStartStr ? toMin(breakStartStr) : -1;
+        const breakEnd = breakEndStr ? toMin(breakEndStr) : -1;
 
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
         const courtsSnap = await db.ref("courts").once("value");
         if (!courtsSnap.exists()) return JSON.stringify({ error: "코트가 없습니다." });
 
-        const matchList = Object.entries(matchesSnap.val())
-          .map(([id, v]) => ({ id, ...(v as Record<string, unknown>) }))
-          .filter((m: Record<string, unknown>) => m.status === "pending");
+        type MatchEntry = Record<string, unknown> & { id: string };
+        let matchList: MatchEntry[] = Object.entries(matchesSnap.val())
+          .map(([id, v]) => ({ id, ...(v as Record<string, unknown>) }));
+
+        // 필터: 미배정만 or pending만
+        if (onlyUnassigned) {
+          matchList = matchList.filter((m) =>
+            (m.status === "pending" || m.status === "in_progress") && !m.scheduledDate);
+        } else {
+          matchList = matchList.filter((m) => m.status === "pending" || m.status === "in_progress");
+        }
+
+        // 스테이지 필터
+        if (stageFilter) {
+          matchList = matchList.filter((m) => m.stageId === stageFilter);
+        }
+
+        if (matchList.length === 0) return JSON.stringify({ error: "배정할 경기가 없습니다." });
+
         const courtList = Object.entries(courtsSnap.val()).map(([id, v]) => ({ id, ...(v as { name: string }) }));
 
-        const courtSlots = courtList.map((c) => ({ ...c, time: dayStart, date: scheduleDate }));
+        // 코트별 다음 가용 시간
+        const courtSlots = courtList.map((c) => ({ courtId: c.id, courtName: c.name, date: scheduleDate, time: dayStart }));
+
+        // 선수별 마지막 종료 시간 (연속 경기 방지)
+        const playerLastEnd = new Map<string, { date: string; time: number }>();
+
+        // 경기에서 선수 ID 추출
+        const getPlayerIds = (m: Record<string, unknown>): string[] => {
+          const ids: string[] = [];
+          if (m.player1Id) ids.push(m.player1Id as string);
+          if (m.player2Id) ids.push(m.player2Id as string);
+          if (m.team1Id) ids.push(m.team1Id as string);
+          if (m.team2Id) ids.push(m.team2Id as string);
+          return ids;
+        };
+
+        // 시간이 휴식 시간에 걸리면 휴식 끝으로 밀기
+        const skipBreak = (time: number): number => {
+          if (breakStart >= 0 && breakEnd >= 0 && time >= breakStart && time < breakEnd) {
+            return breakEnd;
+          }
+          return time;
+        };
+
         const slots: Record<string, unknown>[] = [];
+        let skippedCount = 0;
 
         for (const match of matchList) {
-          let bestIdx = 0;
-          let bestTime = courtSlots[0].time;
+          const playerIds = getPlayerIds(match);
+          let bestCourtIdx = -1;
+          let bestDate = scheduleDate;
+          let bestTime = Infinity;
+
+          // 각 코트에서 가장 빠른 가용 시간 찾기
           for (let ci = 0; ci < courtSlots.length; ci++) {
-            if (courtSlots[ci].time < bestTime) {
-              bestTime = courtSlots[ci].time;
-              bestIdx = ci;
+            const court = courtSlots[ci];
+            let candidateDate = court.date;
+            let candidateTime = skipBreak(court.time);
+
+            // 선수 휴식 시간 확인
+            for (const pid of playerIds) {
+              const last = playerLastEnd.get(pid);
+              if (last) {
+                if (last.date === candidateDate && last.time > candidateTime) {
+                  candidateTime = skipBreak(last.time);
+                } else if (last.date > candidateDate) {
+                  candidateDate = last.date;
+                  candidateTime = skipBreak(Math.max(nextDayStartMin, last.time));
+                }
+              }
+            }
+
+            // 휴식 시간 재확인
+            candidateTime = skipBreak(candidateTime);
+
+            // 마감 초과 시 다음날로
+            if (candidateTime >= dayEnd) {
+              candidateDate = addDays(candidateDate, 1);
+              candidateTime = nextDayStartMin;
+              candidateTime = skipBreak(candidateTime);
+            }
+
+            const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
+            const bestTotal = new Date(bestDate).getTime() + bestTime;
+            if (bestCourtIdx === -1 || candidateTotal < bestTotal) {
+              bestCourtIdx = ci;
+              bestDate = candidateDate;
+              bestTime = candidateTime;
             }
           }
-          const court = courtSlots[bestIdx];
-          if (court.time >= dayEnd) {
-            court.date = addDays(court.date, 1);
-            court.time = dayStart;
-          }
-          const timeStr = `${String(Math.floor(court.time / 60)).padStart(2, "0")}:${String(court.time % 60).padStart(2, "0")}`;
 
-          const label = `${(match as Record<string, unknown>).player1Name || (match as Record<string, unknown>).team1Name || ""} vs ${(match as Record<string, unknown>).player2Name || (match as Record<string, unknown>).team2Name || ""}`;
+          if (bestCourtIdx === -1) { skippedCount++; continue; }
+
+          // 마감 재확인
+          if (bestTime >= dayEnd) {
+            bestDate = addDays(bestDate, 1);
+            bestTime = skipBreak(nextDayStartMin);
+          }
+
+          const court = courtSlots[bestCourtIdx];
+          const timeStr = fmtMin(bestTime);
+          const label = `${match.player1Name || match.team1Name || ""} vs ${match.player2Name || match.team2Name || ""}`;
 
           slots.push({
             matchId: match.id,
-            courtId: court.id,
-            courtName: court.name,
+            courtId: court.courtId,
+            courtName: court.courtName,
             scheduledTime: timeStr,
-            scheduledDate: court.date,
+            scheduledDate: bestDate,
             label,
-            status: "pending",
+            status: match.status || "pending",
           });
 
+          // Firebase 경기 업데이트
           await db.ref(`matches/${tid}/${match.id}`).update({
             scheduledTime: timeStr,
-            scheduledDate: court.date,
-            courtId: court.id,
-            courtName: court.name,
+            scheduledDate: bestDate,
+            courtId: court.courtId,
+            courtName: court.courtName,
           });
 
-          court.time += interval;
+          // 코트 다음 가용 시간 업데이트
+          const courtEndTime = bestTime + interval;
+          if (courtEndTime >= dayEnd) {
+            court.date = addDays(bestDate, 1);
+            court.time = nextDayStartMin;
+          } else {
+            court.date = bestDate;
+            court.time = courtEndTime;
+          }
+
+          // 선수 마지막 종료 시간 업데이트 (playerRest 적용)
+          const playerEndTime = bestTime + playerRest;
+          const playerEnd = playerEndTime >= dayEnd
+            ? { date: addDays(bestDate, 1), time: nextDayStartMin }
+            : { date: bestDate, time: playerEndTime };
+          for (const pid of playerIds) {
+            playerLastEnd.set(pid, playerEnd);
+          }
         }
 
-        // Write schedule bulk
-        await db.ref(`schedule/${tid}`).remove();
-        for (const slot of slots) {
-          await db.ref(`schedule/${tid}`).push().set(slot);
+        // 스케줄 저장
+        if (onlyUnassigned) {
+          // 기존 유지 + 새 슬롯 추가
+          const existingSnap = await db.ref(`schedule/${tid}`).once("value");
+          const existingSlots: Record<string, unknown>[] = [];
+          if (existingSnap.exists()) {
+            existingSnap.forEach((child) => {
+              existingSlots.push(child.val());
+            });
+          }
+          await db.ref(`schedule/${tid}`).remove();
+          for (const slot of [...existingSlots, ...slots]) {
+            await db.ref(`schedule/${tid}`).push().set(slot);
+          }
+        } else {
+          await db.ref(`schedule/${tid}`).remove();
+          for (const slot of slots) {
+            await db.ref(`schedule/${tid}`).push().set(slot);
+          }
         }
 
-        return JSON.stringify({ success: true, count: slots.length, message: `${slots.length}경기 스케줄 생성 완료` });
+        // 결과 요약
+        const dates = [...new Set(slots.map((s) => s.scheduledDate as string))].sort();
+        const summary = dates.map((d) => {
+          const daySlots = slots.filter((s) => s.scheduledDate === d);
+          const times = daySlots.map((s) => s.scheduledTime as string).sort();
+          return `${d}: ${daySlots.length}경기 (${times[0]}~${times[times.length - 1]})`;
+        }).join(", ");
+
+        return JSON.stringify({
+          success: true,
+          count: slots.length,
+          skipped: skippedCount,
+          dates: dates.length,
+          summary,
+          settings: { interval, playerRest, breakTime: breakStartStr ? `${breakStartStr}-${breakEndStr}` : "없음", endTime },
+          message: `${slots.length}경기 스케줄 생성 완료 (${dates.length}일, 선수 휴식 ${playerRest}분, 경기 간격 ${interval}분${breakStartStr ? `, 점심 ${breakStartStr}-${breakEndStr}` : ""})`,
+        });
       }
 
       case "shift_schedule": {

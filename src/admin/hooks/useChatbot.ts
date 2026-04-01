@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
 
-interface ChatMessage {
+export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  timestamp: number;
+  actions?: ChatAction[];
 }
 
-interface ChatAction {
+export interface ChatAction {
   tool: string;
   input: Record<string, unknown>;
   result: string;
@@ -17,15 +19,21 @@ export function useChatbot(tournamentId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastActions, setLastActions] = useState<ChatAction[]>([]);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const sendMessage = useCallback(async (text: string) => {
-    const userMsg: ChatMessage = { role: 'user', content: text };
+    const userMsg: ChatMessage = { role: 'user', content: text, timestamp: Date.now() };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setIsLoading(true);
     setError(null);
+    setElapsedSec(0);
+
+    // Elapsed timer
+    const start = Date.now();
+    timerRef.current = setInterval(() => setElapsedSec(Math.floor((Date.now() - start) / 1000)), 1000);
 
     abortRef.current = new AbortController();
 
@@ -33,7 +41,10 @@ export function useChatbot(tournamentId?: string) {
       const res = await fetch(FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updatedMessages, tournamentId }),
+        body: JSON.stringify({
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          tournamentId,
+        }),
         signal: abortRef.current.signal,
       });
 
@@ -43,25 +54,31 @@ export function useChatbot(tournamentId?: string) {
       }
 
       const data = await res.json();
-      const assistantMsg: ChatMessage = { role: 'assistant', content: data.reply };
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: data.reply,
+        timestamp: Date.now(),
+        actions: data.actions || [],
+      };
       setMessages(prev => [...prev, assistantMsg]);
-      setLastActions(data.actions || []);
     } catch (err: unknown) {
       if ((err as Error).name === 'AbortError') return;
       const msg = (err as Error).message || 'AI 요청 실패';
       setError(msg);
-      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ 오류: ${msg}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ 오류: ${msg}`, timestamp: Date.now() }]);
     } finally {
       setIsLoading(false);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
   }, [messages, tournamentId]);
 
   const clearChat = useCallback(() => {
     abortRef.current?.abort();
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setMessages([]);
     setError(null);
-    setLastActions([]);
+    setElapsedSec(0);
   }, []);
 
-  return { messages, isLoading, error, lastActions, sendMessage, clearChat };
+  return { messages, isLoading, error, elapsedSec, sendMessage, clearChat };
 }
