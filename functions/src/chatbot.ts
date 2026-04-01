@@ -48,8 +48,31 @@ const SYSTEM_PROMPT = `당신은 태권도/쇼다운 대회 관리 앱 "Showdown
 
 **본선 대진:**
 - setup_full_tournament는 예선 경기만 자동 생성.
-- 예선 완료 후 generate_finals 도구로 본선 대진을 자동 생성 (조별 순위 계산 → 진출자 추출 → 교차 시드 배치 → 16강/8강/결승 + 순위결정전).
-- 워크플로우: setup_full_tournament → simulate_matches(예선) → generate_finals → simulate_matches(본선)`;
+- 예선 완료 후 generate_finals 도구로 본선 대진을 자동 생성.
+- 워크플로우: setup_full_tournament → simulate_matches(예선) → generate_finals → simulate_matches(본선)
+
+**팀전 (type=team):**
+- 팀 대 팀으로 경기. 팀원 3~6명으로 구성.
+- 팀전 경기: 1세트, 31점 선취 (2점 차). setsToWin=1, winScore=31.
+- teamMatchSettings: { setsToWin: 1, winScore: 31, minLead: 2 }
+- 팀전 시뮬레이션: simulate_matches에 setsToWin=1, winScore=31 전달.
+
+**랜덤 팀 리그전 (type=randomTeamLeague):**
+- 개인 선수를 등록한 뒤, 랜덤으로 팀을 구성하여 팀전 리그를 진행.
+- 워크플로우: setup_random_team_league 도구 사용.
+  1. 선수 등록
+  2. 탑시드 선수를 각 팀에 1명씩 분배 (강자 분산)
+  3. 나머지 선수 랜덤 배정 (성별 비율 고려)
+  4. 팀 간 라운드로빈 경기 자동 생성
+- 탑시드 규칙: 시드 1번→팀1, 시드 2번→팀2, ... (각 팀에 최대 1명)
+- teamSize 기본값: 3 (3인 1팀)
+- 경기 방식: 팀전과 동일 (1세트 31점)
+
+**개인전 vs 팀전 vs 랜덤팀리그 구분 (중요):**
+- 사용자가 "개인전"이라고 하면 type=individual, 개인 대 개인 경기.
+- 사용자가 "팀전"이라고 하면 type=team, 사전 구성된 팀끼리 경기.
+- 사용자가 "랜덤 팀" "랜덤 팀 리그"라고 하면 type=randomTeamLeague, 선수를 랜덤 팀으로 편성 후 팀 리그.
+- **절대로 랜덤 팀 리그를 개인전으로 생성하지 마라.**`;
 
 const MAX_TOOL_LOOPS = 10;
 

@@ -97,6 +97,23 @@ export const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: "setup_random_team_league",
+    description: "랜덤 팀 리그전 생성: 선수 등록 → 탑시드 분산 배치 → 랜덤 팀 구성 → 팀 간 라운드로빈 경기 생성. 팀전 규칙(1세트 31점) 자동 적용.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "대회 이름" },
+        date: { type: "string", description: "시작일 YYYY-MM-DD" },
+        endDate: { type: "string", description: "종료일 (선택)" },
+        players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, gender: { type: "string", enum: ["male", "female", ""] } }, required: ["name"] } },
+        teamSize: { type: "number", description: "팀당 인원 (기본 3)" },
+        seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수 이름 (각 팀에 1명씩 분산)" },
+        winScore: { type: "number", description: "팀전 승리 점수 (기본 31)" },
+      },
+      required: ["name", "date", "players"],
+    },
+  },
+  {
     name: "setup_full_tournament",
     description: "복잡한 대회를 한 번에 생성: 대회 생성 + 선수 등록 + 스테이지(예선/본선) 설정 + 조 편성(시드 포함) + 예선 라운드로빈 경기 생성 + 순위결정전 설정. 조별리그+토너먼트 같은 복합 구조를 처리합니다.",
     input_schema: {
@@ -542,6 +559,133 @@ export async function executeTool(
         return JSON.stringify({ success: true, tournamentId: newRef.key, message: `대회 "${data.name}" 생성 완료` });
       }
 
+      case "setup_random_team_league": {
+        const now = Date.now();
+        const rtPlayers = input.players as Array<{ name: string; gender?: string }>;
+        const rtTeamSize = (input.teamSize as number) || 3;
+        const rtSeeds = (input.seeds as string[]) || [];
+        const rtWinScore = (input.winScore as number) || 31;
+
+        if (!rtPlayers || rtPlayers.length < rtTeamSize) return JSON.stringify({ error: `최소 ${rtTeamSize}명의 선수가 필요합니다.` });
+
+        // 중복 검사
+        const rtNameSet = new Set<string>();
+        for (const p of rtPlayers) {
+          if (rtNameSet.has(p.name)) return JSON.stringify({ error: `중복 선수명: ${p.name}` });
+          rtNameSet.add(p.name);
+        }
+        const rtInvalidSeeds = rtSeeds.filter(s => !rtNameSet.has(s));
+        if (rtInvalidSeeds.length > 0) return JSON.stringify({ error: `시드 선수를 찾을 수 없습니다: ${rtInvalidSeeds.join(", ")}` });
+
+        const teamCount = Math.floor(rtPlayers.length / rtTeamSize);
+        if (teamCount < 2) return JSON.stringify({ error: `최소 2팀이 필요합니다. (선수 ${rtPlayers.length}명 / 팀 크기 ${rtTeamSize} = ${teamCount}팀)` });
+
+        // 1. 대회 생성
+        const rtRef = db.ref("tournaments").push();
+        const rtTid = rtRef.key!;
+        const rtDate = (input.date as string) || new Date().toISOString().split("T")[0];
+
+        await rtRef.set({
+          name: input.name || "랜덤 팀 리그",
+          date: rtDate,
+          ...(input.endDate ? { endDate: input.endDate } : {}),
+          type: "randomTeamLeague",
+          format: "full_league",
+          formatType: "round_robin",
+          status: "draft",
+          gameConfig: { winScore: rtWinScore, setsToWin: 1 },
+          teamMatchSettings: { winScore: rtWinScore, setsToWin: 1, minLead: 2 },
+          teamRules: { teamSize: rtTeamSize, rotationEnabled: false },
+          createdAt: now, updatedAt: now,
+        });
+
+        // 2. 선수 등록
+        const rtBulk: Record<string, unknown> = {};
+        const rtPlayerMap = new Map<string, string>();
+        for (const p of rtPlayers) {
+          const key = db.ref(`tournamentPlayers/${rtTid}`).push().key!;
+          rtBulk[`tournamentPlayers/${rtTid}/${key}`] = { name: p.name, gender: p.gender || "", club: "", class: "", createdAt: now };
+          rtPlayerMap.set(p.name, key);
+        }
+
+        // 3. 팀 구성 (탑시드 분산 + 나머지 랜덤)
+        const rtTeams: Array<{ id: string; name: string; memberIds: string[]; memberNames: string[] }> = [];
+        for (let i = 0; i < teamCount; i++) {
+          rtTeams.push({ id: `team_${i + 1}`, name: `${i + 1}팀`, memberIds: [], memberNames: [] });
+        }
+
+        // 시드 배치: 각 팀에 1명씩
+        const rtSeedSet = new Set<string>();
+        for (let i = 0; i < Math.min(rtSeeds.length, teamCount); i++) {
+          const sid = rtPlayerMap.get(rtSeeds[i]);
+          if (sid) {
+            rtTeams[i].memberIds.push(sid);
+            rtTeams[i].memberNames.push(rtSeeds[i]);
+            rtSeedSet.add(rtSeeds[i]);
+          }
+        }
+
+        // 나머지 선수 랜덤 배정 (스네이크)
+        const rtRemaining = rtPlayers.filter(p => !rtSeedSet.has(p.name)).sort(() => Math.random() - 0.5);
+        let rtIdx = 0;
+        for (const p of rtRemaining) {
+          // 가장 적은 팀에 배정
+          const minTeam = rtTeams.reduce((a, b) => a.memberIds.length <= b.memberIds.length ? a : b);
+          if (minTeam.memberIds.length >= rtTeamSize) break; // 모든 팀 꽉 참
+          const pid = rtPlayerMap.get(p.name)!;
+          minTeam.memberIds.push(pid);
+          minTeam.memberNames.push(p.name);
+          rtIdx++;
+        }
+
+        // 팀 저장
+        for (const team of rtTeams) {
+          rtBulk[`teams/${rtTid}/${team.id}`] = { name: team.name, memberIds: team.memberIds, memberNames: team.memberNames, createdAt: now };
+        }
+
+        // 4. 팀 간 라운드로빈 경기 생성
+        let rtMatchCount = 0;
+        for (let i = 0; i < rtTeams.length; i++) {
+          for (let j = i + 1; j < rtTeams.length; j++) {
+            const mKey = db.ref(`matches/${rtTid}`).push().key!;
+            rtBulk[`matches/${rtTid}/${mKey}`] = {
+              tournamentId: rtTid,
+              type: "team",
+              status: "pending",
+              round: rtMatchCount + 1,
+              team1Id: rtTeams[i].id,
+              team2Id: rtTeams[j].id,
+              team1Name: rtTeams[i].name,
+              team2Name: rtTeams[j].name,
+              team1: { memberIds: rtTeams[i].memberIds, memberNames: rtTeams[i].memberNames },
+              team2: { memberIds: rtTeams[j].memberIds, memberNames: rtTeams[j].memberNames },
+              sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+              currentSet: 0,
+              player1Timeouts: 0,
+              player2Timeouts: 0,
+              winnerId: null,
+              createdAt: now + rtMatchCount,
+            };
+            rtMatchCount++;
+          }
+        }
+
+        await db.ref().update(rtBulk);
+
+        const rtTeamSummary = rtTeams.map(t => `${t.name}: ${t.memberNames.join(", ")}`).join("\n");
+        return JSON.stringify({
+          success: true,
+          tournamentId: rtTid,
+          playerCount: rtPlayers.length,
+          teamCount,
+          teamSize: rtTeamSize,
+          matchCount: rtMatchCount,
+          seeds: rtSeeds,
+          teamAssignment: rtTeamSummary,
+          message: `랜덤 팀 리그 "${input.name}" 생성 완료\n선수 ${rtPlayers.length}명 → ${teamCount}팀 (${rtTeamSize}인)\n시드 ${rtSeeds.length}명 분산 배치\n${rtMatchCount}경기 라운드로빈 생성\n\n${rtTeamSummary}`,
+        });
+      }
+
       case "setup_full_tournament": {
         const now = Date.now();
         const players = input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>;
@@ -884,9 +1028,12 @@ export async function executeTool(
         // 대회 설정에서 세트 수/점수 자동 로드
         const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
         const tourData = tourSnap.exists() ? tourSnap.val() as Record<string, unknown> : {};
+        const isTeamType = tourData.type === "team" || tourData.type === "randomTeamLeague";
+        const teamSettings = tourData.teamMatchSettings as { winScore?: number; setsToWin?: number } | undefined;
         const gameConfig = tourData.gameConfig as { winScore?: number; setsToWin?: number } | undefined;
-        const winScore = Math.max(4, (input.winScore as number) || gameConfig?.winScore || 11);
-        const setsToWin = Math.max(1, (input.setsToWin as number) || gameConfig?.setsToWin || 2);
+        // 팀전: teamMatchSettings 우선, 개인전: gameConfig 우선
+        const winScore = Math.max(4, (input.winScore as number) || (isTeamType ? teamSettings?.winScore : gameConfig?.winScore) || (isTeamType ? 31 : 11));
+        const setsToWin = Math.max(1, (input.setsToWin as number) || (isTeamType ? teamSettings?.setsToWin : gameConfig?.setsToWin) || (isTeamType ? 1 : 2));
 
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
