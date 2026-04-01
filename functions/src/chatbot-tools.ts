@@ -539,6 +539,17 @@ export async function executeTool(
       // --- Write: Tournament ---
       case "create_tournament": {
         const now = Date.now();
+        // 동일 이름 대회 중복 방지
+        if (input.name) {
+          const ctExisting = await db.ref("tournaments").once("value");
+          if (ctExisting.exists()) {
+            for (const [eid, ev] of Object.entries(ctExisting.val() as Record<string, { name?: string }>)) {
+              if (ev.name === input.name) {
+                return JSON.stringify({ error: `"${input.name}" 대회가 이미 존재합니다 (ID: ${eid}). 삭제 후 다시 생성하거나 다른 이름을 사용하세요.` });
+              }
+            }
+          }
+        }
         const newRef = db.ref("tournaments").push();
         const data = {
           name: input.name || "새 대회",
@@ -567,6 +578,16 @@ export async function executeTool(
         const rtWinScore = (input.winScore as number) || 31;
 
         if (!rtPlayers || rtPlayers.length < rtTeamSize) return JSON.stringify({ error: `최소 ${rtTeamSize}명의 선수가 필요합니다.` });
+
+        // 동일 이름 대회 중복 방지
+        const rtExisting = await db.ref("tournaments").once("value");
+        if (rtExisting.exists()) {
+          for (const [eid, ev] of Object.entries(rtExisting.val() as Record<string, { name?: string }>)) {
+            if (ev.name === input.name) {
+              return JSON.stringify({ error: `"${input.name}" 대회가 이미 존재합니다 (ID: ${eid}). 삭제 후 다시 생성하거나 다른 이름을 사용하세요.` });
+            }
+          }
+        }
 
         // 중복 검사
         const rtNameSet = new Set<string>();
@@ -704,6 +725,16 @@ export async function executeTool(
         if (!players || players.length < 2) return JSON.stringify({ error: "최소 2명의 선수가 필요합니다." });
         if (players.length > 10000) return JSON.stringify({ error: "최대 10,000명까지 지원합니다." });
         if (groupCount > players.length) return JSON.stringify({ error: `조 수(${groupCount})가 선수 수(${players.length})를 초과할 수 없습니다.` });
+
+        // 동일 이름 대회 중복 방지
+        const ftExisting = await db.ref("tournaments").once("value");
+        if (ftExisting.exists()) {
+          for (const [eid, ev] of Object.entries(ftExisting.val() as Record<string, { name?: string }>)) {
+            if (ev.name === input.name) {
+              return JSON.stringify({ error: `"${input.name}" 대회가 이미 존재합니다 (ID: ${eid}). 삭제 후 다시 생성하거나 다른 이름을 사용하세요.` });
+            }
+          }
+        }
 
         // 중복 이름 검사
         const nameSet = new Set<string>();
@@ -1149,7 +1180,7 @@ export async function executeTool(
         return JSON.stringify({
           success: true,
           count: matchList.length,
-          results: results.slice(0, 30),
+          results: results.slice(0, 10),
           message: `${matchList.length}경기 시뮬레이션 완료`,
         });
       }
