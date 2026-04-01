@@ -468,41 +468,30 @@ export async function executeTool(
         };
         await tourRef.set(tournamentData);
 
+        // 2~4 전부 한 번의 multi-path update로 처리 (속도 극대화)
+        const bulkUpdate: Record<string, unknown> = {};
+
         // 2. 선수 등록
-        const playerMap = new Map<string, string>(); // name → id
-        const playerRef = db.ref(`tournamentPlayers/${tid}`);
+        const playerMap = new Map<string, string>();
         for (const p of players) {
-          const pRef = playerRef.push();
-          await pRef.set({ name: p.name, club: p.club || "", class: p.class || "", gender: p.gender || "", createdAt: now });
-          playerMap.set(p.name, pRef.key!);
+          const pKey = db.ref(`tournamentPlayers/${tid}`).push().key!;
+          bulkUpdate[`tournamentPlayers/${tid}/${pKey}`] = { name: p.name, club: p.club || "", class: p.class || "", gender: p.gender || "", createdAt: now };
+          playerMap.set(p.name, pKey);
         }
+        const nameMap = new Map<string, string>();
+        playerMap.forEach((id, name) => nameMap.set(id, name));
 
         // 3. 조 편성 (스네이크 드래프트 + 시드)
         const groups: Array<{ id: string; stageId: string; name: string; playerIds: string[]; teamIds: string[] }> = [];
         for (let i = 0; i < groupCount; i++) {
-          groups.push({
-            id: `group_${String.fromCharCode(65 + i)}`,
-            stageId: qualStageId,
-            name: `${String.fromCharCode(65 + i)}조`,
-            playerIds: [],
-            teamIds: [],
-          });
+          groups.push({ id: `group_${String.fromCharCode(65 + i)}`, stageId: qualStageId, name: `${String.fromCharCode(65 + i)}조`, playerIds: [], teamIds: [] });
         }
-
-        // 시드 배치: 각 조에 1명씩
         const seedSet = new Set<string>();
         for (let i = 0; i < Math.min(seeds.length, groupCount); i++) {
           const seedId = playerMap.get(seeds[i]);
-          if (seedId) {
-            groups[i].playerIds.push(seedId);
-            seedSet.add(seedId);
-          }
+          if (seedId) { groups[i].playerIds.push(seedId); seedSet.add(seedId); }
         }
-
-        // 나머지 스네이크 드래프트
-        const remaining = players
-          .map(p => playerMap.get(p.name)!)
-          .filter(id => id && !seedSet.has(id));
+        const remaining = players.map(p => playerMap.get(p.name)!).filter(id => id && !seedSet.has(id));
         for (let i = 0; i < remaining.length; i++) {
           const round = Math.floor(i / groupCount);
           const pos = i % groupCount;
@@ -510,56 +499,38 @@ export async function executeTool(
           groups[groupIndex].playerIds.push(remaining[i]);
         }
 
-        // 스테이지에 조 정보 저장
-        const stagesUpdate = [
+        // 스테이지 + 시드 (tournament 하위)
+        bulkUpdate[`tournaments/${tid}/stages`] = [
           { ...tournamentData.stages[0], groups },
           tournamentData.stages[1],
         ];
-        await tourRef.child("stages").set(stagesUpdate);
-
-        // 시드 정보 저장
-        const seedEntries = seeds.map((name, i) => ({
-          position: i + 1,
-          playerId: playerMap.get(name) || "",
-          name,
+        bulkUpdate[`tournaments/${tid}/seeds`] = seeds.map((name, i) => ({
+          position: i + 1, playerId: playerMap.get(name) || "", name,
         }));
-        await tourRef.child("seeds").set(seedEntries);
 
         // 4. 예선 라운드로빈 경기 생성
-        const matchesRef = db.ref(`matches/${tid}`);
         let matchCount = 0;
-        const nameMap = new Map<string, string>();
-        playerMap.forEach((id, name) => nameMap.set(id, name));
-
         for (const group of groups) {
           const pids = group.playerIds;
           for (let i = 0; i < pids.length; i++) {
             for (let j = i + 1; j < pids.length; j++) {
-              const mRef = matchesRef.push();
-              await mRef.set({
-                tournamentId: tid,
-                type: input.type || "individual",
-                status: "pending",
-                round: matchCount + 1,
-                player1Id: pids[i],
-                player2Id: pids[j],
-                player1Name: nameMap.get(pids[i]) || pids[i],
-                player2Name: nameMap.get(pids[j]) || pids[j],
+              const mKey = db.ref(`matches/${tid}`).push().key!;
+              bulkUpdate[`matches/${tid}/${mKey}`] = {
+                tournamentId: tid, type: input.type || "individual", status: "pending",
+                round: matchCount + 1, player1Id: pids[i], player2Id: pids[j],
+                player1Name: nameMap.get(pids[i]) || pids[i], player2Name: nameMap.get(pids[j]) || pids[j],
                 sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-                currentSet: 0,
-                player1Timeouts: 0,
-                player2Timeouts: 0,
-                winnerId: null,
-                createdAt: now + matchCount,
-                groupId: group.id,
-                stageId: qualStageId,
-              });
+                currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null,
+                createdAt: now + matchCount, groupId: group.id, stageId: qualStageId,
+              };
               matchCount++;
             }
           }
         }
 
-        // 결과 요약
+        // 한 번의 네트워크 요청으로 전부 쓰기
+        await db.ref().update(bulkUpdate);
+
         const groupSummary = groups.map(g => `${g.name}: ${g.playerIds.map(id => nameMap.get(id) || id).join(", ")}`).join("\n");
 
         return JSON.stringify({
@@ -641,14 +612,16 @@ export async function executeTool(
       // --- Write: Players ---
       case "add_players_bulk": {
         const players = input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>;
-        const path = input.tournamentId ? `tournamentPlayers/${input.tournamentId}` : "players";
+        const basePath = input.tournamentId ? `tournamentPlayers/${input.tournamentId}` : "players";
         const now = Date.now();
+        const bulk: Record<string, unknown> = {};
         const ids: string[] = [];
         for (const p of players) {
-          const newRef = db.ref(path).push();
-          await newRef.set({ name: p.name, club: p.club || "", class: p.class || "", gender: p.gender || "", createdAt: now });
-          ids.push(newRef.key!);
+          const key = db.ref(basePath).push().key!;
+          bulk[`${basePath}/${key}`] = { name: p.name, club: p.club || "", class: p.class || "", gender: p.gender || "", createdAt: now };
+          ids.push(key);
         }
+        await db.ref().update(bulk);
         return JSON.stringify({ success: true, count: players.length, ids, message: `${players.length}명 추가 완료` });
       }
 
@@ -738,10 +711,12 @@ export async function executeTool(
           }
         }
 
-        const matchesRef = db.ref(`matches/${tid}`);
+        const bulk: Record<string, unknown> = {};
         for (const m of matches) {
-          await matchesRef.push().set(m);
+          const key = db.ref(`matches/${tid}`).push().key!;
+          bulk[`matches/${tid}/${key}`] = m;
         }
+        await db.ref().update(bulk);
 
         return JSON.stringify({ success: true, count: matches.length, message: `${matches.length}경기 라운드로빈 생성 완료` });
       }
@@ -888,13 +863,7 @@ export async function executeTool(
             status: match.status || "pending",
           });
 
-          // Firebase 경기 업데이트
-          await db.ref(`matches/${tid}/${match.id}`).update({
-            scheduledTime: timeStr,
-            scheduledDate: bestDate,
-            courtId: court.courtId,
-            courtName: court.courtName,
-          });
+          // 경기 업데이트는 아래에서 일괄 처리
 
           // 코트 다음 가용 시간 업데이트
           const courtEndTime = bestTime + interval;
@@ -916,26 +885,34 @@ export async function executeTool(
           }
         }
 
-        // 스케줄 저장
+        // 일괄 쓰기: 경기 업데이트 + 스케줄 저장
+        const scheduleBulk: Record<string, unknown> = {};
+        for (const slot of slots) {
+          const mid = slot.matchId as string;
+          scheduleBulk[`matches/${tid}/${mid}/scheduledTime`] = slot.scheduledTime;
+          scheduleBulk[`matches/${tid}/${mid}/scheduledDate`] = slot.scheduledDate;
+          scheduleBulk[`matches/${tid}/${mid}/courtId`] = slot.courtId;
+          scheduleBulk[`matches/${tid}/${mid}/courtName`] = slot.courtName;
+        }
+
+        if (!onlyUnassigned) {
+          scheduleBulk[`schedule/${tid}`] = null; // 기존 삭제
+        }
+        await db.ref().update(scheduleBulk);
+
+        // 스케줄 슬롯 저장
+        const slotBulk: Record<string, unknown> = {};
         if (onlyUnassigned) {
-          // 기존 유지 + 새 슬롯 추가
           const existingSnap = await db.ref(`schedule/${tid}`).once("value");
-          const existingSlots: Record<string, unknown>[] = [];
           if (existingSnap.exists()) {
-            existingSnap.forEach((child) => {
-              existingSlots.push(child.val());
-            });
-          }
-          await db.ref(`schedule/${tid}`).remove();
-          for (const slot of [...existingSlots, ...slots]) {
-            await db.ref(`schedule/${tid}`).push().set(slot);
-          }
-        } else {
-          await db.ref(`schedule/${tid}`).remove();
-          for (const slot of slots) {
-            await db.ref(`schedule/${tid}`).push().set(slot);
+            existingSnap.forEach((child) => { slotBulk[`schedule/${tid}/${child.key}`] = child.val(); });
           }
         }
+        for (const slot of slots) {
+          const key = db.ref(`schedule/${tid}`).push().key!;
+          slotBulk[`schedule/${tid}/${key}`] = slot;
+        }
+        await db.ref().update(slotBulk);
 
         // 결과 요약
         const dates = [...new Set(slots.map((s) => s.scheduledDate as string))].sort();
