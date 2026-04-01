@@ -1362,12 +1362,16 @@ export default function IndividualScoring() {
           );
         })()}
 
-        {/* Row 3: 취소 / 레프리타임 */}
-        <div className="grid grid-cols-2 gap-2">
-          <button className="btn btn-danger py-3" onClick={handleUndo} disabled={history.length === 0}>↩️ {t('common.cancel')}</button>
+        {/* Row 3: 취소 / 레프리타임 / 휘슬 */}
+        <div className="grid grid-cols-3 gap-2">
+          <button className="btn btn-danger py-3 text-sm" onClick={handleUndo} disabled={history.length === 0}>↩️ {t('common.cancel')}</button>
           <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white py-3 text-sm" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
             aria-label={t('referee.scoring.timeoutTitle.referee')}>
             🟨 {t('referee.scoring.timeoutTitle.referee')}
+          </button>
+          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm" onClick={shortWhistle}
+            aria-label="서브 휘슬" style={{ minHeight: '44px' }}>
+            📣 휘슬
           </button>
         </div>
 
@@ -1411,10 +1415,10 @@ export default function IndividualScoring() {
           )}
         </div>
 
-        {/* 접이식: 페널티 */}
+        {/* 접이식: 벌점 */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">
           <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('penalty')} aria-expanded={expandedSection === 'penalty'}>
-            <span className="text-sm font-bold text-gray-300">🔴 {t('common.scoreActions.penalty')}</span>
+            <span className="text-sm font-bold text-gray-300">🔴 벌점 (테이블푸싱/전자기기/말하기/고글터치)</span>
             <span className="text-gray-400">{expandedSection === 'penalty' ? '▲' : '▼'}</span>
           </button>
           {expandedSection === 'penalty' && (
@@ -1434,6 +1438,23 @@ export default function IndividualScoring() {
                     {player2Name} {t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`)}
                   </button>
                 ))}
+              </div>
+              <div className="border-t border-red-800 pt-2">
+                <p className="text-[10px] text-red-400 mb-1">고글 터치 — 즉시 상대 +2점</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="btn bg-red-800 hover:bg-red-700 text-white text-xs py-2 rounded font-bold"
+                    disabled={!!match.activeTimeout}
+                    onClick={async () => handleIBSAScore(1, 'mask_touch', 2, true, `${player1Name} 고글 터치`)}
+                    aria-label={`${player1Name} 고글 터치 — ${player2Name}에게 2점`} style={{ minHeight: '44px' }}>
+                    🥽 {player1Name} 고글 터치
+                  </button>
+                  <button className="btn bg-red-800 hover:bg-red-700 text-white text-xs py-2 rounded font-bold"
+                    disabled={!!match.activeTimeout}
+                    onClick={async () => handleIBSAScore(2, 'mask_touch', 2, true, `${player2Name} 고글 터치`)}
+                    aria-label={`${player2Name} 고글 터치 — ${player1Name}에게 2점`} style={{ minHeight: '44px' }}>
+                    🥽 {player2Name} 고글 터치
+                  </button>
+                </div>
               </div>
             </div>
           )}
