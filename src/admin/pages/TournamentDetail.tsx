@@ -1528,7 +1528,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
     if (fromGroupId === toGroupId) return;
     const updatedGroups = groupAssignment.map(g => {
       if (g.id === fromGroupId) {
-        return { ...g, playerIds: g.playerIds.filter(pid => pid !== playerId) };
+        return { ...g, playerIds: (g.playerIds || []).filter(pid => pid !== playerId) };
       }
       if (g.id === toGroupId) {
         return { ...g, playerIds: [...g.playerIds, playerId] };
@@ -1911,7 +1911,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
   // Build player/team options with group info
   const getGroupName = (playerId: string) => {
     for (const g of groupAssignment) {
-      if (g.playerIds.includes(playerId)) return g.name;
+      if ((g.playerIds || []).includes(playerId) || (g.teamIds || []).includes(playerId)) return g.name;
     }
     return '';
   };
@@ -2007,14 +2007,14 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   <select className="input w-full" value={addGroupId} onChange={e => { setAddGroupId(e.target.value); setAddPlayer1(''); setAddPlayer2(''); }} aria-label={t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder', '조 선택')}>
                     <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                     {groupAssignment.map(g => (
-                      <option key={g.id} value={g.id}>{g.name} ({g.playerIds.length})</option>
+                      <option key={g.id} value={g.id}>{g.name} ({(g.playerIds?.length || 0) + (g.teamIds?.length || 0)})</option>
                     ))}
                   </select>
                 </div>
               )}
               <div className="flex-1 min-w-40">
                 <label className="block text-sm text-gray-300 mb-1">{isTeamType ? t('admin.tournamentDetail.bracketTab.team1Label') : t('admin.tournamentDetail.bracketTab.player1Label')}</label>
-                <select className="input w-full" value={addPlayer1} onChange={e => { setAddPlayer1(e.target.value); setAddPlayer2(''); if (hasGroups && !addGroupId) { const g = groupAssignment.find(g2 => g2.playerIds.includes(e.target.value)); if (g) setAddGroupId(g.id); } }} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team1SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player1SelectAriaLabel')}>
+                <select className="input w-full" value={addPlayer1} onChange={e => { setAddPlayer1(e.target.value); setAddPlayer2(''); if (hasGroups && !addGroupId) { const g = groupAssignment.find(g2 => (g2.playerIds || []).includes(e.target.value) || (g2.teamIds || []).includes(e.target.value)); if (g) setAddGroupId(g.id); } }} aria-label={isTeamType ? t('admin.tournamentDetail.bracketTab.team1SelectAriaLabel') : t('admin.tournamentDetail.bracketTab.player1SelectAriaLabel')}>
                   <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                   {p1Options.map(o => (
                     <option key={o.id} value={o.id}>{o.group ? `[${o.group}] ${o.name}` : o.name}</option>
@@ -2075,7 +2075,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
           {/* 편성 결과 표시 */}
           {groupAssignment.length > 0 && (() => {
-            const sizes = groupAssignment.map(g => g.playerIds.length);
+            const sizes = groupAssignment.map(g => (g.playerIds?.length || 0) + (g.teamIds?.length || 0));
             const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length;
             const isUnbalanced = sizes.some(s => Math.abs(s - avgSize) > 1);
             const assignedIds = new Set(groupAssignment.flatMap(g => g.playerIds));
@@ -2149,9 +2149,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                 <div className="grid grid-cols-2 gap-4">
                   {groupAssignment.map(group => (
                     <div key={group.id} className="bg-gray-800 rounded p-3">
-                      <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name} ({t('admin.tournamentDetail.bracketTab.personCount', { count: group.playerIds.length })})</h4>
+                      <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name} ({t('admin.tournamentDetail.bracketTab.personCount', { count: (group.playerIds?.length || 0) + (group.teamIds?.length || 0) })})</h4>
                       <ul className="space-y-1">
-                        {group.playerIds.map((pid) => {
+                        {(group.playerIds || group.teamIds || []).map((pid) => {
                           const player = tournamentPlayers.find(p => p.id === pid);
                           const seedIdx2 = toArray(tournament.seeds).findIndex(s => s.playerId === pid);
                           return (
