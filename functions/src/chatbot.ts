@@ -59,10 +59,11 @@ export const chatbot = onRequest(
       return;
     }
 
-    const { messages, tournamentId, userRole } = req.body as {
+    const { messages, tournamentId, userRole, contextInfo } = req.body as {
       messages: ChatMessage[];
       tournamentId?: string;
       userRole?: "admin" | "referee" | "spectator";
+      contextInfo?: string;
     };
     const role = userRole || "admin";
 
@@ -86,6 +87,9 @@ export const chatbot = onRequest(
       spectator: "\n\n사용자 역할: 관람자. 읽기 도구만 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, get_schedule). 선수 정보, 경기 일정, 순위, 결과 조회만 도와주세요. 친절하고 이해하기 쉽게 설명하세요.",
     };
     let systemPrompt = SYSTEM_PROMPT + (ROLE_PROMPTS[role] || ROLE_PROMPTS.admin);
+    if (contextInfo) {
+      systemPrompt += `\n추가 컨텍스트: ${contextInfo}`;
+    }
     if (tournamentId) {
       systemPrompt += `\n현재 컨텍스트: tournamentId = "${tournamentId}"`;
     }

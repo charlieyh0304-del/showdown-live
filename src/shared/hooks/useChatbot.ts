@@ -17,7 +17,7 @@ export interface ChatAction {
 
 const FUNCTION_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/chatbot';
 
-export function useChatbot(userRole: ChatRole, tournamentId?: string) {
+export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInfo?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +47,7 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string) {
           messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
           tournamentId,
           userRole,
+          contextInfo,
         }),
         signal: abortRef.current.signal,
       });
@@ -69,7 +70,7 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string) {
       setIsLoading(false);
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
-  }, [tournamentId, userRole]);
+  }, [tournamentId, userRole, contextInfo]);
 
   const cancelRequest = useCallback(() => {
     abortRef.current?.abort();

@@ -76,11 +76,12 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 
 interface AiChatPanelProps {
   userRole: ChatRole;
+  contextInfo?: string; // 추가 컨텍스트 (심판 이름, 대회명 등)
 }
 
-export default function AiChatPanel({ userRole }: AiChatPanelProps) {
+export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps) {
   const { id: tournamentId } = useParams<{ id: string }>();
-  const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(userRole, tournamentId);
+  const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(userRole, tournamentId, contextInfo);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -355,7 +356,7 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     {srShortcut}
     <div className="fixed bottom-0 right-0 sm:bottom-4 sm:right-4 z-50 flex flex-col bg-gray-900 border border-gray-700 sm:rounded-xl shadow-2xl"
       style={{ width: 'min(420px, 100vw)', height: 'min(600px, 100vh)' }}
-      role="dialog" aria-modal="false" aria-label={config.title}
+      role="dialog" aria-modal="true" aria-label={config.title}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 flex-shrink-0 bg-gray-900/95">
         <div className="flex items-center gap-2">

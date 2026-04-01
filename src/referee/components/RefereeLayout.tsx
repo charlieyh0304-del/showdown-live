@@ -44,7 +44,7 @@ export default function RefereeLayout() {
           <Outlet />
         </ErrorBoundary>
       </main>
-      <AiChatPanel userRole="referee" />
+      <AiChatPanel userRole="referee" contextInfo={`로그인 심판: ${session.refereeName || '알 수 없음'} (ID: ${session.refereeId || ''}). 대회: ${tournament?.name || ''} (ID: ${session.tournamentId || ''}). 이 심판의 배정 경기를 기준으로 답하세요.`} />
     </div>
   );
 }

@@ -295,7 +295,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           </>
         )}
       </nav>
-      <AiChatPanel userRole="spectator" />
+      <AiChatPanel userRole="spectator" contextInfo={tournamentId ? `현재 보고 있는 대회: tournamentId=${tournamentId}. 이 대회의 결과를 기준으로 답하세요.` : undefined} />
     </div>
   );
 }
