@@ -362,7 +362,14 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-4" style={{ minHeight: 0 }}>
+      {/* 스크린리더: 마지막 AI 응답만 알림 (가상커서 이동 없이) */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {messages.length > 0 && messages[messages.length - 1].role === 'assistant' && !isLoading
+          ? messages[messages.length - 1].content.slice(0, 200)
+          : isLoading ? '작업 중...' : ''}
+      </div>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-4" style={{ minHeight: 0 }} role="log" aria-live="off">
         {messages.length === 0 && (
           <div className="text-center py-8">
             <div className="text-3xl mb-3">{config.icon}</div>
