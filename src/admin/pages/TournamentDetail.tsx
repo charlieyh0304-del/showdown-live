@@ -586,6 +586,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   const [showGlobalModal, setShowGlobalModal] = useState(false);
   const [bulkNames, setBulkNames] = useState('');
   const [selectedGlobalIds, setSelectedGlobalIds] = useState<string[]>([]);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
   const [seeds, setSeeds] = useState<SeedEntry[]>(toArray(tournament.seeds));
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   // 팀별 설정 편집용 로컬 state (Firebase 즉시 쓰기 대신 로컬에서 편집 후 저장)
@@ -837,26 +838,69 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         {tournamentPlayers.length === 0 ? (
           <p className="text-gray-400 text-center">{t('admin.tournamentDetail.playersTab.noPlayers')}</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {tournamentPlayers.map(p => (
-              <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-600">
-                <div>
-                  <span className="font-bold">{p.name}</span>
-                  {isTeamType && p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">{t('common.gender.male')}</span>}
-                  {isTeamType && p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">{t('common.gender.female')}</span>}
-                  {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
-                  {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
-                </div>
+          <>
+            <div className="flex justify-between items-center flex-wrap gap-2 mb-2">
+              <label className="flex items-center gap-2 cursor-pointer" style={{ minHeight: '44px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedPlayerIds.size === tournamentPlayers.length && tournamentPlayers.length > 0}
+                  ref={el => { if (el) el.indeterminate = selectedPlayerIds.size > 0 && selectedPlayerIds.size < tournamentPlayers.length; }}
+                  onChange={() => {
+                    if (selectedPlayerIds.size === tournamentPlayers.length) setSelectedPlayerIds(new Set());
+                    else setSelectedPlayerIds(new Set(tournamentPlayers.map(p => p.id)));
+                  }}
+                  aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+                  style={{ width: '20px', height: '20px' }}
+                />
+                <span className="text-sm text-gray-300">{t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedPlayerIds.size}/{tournamentPlayers.length})</span>
+              </label>
+              {selectedPlayerIds.size > 0 && (
                 <button
-                  className="text-red-400 hover:text-red-300 font-bold text-lg"
-                  onClick={() => deleteTournamentPlayer(p.id)}
-                  aria-label={t('admin.tournamentDetail.playersTabInline.deletePlayerAriaLabel', { name: p.name })}
+                  className="btn btn-danger text-sm"
+                  style={{ minHeight: '44px' }}
+                  onClick={async () => {
+                    if (!confirm(t('admin.tournamentDetail.playersTabInline.bulkDeleteConfirm', { count: selectedPlayerIds.size, defaultValue: `${selectedPlayerIds.size}명을 삭제하시겠습니까?` }))) return;
+                    for (const id of selectedPlayerIds) await deleteTournamentPlayer(id);
+                    setSelectedPlayerIds(new Set());
+                  }}
+                  aria-label={t('admin.tournamentDetail.playersTabInline.bulkDelete', { count: selectedPlayerIds.size, defaultValue: `${selectedPlayerIds.size}명 삭제` })}
                 >
-                  x
+                  {t('admin.tournamentDetail.playersTabInline.bulkDelete', { count: selectedPlayerIds.size, defaultValue: `${selectedPlayerIds.size}명 삭제` })}
                 </button>
-              </div>
-            ))}
-          </div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {tournamentPlayers.map(p => (
+                <div key={p.id} className={`flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border ${selectedPlayerIds.has(p.id) ? 'border-yellow-500' : 'border-gray-600'}`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedPlayerIds.has(p.id)}
+                      onChange={() => setSelectedPlayerIds(prev => {
+                        const next = new Set(prev);
+                        if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                        return next;
+                      })}
+                      aria-label={t('common.select', { name: p.name, defaultValue: `${p.name} 선택` })}
+                      style={{ width: '18px', height: '18px', flexShrink: 0 }}
+                    />
+                    <span className="font-bold">{p.name}</span>
+                    {isTeamType && p.gender === 'male' && <span className="ml-1 text-xs text-blue-400">{t('common.gender.male')}</span>}
+                    {isTeamType && p.gender === 'female' && <span className="ml-1 text-xs text-pink-400">{t('common.gender.female')}</span>}
+                    {p.club && <span className="ml-2 text-sm opacity-75">({p.club})</span>}
+                    {p.class && <span className="ml-2 text-sm opacity-75">[{p.class}]</span>}
+                  </div>
+                  <button
+                    className="text-red-400 hover:text-red-300 font-bold text-lg"
+                    onClick={() => deleteTournamentPlayer(p.id)}
+                    aria-label={t('admin.tournamentDetail.playersTabInline.deletePlayerAriaLabel', { name: p.name })}
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
       )}
@@ -1363,6 +1407,20 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               <p className="text-gray-400 text-center">{t('admin.tournamentDetail.globalPlayerModal.noGlobalPlayers')}</p>
             ) : (
               <div className="space-y-2 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer py-2" style={{ minHeight: '44px' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedGlobalIds.length === globalPlayers.length && globalPlayers.length > 0}
+                    ref={el => { if (el) el.indeterminate = selectedGlobalIds.length > 0 && selectedGlobalIds.length < globalPlayers.length; }}
+                    onChange={() => {
+                      if (selectedGlobalIds.length === globalPlayers.length) setSelectedGlobalIds([]);
+                      else setSelectedGlobalIds(globalPlayers.map(p => p.id));
+                    }}
+                    aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+                    style={{ width: '20px', height: '20px' }}
+                  />
+                  <span className="text-sm text-gray-300">{t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedGlobalIds.length}/{globalPlayers.length})</span>
+                </label>
                 {globalPlayers.map(p => {
                   const selected = selectedGlobalIds.includes(p.id);
                   return (

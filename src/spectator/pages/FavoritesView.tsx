@@ -17,6 +17,7 @@ export default function FavoritesView() {
   const { history: notifHistory, unreadCount, markAllAsRead, clearAll } = useNotificationHistory();
   const [showHistory, setShowHistory] = useState(false);
   const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favorites);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Always call useMatches with a stable value (no conditional hooks)
   const firstActiveTournamentId = useMemo(
@@ -101,7 +102,39 @@ export default function FavoritesView() {
         </div>
       ) : (
         <>
-          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '44px' }}>
+              <input
+                type="checkbox"
+                checked={selectedIds.size === favoritePlayers.length && favoritePlayers.length > 0}
+                ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < favoritePlayers.length; }}
+                onChange={() => {
+                  if (selectedIds.size === favoritePlayers.length) setSelectedIds(new Set());
+                  else setSelectedIds(new Set(favoritePlayers.map(p => p.id)));
+                }}
+                aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+                style={{ width: '20px', height: '20px', accentColor: '#f59e0b' }}
+              />
+              <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>
+                {t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedIds.size}/{favoritePlayers.length})
+              </span>
+            </label>
+            {selectedIds.size > 0 && (
+              <button
+                className="btn btn-danger"
+                style={{ fontSize: '0.875rem', minHeight: '44px' }}
+                onClick={() => {
+                  if (!confirm(t('spectator.favorites.bulkRemoveConfirm', { count: selectedIds.size, defaultValue: `${selectedIds.size}명을 즐겨찾기에서 삭제하시겠습니까?` }))) return;
+                  selectedIds.forEach(id => toggleFavorite(id));
+                  setSelectedIds(new Set());
+                }}
+                aria-label={t('spectator.favorites.bulkRemove', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+              >
+                {t('spectator.favorites.bulkRemove', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+              </button>
+            )}
+          </div>
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} role="list">
             {favoritePlayers.map(player => {
               const activeMatch = matches.find(m =>
                 m.status === 'in_progress' &&
@@ -111,9 +144,20 @@ export default function FavoritesView() {
                  m.team1Name === player.id || m.team2Name === player.id)
               );
               return (
-                <li key={player.id} className="card" style={{ border: '1px solid #374151' }}>
+                <li key={player.id} className="card" style={{ border: selectedIds.has(player.id) ? '1px solid #f59e0b' : '1px solid #374151' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(player.id)}
+                        onChange={() => setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(player.id)) next.delete(player.id); else next.add(player.id);
+                          return next;
+                        })}
+                        aria-label={t('common.select', { name: player.name, defaultValue: `${player.name} 선택` })}
+                        style={{ width: '20px', height: '20px', accentColor: '#f59e0b', flexShrink: 0 }}
+                      />
                       <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{player.name}</span>
                       {player.club && <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{player.club}</span>}
                     </div>

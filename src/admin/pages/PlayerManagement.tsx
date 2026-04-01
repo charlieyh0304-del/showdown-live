@@ -22,6 +22,7 @@ export default function PlayerManagement() {
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -115,10 +116,52 @@ export default function PlayerManagement() {
           <p className="text-xl text-gray-400">{t('admin.players.noPlayers')}</p>
         </div>
       ) : (
+        <>
+        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+          <label className="flex items-center gap-2 cursor-pointer" style={{ minHeight: '44px' }}>
+            <input
+              type="checkbox"
+              checked={selectedIds.size === players.length && players.length > 0}
+              ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < players.length; }}
+              onChange={() => {
+                if (selectedIds.size === players.length) setSelectedIds(new Set());
+                else setSelectedIds(new Set(players.map(p => p.id)));
+              }}
+              aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+              style={{ width: '20px', height: '20px' }}
+            />
+            <span className="text-sm text-gray-300">{t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedIds.size}/{players.length})</span>
+          </label>
+          {selectedIds.size > 0 && (
+            <button
+              className="btn btn-danger text-sm"
+              style={{ minHeight: '44px' }}
+              onClick={async () => {
+                if (!confirm(t('admin.players.bulkDeleteConfirm', { count: selectedIds.size, defaultValue: `${selectedIds.size}명을 삭제하시겠습니까?` }))) return;
+                for (const id of selectedIds) await deletePlayer(id);
+                setSelectedIds(new Set());
+              }}
+              aria-label={t('admin.players.bulkDelete', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+            >
+              {t('admin.players.bulkDelete', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+            </button>
+          )}
+        </div>
         <div className="space-y-3" aria-label={t('admin.players.playerListLabel')}>
           {players.map(p => (
-            <div key={p.id} className="card flex items-center justify-between flex-wrap gap-3">
-              <div>
+            <div key={p.id} className={`card flex items-center justify-between flex-wrap gap-3 ${selectedIds.has(p.id) ? 'ring-1 ring-yellow-500' : ''}`}>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(p.id)}
+                  onChange={() => setSelectedIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                    return next;
+                  })}
+                  aria-label={t('common.select', { name: p.name, defaultValue: `${p.name} 선택` })}
+                  style={{ width: '20px', height: '20px', flexShrink: 0 }}
+                />
                 <span className="font-bold text-lg">{p.name}</span>
                 {p.gender && <span className="ml-2 text-xs text-gray-400">{p.gender === 'male' ? t('common.gender.male') : t('common.gender.female')}</span>}
                 {p.club && <span className="ml-3 text-gray-400">({p.club})</span>}
@@ -143,6 +186,7 @@ export default function PlayerManagement() {
             </div>
           ))}
         </div>
+        </>
       )}
 
       {modalMode && (
