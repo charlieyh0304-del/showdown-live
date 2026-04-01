@@ -1591,7 +1591,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       const newMatches: Omit<Match, 'id'>[] = [];
       const now = Date.now();
       const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
-      const hasGroups = groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0);
+      const hasGroups = groupAssignment.length > 0 && groupAssignment.some(g => (g.playerIds?.length || 0) > 0 || (g.teamIds?.length || 0) > 0);
 
       // 기존 경기 쌍 수집 (중복 방지)
       const existingMatchPairs = new Set<string>();
@@ -1945,7 +1945,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               disabled={generating || !canGenerate}
               aria-label={t('admin.tournamentDetail.bracketTab.autoGenerateAriaLabel')}
             >
-              {generating ? t('admin.tournamentDetail.bracketTab.generatingText') : (groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0) ? t('admin.tournamentDetail.bracketTab.groupRoundRobinGenerate') : t('admin.tournamentDetail.bracketTab.autoGenerateText'))}
+              {generating ? t('admin.tournamentDetail.bracketTab.generatingText') : (groupAssignment.length > 0 && groupAssignment.some(g => (g.playerIds?.length || 0) > 0 || (g.teamIds?.length || 0) > 0) ? t('admin.tournamentDetail.bracketTab.groupRoundRobinGenerate') : t('admin.tournamentDetail.bracketTab.autoGenerateText'))}
             </button>
           )}
           <button
@@ -1979,7 +1979,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
       {/* 경기 추가 폼 */}
       {showAddForm && (() => {
-        const hasGroups = groupAssignment.length > 0 && groupAssignment.some(g => g.playerIds.length > 0);
+        const hasGroups = groupAssignment.length > 0 && groupAssignment.some(g => (g.playerIds?.length || 0) > 0 || (g.teamIds?.length || 0) > 0);
         const selectedP1Group = addPlayer1 ? getGroupName(addPlayer1) : '';
         const selectedGroupId = addGroupId || groupAssignment.find(g => g.name === selectedP1Group)?.id || '';
 
