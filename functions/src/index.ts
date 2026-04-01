@@ -7,6 +7,8 @@ import { setGlobalOptions } from "firebase-functions/v2/options";
 admin.initializeApp();
 const db = admin.database();
 
+export { chatbot } from "./chatbot";
+
 setGlobalOptions({ region: "us-central1" });
 
 interface PushSubscription {

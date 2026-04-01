@@ -6,6 +6,7 @@ import { hashPin, createRateLimiter } from '@shared/utils/crypto';
 import { ref, set } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import AiChatPanel from './AiChatPanel';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -91,6 +92,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {children}
         </ErrorBoundary>
       </main>
+      <AiChatPanel />
     </div>
   );
 }
