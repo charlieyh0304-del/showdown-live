@@ -88,7 +88,10 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
   const config = ROLE_CONFIG[userRole];
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    // textarea에 포커스가 있으면 스크롤하지 않음 (스크린리더 가상커서 보호)
+    if (scrollRef.current && document.activeElement !== inputRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, isLoading]);
 
   // 응답 도착 후 포커스 복원 (isLoading true→false 전환 시만)
@@ -227,10 +230,14 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     const text = input.trim();
     if (!text || isLoading) return;
     sendMessage(text);
-    setInput('');
-    // preventScroll: 스크린리더 가상커서 이동 방지
-    requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
-    setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
+    // 포커스를 먼저 유지한 상태에서 입력 지우기 (DOM 변경 최소화)
+    requestAnimationFrame(() => {
+      setInput('');
+      // 포커스가 이미 textarea에 있으면 건드리지 않음
+      if (document.activeElement !== inputRef.current) {
+        inputRef.current?.focus({ preventScroll: true });
+      }
+    });
   }, [input, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -427,7 +434,7 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
               {isListening ? '⏹' : '🎤'}
             </button>
           )}
-          <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+          <textarea id="ai-chat-input" ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
             placeholder={isListening ? '듣고 있습니다...' : '메시지를 입력하세요...'}
             className={`flex-1 bg-gray-800 border rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:ring-1 ${isListening ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500/30'}`}
             rows={1} disabled={isLoading} aria-label="메시지 입력" style={{ minHeight: '44px', maxHeight: '88px' }}

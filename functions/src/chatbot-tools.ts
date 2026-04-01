@@ -1259,16 +1259,21 @@ export async function executeTool(
           // p1id/p2id는 winnerId에서 이미 사용
           const history: Array<Record<string, unknown>> = [];
           let t = now;
+          const fmt = (ms: number) => new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+          const zero = { player1: 0, player2: 0 };
+          const firstServer = Math.random() > 0.5 ? "player1" : "player2";
+          const firstServerName = firstServer === "player1" ? p1n : p2n;
+
+          // 코인 토스
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: p1n, actionType: "coin_toss", actionLabel: `코인 토스: ${firstServerName} 서브 선택`, points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
+          t += 30000;
+
+          // 워밍업
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "warmup_start", actionLabel: "워밍업 시작 (60초)", points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
+          t += 60000;
 
           // 경기 시작
-          history.push({
-            time: new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-            set: 1, scoringPlayer: "", actionPlayer: "",
-            actionType: "match_start", actionLabel: "경기 시작",
-            points: 0, server: p1n, serveNumber: 1,
-            scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 },
-            serverSide: "player1",
-          });
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작 — ${firstServerName} 서브`, points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
 
           for (let si = 0; si < sets.length; si++) {
             const s = sets[si];
@@ -1324,21 +1329,29 @@ export async function executeTool(
             if (src1 && allM[src1]?.status === "completed" && (!nextMatch.player1Id || nextMatch.player1Id === "")) {
               const srcM = allM[src1];
               const wId = srcM.winnerId as string;
-              const wName = (wId === srcM.player1Id ? srcM.player1Name : srcM.player2Name) as string;
-              const lId = (wId === srcM.player1Id ? srcM.player2Id : srcM.player1Id) as string;
-              const lName = (wId === srcM.player1Id ? srcM.player2Name : srcM.player1Name) as string;
-              advanceBulk[`matches/${tid}/${nextId}/player1Id`] = isLoser ? lId : wId;
-              advanceBulk[`matches/${tid}/${nextId}/player1Name`] = isLoser ? lName : wName;
+              const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
+              const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
+              const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+              const useId = isLoser ? lId : wId;
+              const useName = isLoser ? lName : wName;
+              advanceBulk[`matches/${tid}/${nextId}/player1Id`] = useId;
+              advanceBulk[`matches/${tid}/${nextId}/player1Name`] = useName;
+              advanceBulk[`matches/${tid}/${nextId}/team1Id`] = useId;
+              advanceBulk[`matches/${tid}/${nextId}/team1Name`] = useName;
               changed = true;
             }
             if (src2 && allM[src2]?.status === "completed" && (!nextMatch.player2Id || nextMatch.player2Id === "")) {
               const srcM = allM[src2];
               const wId = srcM.winnerId as string;
-              const wName = (wId === srcM.player1Id ? srcM.player1Name : srcM.player2Name) as string;
-              const lId = (wId === srcM.player1Id ? srcM.player2Id : srcM.player1Id) as string;
-              const lName = (wId === srcM.player1Id ? srcM.player2Name : srcM.player1Name) as string;
-              advanceBulk[`matches/${tid}/${nextId}/player2Id`] = isLoser ? lId : wId;
-              advanceBulk[`matches/${tid}/${nextId}/player2Name`] = isLoser ? lName : wName;
+              const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
+              const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
+              const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+              const useId = isLoser ? lId : wId;
+              const useName = isLoser ? lName : wName;
+              advanceBulk[`matches/${tid}/${nextId}/player2Id`] = useId;
+              advanceBulk[`matches/${tid}/${nextId}/player2Name`] = useName;
+              advanceBulk[`matches/${tid}/${nextId}/team2Id`] = useId;
+              advanceBulk[`matches/${tid}/${nextId}/team2Name`] = useName;
               changed = true;
             }
             if (changed) advanceCount++;
@@ -1491,6 +1504,7 @@ export async function executeTool(
             stageId: finalsStageId2,
             player1Id: p1.id, player2Id: p2.id,
             player1Name: p1.name, player2Name: p2.name,
+            ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: p1.id, team2Id: p2.id, team1Name: p1.name, team2Name: p2.name } : {}),
             sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
             currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
             winnerId: null, createdAt: now2 + mc,
@@ -1518,6 +1532,7 @@ export async function executeTool(
               stageId: finalsStageId2,
               player1Id: "", player2Id: "",
               player1Name: `${prevRName} 승자${i * 2 + 1}`, player2Name: `${prevRName} 승자${i * 2 + 2}`,
+              ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: `${prevRName} 승자${i * 2 + 1}`, team2Name: `${prevRName} 승자${i * 2 + 2}` } : {}),
               sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
               currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
               winnerId: null, createdAt: now2 + mc,
@@ -1542,6 +1557,7 @@ export async function executeTool(
             tournamentId: tid, type: tour2.type || "individual", status: "pending",
             round: roundNum, bracketRound: "3/4위", stageId: `${finalsStageId2}_3rd`,
             player1Id: "", player2Id: "", player1Name: "4강 패자1", player2Name: "4강 패자2",
+            ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: "4강 패자1", team2Name: "4강 패자2" } : {}),
             sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
             currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
             winnerId: null, createdAt: now2 + mc,
@@ -1561,6 +1577,7 @@ export async function executeTool(
               round: roundNum, bracketRound: "5-8위", stageId: `${finalsStageId2}_5to8`,
               player1Id: "", player2Id: "",
               player1Name: `8강 패자${i * 2 + 1}`, player2Name: `8강 패자${i * 2 + 2}`,
+              ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: `8강 패자${i * 2 + 1}`, team2Name: `8강 패자${i * 2 + 2}` } : {}),
               sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
               currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
               winnerId: null, createdAt: now2 + mc,
