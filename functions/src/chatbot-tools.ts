@@ -1227,10 +1227,29 @@ export async function executeTool(
           const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
           results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
+          // scoreHistory 생성 (경기 기록지용)
+          const p1n = (match.player1Name || match.team1Name || "P1") as string;
+          const p2n = (match.player2Name || match.team2Name || "P2") as string;
+          const history: Array<Record<string, unknown>> = [];
+          for (let si = 0; si < sets.length; si++) {
+            const s = sets[si];
+            history.push({
+              time: `SET${si + 1}`, set: si + 1,
+              scoringPlayer: s.player1Score > s.player2Score ? p1n : p2n,
+              actionPlayer: s.player1Score > s.player2Score ? p1n : p2n,
+              actionType: "set_result", actionLabel: `세트 ${si + 1} 결과`,
+              points: 0, server: p1n, serveNumber: 1,
+              scoreBefore: { player1: 0, player2: 0 },
+              scoreAfter: { player1: s.player1Score, player2: s.player2Score },
+              serverSide: "player1",
+            });
+          }
+
           bulk[`matches/${tid}/${mid}/sets`] = sets;
           bulk[`matches/${tid}/${mid}/currentSet`] = sets.length - 1;
           bulk[`matches/${tid}/${mid}/status`] = "completed";
           bulk[`matches/${tid}/${mid}/winnerId`] = winnerId;
+          bulk[`matches/${tid}/${mid}/scoreHistory`] = history;
         }
 
         await db.ref().update(bulk);
