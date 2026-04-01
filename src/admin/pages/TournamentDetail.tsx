@@ -2204,7 +2204,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       )}
 
       {/* 본선 대진 생성 (수동 모드: finals 스테이지가 있고, 본선 매치가 없을 때) */}
+      {/* 랜덤 팀 리그는 AI가 본선을 별도 관리하므로 버튼 숨김 */}
       {(() => {
+        if (tournament.type === 'randomTeamLeague') return null;
         const finalsStage = toArray(tournament.stages).find(s => s.type === 'finals');
         if (!finalsStage) return null;
         const finalsMatches = matches.filter(m => m.stageId === finalsStage.id);
@@ -2362,8 +2364,9 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         );
       })()}
 
-      {/* 본선 대진 편성 카드 */}
+      {/* 본선 대진 편성 카드 (랜덤 팀 리그 제외) */}
       {(() => {
+        if (tournament.type === 'randomTeamLeague') return null;
         const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id;
         const finalsMatches = matches.filter(m => m.stageId === finalsStageId || (m.stageId && m.stageId.includes('finals')));
         if (finalsMatches.length === 0 || !finalsStageId) return null;
