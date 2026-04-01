@@ -91,8 +91,18 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isLoading]);
 
+  // 응답 도착 후 포커스 복원 (isLoading true→false 전환 시만)
+  const prevLoading = useRef(false);
   useEffect(() => {
-    if (!isLoading && isOpen) requestAnimationFrame(() => inputRef.current?.focus());
+    if (prevLoading.current && !isLoading && isOpen) {
+      // 스크린리더 가상커서 이동 방지: setTimeout으로 지연
+      setTimeout(() => {
+        if (document.activeElement !== inputRef.current) {
+          inputRef.current?.focus({ preventScroll: true });
+        }
+      }, 100);
+    }
+    prevLoading.current = isLoading;
   }, [isLoading, isOpen]);
 
   useEffect(() => {
@@ -218,9 +228,9 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     if (!text || isLoading) return;
     sendMessage(text);
     setInput('');
-    requestAnimationFrame(() => inputRef.current?.focus());
-    setTimeout(() => inputRef.current?.focus(), 50);
-    setTimeout(() => inputRef.current?.focus(), 200);
+    // preventScroll: 스크린리더 가상커서 이동 방지
+    requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
   }, [input, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -336,7 +346,6 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
   return (
     <>
     {srShortcut}
-    <div aria-live="polite" className="sr-only">{config.title} 열림. 메시지를 입력할 수 있습니다. 오른쪽으로 스와이프하거나 Esc 키로 닫을 수 있습니다.</div>
     <div className="fixed bottom-0 right-0 sm:bottom-4 sm:right-4 z-50 flex flex-col bg-gray-900 border border-gray-700 sm:rounded-xl shadow-2xl"
       style={{ width: 'min(420px, 100vw)', height: 'min(600px, 100vh)' }}
       role="dialog" aria-modal="false" aria-label={config.title}
