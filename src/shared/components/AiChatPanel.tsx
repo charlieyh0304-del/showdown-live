@@ -288,35 +288,54 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     return () => window.removeEventListener('touchstart', handler);
   }, [startListening]);
 
+  // 스크린리더 전용 바로가기 (항상 렌더링, 열림/닫힘 무관)
+  const srShortcut = (
+    <div className="sr-only" role="region" aria-label="AI 음성 어시스턴트 바로가기">
+      <button
+        onClick={() => { setIsOpen(true); setTimeout(() => startListening(), 300); }}
+        aria-label={`${config.title} 음성 입력 바로 시작. 이 버튼을 누르면 AI 어시스턴트가 열리고 음성 입력이 시작됩니다.`}
+      >
+        음성 AI 시작
+      </button>
+      <button
+        onClick={openChat}
+        accessKey="k"
+        aria-label={`${config.title} 텍스트 입력으로 열기. 단축키: Ctrl+Option+K`}
+        aria-keyshortcuts="Control+Option+K"
+      >
+        AI 어시스턴트 열기
+      </button>
+    </div>
+  );
+
   if (!isOpen) {
     return (
       <>
+      {srShortcut}
       <div aria-live="polite" className="sr-only">
-        {config.title} 닫힘. 버튼을 눌러 열 수 있습니다. 길게 누르면 음성 입력이 시작됩니다. VoiceOver: Ctrl+Option+K
+        {config.title} 닫힘.
       </div>
-      <nav aria-label={`${config.title} 바로가기`}>
       <button
         onClick={handleClick}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onContextMenu={e => e.preventDefault()}
-        accessKey="k"
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110"
-        aria-label={`${config.title} — 탭: 열기, 길게 누르기: 음성 입력, VoiceOver: Ctrl+Option+K`}
-        aria-keyshortcuts="Control+Option+K"
+        aria-hidden="true"
+        tabIndex={-1}
         title={`${config.title} — 길게 누르면 음성 입력`}
         style={{ minWidth: '56px', minHeight: '56px' }}
       >
         {config.icon === '🤖' ? '💬' : config.icon}
       </button>
-      </nav>
       </>
     );
   }
 
   return (
     <>
+    {srShortcut}
     <div aria-live="polite" className="sr-only">{config.title} 열림. 메시지를 입력할 수 있습니다. 오른쪽으로 스와이프하거나 Esc 키로 닫을 수 있습니다.</div>
     <div className="fixed bottom-0 right-0 sm:bottom-4 sm:right-4 z-50 flex flex-col bg-gray-900 border border-gray-700 sm:rounded-xl shadow-2xl"
       style={{ width: 'min(420px, 100vw)', height: 'min(600px, 100vh)' }}
