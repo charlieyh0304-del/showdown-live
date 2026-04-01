@@ -117,7 +117,7 @@ export const chatbot = onRequest(
     const actions: Array<{ tool: string; input: Record<string, unknown>; result: string }> = [];
 
     // Role-based tool filtering
-    const READ_ONLY_TOOLS = new Set(["list_tournaments", "get_tournament", "list_players", "list_matches", "list_courts", "list_referees", "get_schedule"]);
+    const READ_ONLY_TOOLS = new Set(["list_tournaments", "get_tournament", "list_players", "list_matches", "list_courts", "list_referees", "get_schedule", "list_teams"]);
     const availableTools = role === "admin"
       ? TOOL_DEFINITIONS
       : TOOL_DEFINITIONS.filter((t) => READ_ONLY_TOOLS.has(t.name));

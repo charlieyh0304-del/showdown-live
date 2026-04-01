@@ -350,7 +350,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "add_referee",
-    description: "심판 추가.",
+    description: "심판 추가. 동일 이름 존재 시 기존 심판 반환.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -358,6 +358,104 @@ export const TOOL_DEFINITIONS: Tool[] = [
         role: { type: "string", enum: ["main", "assistant"], description: "main(주심) or assistant(부심)" },
       },
       required: ["name"],
+    },
+  },
+  {
+    name: "delete_referee",
+    description: "심판 삭제.",
+    input_schema: {
+      type: "object" as const,
+      properties: { refereeId: { type: "string" } },
+      required: ["refereeId"],
+    },
+  },
+  {
+    name: "update_referee",
+    description: "심판 정보 수정.",
+    input_schema: {
+      type: "object" as const,
+      properties: { refereeId: { type: "string" }, name: { type: "string" }, role: { type: "string", enum: ["main", "assistant"] } },
+      required: ["refereeId"],
+    },
+  },
+  {
+    name: "delete_court",
+    description: "코트 삭제.",
+    input_schema: {
+      type: "object" as const,
+      properties: { courtId: { type: "string" } },
+      required: ["courtId"],
+    },
+  },
+  {
+    name: "update_court",
+    description: "코트 정보 수정.",
+    input_schema: {
+      type: "object" as const,
+      properties: { courtId: { type: "string" }, name: { type: "string" }, location: { type: "string" } },
+      required: ["courtId"],
+    },
+  },
+  {
+    name: "update_player",
+    description: "선수 정보 수정.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        playerId: { type: "string" }, tournamentId: { type: "string", description: "대회 ID (선택, 없으면 전역)" },
+        name: { type: "string" }, club: { type: "string" }, class: { type: "string" }, gender: { type: "string" },
+      },
+      required: ["playerId"],
+    },
+  },
+  {
+    name: "bulk_assign_referees",
+    description: "미배정 경기에 심판 자동 라운드로빈 배정.",
+    input_schema: {
+      type: "object" as const,
+      properties: { tournamentId: { type: "string" } },
+      required: ["tournamentId"],
+    },
+  },
+  {
+    name: "reset_schedule",
+    description: "대회의 모든 스케줄 초기화 (경기의 시간/코트 배정 제거).",
+    input_schema: {
+      type: "object" as const,
+      properties: { tournamentId: { type: "string" } },
+      required: ["tournamentId"],
+    },
+  },
+  {
+    name: "add_team",
+    description: "팀 추가 (팀전 대회용).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tournamentId: { type: "string" },
+        name: { type: "string", description: "팀 이름" },
+        memberIds: { type: "array", items: { type: "string" }, description: "팀원 선수 ID 배열" },
+        memberNames: { type: "array", items: { type: "string" }, description: "팀원 이름 배열" },
+      },
+      required: ["tournamentId", "name"],
+    },
+  },
+  {
+    name: "delete_team",
+    description: "팀 삭제.",
+    input_schema: {
+      type: "object" as const,
+      properties: { tournamentId: { type: "string" }, teamId: { type: "string" } },
+      required: ["tournamentId", "teamId"],
+    },
+  },
+  {
+    name: "list_teams",
+    description: "팀 목록 조회.",
+    input_schema: {
+      type: "object" as const,
+      properties: { tournamentId: { type: "string" } },
+      required: ["tournamentId"],
     },
   },
 ];
@@ -1444,6 +1542,98 @@ export async function executeTool(
         const newRef = db.ref("referees").push();
         await newRef.set({ name: input.name, role: input.role || "main", createdAt: Date.now() });
         return JSON.stringify({ success: true, refereeId: newRef.key, message: `심판 "${input.name}" 추가 완료` });
+      }
+
+      case "delete_referee": {
+        await db.ref(`referees/${input.refereeId}`).remove();
+        return JSON.stringify({ success: true, message: "심판 삭제 완료" });
+      }
+
+      case "update_referee": {
+        const { refereeId: rid, ...rFields } = input;
+        await db.ref(`referees/${rid}`).update(rFields);
+        return JSON.stringify({ success: true, message: "심판 정보 수정 완료" });
+      }
+
+      case "delete_court": {
+        await db.ref(`courts/${input.courtId}`).remove();
+        return JSON.stringify({ success: true, message: "코트 삭제 완료" });
+      }
+
+      case "update_court": {
+        const { courtId: cid, ...cFields } = input;
+        await db.ref(`courts/${cid}`).update(cFields);
+        return JSON.stringify({ success: true, message: "코트 정보 수정 완료" });
+      }
+
+      case "update_player": {
+        const { playerId: pid, tournamentId: ptid, ...pFields } = input;
+        const pPath = ptid ? `tournamentPlayers/${ptid}/${pid}` : `players/${pid}`;
+        await db.ref(pPath).update(pFields);
+        return JSON.stringify({ success: true, message: "선수 정보 수정 완료" });
+      }
+
+      case "bulk_assign_referees": {
+        const btid = input.tournamentId as string;
+        const mSnap = await db.ref(`matches/${btid}`).once("value");
+        const rSnap = await db.ref("referees").once("value");
+        if (!mSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
+        if (!rSnap.exists()) return JSON.stringify({ error: "심판이 없습니다." });
+
+        const refList = Object.entries(rSnap.val() as Record<string, { name: string }>);
+        const bulkR: Record<string, unknown> = {};
+        let rIdx = 0;
+        let cnt = 0;
+        for (const [mid, mv] of Object.entries(mSnap.val() as Record<string, Record<string, unknown>>)) {
+          if (mv.refereeId || mv.status === "completed") continue;
+          const [refId, refData] = refList[rIdx % refList.length];
+          bulkR[`matches/${btid}/${mid}/refereeId`] = refId;
+          bulkR[`matches/${btid}/${mid}/refereeName`] = refData.name;
+          rIdx++;
+          cnt++;
+        }
+        if (cnt > 0) await db.ref().update(bulkR);
+        return JSON.stringify({ success: true, count: cnt, message: `${cnt}경기에 심판 자동 배정 완료` });
+      }
+
+      case "reset_schedule": {
+        const rstid = input.tournamentId as string;
+        const rstSnap = await db.ref(`matches/${rstid}`).once("value");
+        if (rstSnap.exists()) {
+          const rstBulk: Record<string, unknown> = {};
+          for (const mid of Object.keys(rstSnap.val() as Record<string, unknown>)) {
+            rstBulk[`matches/${rstid}/${mid}/scheduledTime`] = null;
+            rstBulk[`matches/${rstid}/${mid}/scheduledDate`] = null;
+            rstBulk[`matches/${rstid}/${mid}/courtId`] = null;
+            rstBulk[`matches/${rstid}/${mid}/courtName`] = null;
+          }
+          await db.ref().update(rstBulk);
+        }
+        await db.ref(`schedule/${rstid}`).remove();
+        return JSON.stringify({ success: true, message: "스케줄 초기화 완료" });
+      }
+
+      case "add_team": {
+        const ttid = input.tournamentId as string;
+        const tRef = db.ref(`teams/${ttid}`).push();
+        await tRef.set({
+          name: input.name,
+          memberIds: input.memberIds || [],
+          memberNames: input.memberNames || [],
+          createdAt: Date.now(),
+        });
+        return JSON.stringify({ success: true, teamId: tRef.key, message: `팀 "${input.name}" 추가 완료` });
+      }
+
+      case "delete_team": {
+        await db.ref(`teams/${input.tournamentId}/${input.teamId}`).remove();
+        return JSON.stringify({ success: true, message: "팀 삭제 완료" });
+      }
+
+      case "list_teams": {
+        const tSnap = await db.ref(`teams/${input.tournamentId}`).once("value");
+        if (!tSnap.exists()) return JSON.stringify([]);
+        return JSON.stringify(Object.entries(tSnap.val()).map(([id, v]) => ({ id, ...(v as object) })));
       }
 
       default:
