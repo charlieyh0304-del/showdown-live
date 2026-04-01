@@ -458,6 +458,26 @@ export async function executeTool(
         const classificationGroups = (input.classificationGroups as boolean) || false;
         const totalAdvance = groupCount * advancePerGroup;
 
+        // 입력 검증
+        if (!players || players.length < 2) return JSON.stringify({ error: "최소 2명의 선수가 필요합니다." });
+        if (players.length > 10000) return JSON.stringify({ error: "최대 10,000명까지 지원합니다." });
+        if (groupCount > players.length) return JSON.stringify({ error: `조 수(${groupCount})가 선수 수(${players.length})를 초과할 수 없습니다.` });
+
+        // 중복 이름 검사
+        const nameSet = new Set<string>();
+        for (const p of players) {
+          if (nameSet.has(p.name)) return JSON.stringify({ error: `중복 선수명: ${p.name}` });
+          nameSet.add(p.name);
+        }
+
+        // 시드 검증
+        const invalidSeeds = seeds.filter(s => !nameSet.has(s));
+        if (invalidSeeds.length > 0) return JSON.stringify({ error: `시드 선수를 찾을 수 없습니다: ${invalidSeeds.join(", ")}` });
+
+        // 날짜 검증
+        const dateStr = (input.date as string) || new Date().toISOString().split("T")[0];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return JSON.stringify({ error: "날짜 형식: YYYY-MM-DD" });
+
         // 1. 대회 생성
         const tourRef = db.ref("tournaments").push();
         const tid = tourRef.key!;
@@ -591,6 +611,10 @@ export async function executeTool(
         const tid = input.tournamentId as string;
         const pin = input.adminPin as string;
 
+        // 대회 존재 확인
+        const tourCheck = await db.ref(`tournaments/${tid}`).once("value");
+        if (!tourCheck.exists()) return JSON.stringify({ error: "대회를 찾을 수 없습니다." });
+
         // PIN 검증: admins/ 또는 config/adminPin에서 해시 조회
         const adminsSnap = await db.ref("admins").once("value");
         const configSnap = await db.ref("config/adminPin").once("value");
@@ -601,7 +625,9 @@ export async function executeTool(
             if (child.pinHash) {
               if (child.pinHash.includes(":")) {
                 // PBKDF2: salt:hash
-                const [salt, storedHash] = child.pinHash.split(":");
+                const parts = child.pinHash.split(":");
+                if (parts.length !== 2) continue;
+                const [salt, storedHash] = parts;
                 const derived = await hashPinPBKDF2(pin, salt);
                 if (derived === `${salt}:${storedHash}`) { pinValid = true; break; }
               } else {
@@ -761,8 +787,8 @@ export async function executeTool(
         const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
         const tourData = tourSnap.exists() ? tourSnap.val() as Record<string, unknown> : {};
         const gameConfig = tourData.gameConfig as { winScore?: number; setsToWin?: number } | undefined;
-        const winScore = (input.winScore as number) || gameConfig?.winScore || 11;
-        const setsToWin = (input.setsToWin as number) || gameConfig?.setsToWin || 2;
+        const winScore = Math.max(4, (input.winScore as number) || gameConfig?.winScore || 11);
+        const setsToWin = Math.max(1, (input.setsToWin as number) || gameConfig?.setsToWin || 2);
 
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
@@ -772,23 +798,29 @@ export async function executeTool(
         if (stageId) matchList = matchList.filter(([, m]) => m.stageId === stageId);
         if (groupId) matchList = matchList.filter(([, m]) => m.groupId === groupId);
 
-        if (matchList.length === 0) return JSON.stringify({ error: "시뮬레이션할 pending 경기가 없습니다." });
+        // 선수가 없는 경기(빈 슬롯) 제외
+        matchList = matchList.filter(([, m]) => {
+          const p1 = (m.player1Id || m.team1Id) as string;
+          const p2 = (m.player2Id || m.team2Id) as string;
+          return p1 && p2 && p1 !== "" && p2 !== "";
+        });
+
+        if (matchList.length === 0) return JSON.stringify({ error: "시뮬레이션할 경기가 없습니다. (선수가 배정된 pending 경기 없음)" });
 
         const bulk: Record<string, unknown> = {};
         const results: Array<{ match: string; score: string; winner: string }> = [];
 
-        // 현실적 세트 점수 생성 (11점 승리, 10:10 듀스 시 2점차)
         function simulateSet(ws: number): [number, number] {
-          const deuce = Math.random() < 0.2; // 20% 확률로 듀스
+          const safeWs = Math.max(4, ws);
+          const deuce = Math.random() < 0.2;
           if (deuce) {
-            const extra = Math.floor(Math.random() * 3); // 0~2 추가 듀스
-            const winnerScore = ws + extra + 1; // 11, 12, 13 등
-            const loserScore = winnerScore - 2;  // 항상 2점 차
+            const extra = Math.floor(Math.random() * 3);
+            const winnerScore = safeWs + extra + 1;
+            const loserScore = winnerScore - 2;
             return Math.random() > 0.5 ? [winnerScore, loserScore] : [loserScore, winnerScore];
           }
-          // 일반 승리: 승자 = winScore, 패자 = 3~(winScore-2) 랜덤
-          const loserScore = 3 + Math.floor(Math.random() * (ws - 4));
-          return Math.random() > 0.5 ? [ws, loserScore] : [loserScore, ws];
+          const loserScore = 3 + Math.floor(Math.random() * Math.max(1, safeWs - 4));
+          return Math.random() > 0.5 ? [safeWs, loserScore] : [loserScore, safeWs];
         }
 
         for (const [mid, match] of matchList) {
@@ -928,7 +960,7 @@ export async function executeTool(
         const eliminated: Array<{ id: string; name: string; gid: string; rank: number }> = [];
         const gids = [...gStats.keys()].sort();
         for (const gid of gids) {
-          const sorted = [...gStats.get(gid)!.values()].sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd);
+          const sorted = [...gStats.get(gid)!.values()].sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd || a.name.localeCompare(b.name));
           sorted.forEach((p, i) => (i < advancePerGroup2 ? advanced : eliminated).push({ id: p.id, name: p.name, gid, rank: i + 1 }));
         }
 
@@ -1114,6 +1146,12 @@ export async function executeTool(
         const nextDayStartMin = toMin(nextDayStart);
         const breakStart = breakStartStr ? toMin(breakStartStr) : -1;
         const breakEnd = breakEndStr ? toMin(breakEndStr) : -1;
+        if (breakStart >= 0 && breakEnd >= 0 && breakStart >= breakEnd) {
+          return JSON.stringify({ error: `휴식 시작(${breakStartStr})이 종료(${breakEndStr})보다 같거나 늦습니다.` });
+        }
+        if (dayStart >= dayEnd) {
+          return JSON.stringify({ error: `시작 시간(${startTime})이 종료 시간(${endTime})보다 같거나 늦습니다.` });
+        }
 
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
@@ -1313,6 +1351,19 @@ export async function executeTool(
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
 
+        // 시간 시프트 + 날짜 경계 처리
+        function shiftTime(time: string, date: string | undefined, shiftMin: number): { time: string; date: string | undefined; dateShift: number } {
+          const [h2, m2] = time.split(":").map(Number);
+          let totalMin = h2 * 60 + m2 + shiftMin;
+          let ds = 0;
+          while (totalMin < 0) { totalMin += 24 * 60; ds--; }
+          while (totalMin >= 24 * 60) { totalMin -= 24 * 60; ds++; }
+          const newTime2 = `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
+          const newDate2 = ds !== 0 && date ? addDays(date, ds) : date;
+          return { time: newTime2, date: newDate2, dateShift: ds };
+        }
+
+        const shiftBulk: Record<string, unknown> = {};
         let count = 0;
         const allMatches = matchesSnap.val() as Record<string, Record<string, unknown>>;
         for (const [mid, match] of Object.entries(allMatches)) {
@@ -1320,14 +1371,12 @@ export async function executeTool(
           if (matchIds && matchIds.length > 0 && !matchIds.includes(mid)) continue;
           if (courtId && match.courtId !== courtId) continue;
 
-          const [h, m] = (match.scheduledTime as string).split(":").map(Number);
-          const newMin = h * 60 + m + shift;
-          const newTime = `${String(Math.floor(newMin / 60)).padStart(2, "0")}:${String(newMin % 60).padStart(2, "0")}`;
-          await db.ref(`matches/${tid}/${mid}`).update({ scheduledTime: newTime });
+          const result = shiftTime(match.scheduledTime as string, match.scheduledDate as string | undefined, shift);
+          shiftBulk[`matches/${tid}/${mid}/scheduledTime`] = result.time;
+          if (result.date) shiftBulk[`matches/${tid}/${mid}/scheduledDate`] = result.date;
           count++;
         }
 
-        // Update schedule too
         const schedSnap = await db.ref(`schedule/${tid}`).once("value");
         if (schedSnap.exists()) {
           for (const [sid, slot] of Object.entries(schedSnap.val() as Record<string, Record<string, unknown>>)) {
@@ -1336,12 +1385,12 @@ export async function executeTool(
             if (matchIds && matchIds.length > 0 && !matchIds.includes(matchId)) continue;
             if (courtId && slot.courtId !== courtId) continue;
 
-            const [h, m] = (slot.scheduledTime as string).split(":").map(Number);
-            const newMin = h * 60 + m + shift;
-            const newTime = `${String(Math.floor(newMin / 60)).padStart(2, "0")}:${String(newMin % 60).padStart(2, "0")}`;
-            await db.ref(`schedule/${tid}/${sid}`).update({ scheduledTime: newTime });
+            const result = shiftTime(slot.scheduledTime as string, slot.scheduledDate as string | undefined, shift);
+            shiftBulk[`schedule/${tid}/${sid}/scheduledTime`] = result.time;
+            if (result.date) shiftBulk[`schedule/${tid}/${sid}/scheduledDate`] = result.date;
           }
         }
+        if (Object.keys(shiftBulk).length > 0) await db.ref().update(shiftBulk);
 
         return JSON.stringify({ success: true, count, message: `${count}경기 ${shift > 0 ? `${shift}분 뒤로` : `${-shift}분 앞으로`} 이동` });
       }
