@@ -757,18 +757,27 @@ export async function executeTool(
         const bulk: Record<string, unknown> = {};
         const results: Array<{ match: string; score: string; winner: string }> = [];
 
+        // 현실적 세트 점수 생성 (11점 승리, 10:10 듀스 시 2점차)
+        function simulateSet(ws: number): [number, number] {
+          const deuce = Math.random() < 0.2; // 20% 확률로 듀스
+          if (deuce) {
+            const extra = Math.floor(Math.random() * 3); // 0~2 추가 듀스
+            const winnerScore = ws + extra + 1; // 11, 12, 13 등
+            const loserScore = winnerScore - 2;  // 항상 2점 차
+            return Math.random() > 0.5 ? [winnerScore, loserScore] : [loserScore, winnerScore];
+          }
+          // 일반 승리: 승자 = winScore, 패자 = 3~(winScore-2) 랜덤
+          const loserScore = 3 + Math.floor(Math.random() * (ws - 4));
+          return Math.random() > 0.5 ? [ws, loserScore] : [loserScore, ws];
+        }
+
         for (const [mid, match] of matchList) {
-          // 랜덤 세트 결과 생성
           const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
           let p1Wins = 0;
           let p2Wins = 0;
 
           while (p1Wins < setsToWin && p2Wins < setsToWin) {
-            const p1 = winScore + Math.floor(Math.random() * 5);
-            const p2Low = Math.max(0, winScore - 5 - Math.floor(Math.random() * 6));
-            const winner = Math.random() > 0.5;
-            const s1 = winner ? p1 : p2Low;
-            const s2 = winner ? p2Low : p1;
+            const [s1, s2] = simulateSet(winScore);
             const setWinner = s1 > s2
               ? (match.player1Id || match.team1Id) as string
               : (match.player2Id || match.team2Id) as string;
