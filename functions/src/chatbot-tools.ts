@@ -292,6 +292,21 @@ export const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: "generate_finals",
+    description: "예선 결과를 기반으로 본선 토너먼트 대진을 자동 생성. 각 조 상위 N명을 추출하여 16강/8강/4강/결승 + 순위결정전(3-4위, 5-8위) 경기를 생성.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tournamentId: { type: "string" },
+        advancePerGroup: { type: "number", description: "조당 진출자 수 (기본: 대회 설정값)" },
+        includeThirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
+        includeFifthToEighth: { type: "boolean", description: "5-8위 결정전 (기본 false)" },
+        includeClassification: { type: "boolean", description: "하위 순위 결정전 (기본 false)" },
+      },
+      required: ["tournamentId"],
+    },
+  },
+  {
     name: "shift_schedule",
     description: "스케줄 일괄 시간 이동. 모든 경기 또는 특정 경기의 시간을 분 단위로 앞/뒤로 조정.",
     input_schema: {
@@ -814,6 +829,229 @@ export async function executeTool(
           count: matchList.length,
           results: results.slice(0, 20), // 처음 20개만 표시
           message: `${matchList.length}경기 시뮬레이션 완료`,
+        });
+      }
+
+      case "generate_finals": {
+        const tid = input.tournamentId as string;
+
+        // 대회 설정 로드
+        const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
+        if (!tourSnap.exists()) return JSON.stringify({ error: "대회를 찾을 수 없습니다." });
+        const tour = tourSnap.val() as Record<string, unknown>;
+
+        const finalsConfig = tour.finalsConfig as Record<string, unknown> | undefined;
+        const rankingConfig = tour.rankingMatchConfig as Record<string, unknown> | undefined;
+        const stages = (tour.stages || []) as Array<Record<string, unknown>>;
+        const qualStage = stages.find(s => s.type === "qualifying");
+        const finalsStage = stages.find(s => s.type === "finals");
+
+        const qualStageId = qualStage?.id as string | undefined;
+        const finalsStageId = finalsStage?.id as string || `stage_finals_${tid}`;
+        const advancePerGroup = (input.advancePerGroup as number)
+          || (finalsConfig?.advancePerGroup as number)
+          || 2;
+        const includeThirdPlace = input.includeThirdPlace !== false && (rankingConfig?.thirdPlace !== false);
+        const includeFifthToEighth = (input.includeFifthToEighth as boolean) || (rankingConfig?.fifthToEighth as boolean) || false;
+        const includeClassification = (input.includeClassification as boolean) || (rankingConfig?.classificationGroups as boolean) || false;
+
+        // 예선 경기 로드
+        const matchesSnap = await db.ref(`matches/${tid}`).once("value");
+        if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
+
+        const allMatches = Object.entries(matchesSnap.val() as Record<string, Record<string, unknown>>);
+        const qualMatches = allMatches
+          .map(([id, m]) => ({ id, ...m } as Record<string, unknown> & { id: string }))
+          .filter((m) => m.status === "completed" && (qualStageId ? m.stageId === qualStageId : !!m.groupId));
+
+        if (qualMatches.length === 0) return JSON.stringify({ error: "완료된 예선 경기가 없습니다. 예선을 먼저 진행하세요." });
+
+        // 조별 순위 계산
+        const groupStats = new Map<string, Map<string, { id: string; name: string; wins: number; setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number }>>();
+
+        for (const m of qualMatches) {
+          const gid = m.groupId as string;
+          if (!gid) continue;
+          if (!groupStats.has(gid)) groupStats.set(gid, new Map());
+          const stats = groupStats.get(gid)!;
+
+          const p1Id = (m.player1Id || m.team1Id) as string;
+          const p2Id = (m.player2Id || m.team2Id) as string;
+          const p1Name = (m.player1Name || m.team1Name) as string;
+          const p2Name = (m.player2Name || m.team2Name) as string;
+
+          if (!stats.has(p1Id)) stats.set(p1Id, { id: p1Id, name: p1Name, wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+          if (!stats.has(p2Id)) stats.set(p2Id, { id: p2Id, name: p2Name, wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
+
+          const p1 = stats.get(p1Id)!;
+          const p2 = stats.get(p2Id)!;
+
+          if (m.winnerId === p1Id) p1.wins++;
+          else if (m.winnerId === p2Id) p2.wins++;
+
+          const sets = (m.sets || []) as Array<{ player1Score: number; player2Score: number }>;
+          for (const s of sets) {
+            p1.pointsFor += s.player1Score; p1.pointsAgainst += s.player2Score;
+            p2.pointsFor += s.player2Score; p2.pointsAgainst += s.player1Score;
+            if (s.player1Score > s.player2Score) { p1.setsWon++; p2.setsLost++; }
+            else if (s.player2Score > s.player1Score) { p2.setsWon++; p1.setsLost++; }
+          }
+        }
+
+        // 각 조 순위 결정 → 진출자 추출
+        const advancedPlayers: Array<{ id: string; name: string; groupId: string; rank: number }> = [];
+        const eliminatedPlayers: Array<{ id: string; name: string; groupId: string; rank: number }> = [];
+
+        const groupIds = [...groupStats.keys()].sort();
+        for (const gid of groupIds) {
+          const stats = groupStats.get(gid)!;
+          const sorted = [...stats.values()].sort((a, b) =>
+            b.wins - a.wins
+            || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost)
+            || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst)
+          );
+          sorted.forEach((p, idx) => {
+            if (idx < advancePerGroup) {
+              advancedPlayers.push({ id: p.id, name: p.name, groupId: gid, rank: idx + 1 });
+            } else {
+              eliminatedPlayers.push({ id: p.id, name: p.name, groupId: gid, rank: idx + 1 });
+            }
+          });
+        }
+
+        if (advancedPlayers.length < 2) return JSON.stringify({ error: `진출자가 ${advancedPlayers.length}명뿐입니다. 최소 2명 필요.` });
+
+        // 본선 대진 생성
+        const now = Date.now();
+        const bulk: Record<string, unknown> = {};
+        let matchCount = 0;
+        const finalsResults: string[] = [];
+
+        // 시드 배치: 1위끼리 만나지 않게 교차 배치
+        // A조1 vs H조2, B조1 vs G조2, C조1 vs F조2, D조1 vs E조2, ...
+        const topSeeds = advancedPlayers.filter(p => p.rank === 1);
+        const secondSeeds = advancedPlayers.filter(p => p.rank === 2);
+        const bracket: Array<{ p1: typeof advancedPlayers[0]; p2: typeof advancedPlayers[0] }> = [];
+
+        for (let i = 0; i < topSeeds.length; i++) {
+          const opponent = secondSeeds[topSeeds.length - 1 - i];
+          if (opponent) bracket.push({ p1: topSeeds[i], p2: opponent });
+        }
+        // 남은 선수가 있으면 순서대로 매칭
+        const usedIds = new Set(bracket.flatMap(b => [b.p1.id, b.p2.id]));
+        const leftover = advancedPlayers.filter(p => !usedIds.has(p.id));
+        for (let i = 0; i < leftover.length - 1; i += 2) {
+          bracket.push({ p1: leftover[i], p2: leftover[i + 1] });
+        }
+
+        // 16강/8강 등 라운드 이름
+        const roundName = (n: number) => {
+          if (bracket.length <= n) return "";
+          const total = bracket.length;
+          if (total <= 2) return "결승";
+          if (total <= 4) return n === 0 ? "4강" : "결승";
+          if (total <= 8) return ["8강", "4강", "결승"][n] || `R${n + 1}`;
+          return [`16강`, "8강", "4강", "결승"][n] || `R${n + 1}`;
+        };
+
+        // 1라운드(16강 등) 경기 생성
+        for (let i = 0; i < bracket.length; i++) {
+          const { p1, p2 } = bracket[i];
+          const mKey = db.ref(`matches/${tid}`).push().key!;
+          bulk[`matches/${tid}/${mKey}`] = {
+            tournamentId: tid,
+            type: tour.type || "individual",
+            status: "pending",
+            round: i + 1,
+            bracketPosition: i,
+            stageId: finalsStageId,
+            player1Id: p1.id, player2Id: p2.id,
+            player1Name: p1.name, player2Name: p2.name,
+            sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+            currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+            winnerId: null, createdAt: now + matchCount,
+          };
+          finalsResults.push(`${roundName(0)} ${i + 1}: ${p1.name}(${p1.groupId} ${p1.rank}위) vs ${p2.name}(${p2.groupId} ${p2.rank}위)`);
+          matchCount++;
+        }
+
+        // 3/4위 결정전
+        if (includeThirdPlace && bracket.length >= 4) {
+          const mKey = db.ref(`matches/${tid}`).push().key!;
+          bulk[`matches/${tid}/${mKey}`] = {
+            tournamentId: tid, type: tour.type || "individual", status: "pending",
+            round: 1, stageId: `${finalsStageId}_3rd`,
+            player1Id: "", player2Id: "", player1Name: "4강 패자1", player2Name: "4강 패자2",
+            sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+            currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+            winnerId: null, createdAt: now + matchCount,
+          };
+          finalsResults.push("3/4위 결정전: (4강 패자끼리)");
+          matchCount++;
+        }
+
+        // 5-8위 결정전
+        if (includeFifthToEighth && bracket.length >= 8) {
+          for (let i = 0; i < 2; i++) {
+            const mKey = db.ref(`matches/${tid}`).push().key!;
+            bulk[`matches/${tid}/${mKey}`] = {
+              tournamentId: tid, type: tour.type || "individual", status: "pending",
+              round: 1, stageId: `${finalsStageId}_5to8`,
+              player1Id: "", player2Id: "", player1Name: `8강 패자${i * 2 + 1}`, player2Name: `8강 패자${i * 2 + 2}`,
+              sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+              currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+              winnerId: null, createdAt: now + matchCount,
+            };
+            matchCount++;
+          }
+          finalsResults.push("5-8위 결정전: 2경기 (8강 패자끼리)");
+        }
+
+        // 하위 순위 결정전 (4명씩 그룹 라운드로빈)
+        if (includeClassification && eliminatedPlayers.length >= 2) {
+          const classGroupSize = 4;
+          const classGroups = Math.ceil(eliminatedPlayers.length / classGroupSize);
+          let classMatchCount = 0;
+          for (let g = 0; g < classGroups; g++) {
+            const start = g * classGroupSize;
+            const groupPlayers = eliminatedPlayers.slice(start, start + classGroupSize);
+            for (let i = 0; i < groupPlayers.length; i++) {
+              for (let j = i + 1; j < groupPlayers.length; j++) {
+                const mKey = db.ref(`matches/${tid}`).push().key!;
+                bulk[`matches/${tid}/${mKey}`] = {
+                  tournamentId: tid, type: tour.type || "individual", status: "pending",
+                  round: classMatchCount + 1, stageId: `${finalsStageId}_class_${g}`,
+                  player1Id: groupPlayers[i].id, player2Id: groupPlayers[j].id,
+                  player1Name: groupPlayers[i].name, player2Name: groupPlayers[j].name,
+                  sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+                  currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+                  winnerId: null, createdAt: now + matchCount,
+                };
+                matchCount++;
+                classMatchCount++;
+              }
+            }
+          }
+          finalsResults.push(`하위 순위 결정전: ${classGroups}그룹, ${classMatchCount}경기`);
+        }
+
+        await db.ref().update(bulk);
+
+        // 조별 순위 요약
+        const rankingSummary = groupIds.map(gid => {
+          const stats = groupStats.get(gid)!;
+          const sorted = [...stats.values()].sort((a, b) => b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost));
+          return `${gid}: ${sorted.map((p, i) => `${i + 1}.${p.name}(${p.wins}승)`).join(", ")}`;
+        }).join("\n");
+
+        return JSON.stringify({
+          success: true,
+          matchCount,
+          advancedCount: advancedPlayers.length,
+          eliminatedCount: eliminatedPlayers.length,
+          bracket: finalsResults,
+          groupRankings: rankingSummary,
+          message: `본선 ${matchCount}경기 생성 완료 (진출 ${advancedPlayers.length}명)\n${finalsResults.join("\n")}`,
         });
       }
 

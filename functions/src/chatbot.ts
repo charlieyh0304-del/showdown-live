@@ -34,9 +34,9 @@ const SYSTEM_PROMPT = `당신은 태권도/쇼다운 대회 관리 앱 "Showdown
 - winScore: 세트당 승리 점수 (기본 11)
 
 **본선 대진:**
-- setup_full_tournament는 예선 경기만 자동 생성함.
-- 본선(16강/8강/결승 등)은 예선 완료 후 수동으로 관리 페이지에서 구성해야 함.
-- 본선 경기가 필요하면 add_match 도구로 개별 추가 가능.`;
+- setup_full_tournament는 예선 경기만 자동 생성.
+- 예선 완료 후 generate_finals 도구로 본선 대진을 자동 생성 (조별 순위 계산 → 진출자 추출 → 교차 시드 배치 → 16강/8강/결승 + 순위결정전).
+- 워크플로우: setup_full_tournament → simulate_matches(예선) → generate_finals → simulate_matches(본선)`;
 
 const MAX_TOOL_LOOPS = 10;
 
