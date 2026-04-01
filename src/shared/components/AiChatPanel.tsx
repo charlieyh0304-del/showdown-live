@@ -107,6 +107,43 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen]);
 
+  // 우측 가장자리 스와이프 → 패널 열기/닫기
+  useEffect(() => {
+    let startX = 0;
+    let startY = 0;
+    const EDGE_ZONE = 30; // 화면 우측 30px 영역에서 시작해야 함
+    const MIN_SWIPE = 60;
+
+    const onTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - startX;
+      const dy = Math.abs(touch.clientY - startY);
+      if (dy > Math.abs(dx)) return; // 세로 스크롤이면 무시
+
+      // 닫힌 상태: 우측 가장자리에서 왼쪽 스와이프 → 열기
+      if (!isOpen && startX > window.innerWidth - EDGE_ZONE && dx < -MIN_SWIPE) {
+        setIsOpen(true);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+      // 열린 상태: 오른쪽 스와이프 → 닫기
+      if (isOpen && dx > MIN_SWIPE) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isOpen]);
+
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text || isLoading) return;
@@ -123,20 +160,33 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
 
   const elapsedDisplay = elapsedSec > 0 ? (elapsedSec >= 60 ? `${Math.floor(elapsedSec / 60)}분 ${elapsedSec % 60}초` : `${elapsedSec}초`) : '';
 
+  // 스크린리더용 aria-live 안내
+  const openChat = useCallback(() => {
+    setIsOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
+
   if (!isOpen) {
     return (
+      <>
+      <div aria-live="polite" className="sr-only">
+        {config.title} 닫힘. 버튼을 눌러 열 수 있습니다.
+      </div>
       <button
-        onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 100); }}
+        onClick={openChat}
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110"
         aria-label={`${config.title} (Ctrl+K)`} title={`${config.title} (Ctrl+K)`}
         style={{ minWidth: '56px', minHeight: '56px' }}
       >
         {config.icon === '🤖' ? '💬' : config.icon}
       </button>
+      </>
     );
   }
 
   return (
+    <>
+    <div aria-live="polite" className="sr-only">{config.title} 열림. 메시지를 입력할 수 있습니다. 오른쪽으로 스와이프하거나 Esc 키로 닫을 수 있습니다.</div>
     <div className="fixed bottom-0 right-0 sm:bottom-4 sm:right-4 z-50 flex flex-col bg-gray-900 border border-gray-700 sm:rounded-xl shadow-2xl"
       style={{ width: 'min(420px, 100vw)', height: 'min(600px, 100vh)' }}
       role="dialog" aria-modal="false" aria-label={config.title}
@@ -212,5 +262,6 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }
