@@ -2831,12 +2831,18 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
   const { t } = useTranslation();
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
-  const [endTime, setEndTime] = useState('23:00');
-  const [restInterval, setRestInterval] = useState(interval);
-  const [nextDayStartTime, setNextDayStartTime] = useState(startTime);
+  const [endTime, setEndTime] = useState('19:00');
+  const [restInterval, setRestInterval] = useState(60);
+  const [nextDayStartTime, setNextDayStartTime] = useState('09:00');
   const [generating, setGenerating] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [onlyUnassigned, setOnlyUnassigned] = useState(false);
+  const [breakStart, setBreakStart] = useState('');
+  const [breakEnd, setBreakEnd] = useState('');
+  const [shiftMinutes, setShiftMinutes] = useState(30);
+  const [shiftCourtId, setShiftCourtId] = useState('');
+  const [moveFromCourt, setMoveFromCourt] = useState('');
+  const [moveToCourt, setMoveToCourt] = useState('');
 
 
   // Manual schedule editing state
@@ -3042,6 +3048,16 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
       const dayStartMinutes = (() => { const [h, m] = startTime.split(':').map(Number); return h * 60 + m; })();
       const dayEndMinutes = (() => { const [h, m] = endTime.split(':').map(Number); return h * 60 + m; })();
       const nextDayStart = (() => { const [h, m] = nextDayStartTime.split(':').map(Number); return h * 60 + m; })();
+      const breakStartMin = breakStart ? (() => { const [h, m] = breakStart.split(':').map(Number); return h * 60 + m; })() : -1;
+      const breakEndMin = breakEnd ? (() => { const [h, m] = breakEnd.split(':').map(Number); return h * 60 + m; })() : -1;
+
+      // 휴식 시간 스킵
+      const skipBreak = (time: number): number => {
+        if (breakStartMin >= 0 && breakEndMin > breakStartMin && time >= breakStartMin && time < breakEndMin) {
+          return breakEndMin;
+        }
+        return time;
+      };
 
       const formatTime = (minutes: number): string => {
         const hh = Math.floor(minutes / 60).toString().padStart(2, '0');
@@ -3069,20 +3085,22 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
         for (let ci = 0; ci < courtSlots.length; ci++) {
           const court = courtSlots[ci];
           let candidateDate = court.date;
-          let candidateTime = court.timeMinutes;
+          let candidateTime = skipBreak(court.timeMinutes);
 
           // Check player rest time
           for (const pid of playerIds) {
             const last = playerLastEnd.get(pid);
             if (last) {
               if (last.date === candidateDate && last.time > candidateTime) {
-                candidateTime = last.time;
+                candidateTime = skipBreak(last.time);
               } else if (last.date > candidateDate) {
                 candidateDate = last.date;
-                candidateTime = Math.max(dayStartMinutes, last.time);
+                candidateTime = skipBreak(Math.max(dayStartMinutes, last.time));
               }
             }
           }
+
+          candidateTime = skipBreak(candidateTime);
 
           // Compare: prefer earliest date+time
           const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
@@ -3097,7 +3115,7 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
         // If past day end, roll to next day
         if (bestTime >= dayEndMinutes) {
           bestDate = addDays(bestDate, 1);
-          bestTime = nextDayStart;
+          bestTime = skipBreak(nextDayStart);
         }
 
         const court = courtSlots[bestCourtIdx];
@@ -3163,7 +3181,7 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
     } finally {
       setGenerating(false);
     }
-  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch, expectedMatchCount.total, t]);
+  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch, expectedMatchCount.total, t, breakStart, breakEnd]);
 
   // Group schedule by date, then by time
   const dates = useMemo(() => {
@@ -3314,6 +3332,23 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
             </div>
           </div>
         </div>
+        {/* 점심시간 / 휴식시간 */}
+        <div className="flex gap-4 flex-wrap">
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">휴식 시작 (예: 점심)</label>
+            <input type="time" className="input" value={breakStart} onChange={e => setBreakStart(e.target.value)} aria-label="휴식 시작 시간" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">휴식 종료</label>
+            <input type="time" className="input" value={breakEnd} onChange={e => setBreakEnd(e.target.value)} aria-label="휴식 종료 시간" />
+          </div>
+          {breakStart && breakEnd && (
+            <div className="flex items-end">
+              <span className="text-xs text-yellow-400 bg-yellow-900/30 rounded px-2 py-1">⏸ {breakStart}~{breakEnd} 경기 없음</span>
+            </div>
+          )}
+        </div>
+
         <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
           <input
             type="checkbox"
@@ -3332,6 +3367,91 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
           {generating ? t('admin.tournamentDetail.scheduleTab.generating') : t('admin.tournamentDetail.scheduleTab.generateButton')}
         </button>
         {courts.length === 0 && <p className="text-gray-400 text-center">{t('admin.tournamentDetail.scheduleTab.noCourts')}</p>}
+      </div>
+
+      {/* 일괄 이동 / 코트 이동 */}
+      <div className="card space-y-4">
+        <h2 className="text-lg font-bold text-center">스케줄 조정</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* 시간 일괄 이동 */}
+          <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
+            <h3 className="text-sm font-bold text-gray-300">⏱ 시간 일괄 이동</h3>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">이동 시간 (분)</label>
+                <input type="number" className="input w-full" value={shiftMinutes} onChange={e => setShiftMinutes(Number(e.target.value))} aria-label="이동할 분" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">코트 (전체면 비움)</label>
+                <select className="input w-full" value={shiftCourtId} onChange={e => setShiftCourtId(e.target.value)} aria-label="대상 코트">
+                  <option value="">전체 코트</option>
+                  {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn btn-secondary flex-1 text-sm" style={{ minHeight: '44px' }}
+                onClick={async () => {
+                  const target = matches.filter(m => m.scheduledTime && (!shiftCourtId || m.courtId === shiftCourtId));
+                  if (target.length === 0) return;
+                  if (!confirm(`${target.length}경기를 ${shiftMinutes}분 이동하시겠습니까?`)) return;
+                  for (const m of target) {
+                    const [h, min] = (m.scheduledTime || '00:00').split(':').map(Number);
+                    let total = h * 60 + min + shiftMinutes;
+                    let ds = 0;
+                    while (total < 0) { total += 1440; ds--; }
+                    while (total >= 1440) { total -= 1440; ds++; }
+                    const newTime = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+                    const newDate = ds !== 0 && m.scheduledDate ? (() => { const d = new Date(m.scheduledDate!); d.setDate(d.getDate() + ds); return d.toISOString().split('T')[0]; })() : m.scheduledDate;
+                    await updateMatch(m.id, { scheduledTime: newTime, ...(newDate ? { scheduledDate: newDate } : {}) });
+                  }
+                  alert(`${target.length}경기 ${shiftMinutes > 0 ? `${shiftMinutes}분 뒤로` : `${-shiftMinutes}분 앞으로`} 이동 완료`);
+                }}
+                aria-label={`${shiftMinutes}분 이동`}
+              >
+                {shiftMinutes > 0 ? `${shiftMinutes}분 뒤로 →` : `${-shiftMinutes}분 앞으로 ←`}
+              </button>
+            </div>
+          </div>
+
+          {/* 코트 이동 */}
+          <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
+            <h3 className="text-sm font-bold text-gray-300">🔄 코트 이동</h3>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">출발 코트</label>
+                <select className="input w-full" value={moveFromCourt} onChange={e => setMoveFromCourt(e.target.value)} aria-label="출발 코트">
+                  <option value="">선택</option>
+                  {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">도착 코트</label>
+                <select className="input w-full" value={moveToCourt} onChange={e => setMoveToCourt(e.target.value)} aria-label="도착 코트">
+                  <option value="">선택</option>
+                  {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <button className="btn btn-secondary w-full text-sm" style={{ minHeight: '44px' }}
+              disabled={!moveFromCourt || !moveToCourt || moveFromCourt === moveToCourt}
+              onClick={async () => {
+                const target = matches.filter(m => m.courtId === moveFromCourt);
+                if (target.length === 0) { alert('이동할 경기가 없습니다.'); return; }
+                const toName = courts.find(c => c.id === moveToCourt)?.name || '';
+                if (!confirm(`${target.length}경기를 ${toName}으로 이동하시겠습니까?`)) return;
+                for (const m of target) {
+                  await updateMatch(m.id, { courtId: moveToCourt, courtName: toName });
+                }
+                alert(`${target.length}경기 코트 이동 완료`);
+                setMoveFromCourt(''); setMoveToCourt('');
+              }}
+              aria-label="코트 이동 실행"
+            >
+              이동 실행
+            </button>
+          </div>
+        </div>
       </div>
 
       {timeSlotsByDate.length > 0 && timeSlotsByDate.some(d => d.rows.length > 0) && (
