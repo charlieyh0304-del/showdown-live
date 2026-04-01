@@ -37,8 +37,8 @@ interface ChatMessage {
 export const chatbot = onRequest(
   {
     cors: true,
-    timeoutSeconds: 120,
-    memory: "512MiB",
+    timeoutSeconds: 300,
+    memory: "1GiB",
     secrets: [anthropicApiKey],
   },
   async (req, res) => {

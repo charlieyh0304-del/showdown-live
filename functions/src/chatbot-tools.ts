@@ -277,6 +277,21 @@ export const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: "simulate_matches",
+    description: "경기 시뮬레이션: pending 상태인 경기들을 랜덤 점수로 완료 처리. 테스트/데모용. stageId나 groupId로 필터 가능.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tournamentId: { type: "string" },
+        stageId: { type: "string", description: "특정 스테이지만 (선택)" },
+        groupId: { type: "string", description: "특정 조만 (선택)" },
+        winScore: { type: "number", description: "승리 점수 (기본 11)" },
+        setsToWin: { type: "number", description: "승리 세트 수 (기본 3)" },
+      },
+      required: ["tournamentId"],
+    },
+  },
+  {
     name: "shift_schedule",
     description: "스케줄 일괄 시간 이동. 모든 경기 또는 특정 경기의 시간을 분 단위로 앞/뒤로 조정.",
     input_schema: {
@@ -722,6 +737,72 @@ export async function executeTool(
       }
 
       // --- Write: Schedule (고급) ---
+      case "simulate_matches": {
+        const tid = input.tournamentId as string;
+        const winScore = (input.winScore as number) || 11;
+        const setsToWin = (input.setsToWin as number) || 3;
+        const stageId = input.stageId as string | undefined;
+        const groupId = input.groupId as string | undefined;
+
+        const matchesSnap = await db.ref(`matches/${tid}`).once("value");
+        if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
+
+        let matchList = Object.entries(matchesSnap.val() as Record<string, Record<string, unknown>>);
+        matchList = matchList.filter(([, m]) => m.status === "pending");
+        if (stageId) matchList = matchList.filter(([, m]) => m.stageId === stageId);
+        if (groupId) matchList = matchList.filter(([, m]) => m.groupId === groupId);
+
+        if (matchList.length === 0) return JSON.stringify({ error: "시뮬레이션할 pending 경기가 없습니다." });
+
+        const bulk: Record<string, unknown> = {};
+        const results: Array<{ match: string; score: string; winner: string }> = [];
+
+        for (const [mid, match] of matchList) {
+          // 랜덤 세트 결과 생성
+          const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
+          let p1Wins = 0;
+          let p2Wins = 0;
+
+          while (p1Wins < setsToWin && p2Wins < setsToWin) {
+            const p1 = winScore + Math.floor(Math.random() * 5);
+            const p2Low = Math.max(0, winScore - 5 - Math.floor(Math.random() * 6));
+            const winner = Math.random() > 0.5;
+            const s1 = winner ? p1 : p2Low;
+            const s2 = winner ? p2Low : p1;
+            const setWinner = s1 > s2
+              ? (match.player1Id || match.team1Id) as string
+              : (match.player2Id || match.team2Id) as string;
+            sets.push({ player1Score: s1, player2Score: s2, winnerId: setWinner });
+            if (s1 > s2) p1Wins++;
+            else p2Wins++;
+          }
+
+          const winnerId = p1Wins > p2Wins
+            ? (match.player1Id || match.team1Id) as string
+            : (match.player2Id || match.team2Id) as string;
+          const winnerName = p1Wins > p2Wins
+            ? (match.player1Name || match.team1Name || "P1") as string
+            : (match.player2Name || match.team2Name || "P2") as string;
+
+          const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
+          results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
+
+          bulk[`matches/${tid}/${mid}/sets`] = sets;
+          bulk[`matches/${tid}/${mid}/currentSet`] = sets.length - 1;
+          bulk[`matches/${tid}/${mid}/status`] = "completed";
+          bulk[`matches/${tid}/${mid}/winnerId`] = winnerId;
+        }
+
+        await db.ref().update(bulk);
+
+        return JSON.stringify({
+          success: true,
+          count: matchList.length,
+          results: results.slice(0, 20), // 처음 20개만 표시
+          message: `${matchList.length}경기 시뮬레이션 완료`,
+        });
+      }
+
       case "generate_schedule": {
         const tid = input.tournamentId as string;
         const startTime = (input.startTime as string) || "09:00";
