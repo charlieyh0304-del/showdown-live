@@ -109,6 +109,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
         teamSize: { type: "number", description: "팀당 인원 (기본 3)" },
         groupCount: { type: "number", description: "조 수 (기본 1=전체 리그, 2이상=조별 리그)" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수 이름 (각 팀에 1명씩 분산, 남녀 균등)" },
+        teamNames: { type: "array", items: { type: "string" }, description: "팀 이름 목록 (예: ['윌','종','현','병',...]) 미지정 시 1팀,2팀..." },
         winScore: { type: "number", description: "팀전 승리 점수 (기본 31)" },
         advancePerGroup: { type: "number", description: "조당 본선 진출 팀 수 (조별리그 시)" },
         thirdPlace: { type: "boolean", description: "3/4위 결정전" },
@@ -517,10 +518,32 @@ export async function executeTool(
 
       case "list_matches": {
         const snap = await db.ref(`matches/${input.tournamentId}`).once("value");
-        if (!snap.exists()) return JSON.stringify([]);
-        let list = Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as object) }));
-        if (input.status) list = list.filter((m: Record<string, unknown>) => m.status === input.status);
-        return JSON.stringify(list.slice(0, 100));
+        if (!snap.exists()) return JSON.stringify({ matches: [], summary: "경기 없음" });
+        type ME = Record<string, unknown> & { id: string };
+        const rawList: ME[] = Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as Record<string, unknown>) }));
+        let filtered = rawList;
+        if (input.status) filtered = filtered.filter(m => m.status === input.status);
+
+        // 요약 통계
+        const total = rawList.length;
+        const pending = rawList.filter(m => m.status === "pending").length;
+        const completed = rawList.filter(m => m.status === "completed").length;
+        const inProgress = rawList.filter(m => m.status === "in_progress").length;
+
+        // 경기별 핵심 정보만 (토큰 절약)
+        const compact = filtered.slice(0, 50).map(m => {
+          const sets = (m.sets || []) as Array<{ player1Score: number; player2Score: number }>;
+          const score = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
+          return {
+            id: m.id, status: m.status, round: m.round,
+            p1: m.player1Name || m.team1Name || "", p2: m.player2Name || m.team2Name || "",
+            score, winnerId: m.winnerId,
+            groupId: m.groupId, stageId: m.stageId,
+            bracketRound: m.bracketRound,
+          };
+        });
+
+        return JSON.stringify({ matches: compact, summary: `전체 ${total}경기 (완료 ${completed}, 진행 ${inProgress}, 대기 ${pending})` });
       }
 
       case "list_courts": {
@@ -580,6 +603,7 @@ export async function executeTool(
         const rtPlayers = input.players as Array<{ name: string; gender?: string }>;
         const rtTeamSize = (input.teamSize as number) || 3;
         const rtSeeds = (input.seeds as string[]) || [];
+        const rtCustomNames = (input.teamNames as string[]) || [];
         const rtWinScore = (input.winScore as number) || 31;
         const rtGroupCount = (input.groupCount as number) || 1;
 
@@ -643,7 +667,8 @@ export async function executeTool(
         const females = rtPlayers.filter(p => p.gender === "female" || p.gender === "여");
         const rtTeams: Array<{ id: string; name: string; memberIds: string[]; memberNames: string[] }> = [];
         for (let i = 0; i < teamCount; i++) {
-          rtTeams.push({ id: `team_${i + 1}`, name: `${i + 1}팀`, memberIds: [], memberNames: [] });
+          const tName = rtCustomNames[i] || `${i + 1}팀`;
+          rtTeams.push({ id: `team_${i + 1}`, name: tName, memberIds: [], memberNames: [] });
         }
 
         // 3a. 시드 배치: 각 팀에 1명씩
@@ -1156,6 +1181,7 @@ export async function executeTool(
       // --- Write: Schedule (고급) ---
       case "simulate_matches": {
         const tid = input.tournamentId as string;
+        const now = Date.now();
         const stageId = input.stageId as string | undefined;
         const groupId = input.groupId as string | undefined;
 
@@ -1227,17 +1253,30 @@ export async function executeTool(
           const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
           results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
-          // scoreHistory 생성 (경기 기록지용)
+          // scoreHistory 생성 (경기 기록지 + 관람 화면용)
           const p1n = (match.player1Name || match.team1Name || "P1") as string;
           const p2n = (match.player2Name || match.team2Name || "P2") as string;
           const history: Array<Record<string, unknown>> = [];
           for (let si = 0; si < sets.length; si++) {
             const s = sets[si];
+            const setWinnerName = s.player1Score > s.player2Score ? p1n : p2n;
+            // 경기 시작
+            if (si === 0) {
+              history.push({
+                time: new Date(now + si * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+                set: si + 1, scoringPlayer: "", actionPlayer: "",
+                actionType: "match_start", actionLabel: "경기 시작",
+                points: 0, server: p1n, serveNumber: 1,
+                scoreBefore: { player1: 0, player2: 0 },
+                scoreAfter: { player1: 0, player2: 0 },
+                serverSide: "player1",
+              });
+            }
+            // 세트 결과
             history.push({
-              time: `SET${si + 1}`, set: si + 1,
-              scoringPlayer: s.player1Score > s.player2Score ? p1n : p2n,
-              actionPlayer: s.player1Score > s.player2Score ? p1n : p2n,
-              actionType: "set_result", actionLabel: `세트 ${si + 1} 결과`,
+              time: new Date(now + (si + 1) * 60000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+              set: si + 1, scoringPlayer: setWinnerName, actionPlayer: setWinnerName,
+              actionType: "goal", actionLabel: `세트${si + 1} 종료 (${s.player1Score}:${s.player2Score})`,
               points: 0, server: p1n, serveNumber: 1,
               scoreBefore: { player1: 0, player2: 0 },
               scoreAfter: { player1: s.player1Score, player2: s.player2Score },
@@ -1250,6 +1289,7 @@ export async function executeTool(
           bulk[`matches/${tid}/${mid}/status`] = "completed";
           bulk[`matches/${tid}/${mid}/winnerId`] = winnerId;
           bulk[`matches/${tid}/${mid}/scoreHistory`] = history;
+          bulk[`matches/${tid}/${mid}/updatedAt`] = now;
         }
 
         await db.ref().update(bulk);
@@ -1300,6 +1340,8 @@ export async function executeTool(
         }
 
         // 대회/스테이지 상태 자동 업데이트
+        // 주의: bulk update 직후이므로 Firebase에서 다시 읽어야 최신 상태 반영
+        await new Promise(r => setTimeout(r, 500)); // Firebase 반영 대기
         const statusSnap = await db.ref(`matches/${tid}`).once("value");
         if (statusSnap.exists()) {
           const allMatches = Object.values(statusSnap.val() as Record<string, Record<string, unknown>>);
