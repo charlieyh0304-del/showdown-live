@@ -1246,7 +1246,13 @@ export default function PracticeScoring() {
       {foulClassify && (
         <FoulClassifyOverlay
           playerName={foulClassify.player === 1 ? p1Name : p2Name}
+          player={foulClassify.player}
           onClassify={handleClassifyFoul}
+          onPenalty={(player, penaltyType) => {
+            handleUndo();
+            setFoulClassify(null);
+            handlePenalty(player, penaltyType);
+          }}
           onDismiss={() => setFoulClassify(null)}
         />
       )}

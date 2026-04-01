@@ -130,7 +130,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const link = event.notification.data?.link || '/spectator';
+  // data.link (SW 생성 알림) → fcmOptions.link (브라우저 자동 알림) → 기본값
+  const link = event.notification.data?.link
+    || event.notification?.fcmOptions?.link
+    || event.action
+    || '/spectator';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

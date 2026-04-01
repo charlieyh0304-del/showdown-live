@@ -1503,7 +1503,13 @@ export default function TeamMatchScoring() {
       {foulClassify && (
         <FoulClassifyOverlay
           playerName={foulClassify.player === 1 ? team1Name : team2Name}
+          player={foulClassify.player}
           onClassify={handleClassifyFoul}
+          onPenalty={async (player, penaltyType) => {
+            await handleUndo();
+            setFoulClassify(null);
+            handlePenalty(player, penaltyType);
+          }}
           onDismiss={() => setFoulClassify(null)}
         />
       )}

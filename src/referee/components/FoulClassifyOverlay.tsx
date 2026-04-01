@@ -11,15 +11,23 @@ const FOUL_TYPES: { type: ScoreActionType; labelKey: string }[] = [
   { type: 'ball_holding', labelKey: 'common.scoreActions.ballHolding' },
 ];
 
+const PENALTY_TYPES: { type: ScoreActionType; labelKey: string }[] = [
+  { type: 'penalty_table_pushing', labelKey: 'common.scoreActions.penaltyTablePushing' },
+  { type: 'penalty_electronic', labelKey: 'common.scoreActions.penaltyElectronic' },
+  { type: 'penalty_talking', labelKey: 'common.scoreActions.penaltyTalking' },
+];
+
 interface FoulClassifyOverlayProps {
   playerName: string;
+  player: 1 | 2;
   onClassify: (type: ScoreActionType, label: string) => void;
+  onPenalty?: (player: 1 | 2, penaltyType: 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking') => void;
   onDismiss: () => void;
   autoCloseMs?: number;
 }
 
 export default function FoulClassifyOverlay({
-  playerName, onClassify, onDismiss, autoCloseMs = 4000,
+  playerName, player, onClassify, onPenalty, onDismiss, autoCloseMs = 4000,
 }: FoulClassifyOverlayProps) {
   const { t } = useTranslation();
   const [remaining, setRemaining] = useState(Math.ceil(autoCloseMs / 1000));
@@ -51,6 +59,24 @@ export default function FoulClassifyOverlay({
           </button>
         ))}
       </div>
+      {onPenalty && (
+        <>
+          <div className="border-t border-red-700 mt-2 pt-2">
+            <span className="text-xs text-red-400 font-bold">{t('common.scoreActions.penalty')}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-1">
+            {PENALTY_TYPES.map(p => (
+              <button
+                key={p.type}
+                className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2.5 px-1 rounded font-medium"
+                onClick={() => onPenalty(player, p.type as 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking')}
+              >
+                {t(p.labelKey)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

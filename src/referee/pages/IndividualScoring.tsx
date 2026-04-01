@@ -657,10 +657,6 @@ export default function IndividualScoring() {
     setShowSetEndConfirm(false);
   }, [match, gameConfig, updateMatch, tournamentId, longWhistle, t]);
 
-  const handleCancelSetEnd = useCallback(() => {
-    setShowSetEndConfirm(false);
-  }, []);
-
   // Undo
   const handleUndo = useCallback(async () => {
     if (!match) return;
@@ -692,6 +688,11 @@ export default function IndividualScoring() {
     setAnnouncement(msg);
     setLastAction(`↩️ ${msg}`);
   }, [match, updateMatch]);
+
+  const handleCancelSetEnd = useCallback(async () => {
+    setShowSetEndConfirm(false);
+    await handleUndo();
+  }, [handleUndo]);
 
   const handleChangeServe = useCallback(async () => {
     if (!match || match.status !== 'in_progress') return;
@@ -1482,7 +1483,14 @@ export default function IndividualScoring() {
       {foulClassify && (
         <FoulClassifyOverlay
           playerName={foulClassify.player === 1 ? player1Name : player2Name}
+          player={foulClassify.player}
           onClassify={handleClassifyFoul}
+          onPenalty={async (player, penaltyType) => {
+            // Foul로 1점 적용된 것을 먼저 undo한 후 penalty 실행
+            await handleUndo();
+            setFoulClassify(null);
+            handlePenalty(player, penaltyType);
+          }}
           onDismiss={() => setFoulClassify(null)}
         />
       )}

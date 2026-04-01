@@ -110,12 +110,14 @@ async function sendToSubscriptions(
     },
     webpush: {
       headers: { Urgency: "high", TTL: "86400" },
+      fcmOptions: { link },
       notification: {
         title: notification.title,
         body: notification.body || "",
         icon: "/icons/icon-192.png",
         badge: "/icons/icon-96.png",
         tag,
+        data: { link },
         requireInteraction: true,
         renotify: true,
       },

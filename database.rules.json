@@ -92,8 +92,8 @@
       }
     },
     "pushNotifSent": {
-      ".read": false,
-      ".write": "auth != null"
+      ".read": true,
+      ".write": true
     },
     "$other": {
       ".read": false,
