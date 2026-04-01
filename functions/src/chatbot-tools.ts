@@ -97,6 +97,30 @@ export const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: "setup_full_tournament",
+    description: "복잡한 대회를 한 번에 생성: 대회 생성 + 선수 등록 + 스테이지(예선/본선) 설정 + 조 편성(시드 포함) + 예선 라운드로빈 경기 생성 + 순위결정전 설정. 조별리그+토너먼트 같은 복합 구조를 처리합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "대회 이름" },
+        date: { type: "string", description: "시작일 YYYY-MM-DD" },
+        endDate: { type: "string", description: "종료일 YYYY-MM-DD (선택)" },
+        type: { type: "string", enum: ["individual", "team"], description: "개인전/팀전" },
+        players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, club: { type: "string" }, class: { type: "string" }, gender: { type: "string" } }, required: ["name"] }, description: "선수 목록" },
+        groupCount: { type: "number", description: "조 수 (예: 8)" },
+        advancePerGroup: { type: "number", description: "조당 본선 진출자 수 (예: 2)" },
+        seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수 이름 목록 (각 조에 1명씩 배치)" },
+        qualifyingWinScore: { type: "number", description: "예선 승리 점수 (기본 11)" },
+        qualifyingSetsToWin: { type: "number", description: "예선 세트 수 (기본 3)" },
+        finalsFormat: { type: "string", enum: ["single_elimination", "double_elimination"], description: "본선 방식 (기본 single_elimination)" },
+        thirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
+        fifthToEighth: { type: "boolean", description: "5~8위 결정전 (기본 false)" },
+        classificationGroups: { type: "boolean", description: "하위 순위 그룹 결정전 (기본 false)" },
+      },
+      required: ["name", "date", "type", "players", "groupCount"],
+    },
+  },
+  {
     name: "update_tournament",
     description: "대회 정보 수정. 변경할 필드만 전달.",
     input_schema: {
@@ -388,6 +412,170 @@ export async function executeTool(
         };
         await newRef.set(data);
         return JSON.stringify({ success: true, tournamentId: newRef.key, message: `대회 "${data.name}" 생성 완료` });
+      }
+
+      case "setup_full_tournament": {
+        const now = Date.now();
+        const players = input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>;
+        const groupCount = (input.groupCount as number) || 4;
+        const advancePerGroup = (input.advancePerGroup as number) || 2;
+        const seeds = (input.seeds as string[]) || [];
+        const qualWinScore = (input.qualifyingWinScore as number) || 11;
+        const qualSetsToWin = (input.qualifyingSetsToWin as number) || 3;
+        const finalsFormat = (input.finalsFormat as string) || "single_elimination";
+        const thirdPlace = input.thirdPlace !== false;
+        const fifthToEighth = (input.fifthToEighth as boolean) || false;
+        const classificationGroups = (input.classificationGroups as boolean) || false;
+        const totalAdvance = groupCount * advancePerGroup;
+
+        // 1. 대회 생성
+        const tourRef = db.ref("tournaments").push();
+        const tid = tourRef.key!;
+        const qualStageId = `stage_qualifying_${tid}`;
+        const finalsStageId = `stage_finals_${tid}`;
+
+        const tournamentData = {
+          name: input.name || "새 대회",
+          date: input.date || new Date().toISOString().split("T")[0],
+          ...(input.endDate ? { endDate: input.endDate } : {}),
+          type: input.type || "individual",
+          format: "group_league",
+          formatType: "group_knockout",
+          status: "draft",
+          gameConfig: { winScore: qualWinScore, setsToWin: qualSetsToWin },
+          qualifyingConfig: { format: "group_round_robin", groupCount },
+          finalsConfig: {
+            format: finalsFormat,
+            advanceCount: totalAdvance,
+            startingRound: totalAdvance,
+            seedMethod: "ranking",
+            advancePerGroup,
+          },
+          rankingMatchConfig: {
+            enabled: thirdPlace || fifthToEighth || classificationGroups,
+            thirdPlace,
+            fifthToEighth,
+            fifthToEighthFormat: "simple",
+            classificationGroups,
+            classificationGroupSize: 4,
+          },
+          stages: [
+            { id: qualStageId, type: "qualifying", format: "group_round_robin", status: "pending", groupCount, groups: [] },
+            { id: finalsStageId, type: "finals", format: finalsFormat, status: "pending", advanceCount: totalAdvance },
+          ],
+          createdAt: now,
+          updatedAt: now,
+        };
+        await tourRef.set(tournamentData);
+
+        // 2. 선수 등록
+        const playerMap = new Map<string, string>(); // name → id
+        const playerRef = db.ref(`tournamentPlayers/${tid}`);
+        for (const p of players) {
+          const pRef = playerRef.push();
+          await pRef.set({ name: p.name, club: p.club || "", class: p.class || "", gender: p.gender || "", createdAt: now });
+          playerMap.set(p.name, pRef.key!);
+        }
+
+        // 3. 조 편성 (스네이크 드래프트 + 시드)
+        const groups: Array<{ id: string; stageId: string; name: string; playerIds: string[]; teamIds: string[] }> = [];
+        for (let i = 0; i < groupCount; i++) {
+          groups.push({
+            id: `group_${String.fromCharCode(65 + i)}`,
+            stageId: qualStageId,
+            name: `${String.fromCharCode(65 + i)}조`,
+            playerIds: [],
+            teamIds: [],
+          });
+        }
+
+        // 시드 배치: 각 조에 1명씩
+        const seedSet = new Set<string>();
+        for (let i = 0; i < Math.min(seeds.length, groupCount); i++) {
+          const seedId = playerMap.get(seeds[i]);
+          if (seedId) {
+            groups[i].playerIds.push(seedId);
+            seedSet.add(seedId);
+          }
+        }
+
+        // 나머지 스네이크 드래프트
+        const remaining = players
+          .map(p => playerMap.get(p.name)!)
+          .filter(id => id && !seedSet.has(id));
+        for (let i = 0; i < remaining.length; i++) {
+          const round = Math.floor(i / groupCount);
+          const pos = i % groupCount;
+          const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
+          groups[groupIndex].playerIds.push(remaining[i]);
+        }
+
+        // 스테이지에 조 정보 저장
+        const stagesUpdate = [
+          { ...tournamentData.stages[0], groups },
+          tournamentData.stages[1],
+        ];
+        await tourRef.child("stages").set(stagesUpdate);
+
+        // 시드 정보 저장
+        const seedEntries = seeds.map((name, i) => ({
+          position: i + 1,
+          playerId: playerMap.get(name) || "",
+          name,
+        }));
+        await tourRef.child("seeds").set(seedEntries);
+
+        // 4. 예선 라운드로빈 경기 생성
+        const matchesRef = db.ref(`matches/${tid}`);
+        let matchCount = 0;
+        const nameMap = new Map<string, string>();
+        playerMap.forEach((id, name) => nameMap.set(id, name));
+
+        for (const group of groups) {
+          const pids = group.playerIds;
+          for (let i = 0; i < pids.length; i++) {
+            for (let j = i + 1; j < pids.length; j++) {
+              const mRef = matchesRef.push();
+              await mRef.set({
+                tournamentId: tid,
+                type: input.type || "individual",
+                status: "pending",
+                round: matchCount + 1,
+                player1Id: pids[i],
+                player2Id: pids[j],
+                player1Name: nameMap.get(pids[i]) || pids[i],
+                player2Name: nameMap.get(pids[j]) || pids[j],
+                sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+                currentSet: 0,
+                player1Timeouts: 0,
+                player2Timeouts: 0,
+                winnerId: null,
+                createdAt: now + matchCount,
+                groupId: group.id,
+                stageId: qualStageId,
+              });
+              matchCount++;
+            }
+          }
+        }
+
+        // 결과 요약
+        const groupSummary = groups.map(g => `${g.name}: ${g.playerIds.map(id => nameMap.get(id) || id).join(", ")}`).join("\n");
+
+        return JSON.stringify({
+          success: true,
+          tournamentId: tid,
+          playerCount: players.length,
+          groupCount,
+          matchCount,
+          advancePerGroup,
+          totalAdvance,
+          thirdPlace,
+          fifthToEighth,
+          classificationGroups,
+          groupAssignment: groupSummary,
+          message: `대회 "${input.name}" 생성 완료\n선수 ${players.length}명, ${groupCount}개 조, 예선 ${matchCount}경기 생성\n조당 ${advancePerGroup}명 본선 진출 (총 ${totalAdvance}명)\n순위결정전: 3/4위=${thirdPlace}, 5-8위=${fifthToEighth}, 하위순위=${classificationGroups}`,
+        });
       }
 
       case "update_tournament": {

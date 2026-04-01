@@ -17,6 +17,9 @@ const SYSTEM_PROMPT = `당신은 태권도/쇼다운 대회 관리 앱 "Showdown
 - 복합 요청은 단계별로 실행하고 각 결과를 보고합니다.
 - 데이터 조회가 필요하면 먼저 도구로 조회한 후 정확한 정보를 기반으로 답합니다.
 - 간결하게 응답합니다.
+- **절대로 도구를 호출하지 않고 "완료했습니다"라고 말하지 마세요. 반드시 도구를 호출하고 결과를 확인한 후에만 보고하세요.**
+- **복잡한 대회 구조(조별리그+토너먼트, 시드, 순위결정전 등)는 setup_full_tournament 도구를 사용하세요.** 이 도구가 스테이지, 조 편성, 시드 배치, 순위결정전 설정을 한 번에 처리합니다.
+- 대회 생성 후 반드시 list_matches로 실제 경기 수를 확인하고 보고하세요.
 
 대회 관련 정보:
 - 대회 유형: individual(개인전), team(팀전), randomTeamLeague(랜덤 팀 리그)
@@ -39,6 +42,12 @@ export const chatbot = onRequest(
     secrets: [anthropicApiKey],
   },
   async (req, res) => {
+    // Manual CORS (fallback for timeout/crash scenarios)
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
       return;
