@@ -64,10 +64,12 @@ export const chatbot = onRequest(
       return;
     }
 
-    const { messages, tournamentId } = req.body as {
+    const { messages, tournamentId, userRole } = req.body as {
       messages: ChatMessage[];
       tournamentId?: string;
+      userRole?: "admin" | "referee" | "spectator";
     };
+    const role = userRole || "admin";
 
     if (!messages || messages.length === 0) {
       res.status(400).json({ error: "messages required" });
@@ -82,10 +84,15 @@ export const chatbot = onRequest(
 
     const client = new Anthropic({ apiKey });
 
-    // Build system prompt with tournament context
-    let systemPrompt = SYSTEM_PROMPT;
+    // Build system prompt with role and context
+    const ROLE_PROMPTS: Record<string, string> = {
+      admin: "\n\n사용자 역할: 관리자. 모든 도구 사용 가능. 대회 생성, 수정, 삭제, 선수/경기/스케줄 관리 등 전체 권한.",
+      referee: "\n\n사용자 역할: 심판. 읽기 도구만 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, list_courts, list_referees, get_schedule). 데이터 수정 불가. 경기 배정, 일정, 선수 정보 조회만 도와주세요.",
+      spectator: "\n\n사용자 역할: 관람자. 읽기 도구만 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, get_schedule). 선수 정보, 경기 일정, 순위, 결과 조회만 도와주세요. 친절하고 이해하기 쉽게 설명하세요.",
+    };
+    let systemPrompt = SYSTEM_PROMPT + (ROLE_PROMPTS[role] || ROLE_PROMPTS.admin);
     if (tournamentId) {
-      systemPrompt += `\n\n현재 컨텍스트: tournamentId = "${tournamentId}" (사용자가 현재 보고 있는 대회)`;
+      systemPrompt += `\n현재 컨텍스트: tournamentId = "${tournamentId}"`;
     }
 
     // Convert to Anthropic message format
@@ -95,6 +102,12 @@ export const chatbot = onRequest(
     }));
 
     const actions: Array<{ tool: string; input: Record<string, unknown>; result: string }> = [];
+
+    // Role-based tool filtering
+    const READ_ONLY_TOOLS = new Set(["list_tournaments", "get_tournament", "list_players", "list_matches", "list_courts", "list_referees", "get_schedule"]);
+    const availableTools = role === "admin"
+      ? TOOL_DEFINITIONS
+      : TOOL_DEFINITIONS.filter((t) => READ_ONLY_TOOLS.has(t.name));
 
     // Retry with model fallback on overload
     const MODELS = ["claude-haiku-4-5-20251001"];
@@ -108,7 +121,7 @@ export const chatbot = onRequest(
             max_tokens: 4096,
             system: systemPrompt,
             messages: msgs,
-            tools: TOOL_DEFINITIONS,
+            tools: availableTools,
           });
         } catch (err: unknown) {
           const e = err as { status?: number; message?: string };

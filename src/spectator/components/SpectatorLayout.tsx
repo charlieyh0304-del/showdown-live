@@ -2,6 +2,7 @@ import { type ReactNode, useState, useEffect, useCallback, useMemo } from 'react
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import AiChatPanel from '@shared/components/AiChatPanel';
 import NotificationToast from '@shared/components/NotificationToast';
 import { useFavorites, useTournaments, useMatches, useSchedule } from '@shared/hooks/useFirebase';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
@@ -294,6 +295,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           </>
         )}
       </nav>
+      <AiChatPanel userRole="spectator" />
     </div>
   );
 }

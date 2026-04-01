@@ -92,7 +92,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {children}
         </ErrorBoundary>
       </main>
-      <AiChatPanel />
+      <AiChatPanel userRole="admin" />
     </div>
   );
 }

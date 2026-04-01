@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useTournament } from '@shared/hooks/useFirebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import AiChatPanel from '@shared/components/AiChatPanel';
 
 export default function RefereeLayout() {
   const { t } = useTranslation();
@@ -43,6 +44,7 @@ export default function RefereeLayout() {
           <Outlet />
         </ErrorBoundary>
       </main>
+      <AiChatPanel userRole="referee" />
     </div>
   );
 }
