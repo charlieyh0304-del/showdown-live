@@ -1417,12 +1417,30 @@ export async function executeTool(
 
       // --- Write: Courts & Referees ---
       case "add_court": {
+        // 기존 코트 중복 확인
+        const existingCourts = await db.ref("courts").once("value");
+        if (existingCourts.exists()) {
+          for (const [cid, cv] of Object.entries(existingCourts.val() as Record<string, { name: string }>)) {
+            if (cv.name === input.name) {
+              return JSON.stringify({ success: true, courtId: cid, message: `코트 "${input.name}"은(는) 이미 등록되어 있습니다. (기존 ID: ${cid})`, existing: true });
+            }
+          }
+        }
         const newRef = db.ref("courts").push();
         await newRef.set({ name: input.name, location: input.location || "", assignedReferees: [], createdAt: Date.now() });
         return JSON.stringify({ success: true, courtId: newRef.key, message: `코트 "${input.name}" 추가 완료` });
       }
 
       case "add_referee": {
+        // 기존 심판 중복 확인
+        const existingRefs = await db.ref("referees").once("value");
+        if (existingRefs.exists()) {
+          for (const [rid, rv] of Object.entries(existingRefs.val() as Record<string, { name: string }>)) {
+            if (rv.name === input.name) {
+              return JSON.stringify({ success: true, refereeId: rid, message: `심판 "${input.name}"은(는) 이미 등록되어 있습니다. (기존 ID: ${rid})`, existing: true });
+            }
+          }
+        }
         const newRef = db.ref("referees").push();
         await newRef.set({ name: input.name, role: input.role || "main", createdAt: Date.now() });
         return JSON.stringify({ success: true, refereeId: newRef.key, message: `심판 "${input.name}" 추가 완료` });
