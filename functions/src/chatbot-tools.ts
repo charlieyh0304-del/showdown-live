@@ -1,7 +1,23 @@
 import * as admin from "firebase-admin";
+import * as crypto from "crypto";
 import type { Tool } from "@anthropic-ai/sdk/resources/messages";
 
 const db = admin.database();
+
+// PIN 해시 (SHA-256, 클라이언트 호환)
+async function hashPinSHA256(pin: string): Promise<string> {
+  return crypto.createHash("sha256").update(pin).digest("hex");
+}
+
+// PIN 해시 (PBKDF2, 클라이언트 호환)
+async function hashPinPBKDF2(pin: string, salt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(pin, salt, 100000, 32, "sha256", (err, key) => {
+      if (err) reject(err);
+      else resolve(`${salt}:${key.toString("hex")}`);
+    });
+  });
+}
 
 // ===== Tool Definitions for Claude =====
 
@@ -92,6 +108,19 @@ export const TOOL_DEFINITIONS: Tool[] = [
         status: { type: "string", enum: ["draft", "registration", "in_progress", "paused", "completed"] },
       },
       required: ["tournamentId"],
+    },
+  },
+
+  {
+    name: "delete_tournament",
+    description: "대회 삭제 (관련 경기, 선수, 스케줄, 팀 데이터 모두 삭제). 관리자 PIN이 필요합니다. 반드시 사용자에게 PIN을 물어본 후 호출하세요.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tournamentId: { type: "string", description: "삭제할 대회 ID" },
+        adminPin: { type: "string", description: "관리자 PIN (보안 확인용)" },
+      },
+      required: ["tournamentId", "adminPin"],
     },
   },
 
@@ -367,6 +396,58 @@ export async function executeTool(
         delete updates.tournamentId;
         await db.ref(`tournaments/${tournamentId}`).update(updates);
         return JSON.stringify({ success: true, message: "대회 정보 수정 완료" });
+      }
+
+      case "delete_tournament": {
+        const tid = input.tournamentId as string;
+        const pin = input.adminPin as string;
+
+        // PIN 검증: admins/ 또는 config/adminPin에서 해시 조회
+        const adminsSnap = await db.ref("admins").once("value");
+        const configSnap = await db.ref("config/adminPin").once("value");
+        let pinValid = false;
+
+        if (adminsSnap.exists()) {
+          for (const child of Object.values(adminsSnap.val() as Record<string, { pinHash: string }>)) {
+            if (child.pinHash) {
+              if (child.pinHash.includes(":")) {
+                // PBKDF2: salt:hash
+                const [salt, storedHash] = child.pinHash.split(":");
+                const derived = await hashPinPBKDF2(pin, salt);
+                if (derived === `${salt}:${storedHash}`) { pinValid = true; break; }
+              } else {
+                // SHA-256 레거시
+                const hash = await hashPinSHA256(pin);
+                if (hash === child.pinHash) { pinValid = true; break; }
+              }
+            }
+          }
+        }
+        if (!pinValid && configSnap.exists()) {
+          const storedHash = configSnap.val() as string;
+          const hash = await hashPinSHA256(pin);
+          if (hash === storedHash) pinValid = true;
+        }
+
+        if (!pinValid) {
+          return JSON.stringify({ error: "관리자 PIN이 올바르지 않습니다." });
+        }
+
+        // 대회 이름 조회
+        const tourSnap = await db.ref(`tournaments/${tid}/name`).once("value");
+        const tourName = tourSnap.exists() ? tourSnap.val() : tid;
+
+        // 관련 데이터 모두 삭제
+        const deletePaths: Record<string, null> = {
+          [`tournaments/${tid}`]: null,
+          [`matches/${tid}`]: null,
+          [`tournamentPlayers/${tid}`]: null,
+          [`schedule/${tid}`]: null,
+          [`teams/${tid}`]: null,
+        };
+        await db.ref().update(deletePaths);
+
+        return JSON.stringify({ success: true, message: `대회 "${tourName}" 및 관련 데이터(경기, 선수, 스케줄, 팀) 삭제 완료` });
       }
 
       // --- Write: Players ---

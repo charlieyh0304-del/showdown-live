@@ -76,14 +76,44 @@ export const chatbot = onRequest(
 
     const actions: Array<{ tool: string; input: Record<string, unknown>; result: string }> = [];
 
+    // Retry with model fallback on overload
+    const MODELS = ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"];
+    const MAX_RETRIES = 2;
+
+    async function callClaude(msgs: Anthropic.MessageParam[], model: string): Promise<Anthropic.Message> {
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          return await client.messages.create({
+            model,
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages: msgs,
+            tools: TOOL_DEFINITIONS,
+          });
+        } catch (err: unknown) {
+          const e = err as { status?: number; message?: string };
+          if (e.status === 529 || e.status === 503 || e.status === 429) {
+            console.log(`[chatbot] ${model} overloaded (attempt ${attempt + 1}), retrying...`);
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw new Error("API overloaded after retries");
+    }
+
     try {
-      let response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: anthropicMessages,
-        tools: TOOL_DEFINITIONS,
-      });
+      let currentModel = MODELS[0];
+      let response: Anthropic.Message;
+      try {
+        response = await callClaude(anthropicMessages, currentModel);
+      } catch {
+        // Fallback to Haiku
+        currentModel = MODELS[1];
+        console.log(`[chatbot] Falling back to ${currentModel}`);
+        response = await callClaude(anthropicMessages, currentModel);
+      }
 
       let loopCount = 0;
 
@@ -119,13 +149,7 @@ export const chatbot = onRequest(
         anthropicMessages.push({ role: "assistant", content: response.content });
         anthropicMessages.push({ role: "user", content: toolResults });
 
-        response = await client.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: anthropicMessages,
-          tools: TOOL_DEFINITIONS,
-        });
+        response = await callClaude(anthropicMessages, currentModel);
       }
 
       // Extract final text response

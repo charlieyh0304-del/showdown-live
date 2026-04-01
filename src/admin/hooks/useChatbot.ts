@@ -22,16 +22,18 @@ export function useChatbot(tournamentId?: string) {
   const [elapsedSec, setElapsedSec] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref to always have latest messages (avoid stale closure)
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const sendMessage = useCallback(async (text: string) => {
     const userMsg: ChatMessage = { role: 'user', content: text, timestamp: Date.now() };
-    const updatedMessages = [...messages, userMsg];
+    const updatedMessages = [...messagesRef.current, userMsg];
     setMessages(updatedMessages);
     setIsLoading(true);
     setError(null);
     setElapsedSec(0);
 
-    // Elapsed timer
     const start = Date.now();
     timerRef.current = setInterval(() => setElapsedSec(Math.floor((Date.now() - start) / 1000)), 1000);
 
@@ -70,7 +72,15 @@ export function useChatbot(tournamentId?: string) {
       setIsLoading(false);
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
-  }, [messages, tournamentId]);
+  }, [tournamentId]); // messages removed — using messagesRef
+
+  const cancelRequest = useCallback(() => {
+    abortRef.current?.abort();
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setIsLoading(false);
+    setElapsedSec(0);
+    setMessages(prev => [...prev, { role: 'assistant', content: '⛔ 요청이 취소되었습니다.', timestamp: Date.now() }]);
+  }, []);
 
   const clearChat = useCallback(() => {
     abortRef.current?.abort();
@@ -80,5 +90,5 @@ export function useChatbot(tournamentId?: string) {
     setElapsedSec(0);
   }, []);
 
-  return { messages, isLoading, error, elapsedSec, sendMessage, clearChat };
+  return { messages, isLoading, error, elapsedSec, sendMessage, cancelRequest, clearChat };
 }

@@ -96,7 +96,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 export default function AiChatPanel() {
   useTranslation(); // i18n context
   const { id: tournamentId } = useParams<{ id: string }>();
-  const { messages, isLoading, elapsedSec, sendMessage, clearChat } = useChatbot(tournamentId);
+  const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(tournamentId);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -137,10 +137,12 @@ export default function AiChatPanel() {
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text || isLoading) return;
-    setInput('');
     sendMessage(text);
-    // Keep focus on input
+    setInput('');
+    // Multiple attempts to restore focus (mobile keyboards can steal it)
     requestAnimationFrame(() => inputRef.current?.focus());
+    setTimeout(() => inputRef.current?.focus(), 50);
+    setTimeout(() => inputRef.current?.focus(), 200);
   }, [input, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -241,6 +243,14 @@ export default function AiChatPanel() {
                     {elapsedDisplay} 경과
                   </div>
                 )}
+                <button
+                  onClick={cancelRequest}
+                  className="mt-2 text-xs text-red-400 hover:text-red-300 bg-red-900/30 hover:bg-red-900/50 rounded px-2 py-1 transition-colors"
+                  style={{ minHeight: '32px' }}
+                  aria-label="요청 취소"
+                >
+                  ⛔ 취소
+                </button>
               </div>
             </div>
           </div>
@@ -262,15 +272,26 @@ export default function AiChatPanel() {
             aria-label="메시지 입력"
             style={{ minHeight: '44px', maxHeight: '88px' }}
           />
-          <button
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="btn btn-primary px-4 text-sm flex-shrink-0 disabled:opacity-40"
-            aria-label="전송"
-            style={{ minHeight: '44px' }}
-          >
-            {isLoading ? '⏳' : '전송'}
-          </button>
+          {isLoading ? (
+            <button
+              onClick={cancelRequest}
+              className="btn btn-danger px-4 text-sm flex-shrink-0"
+              aria-label="취소"
+              style={{ minHeight: '44px' }}
+            >
+              ⛔ 취소
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="btn btn-primary px-4 text-sm flex-shrink-0 disabled:opacity-40"
+              aria-label="전송"
+              style={{ minHeight: '44px' }}
+            >
+              전송
+            </button>
+          )}
         </div>
       </div>
     </div>
