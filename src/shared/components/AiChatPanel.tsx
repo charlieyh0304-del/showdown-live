@@ -237,8 +237,11 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
 
   // Long press → 패널 열기 + 음성 입력 바로 시작
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
   const handlePointerDown = useCallback(() => {
+    longPressTriggered.current = false;
     longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
       setIsOpen(true);
       setTimeout(() => startListening(), 200);
       longPressTimer.current = null;
@@ -248,12 +251,16 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
-      openChat(); // 짧은 탭 → 일반 열기
     }
-  }, [openChat]);
+    // 짧은 탭은 onClick에서 처리 (VoiceOver 호환)
+  }, []);
   const handlePointerCancel = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   }, []);
+  // VoiceOver/TalkBack: click 이벤트로 열기 (더블탭)
+  const handleClick = useCallback(() => {
+    if (!longPressTriggered.current) openChat();
+  }, [openChat]);
 
   if (!isOpen) {
     return (
@@ -262,6 +269,7 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
         {config.title} 닫힘. 버튼을 눌러 열 수 있습니다. 길게 누르면 음성 입력이 시작됩니다.
       </div>
       <button
+        onClick={handleClick}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
