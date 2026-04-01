@@ -1299,6 +1299,38 @@ export async function executeTool(
           }
         }
 
+        // 대회/스테이지 상태 자동 업데이트
+        const statusSnap = await db.ref(`matches/${tid}`).once("value");
+        if (statusSnap.exists()) {
+          const allMatches = Object.values(statusSnap.val() as Record<string, Record<string, unknown>>);
+          const allCompleted = allMatches.every(m => m.status === "completed");
+          const anyInProgress = allMatches.some(m => m.status === "in_progress");
+          const statusBulk: Record<string, unknown> = {};
+
+          // 대회 상태: 모두 완료 → completed, 진행 중 있으면 in_progress
+          if (allCompleted) {
+            statusBulk[`tournaments/${tid}/status`] = "completed";
+          } else if (anyInProgress || allMatches.some(m => m.status === "completed")) {
+            statusBulk[`tournaments/${tid}/status`] = "in_progress";
+          }
+
+          // 스테이지 상태: 해당 스테이지의 경기가 모두 완료되면 completed
+          const tourStages = tourData.stages as Array<{ id: string }> | undefined;
+          if (tourStages) {
+            for (const stage of tourStages) {
+              if (!stage.id) continue;
+              const stageMatches = allMatches.filter(m => m.stageId === stage.id);
+              if (stageMatches.length > 0 && stageMatches.every(m => m.status === "completed")) {
+                statusBulk[`tournaments/${tid}/stages/${tourStages.indexOf(stage)}/status`] = "completed";
+              } else if (stageMatches.some(m => m.status === "completed" || m.status === "in_progress")) {
+                statusBulk[`tournaments/${tid}/stages/${tourStages.indexOf(stage)}/status`] = "in_progress";
+              }
+            }
+          }
+
+          if (Object.keys(statusBulk).length > 0) await db.ref().update(statusBulk);
+        }
+
         return JSON.stringify({
           success: true,
           count: matchList.length,
