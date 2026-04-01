@@ -144,6 +144,75 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     };
   }, [isOpen]);
 
+  // 음성 입력 (Speech Recognition)
+  const [isListening, setIsListening] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true); // TTS on/off
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (!speechSupported || isLoading) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const recognition = new SR();
+    recognition.lang = 'ko-KR';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
+      setInput(transcript);
+      if (event.results[event.results.length - 1].isFinal) {
+        setIsListening(false);
+      }
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [speechSupported, isLoading]);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) stopListening();
+    else startListening();
+  }, [isListening, stopListening, startListening]);
+
+  // 음성 출력 (TTS) — AI 응답 자동 읽기
+  useEffect(() => {
+    if (!voiceEnabled || messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role !== 'assistant' || last.content.startsWith('⚠️') || last.content.startsWith('⛔')) return;
+
+    const text = last.content.slice(0, 500); // 너무 긴 응답은 잘라서 읽기
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ko-KR';
+      utterance.rate = 1.1;
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [messages, voiceEnabled]);
+
+  // 음성 입력 완료 후 자동 전송
+  useEffect(() => {
+    if (!isListening && input.trim() && recognitionRef.current) {
+      const timer = setTimeout(() => {
+        if (input.trim()) {
+          sendMessage(input.trim());
+          setInput('');
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isListening]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text || isLoading) return;
@@ -248,17 +317,39 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
       </div>
 
       <div className="border-t border-gray-700 px-3 py-3 flex-shrink-0 bg-gray-900/95">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-end">
+          {speechSupported && (
+            <button
+              onClick={toggleListening}
+              className={`flex-shrink-0 rounded-full w-10 h-10 flex items-center justify-center text-lg transition-colors ${isListening ? 'bg-red-600 animate-pulse text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+              aria-label={isListening ? '음성 입력 중지' : '음성 입력 시작'}
+              title={isListening ? '음성 입력 중...' : '음성 입력'}
+              disabled={isLoading}
+              style={{ minWidth: '44px', minHeight: '44px' }}
+            >
+              {isListening ? '⏹' : '🎤'}
+            </button>
+          )}
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder="메시지를 입력하세요... (Shift+Enter 줄바꿈)"
-            className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30"
+            placeholder={isListening ? '듣고 있습니다...' : '메시지를 입력하세요...'}
+            className={`flex-1 bg-gray-800 border rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:ring-1 ${isListening ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500/30'}`}
             rows={1} disabled={isLoading} aria-label="메시지 입력" style={{ minHeight: '44px', maxHeight: '88px' }}
           />
           {isLoading ? (
-            <button onClick={cancelRequest} className="btn btn-danger px-4 text-sm flex-shrink-0" aria-label="취소" style={{ minHeight: '44px' }}>⛔ 취소</button>
+            <button onClick={cancelRequest} className="btn btn-danger px-3 text-sm flex-shrink-0" aria-label="취소" style={{ minHeight: '44px' }}>⛔</button>
           ) : (
-            <button onClick={handleSend} disabled={!input.trim()} className="btn btn-primary px-4 text-sm flex-shrink-0 disabled:opacity-40" aria-label="전송" style={{ minHeight: '44px' }}>전송</button>
+            <button onClick={handleSend} disabled={!input.trim()} className="btn btn-primary px-3 text-sm flex-shrink-0 disabled:opacity-40" aria-label="전송" style={{ minHeight: '44px' }}>전송</button>
           )}
+        </div>
+        <div className="flex justify-end mt-1">
+          <button
+            onClick={() => { setVoiceEnabled(v => !v); if (voiceEnabled) window.speechSynthesis?.cancel(); }}
+            className="text-[10px] text-gray-500 hover:text-gray-300 px-1"
+            aria-label={voiceEnabled ? '음성 응답 끄기' : '음성 응답 켜기'}
+            aria-pressed={voiceEnabled}
+          >
+            {voiceEnabled ? '🔊 음성 응답 ON' : '🔇 음성 응답 OFF'}
+          </button>
         </div>
       </div>
     </div>
