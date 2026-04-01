@@ -262,25 +262,55 @@ export default function AiChatPanel({ userRole }: AiChatPanelProps) {
     if (!longPressTriggered.current) openChat();
   }, [openChat]);
 
+  // 2손가락 더블탭 → 음성 AI 바로 시작 (모든 화면에서 동작)
+  const twoFingerTapRef = useRef<{ count: number; lastTime: number }>({ count: 0, lastTime: 0 });
+  useEffect(() => {
+    const handler = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const now = Date.now();
+      const ref = twoFingerTapRef.current;
+      if (now - ref.lastTime < 400) {
+        ref.count++;
+      } else {
+        ref.count = 1;
+      }
+      ref.lastTime = now;
+
+      if (ref.count >= 2) {
+        ref.count = 0;
+        e.preventDefault();
+        // 패널 열기 + 음성 시작
+        setIsOpen(true);
+        setTimeout(() => startListening(), 300);
+      }
+    };
+    window.addEventListener('touchstart', handler, { passive: false });
+    return () => window.removeEventListener('touchstart', handler);
+  }, [startListening]);
+
   if (!isOpen) {
     return (
       <>
       <div aria-live="polite" className="sr-only">
-        {config.title} 닫힘. 버튼을 눌러 열 수 있습니다. 길게 누르면 음성 입력이 시작됩니다.
+        {config.title} 닫힘. 버튼을 눌러 열 수 있습니다. 길게 누르면 음성 입력이 시작됩니다. VoiceOver: Ctrl+Option+K
       </div>
+      <nav aria-label={`${config.title} 바로가기`}>
       <button
         onClick={handleClick}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onContextMenu={e => e.preventDefault()}
+        accessKey="k"
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110"
-        aria-label={`${config.title} — 탭: 열기, 길게 누르기: 음성 입력`}
+        aria-label={`${config.title} — 탭: 열기, 길게 누르기: 음성 입력, VoiceOver: Ctrl+Option+K`}
+        aria-keyshortcuts="Control+Option+K"
         title={`${config.title} — 길게 누르면 음성 입력`}
         style={{ minWidth: '56px', minHeight: '56px' }}
       >
         {config.icon === '🤖' ? '💬' : config.icon}
       </button>
+      </nav>
       </>
     );
   }
