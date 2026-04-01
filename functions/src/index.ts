@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onValueUpdated } from "firebase-functions/v2/database";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onRequest } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2/options";
 
 admin.initializeApp();
@@ -236,6 +237,17 @@ export const onMatchChange = onValueUpdated(
     console.log(`[onMatchChange] ${tournamentId}/${matchId}: ${before.status} → ${after.status}, participants: ${participants.length}, names: ${[after.player1Name, after.player2Name, after.team1Name, after.team2Name].filter(Boolean).join(", ")}`);
     if (participants.length === 0) return;
 
+    // 스케줄 변경 시 pre 알림 기록 리셋 (재전송 허용)
+    const beforeTime = before.scheduledTime || "";
+    const afterTime = after.scheduledTime || "";
+    const beforeDate = before.scheduledDate || "";
+    const afterDate = after.scheduledDate || "";
+    if (beforeTime !== afterTime || beforeDate !== afterDate) {
+      const preKey = `pre_${matchId}`;
+      await db.ref(`${NOTIF_SENT_PREFIX}/${preKey}`).remove();
+      console.log(`[onMatchChange] Schedule changed for ${matchId}: ${beforeDate} ${beforeTime} → ${afterDate} ${afterTime}, reset pre notif`);
+    }
+
     // 전체 구독 수 확인 (디버그)
     const allSubsSnap = await db.ref("pushSubscriptions").once("value");
     const totalSubs = allSubsSnap.exists() ? Object.keys(allSubsSnap.val()).length : 0;
@@ -434,5 +446,64 @@ export const preMatchNotify = onSchedule(
     // Wait for all notifications to complete before function exits
     await Promise.all(pendingNotifs);
     console.log(`preMatchNotify done, processed ${pendingNotifs.length} notifications`);
+  },
+);
+
+// === TEST: 모든 구독자에게 테스트 알림 전송 + pushNotifSent 초기화 ===
+export const testPush = onRequest(
+  { cors: true },
+  async (req, res) => {
+    // 1. pushNotifSent 초기화
+    await db.ref("pushNotifSent").remove();
+    console.log("[testPush] pushNotifSent cleared");
+
+    // 2. 모든 구독 조회
+    const snap = await db.ref("pushSubscriptions").once("value");
+    if (!snap.exists()) {
+      res.json({ error: "No subscriptions found" });
+      return;
+    }
+
+    const allSubs: PushSubscription[] = [];
+    const subDetails: Array<{ key: string; platform: string; favCount: number; names: string[] }> = [];
+    snap.forEach((child) => {
+      const sub = child.val() as PushSubscription;
+      if (sub.token) {
+        allSubs.push(sub);
+        subDetails.push({
+          key: child.key!,
+          platform: sub.platform,
+          favCount: sub.favoriteIds?.length || 0,
+          names: sub.favoriteNames || [],
+        });
+      }
+    });
+
+    console.log(`[testPush] Found ${allSubs.length} subscriptions`);
+
+    // 3. 각 구독에 테스트 알림 전송
+    const results: Array<{ key: string; platform: string; success: boolean; error?: string }> = [];
+    for (let i = 0; i < allSubs.length; i++) {
+      const sub = allSubs[i];
+      const detail = subDetails[i];
+      try {
+        const sent = await sendToSubscriptions([sub], {
+          title: "🔔 테스트 알림",
+          body: `구독 확인: ${detail.platform}, 즐겨찾기 ${detail.favCount}명`,
+        }, "/spectator");
+        results.push({ key: detail.key, platform: detail.platform, success: sent > 0 });
+        console.log(`[testPush] ${detail.key} (${detail.platform}): ${sent > 0 ? "OK" : "FAIL"}`);
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        results.push({ key: detail.key, platform: detail.platform, success: false, error: e.message });
+        console.error(`[testPush] ${detail.key} error:`, e.message);
+      }
+    }
+
+    res.json({
+      subscriptions: subDetails,
+      results,
+      pushNotifSentCleared: true,
+    });
   },
 );
