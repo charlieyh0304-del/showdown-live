@@ -81,7 +81,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // --- Write: Tournament ---
   {
     name: "create_tournament",
-    description: "새 대회 생성. 반환: 생성된 대회 ID.",
+    description: "단순 대회 생성 (조편성/대진 없음). 복잡한 대회는 setup_full_tournament 또는 setup_random_team_league 사용. 동일 이름 대회 중복 생성 차단.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -98,7 +98,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "setup_random_team_league",
-    description: "★ 랜덤 팀 리그전. 선수→탑시드 분산→팀 구성→조 편성→조별 라운드로빈. 조가 1개면 전체 리그.",
+    description: "랜덤 팀 리그전 전용. '랜덤 팀/팀리그' 요청 시 사용. 한 번에: 선수 등록→탑시드 분산(각 팀 1명)→남녀 균등 배분→팀 구성→조 편성(groupCount)→조별 팀 라운드로빈. type=randomTeamLeague, 31점 1세트. 동일 이름 중복 차단.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -120,7 +120,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "setup_full_tournament",
-    description: "★ 개인전/팀전 조별리그+토너먼트. 개인전: players로 선수 등록. 팀전: teams로 팀 등록. 랜덤 팀은 setup_random_team_league 사용.",
+    description: "개인전 또는 사전 구성 팀전. 한 번에: 등록→조 편성→시드 배치→예선 라운드로빈→본선 설정. type=individual이면 players 사용, type=team이면 teams 사용(players 아님!). teams: [{name:'전남', memberNames:['선수1','선수2','예비']}]. 코치는 memberNames에 넣지 않음. 랜덤 팀은 setup_random_team_league. 동일 이름 중복 차단.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -160,7 +160,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
 
   {
     name: "delete_tournament",
-    description: "대회 삭제 (관련 경기, 선수, 스케줄, 팀 데이터 모두 삭제). 관리자 PIN이 필요합니다. 반드시 사용자에게 PIN을 물어본 후 호출하세요.",
+    description: "대회+경기+선수+스케줄+팀 전부 삭제. 관리자 PIN 필수(사용자에게 물어볼 것). SHA-256/PBKDF2 검증. 동일 이름 대회 존재 확인.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -286,7 +286,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // --- Write: Schedule ---
   {
     name: "generate_schedule",
-    description: "고급 스케줄 자동 생성. 선수 휴식 시간, 연속 경기 방지, 점심시간 제외, 마감/다음날 시작 등 복잡한 조건 지원.",
+    description: "고급 스케줄 자동 생성. 지원: 선수 휴식(playerRestMinutes, 기본60분), 점심시간 제외(breakStart/End), 일일 마감(endTime)+다음날(nextDayStartTime), 코트별 배정, 심판 자동 라운드로빈 배정, 미배정만(onlyUnassigned), 스테이지 필터(stageFilter).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -307,7 +307,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "simulate_matches",
-    description: "경기 시뮬레이션: pending 상태인 경기들을 랜덤 점수로 완료 처리. setsToWin 미지정 시 대회 설정값 자동 사용. 3세트=setsToWin:2, 5세트=setsToWin:3.",
+    description: "사용자가 '시뮬레이션/경기 진행/결과'를 요청할 때만 호출. pending 경기를 현실적 점수로 완료. 코인토스→워밍업→서브교대→사이드체인지(팀16점/개인6점)→타임아웃 자동 기록. 팀전: 31점 1세트, 개인전: 대회 설정. 빈 슬롯(선수 미배정) 자동 제외. 완료 후 다음 라운드에 승자 자동 배치.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -322,7 +322,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "generate_finals",
-    description: "예선 결과를 기반으로 본선 토너먼트 대진을 자동 생성. 각 조 상위 N명을 추출하여 16강/8강/4강/결승 + 순위결정전(3-4위, 5-8위) 경기를 생성.",
+    description: "예선 완료 후 호출. 조별 순위 자동 계산(승→세트득실→점수득실)→진출자 추출→교차 시드(A1위 vs B2위)→전체 브라켓(16강→8강→4강→결승) + 3/4위/5-8위/하위순위 결정전. 팀전도 지원(team1Id/team2Id 자동 설정). 빈 슬롯에 sourceMatch 참조로 승자 자동 진출.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -337,7 +337,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "shift_schedule",
-    description: "스케줄 일괄 시간 이동. 모든 경기 또는 특정 경기의 시간을 분 단위로 앞/뒤로 조정.",
+    description: "스케줄 일괄 시간 이동(분). 양수=뒤로, 음수=앞으로. courtId로 특정 코트만 가능. 자정 넘으면 날짜 자동 변경.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -379,7 +379,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "add_referee",
-    description: "심판 추가. 동일 이름 존재 시 기존 심판 반환.",
+    description: "심판 추가. 동일 이름 자동 중복 방지(기존 ID 반환). role: main(주심)/assistant(부심).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -439,7 +439,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "bulk_assign_referees",
-    description: "미배정 경기에 심판 자동 라운드로빈 배정.",
+    description: "미배정 경기에 등록된 심판을 라운드로빈으로 자동 배정. 이미 심판이 있는 경기는 건너뜀.",
     input_schema: {
       type: "object" as const,
       properties: { tournamentId: { type: "string" } },
