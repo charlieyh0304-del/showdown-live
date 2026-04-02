@@ -107,7 +107,6 @@ export const TOOL_DEFINITIONS: Tool[] = [
         date: { type: "string", description: "시작일 YYYY-MM-DD" },
         endDate: { type: "string", description: "종료일 (선택)" },
         type: { type: "string", enum: ["individual", "team"], description: "individual=개인전, team=팀전(팀 리그전 포함). 팀전 시 반드시 teams 파라미터로 팀별 선수 전달." },
-        randomizeTeams: { type: "boolean", description: "true면 players를 랜덤으로 섞어 팀 자동 구성. 사용자가 '랜덤/섞어서/무작위' 명시한 경우에만 true. 사용자가 팀별 선수를 지정한 경우 절대 true로 설정하지 말 것." },
         players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, club: { type: "string" }, class: { type: "string" }, gender: { type: "string" } }, required: ["name"] }, description: "개인전 선수 목록" },
         teams: { type: "array", items: { type: "object", properties: { name: { type: "string" }, memberNames: { type: "array", items: { type: "string" } }, coachName: { type: "string" } }, required: ["name"] }, description: "팀전 팀 목록 (팀 이름 + 팀원 + 코치)" },
         groupCount: { type: "number", description: "조 수 (예: 8)" },
@@ -119,9 +118,6 @@ export const TOOL_DEFINITIONS: Tool[] = [
         thirdPlace: { type: "boolean", description: "3/4위 결정전" },
         fifthToEighth: { type: "boolean", description: "5~8위 결정전" },
         classificationGroups: { type: "boolean", description: "하위 순위 결정전" },
-        teamSize: { type: "number", description: "랜덤팀전 전용: 팀당 인원 (기본 3)" },
-        teamNames: { type: "array", items: { type: "string" }, description: "랜덤팀전 전용: 팀 이름 목록" },
-        winScore: { type: "number", description: "랜덤팀전 전용: 승리 점수 (기본 31)" },
       },
       required: ["name", "date", "type", "groupCount"],
     },
@@ -786,10 +782,6 @@ export async function executeTool(
       }
 
       case "setup_full_tournament": {
-        // randomizeTeams=true → 기존 랜덤 팀 로직으로 분기
-        if (input.randomizeTeams === true) {
-          return await executeTool("setup_random_team_league", input);
-        }
         const now = Date.now();
         const isTeamTour = (input.type as string) === "team";
         const players = (input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>) || [];
