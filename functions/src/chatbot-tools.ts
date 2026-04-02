@@ -212,19 +212,25 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // --- Write: Matches ---
   {
     name: "add_match",
-    description: "경기 1개 추가.",
+    description: "경기 1개 추가. 팀전이면 matchType='team' + team1Id/team2Id/team1Name/team2Name 사용.",
     input_schema: {
       type: "object" as const,
       properties: {
         tournamentId: { type: "string" },
-        player1Id: { type: "string" },
-        player2Id: { type: "string" },
-        player1Name: { type: "string" },
-        player2Name: { type: "string" },
+        matchType: { type: "string", enum: ["individual", "team"], description: "경기 타입 (기본 individual)" },
+        player1Id: { type: "string", description: "개인전: 선수1 ID" },
+        player2Id: { type: "string", description: "개인전: 선수2 ID" },
+        player1Name: { type: "string", description: "개인전: 선수1 이름" },
+        player2Name: { type: "string", description: "개인전: 선수2 이름" },
+        team1Id: { type: "string", description: "팀전: 팀1 ID" },
+        team2Id: { type: "string", description: "팀전: 팀2 ID" },
+        team1Name: { type: "string", description: "팀전: 팀1 이름" },
+        team2Name: { type: "string", description: "팀전: 팀2 이름" },
         round: { type: "number" },
         groupId: { type: "string" },
+        stageId: { type: "string" },
       },
-      required: ["tournamentId", "player1Id", "player2Id", "player1Name", "player2Name"],
+      required: ["tournamentId"],
     },
   },
   {
@@ -1094,13 +1100,17 @@ export async function executeTool(
         const newRef = db.ref(`matches/${input.tournamentId}`).push();
         await newRef.set({
           tournamentId: input.tournamentId,
-          type: "individual",
+          type: input.matchType || "individual",
           status: "pending",
           round: input.round || 1,
-          player1Id: input.player1Id,
-          player2Id: input.player2Id,
-          player1Name: input.player1Name,
-          player2Name: input.player2Name,
+          player1Id: input.player1Id || input.team1Id || "",
+          player2Id: input.player2Id || input.team2Id || "",
+          player1Name: input.player1Name || input.team1Name || "",
+          player2Name: input.player2Name || input.team2Name || "",
+          ...((input.matchType === "team" || input.team1Id) ? {
+            team1Id: input.team1Id || input.player1Id, team2Id: input.team2Id || input.player2Id,
+            team1Name: input.team1Name || input.player1Name, team2Name: input.team2Name || input.player2Name,
+          } : {}),
           sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
           currentSet: 0,
           player1Timeouts: 0,
@@ -1108,6 +1118,7 @@ export async function executeTool(
           winnerId: null,
           createdAt: now,
           ...(input.groupId ? { groupId: input.groupId } : {}),
+          ...(input.stageId ? { stageId: input.stageId } : {}),
         });
         return JSON.stringify({ success: true, matchId: newRef.key, message: `${input.player1Name} vs ${input.player2Name} 경기 추가` });
       }
@@ -1639,6 +1650,7 @@ export async function executeTool(
                   bracketRound: `하위${g + 1}조`,
                   player1Id: gp[i].id, player2Id: gp[j].id,
                   player1Name: gp[i].name, player2Name: gp[j].name,
+                  ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: gp[i].id, team2Id: gp[j].id, team1Name: gp[i].name, team2Name: gp[j].name } : {}),
                   sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
                   currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
                   winnerId: null, createdAt: now2 + mc,
