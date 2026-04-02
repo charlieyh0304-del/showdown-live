@@ -96,40 +96,20 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["name", "date", "type"],
     },
   },
-  {
-    name: "setup_random_team_league",
-    description: "랜덤 팀 리그전 전용. '랜덤 팀/팀리그' 요청 시 사용. 한 번에: 선수 등록→탑시드 분산(각 팀 1명)→남녀 균등 배분→팀 구성→조 편성(groupCount)→조별 팀 라운드로빈. type=randomTeamLeague, 31점 1세트. 동일 이름 중복 차단.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        name: { type: "string", description: "대회 이름" },
-        date: { type: "string", description: "시작일 YYYY-MM-DD" },
-        endDate: { type: "string", description: "종료일 (선택)" },
-        players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, gender: { type: "string", enum: ["male", "female", ""] } }, required: ["name"] } },
-        teamSize: { type: "number", description: "팀당 인원 (기본 3)" },
-        groupCount: { type: "number", description: "조 수 (기본 1=전체 리그, 2이상=조별 리그)" },
-        seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수 이름 (각 팀에 1명씩 분산, 남녀 균등)" },
-        teamNames: { type: "array", items: { type: "string" }, description: "팀 이름 목록 (예: ['윌','종','현','병',...]) 미지정 시 1팀,2팀..." },
-        winScore: { type: "number", description: "팀전 승리 점수 (기본 31)" },
-        advancePerGroup: { type: "number", description: "조당 본선 진출 팀 수 (조별리그 시)" },
-        thirdPlace: { type: "boolean", description: "3/4위 결정전" },
-        rankingMatch: { type: "boolean", description: "하위 순위 결정전" },
-      },
-      required: ["name", "date", "players"],
-    },
-  },
+  // setup_random_team_league: 도구 목록에서 제거됨 — setup_full_tournament(randomizeTeams=true)로 통합
   {
     name: "setup_full_tournament",
-    description: "개인전 또는 사전 구성 팀전. 한 번에: 등록→조 편성→시드 배치→예선 라운드로빈→본선 설정. type=individual이면 players 사용, type=team이면 teams 사용(players 아님!). teams: [{name:'전남', memberNames:['선수1','선수2','예비']}]. 코치는 memberNames에 넣지 않음. 랜덤 팀은 setup_random_team_league. 동일 이름 중복 차단.",
+    description: "대회 생성 통합 도구. 개인전/팀전/랜덤팀전 모두 처리. type=individual이면 players 사용, type=team이면 teams 사용(players 아님!). teams: [{name:'전남', memberNames:['안윤환','이종경','박다슬'], coachName:'고성순'}]. 코치는 coachName 필드, memberNames에 넣지 않음. 랜덤 팀 구성 시 type=randomTeamLeague + players + teamSize 사용. 동일 이름 중복 차단.",
     input_schema: {
       type: "object" as const,
       properties: {
         name: { type: "string", description: "대회 이름" },
         date: { type: "string", description: "시작일 YYYY-MM-DD" },
         endDate: { type: "string", description: "종료일 (선택)" },
-        type: { type: "string", enum: ["individual", "team"], description: "개인전/팀전" },
+        type: { type: "string", enum: ["individual", "team"], description: "individual=개인전, team=팀전(팀 리그전 포함). 팀전 시 반드시 teams 파라미터로 팀별 선수 전달." },
+        randomizeTeams: { type: "boolean", description: "true면 players를 랜덤으로 섞어 팀 자동 구성. 사용자가 '랜덤/섞어서/무작위' 명시한 경우에만 true. 사용자가 팀별 선수를 지정한 경우 절대 true로 설정하지 말 것." },
         players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, club: { type: "string" }, class: { type: "string" }, gender: { type: "string" } }, required: ["name"] }, description: "개인전 선수 목록" },
-        teams: { type: "array", items: { type: "object", properties: { name: { type: "string" }, memberNames: { type: "array", items: { type: "string" } } }, required: ["name"] }, description: "팀전 팀 목록 (팀 이름 + 팀원)" },
+        teams: { type: "array", items: { type: "object", properties: { name: { type: "string" }, memberNames: { type: "array", items: { type: "string" } }, coachName: { type: "string" } }, required: ["name"] }, description: "팀전 팀 목록 (팀 이름 + 팀원 + 코치)" },
         groupCount: { type: "number", description: "조 수 (예: 8)" },
         advancePerGroup: { type: "number", description: "조당 본선 진출 수 (예: 2)" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 이름 (개인전: 선수명, 팀전: 팀명)" },
@@ -139,6 +119,9 @@ export const TOOL_DEFINITIONS: Tool[] = [
         thirdPlace: { type: "boolean", description: "3/4위 결정전" },
         fifthToEighth: { type: "boolean", description: "5~8위 결정전" },
         classificationGroups: { type: "boolean", description: "하위 순위 결정전" },
+        teamSize: { type: "number", description: "랜덤팀전 전용: 팀당 인원 (기본 3)" },
+        teamNames: { type: "array", items: { type: "string" }, description: "랜덤팀전 전용: 팀 이름 목록" },
+        winScore: { type: "number", description: "랜덤팀전 전용: 승리 점수 (기본 31)" },
       },
       required: ["name", "date", "type", "groupCount"],
     },
@@ -271,12 +254,13 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "generate_round_robin",
-    description: "라운드로빈 대진 자동 생성. 지정된 선수들 간 모든 조합의 경기를 생성.",
+    description: "라운드로빈 대진 자동 생성. 개인전: playerIds 사용, 팀전: teamIds 사용. 대회 type을 자동 감지하여 팀전이면 팀 매치(team1Id/team2Id), 개인전이면 개인 매치(player1Id/player2Id) 생성.",
     input_schema: {
       type: "object" as const,
       properties: {
         tournamentId: { type: "string" },
-        playerIds: { type: "array", items: { type: "string" }, description: "선수 ID 배열 (비어있으면 대회 전체 선수)" },
+        playerIds: { type: "array", items: { type: "string" }, description: "선수 ID 배열 (개인전용, 비어있으면 대회 전체 선수)" },
+        teamIds: { type: "array", items: { type: "string" }, description: "팀 ID 배열 (팀전용, 비어있으면 대회 전체 팀)" },
         groupId: { type: "string", description: "조 ID (선택)" },
       },
       required: ["tournamentId"],
@@ -457,7 +441,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "add_team",
-    description: "팀 추가 (팀전 대회용).",
+    description: "팀 추가 (팀전 대회용). coachName으로 코치 이름 등록 가능.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -465,6 +449,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
         name: { type: "string", description: "팀 이름" },
         memberIds: { type: "array", items: { type: "string" }, description: "팀원 선수 ID 배열" },
         memberNames: { type: "array", items: { type: "string" }, description: "팀원 이름 배열" },
+        coachName: { type: "string", description: "코치 이름 (선택)" },
       },
       required: ["tournamentId", "name"],
     },
@@ -605,6 +590,14 @@ export async function executeTool(
       }
 
       case "setup_random_team_league": {
+        // 코드 레벨 가드: 사전 구성 팀 정보가 넘어오면 잘못된 도구 선택 → 에러로 리다이렉트
+        if (input.teams && Array.isArray(input.teams) && (input.teams as unknown[]).length > 0) {
+          return JSON.stringify({ error: "팀별 선수가 이미 지정되어 있습니다. setup_random_team_league가 아닌 setup_full_tournament(type='team', teams=[...]) 도구를 사용하세요." });
+        }
+        const rtPlayersRaw = input.players as Array<{ name: string; gender?: string; team?: string }> | undefined;
+        if (rtPlayersRaw?.some(p => p.team)) {
+          return JSON.stringify({ error: "선수에 팀 소속(team)이 지정되어 있습니다. 사전 구성 팀전은 setup_full_tournament(type='team', teams=[{name:'팀명', memberNames:['선수1','선수2']}]) 도구를 사용하세요." });
+        }
         const now = Date.now();
         const rtPlayers = input.players as Array<{ name: string; gender?: string }>;
         const rtTeamSize = (input.teamSize as number) || 3;
@@ -793,10 +786,14 @@ export async function executeTool(
       }
 
       case "setup_full_tournament": {
+        // randomizeTeams=true → 기존 랜덤 팀 로직으로 분기
+        if (input.randomizeTeams === true) {
+          return await executeTool("setup_random_team_league", input);
+        }
         const now = Date.now();
         const isTeamTour = (input.type as string) === "team";
         const players = (input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>) || [];
-        const inputTeams = (input.teams as Array<{ name: string; memberNames?: string[] }>) || [];
+        const inputTeams = (input.teams as Array<{ name: string; memberNames?: string[]; coachName?: string }>) || [];
         const groupCount = (input.groupCount as number) || 4;
         const advancePerGroup = (input.advancePerGroup as number) || 2;
         const seeds = (input.seeds as string[]) || [];
@@ -898,6 +895,7 @@ export async function executeTool(
             }
             bulkUpdate[`teams/${tid}/${teamId}`] = {
               name: team.name, memberIds, memberNames: team.memberNames || [], createdAt: now,
+              ...(team.coachName ? { coachName: team.coachName } : {}),
             };
             idMap.set(team.name, teamId);
             nameMap.set(teamId, team.name);
@@ -1139,43 +1137,88 @@ export async function executeTool(
 
       case "generate_round_robin": {
         const tid = input.tournamentId as string;
-        let playerIds = input.playerIds as string[] | undefined;
 
-        if (!playerIds || playerIds.length === 0) {
-          const snap = await db.ref(`tournamentPlayers/${tid}`).once("value");
-          if (!snap.exists()) return JSON.stringify({ error: "선수가 없습니다." });
-          playerIds = Object.keys(snap.val());
-        }
-
-        // Get player names
-        const playerSnap = await db.ref(`tournamentPlayers/${tid}`).once("value");
-        const playerData = playerSnap.exists() ? playerSnap.val() : {};
-        const nameMap = new Map<string, string>();
-        for (const [id, v] of Object.entries(playerData)) {
-          nameMap.set(id, (v as { name: string }).name);
-        }
+        // 대회 타입 자동 감지
+        const rrTourSnap = await db.ref(`tournaments/${tid}/type`).once("value");
+        const isTeamTour = rrTourSnap.val() === "team";
 
         const now = Date.now();
         const matches: Record<string, unknown>[] = [];
-        for (let i = 0; i < playerIds.length; i++) {
-          for (let j = i + 1; j < playerIds.length; j++) {
-            matches.push({
-              tournamentId: tid,
-              type: "individual",
-              status: "pending",
-              round: matches.length + 1,
-              player1Id: playerIds[i],
-              player2Id: playerIds[j],
-              player1Name: nameMap.get(playerIds[i]) || playerIds[i],
-              player2Name: nameMap.get(playerIds[j]) || playerIds[j],
-              sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-              currentSet: 0,
-              player1Timeouts: 0,
-              player2Timeouts: 0,
-              winnerId: null,
-              createdAt: now + matches.length,
-              ...(input.groupId ? { groupId: input.groupId } : {}),
-            });
+
+        if (isTeamTour) {
+          // === 팀전: 팀 ID 기반 매치 생성 ===
+          let teamIds = input.teamIds as string[] | undefined;
+          if (!teamIds || teamIds.length === 0) {
+            const teamSnap = await db.ref(`teams/${tid}`).once("value");
+            if (!teamSnap.exists()) return JSON.stringify({ error: "팀이 없습니다." });
+            teamIds = Object.keys(teamSnap.val());
+          }
+
+          // 팀 이름/멤버 조회
+          const teamSnap = await db.ref(`teams/${tid}`).once("value");
+          const teamData = teamSnap.exists() ? teamSnap.val() as Record<string, { name: string; memberIds?: string[]; memberNames?: string[] }> : {};
+
+          for (let i = 0; i < teamIds.length; i++) {
+            for (let j = i + 1; j < teamIds.length; j++) {
+              const t1 = teamData[teamIds[i]] || { name: teamIds[i] };
+              const t2 = teamData[teamIds[j]] || { name: teamIds[j] };
+              matches.push({
+                tournamentId: tid,
+                type: "team",
+                status: "pending",
+                round: matches.length + 1,
+                team1Id: teamIds[i],
+                team2Id: teamIds[j],
+                team1Name: t1.name,
+                team2Name: t2.name,
+                team1: { memberIds: t1.memberIds || [], memberNames: t1.memberNames || [] },
+                team2: { memberIds: t2.memberIds || [], memberNames: t2.memberNames || [] },
+                sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+                currentSet: 0,
+                player1Timeouts: 0,
+                player2Timeouts: 0,
+                winnerId: null,
+                createdAt: now + matches.length,
+                ...(input.groupId ? { groupId: input.groupId } : {}),
+              });
+            }
+          }
+        } else {
+          // === 개인전: 선수 ID 기반 매치 생성 ===
+          let playerIds = input.playerIds as string[] | undefined;
+          if (!playerIds || playerIds.length === 0) {
+            const snap = await db.ref(`tournamentPlayers/${tid}`).once("value");
+            if (!snap.exists()) return JSON.stringify({ error: "선수가 없습니다." });
+            playerIds = Object.keys(snap.val());
+          }
+
+          const playerSnap = await db.ref(`tournamentPlayers/${tid}`).once("value");
+          const playerData = playerSnap.exists() ? playerSnap.val() : {};
+          const nameMap = new Map<string, string>();
+          for (const [id, v] of Object.entries(playerData)) {
+            nameMap.set(id, (v as { name: string }).name);
+          }
+
+          for (let i = 0; i < playerIds.length; i++) {
+            for (let j = i + 1; j < playerIds.length; j++) {
+              matches.push({
+                tournamentId: tid,
+                type: "individual",
+                status: "pending",
+                round: matches.length + 1,
+                player1Id: playerIds[i],
+                player2Id: playerIds[j],
+                player1Name: nameMap.get(playerIds[i]) || playerIds[i],
+                player2Name: nameMap.get(playerIds[j]) || playerIds[j],
+                sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+                currentSet: 0,
+                player1Timeouts: 0,
+                player2Timeouts: 0,
+                winnerId: null,
+                createdAt: now + matches.length,
+                ...(input.groupId ? { groupId: input.groupId } : {}),
+              });
+            }
           }
         }
 
@@ -1186,7 +1229,7 @@ export async function executeTool(
         }
         await db.ref().update(bulk);
 
-        return JSON.stringify({ success: true, count: matches.length, message: `${matches.length}경기 라운드로빈 생성 완료` });
+        return JSON.stringify({ success: true, count: matches.length, type: isTeamTour ? "team" : "individual", message: `${matches.length}경기 ${isTeamTour ? "팀" : "개인"}전 라운드로빈 생성 완료` });
       }
 
       // --- Write: Schedule (고급) ---
@@ -2071,13 +2114,15 @@ export async function executeTool(
       case "add_team": {
         const ttid = input.tournamentId as string;
         const tRef = db.ref(`teams/${ttid}`).push();
-        await tRef.set({
+        const teamPayload: Record<string, unknown> = {
           name: input.name,
           memberIds: input.memberIds || [],
           memberNames: input.memberNames || [],
           createdAt: Date.now(),
-        });
-        return JSON.stringify({ success: true, teamId: tRef.key, message: `팀 "${input.name}" 추가 완료` });
+        };
+        if (input.coachName) teamPayload.coachName = input.coachName;
+        await tRef.set(teamPayload);
+        return JSON.stringify({ success: true, teamId: tRef.key, message: `팀 "${input.name}" 추가 완료${input.coachName ? ` (코치: ${input.coachName})` : ""}` });
       }
 
       case "delete_team": {
