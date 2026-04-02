@@ -1275,28 +1275,63 @@ export async function executeTool(
           // 경기 시작
           history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작 — ${firstServerName} 서브`, points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
 
+          // 팀전(31점 1세트)인지 개인전(11점 N세트)인지
+          const isTeamMatch = (match.type === "team") || isTeamType;
+          const sideChangePoint = isTeamMatch ? 16 : 6;
+          let serveCount = 0;
+          let currentServer = firstServer;
+          let serveNum = 1;
+
           for (let si = 0; si < sets.length; si++) {
             const s = sets[si];
-            // 세트 내 득점 과정 (2점 골 위주)
             let sc1 = 0, sc2 = 0;
+            let sideChanged = false;
+            let timeoutUsed1 = false, timeoutUsed2 = false;
+
+            // 세트 시작 (2세트부터 사이드 체인지 + 서브 교대)
+            if (si > 0) {
+              currentServer = currentServer === "player1" ? "player2" : "player1";
+              t += 30000;
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
+            }
+
             while (sc1 < s.player1Score || sc2 < s.player2Score) {
-              t += 15000 + Math.floor(Math.random() * 30000); // 15~45초 간격
+              t += 10000 + Math.floor(Math.random() * 20000);
+              const maxSc = Math.max(sc1, sc2);
+
+              // 16점(팀전) 또는 6점(개인전 결정세트) 사이드 체인지
+              if (!sideChanged && maxSc >= sideChangePoint) {
+                sideChanged = true;
+                t += 60000; // 1분 휴식
+                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              }
+
+              // 타임아웃 (30% 확률, 각 팀 1회씩, 10점 이상일 때)
+              if (maxSc >= 10 && Math.random() < 0.08) {
+                if (!timeoutUsed1 && Math.random() > 0.5) {
+                  timeoutUsed1 = true;
+                  t += 60000;
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                } else if (!timeoutUsed2) {
+                  timeoutUsed2 = true;
+                  t += 60000;
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                }
+              }
+
+              // 득점
               const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
-              const pts = Math.random() < 0.7 ? 2 : 1; // 70% 골(2점), 30% 파울(1점)
+              const pts = Math.random() < 0.7 ? 2 : 1;
               const prevSc = { player1: sc1, player2: sc2 };
-              if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); }
-              else { sc2 = Math.min(sc2 + pts, s.player2Score); }
+              if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
               const scorer = p1Turn ? p1n : p2n;
-              history.push({
-                time: new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-                set: si + 1, scoringPlayer: scorer, actionPlayer: scorer,
-                actionType: pts === 2 ? "goal" : "foul",
-                actionLabel: pts === 2 ? `${scorer} 골 +2` : `${scorer} 파울 +1`,
-                points: pts, server: p1n, serveNumber: 1,
-                scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 },
-                serverSide: "player1",
-              });
-              if (history.length > 80) break; // 안전 제한
+
+              // 서브 교대 (2회 서브 후 교대)
+              serveCount++;
+              if (serveCount >= 2) { serveCount = 0; currentServer = currentServer === "player1" ? "player2" : "player1"; serveNum++; }
+
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} 골 +2` : `${scorer} 파울 +1`, points: pts, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              if (history.length > 120) break;
             }
           }
 
