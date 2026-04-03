@@ -273,8 +273,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
         tournamentId: { type: "string" },
         startTime: { type: "string", description: "HH:MM (기본 09:00)" },
         endTime: { type: "string", description: "HH:MM (기본 19:00)" },
-        intervalMinutes: { type: "number", description: "경기 간격 분 (기본 30)" },
-        playerRestMinutes: { type: "number", description: "선수당 최소 휴식 시간 분 (기본 60, 연속 경기 방지)" },
+        intervalMinutes: { type: "number", description: "코트별 경기 간격 (기본 30분). 경기 시간에 맞춰 설정 (예: 경기 60분이면 60 이상)" },
+        playerRestMinutes: { type: "number", description: "팀/선수 최소 휴식 시간 (기본 60분). 경기 종료 후 다음 경기까지 최소 간격. 예: 경기 60분 + 팀당 간격 30분이면 90 입력" },
         scheduleDate: { type: "string", description: "YYYY-MM-DD 시작 날짜" },
         nextDayStartTime: { type: "string", description: "다음날 시작 시간 HH:MM (기본 09:00)" },
         breakStart: { type: "string", description: "휴식 시작 HH:MM (예: 12:00 점심)" },
@@ -2053,14 +2053,18 @@ export async function executeTool(
           return `${d}: ${daySlots.length}경기 (${times[0]}~${times[times.length - 1]})`;
         }).join(", ");
 
+        // 상세 스케줄 (AI가 정확한 정보를 표시하도록)
+        const scheduleDetail = slots.map(s => `${s.scheduledDate} ${s.scheduledTime} [${s.courtName}] ${s.label}`).join("\n");
+
         return JSON.stringify({
           success: true,
           count: slots.length,
           skipped: skippedCount,
           dates: dates.length,
           summary,
+          scheduleDetail,
           settings: { interval, playerRest, breakTime: breakStartStr ? `${breakStartStr}-${breakEndStr}` : "없음", endTime },
-          message: `${slots.length}경기 스케줄 생성 완료 (${dates.length}일, 선수 휴식 ${playerRest}분, 경기 간격 ${interval}분${breakStartStr ? `, 점심 ${breakStartStr}-${breakEndStr}` : ""})`,
+          message: `${slots.length}경기 스케줄 생성 완료 (${dates.length}일, 팀 휴식 ${playerRest}분, 경기 간격 ${interval}분${breakStartStr ? `, 점심 ${breakStartStr}-${breakEndStr}` : ""})`,
         });
       }
 
