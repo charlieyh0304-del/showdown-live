@@ -1409,8 +1409,8 @@ export async function executeTool(
           results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
           // scoreHistory 생성 — 득점 과정 시뮬레이션
-          const p1n = (match.player1Name || match.team1Name || "P1") as string;
-          const p2n = (match.player2Name || match.team2Name || "P2") as string;
+          const p1n = (isTeamType ? (match.team1Name || match.player1Name) : (match.player1Name || match.team1Name) || "P1") as string;
+          const p2n = (isTeamType ? (match.team2Name || match.player2Name) : (match.player2Name || match.team2Name) || "P2") as string;
           // p1id/p2id는 winnerId에서 이미 사용
           const history: Array<Record<string, unknown>> = [];
           let t = now;
