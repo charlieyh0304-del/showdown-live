@@ -23,14 +23,14 @@ function getChatStorageKey(role: ChatRole, tid?: string): string {
 
 function loadMessages(key: string): ChatMessage[] {
   try {
-    const stored = sessionStorage.getItem(key);
+    const stored = localStorage.getItem(key);
     return stored ? JSON.parse(stored) : [];
   } catch { return []; }
 }
 
 function saveMessages(key: string, msgs: ChatMessage[]) {
   try {
-    sessionStorage.setItem(key, JSON.stringify(msgs.slice(-50))); // 최근 50개만
+    localStorage.setItem(key, JSON.stringify(msgs.slice(-50))); // 최근 50개만
   } catch { /* storage full */ }
 }
 
