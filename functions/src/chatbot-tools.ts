@@ -1587,10 +1587,21 @@ export async function executeTool(
           }
         }
 
+        // 팀전이면 팀 멤버/코치 정보를 결과에 포함 (AI가 정확한 이름을 사용하도록)
+        let teamInfo: string | undefined;
+        if (isTeamType) {
+          const teamsSnap = await db.ref(`teams/${tid}`).once("value");
+          if (teamsSnap.exists()) {
+            const teamsData = teamsSnap.val() as Record<string, { name: string; memberNames?: string[]; coachName?: string }>;
+            teamInfo = Object.values(teamsData).map(t => `${t.name}: ${(t.memberNames || []).join(", ")}${t.coachName ? ` (코치: ${t.coachName})` : ""}`).join("\n");
+          }
+        }
+
         return JSON.stringify({
           success: true,
           count: matchList.length,
           results: results.slice(0, 10),
+          ...(teamInfo ? { teamRoster: teamInfo } : {}),
           message: `${matchList.length}경기 시뮬레이션 완료`,
         });
       }
