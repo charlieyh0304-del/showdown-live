@@ -143,12 +143,15 @@ export default function IndividualScoring() {
   // Timers - driven by Firebase timestamps
   const sideChangeTimer = useCountdownTimer(() => {
     if (match) updateMatch({ sideChangeStartTime: null });
+    longWhistle();
   });
   const warmupTimer = useCountdownTimer(() => {
     if (match) updateMatch({ warmupStartTime: null });
+    longWhistle();
   });
   const timeoutTimer = useCountdownTimer(() => {
     if (match) updateMatch({ activeTimeout: null });
+    longWhistle();
   });
 
   // Derive modal visibility from Firebase state

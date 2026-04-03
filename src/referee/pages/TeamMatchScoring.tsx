@@ -94,9 +94,10 @@ export default function TeamMatchScoring() {
     if (match) updateMatch({ sideChangeStartTime: null });
     longWhistle();
   });
-  const warmupTimer = useCountdownTimer(() => setShowWarmup(false));
+  const warmupTimer = useCountdownTimer(() => { setShowWarmup(false); longWhistle(); });
   const timeoutTimer = useCountdownTimer(() => {
     if (match) updateMatch({ activeTimeout: null });
+    longWhistle();
   });
 
   // Navigation guard

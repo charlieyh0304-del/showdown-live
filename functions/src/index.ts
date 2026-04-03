@@ -261,23 +261,24 @@ export const onMatchChange = onValueUpdated(
       const notifKey = `start_${matchId}`;
       if (await wasNotifSent(notifKey)) { console.log(`[onMatchChange] Already sent: ${notifKey}`); return; }
 
+      // 먼저 마킹하여 중복 트리거 방지
+      await markNotifSent(notifKey);
+
       const subs = await findSubscriptions(participants);
       console.log(`[onMatchChange] Match started ${matchId}: ${subs.length}/${totalSubs} subscribers matched, participants: [${participants.join(", ")}]`);
       if (subs.length === 0) return;
 
       // Send personalized notifications per subscription
       const matchLink = `/spectator/match/${tournamentId}/${matchId}`;
-      let totalSent = 0;
       for (const sub of subs) {
         const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
         if (!info) continue;
         const courtInfo = after.courtName ? ` (${after.courtName})` : "";
-        totalSent += await sendToSubscriptions([sub], {
+        await sendToSubscriptions([sub], {
           title: `⚡ ${info.favName} vs ${info.oppName} 경기 시작!${courtInfo ? courtInfo : ""}`,
           body: "",
         }, matchLink);
       }
-      if (totalSent > 0) await markNotifSent(notifKey);
     }
 
     // Match completed
@@ -285,12 +286,14 @@ export const onMatchChange = onValueUpdated(
       const notifKey = `result_${matchId}`;
       if (await wasNotifSent(notifKey)) return;
 
+      // 먼저 마킹하여 중복 트리거 방지
+      await markNotifSent(notifKey);
+
       const subs = await findSubscriptions(participants);
       console.log(`[onMatchChange] Match completed ${matchId}: ${subs.length}/${totalSubs} subscribers matched`);
       if (subs.length === 0) return;
 
       const resultLink = `/spectator/match/${tournamentId}/${matchId}`;
-      let totalSent = 0;
       for (const sub of subs) {
         const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
         if (!info) continue;
@@ -307,12 +310,11 @@ export const onMatchChange = onValueUpdated(
           })
           .join(", ");
 
-        totalSent += await sendToSubscriptions([sub], {
+        await sendToSubscriptions([sub], {
           title: `${won ? "🏆" : "😢"} ${info.favName} vs ${info.oppName} ${won ? "승리" : "패배"}`,
           body: scores,
         }, resultLink);
       }
-      if (totalSent > 0) await markNotifSent(notifKey);
     }
   },
 );
@@ -424,24 +426,25 @@ export const preMatchNotify = onSchedule(
               return;
             }
 
+            // 먼저 마킹하여 중복 방지
+            await markNotifSent(notifKey);
+
             const participants = getMatchParticipants(match);
             const subs = await findSubscriptions(participants);
             console.log(`Match ${matchId}: ${subs.length} subscribers found`);
             if (subs.length === 0) return;
 
             const preMatchLink = `/spectator/match/${tid}/${matchId}`;
-            let totalSent = 0;
             for (const sub of subs) {
               const info = getPlayerInfo(match, sub.favoriteIds, sub.favoriteNames);
               if (!info) continue;
               const courtInfo = match.courtName ? ` (${match.courtName})` : "";
-              totalSent += await sendToSubscriptions([sub], {
+              await sendToSubscriptions([sub], {
                 title: `📢 ${info.favName} vs ${info.oppName} 경기 10분 전${courtInfo ? courtInfo : ""}`,
                 body: "",
               }, preMatchLink);
               console.log(`Sent pre-match notif for ${info.favName} to ${sub.platform}`);
             }
-            if (totalSent > 0) await markNotifSent(notifKey);
           })());
         }
       }
