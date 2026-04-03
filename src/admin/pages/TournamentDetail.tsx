@@ -2198,7 +2198,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         </p>
       )}
 
-      {matches.length > 0 && referees.length > 0 && (
+      {matches.length > 0 && referees.length > 0 && tournament.status !== 'completed' && (
         <div className="card p-4 space-y-3">
           <h3 className="font-bold">{t('admin.tournamentDetail.bracketTab.bulkRefereeTitle')}</h3>
           <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.bulkRefereeDescription')}</p>
@@ -2217,6 +2217,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       {/* 본선 대진 생성 (수동 모드: finals 스테이지가 있고, 본선 매치가 없을 때) */}
       {/* 랜덤 팀 리그는 AI가 본선을 별도 관리하므로 버튼 숨김 */}
       {(() => {
+        if (tournament.status === 'completed') return null;
         if (tournament.type === 'randomTeamLeague') return null;
         const finalsStage = toArray(tournament.stages).find(s => s.type === 'finals');
         if (!finalsStage) return null;
@@ -2377,6 +2378,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
 
       {/* 본선 대진 편성 카드 (랜덤 팀 리그 제외) */}
       {(() => {
+        if (tournament.status === 'completed') return null;
         if (tournament.type === 'randomTeamLeague') return null;
         const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id;
         const finalsMatches = matches.filter(m => m.stageId === finalsStageId || (m.stageId && m.stageId.includes('finals')));
@@ -4055,8 +4057,8 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </div>
       </div>
 
-      {/* 대회 단계 관리 */}
-      {toArray(tournament.stages).length > 0 && (
+      {/* 대회 단계 관리 (풀리그는 예선/본선 구분이 없으므로 숨김) */}
+      {toArray(tournament.stages).length > 0 && tournament.formatType !== 'round_robin' && (
         <div className="card space-y-4">
           <h3 className="text-xl font-bold text-yellow-400 text-center">{t('admin.tournamentDetail.statusTab.stageManagement')}</h3>
           {toArray(tournament.stages).map((stage) => {

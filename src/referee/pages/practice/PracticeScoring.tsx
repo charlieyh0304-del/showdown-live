@@ -19,7 +19,7 @@ import type { ScoreHistoryEntry } from '@shared/types';
 import { formatTime } from '@shared/utils/locale';
 import type { SetScore, ScoreActionType, PracticeMatch } from '@shared/types';
 
-import { useCountdownTimer } from '../../hooks/useCountdownTimer';
+import { useCountdownTimer, playWarningBeep } from '../../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useWhistle } from '@shared/hooks/useWhistle';
@@ -108,6 +108,7 @@ export default function PracticeScoring() {
   const timerWarningsRef = useRef<Set<string>>(new Set());
   const warningClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showWarning = useCallback((msg: string) => {
+    playWarningBeep();
     setTimerWarningText(msg);
     speak(msg);
     if (warningClearRef.current) clearTimeout(warningClearRef.current);
@@ -1101,8 +1102,33 @@ export default function PracticeScoring() {
       </div>
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
-      {/* Scoring area - 4 main buttons */}
+      {/* Scoring area */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {/* 단독 휘슬 버튼 - 최상단 */}
+        <div className="grid grid-cols-3 gap-2">
+          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
+            onClick={shortWhistle}
+            aria-label="서브 및 1점 실점 휘슬"
+            style={{ minHeight: '44px' }}
+          >
+            📣 서브/1점
+          </button>
+          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
+            onClick={goalWhistle}
+            aria-label="골 득점 휘슬"
+            style={{ minHeight: '44px' }}
+          >
+            🎯 골 득점
+          </button>
+          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
+            onClick={longWhistle}
+            aria-label="타임아웃 및 경기 종료 휘슬"
+            style={{ minHeight: '44px' }}
+          >
+            📢 타임아웃/종료
+          </button>
+        </div>
+
         {(() => {
           const scoringDisabled = !!match.activeTimeout || showSideChange;
           return (
@@ -1148,31 +1174,6 @@ export default function PracticeScoring() {
 
         {/* Row 3: 취소 */}
         <button className="btn btn-danger py-3 w-full" onClick={handleUndo} disabled={match.scoreHistory.length === 0}>↩️ {t('referee.practice.scoring.undoButton')}</button>
-
-        {/* 단독 휘슬 버튼 */}
-        <div className="grid grid-cols-3 gap-2">
-          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
-            onClick={shortWhistle}
-            aria-label="짧은 휘슬 (서브 신호)"
-            style={{ minHeight: '44px' }}
-          >
-            📣 짧은 휘슬
-          </button>
-          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
-            onClick={longWhistle}
-            aria-label="긴 휘슬 (세트/경기 종료)"
-            style={{ minHeight: '44px' }}
-          >
-            📢 긴 휘슬
-          </button>
-          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
-            onClick={goalWhistle}
-            aria-label="골 휘슬"
-            style={{ minHeight: '44px' }}
-          >
-            🎯 골 휘슬
-          </button>
-        </div>
 
         {/* 접이식: 타임아웃 (선수/메디컬/심판) */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">

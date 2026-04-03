@@ -15,7 +15,7 @@ import {
 } from '@shared/utils/scoring';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { formatTime } from '@shared/utils/locale';
-import { useCountdownTimer } from '../hooks/useCountdownTimer';
+import { useCountdownTimer, playWarningBeep } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { useWhistle } from '@shared/hooks/useWhistle';
@@ -107,11 +107,13 @@ export default function TeamMatchScoring() {
   useEffect(() => {
     if (warmupTimer.isRunning) {
       if (warmupTimer.seconds === 60) {
+        playWarningBeep();
         setLastAction(`⚠️ 30${t('common.time.seconds')}`);
         setAnnouncement(`30${t('common.time.seconds')}`);
         speak(`30${t('common.time.seconds')}`);
       }
       if (warmupTimer.seconds === 30) {
+        playWarningBeep();
         setLastAction(`⚠️ 30${t('common.time.seconds')}`);
         setAnnouncement(`30${t('common.time.seconds')}`);
         speak(`30${t('common.time.seconds')}`);
@@ -123,6 +125,7 @@ export default function TeamMatchScoring() {
   useEffect(() => {
     if (!timeoutTimer.isRunning || !match?.activeTimeout) return;
     if (timeoutTimer.seconds === 15) {
+      playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
@@ -138,6 +141,7 @@ export default function TeamMatchScoring() {
     }
     if (sideChangeTimer.seconds === 15 && !sideChangeAlerted.current) {
       sideChangeAlerted.current = true;
+      playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));

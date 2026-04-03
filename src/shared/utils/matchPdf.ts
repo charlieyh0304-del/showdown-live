@@ -167,8 +167,8 @@ export function generateMatchHtml(
             <th scope="col">${escHtml(t('common.pdf.time'))}</th>
             <th scope="col">${escHtml(t('common.pdf.action'))}</th>
             <th scope="col">${escHtml(t('common.pdf.pts'))}</th>
-            <th scope="col">${escHtml(t('common.pdf.serverScore') || '서브')}</th>
-            <th scope="col">${escHtml(t('common.pdf.receiverScore') || '리시브')}</th>
+            <th scope="col">${p1}</th>
+            <th scope="col">${p2}</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>`;

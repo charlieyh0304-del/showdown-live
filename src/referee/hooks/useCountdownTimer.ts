@@ -35,6 +35,30 @@ function playAlarmTone() {
   } catch { /* audio not available */ }
 }
 
+/**
+ * Warning beep — two short tones to alert before timer ends.
+ * Uses pre-warmed shared AudioContext so it works from setInterval on mobile.
+ */
+export function playWarningBeep() {
+  try {
+    const ctx = getOrCreateAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    for (let i = 0; i < 2; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 2400;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.35, now + i * 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.25 + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.25);
+      osc.stop(now + i * 0.25 + 0.15);
+    }
+  } catch { /* audio not available */ }
+}
+
 export function useCountdownTimer(onComplete?: () => void) {
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);

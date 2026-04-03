@@ -19,7 +19,7 @@ import { formatTime, speak } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
-import { useCountdownTimer } from '../hooks/useCountdownTimer';
+import { useCountdownTimer, playWarningBeep } from '../hooks/useCountdownTimer';
 import { useDoubleClickGuard } from '../hooks/useDoubleClickGuard';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useWhistle } from '@shared/hooks/useWhistle';
@@ -167,6 +167,7 @@ export default function IndividualScoring() {
     }
     if (timeoutTimer.seconds === 15 && !timeoutAlerted.current) {
       timeoutAlerted.current = true;
+      playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
@@ -182,6 +183,7 @@ export default function IndividualScoring() {
     }
     if (sideChangeTimer.seconds === 15 && !sideChangeAlerted.current) {
       sideChangeAlerted.current = true;
+      playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
       speak(t('referee.scoring.fifteenSecondsLeft'));
@@ -197,6 +199,7 @@ export default function IndividualScoring() {
     }
     if (warmupTimer.seconds === 15 && !warmupAlerted.current) {
       warmupAlerted.current = true;
+      playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.warmupFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.warmupFifteenSeconds'));
       speak(t('referee.scoring.warmupFifteenSeconds'));
