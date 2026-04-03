@@ -10,7 +10,7 @@ function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
 const META_TYPES = new Set([
   'pause', 'resume', 'timeout', 'timeout_player', 'timeout_medical', 'timeout_referee',
   'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start',
-  'match_start', 'player_rotation',
+  'match_start', 'player_rotation', 'lineup',
 ]);
 
 const ACTION_KEY_MAP: Record<string, string> = {
@@ -32,6 +32,7 @@ const ACTION_KEY_MAP: Record<string, string> = {
   match_start: 'common.matchHistory.matchStart',
   substitution: 'common.matchHistory.substitution',
   player_rotation: 'common.matchHistory.playerRotation',
+  lineup: 'common.matchHistory.lineup',
   side_change: 'common.matchHistory.sideChange',
 };
 
@@ -149,13 +150,13 @@ export function generateMatchHtml(
           const pts = !isMeta && h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
           const p1s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player1}` : '';
           const p2s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player2}` : '';
-          const serverName = h.server ? escHtml(h.server) : '';
+          const serverLabel = h.server ? escHtml(h.server) : '';
           return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}>
             <td>${time}</td>
-            <td>${scorer}</td>
-            <td>${action}</td>
+            <td>${isMeta ? '' : scorer}</td>
+            <td>${isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : action}</td>
             <td>${pts}</td>
-            <td>${serverName}</td>
+            <td>${!isMeta ? serverLabel : ''}</td>
             <td>${p1s}</td>
             <td>${p2s}</td>
           </tr>`;

@@ -168,6 +168,7 @@
       "coinToss": "동전던지기",
       "warmup": "워밍업",
       "playerRotation": "선수 교체",
+      "lineup": "팀 라인업",
       "sideChange": "사이드 체인지",
       "resumeMatch": "경기 재개",
       "noDetailedHistory": "상세 경기 기록이 없습니다.",
@@ -230,8 +231,8 @@
       "time": "시간",
       "action": "내용",
       "pts": "득점",
-      "scorer": "득점자",
-      "server": "서버",
+      "scorer": "득점",
+      "server": "서브",
       "generatedAt": "생성 시각",
       "printButton": "인쇄하기"
     },

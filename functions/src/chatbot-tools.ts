@@ -1418,27 +1418,27 @@ export async function executeTool(
           const firstServer = Math.random() > 0.5 ? "player1" : "player2";
           const firstServerName = firstServer === "player1" ? p1n : p2n;
 
-          // 코인 토스 (메타 이벤트 — 점수 없음)
-          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: p1n, actionType: "coin_toss", actionLabel: `코인 토스: ${firstServerName} 서브 선택`, points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
-          t += 30000;
-
-          // 워밍업 (메타 이벤트 — 점수 없음)
-          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "warmup_start", actionLabel: "워밍업 시작 (60초)", points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
-          t += 60000;
-
-          // 경기 시작 (메타 이벤트 — 점수 없음)
-          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작 — ${firstServerName} 서브`, points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
-
-          // 팀전: 경기 시작 시 팀 명단 기록
+          // 팀전: 라인업 기록 (코인토스 전)
           const isTeamMatch = (match.type === "team") || isTeamType;
-          const team1Coach = (match.team1 as Record<string, unknown>)?.coachName as string || (match.player1Coach as string) || "";
-          const team2Coach = (match.team2 as Record<string, unknown>)?.coachName as string || (match.player2Coach as string) || "";
           if (isTeamMatch) {
             const t1m = ((match.team1 as Record<string, unknown>)?.memberNames as string[]) || [];
             const t2m = ((match.team2 as Record<string, unknown>)?.memberNames as string[]) || [];
-            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "player_rotation", actionLabel: `${p1n} 명단: ${t1m.join(", ")}${team1Coach ? ` (코치: ${team1Coach})` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
-            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "player_rotation", actionLabel: `${p2n} 명단: ${t2m.join(", ")}${team2Coach ? ` (코치: ${team2Coach})` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
+            const c1 = (match.team1 as Record<string, unknown>)?.coachName as string || (match.player1Coach as string) || "";
+            const c2 = (match.team2 as Record<string, unknown>)?.coachName as string || (match.player2Coach as string) || "";
+            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "lineup", actionLabel: `${p1n} 라인업: ${t1m.map((n, i) => `${i + 1}.${n}`).join(", ")}${c1 ? ` / 코치: ${c1}` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
+            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "lineup", actionLabel: `${p2n} 라인업: ${t2m.map((n, i) => `${i + 1}.${n}`).join(", ")}${c2 ? ` / 코치: ${c2}` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
           }
+
+          // 코인 토스
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: p1n, actionType: "coin_toss", actionLabel: `코인 토스: ${firstServerName} 서브 선택`, points: 0, server: "", serveNumber: 0, serverSide: firstServer });
+          t += 30000;
+
+          // 워밍업
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "warmup_start", actionLabel: "워밍업 (60초)", points: 0, server: "", serveNumber: 0, serverSide: "" });
+          t += 60000;
+
+          // 경기 시작
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작`, points: 0, server: "", serveNumber: 0, serverSide: firstServer });
           const sideChangePoint = isTeamMatch ? 16 : 6;
           const maxServesPerPerson = isTeamMatch ? 3 : 2;
           let serveCount = 0;
@@ -1451,17 +1451,13 @@ export async function executeTool(
           let p1MemberIdx = 0; // player1(team1) 쪽 현재 서브하는 팀원 인덱스
           let p2MemberIdx = 0; // player2(team2) 쪽 현재 서브하는 팀원 인덱스
 
-          // 현재 서버의 실제 이름 반환 (팀전이면 팀원 이름, 개인전이면 선수 이름)
-          const getServerName = () => {
+          // 서브 표시: 팀전이면 "전남 1번째 서브", 개인전이면 "선수명"
+          const getServerLabel = () => {
+            const teamName = currentServer === "player1" ? p1n : p2n;
             if (isTeamMatch) {
-              if (currentServer === "player1" && team1Members && team1Members.length > 0) {
-                return team1Members[p1MemberIdx % team1Members.length];
-              }
-              if (currentServer === "player2" && team2Members && team2Members.length > 0) {
-                return team2Members[p2MemberIdx % team2Members.length];
-              }
+              return `${teamName} ${serveNum}번째 서브`;
             }
-            return currentServer === "player1" ? p1n : p2n;
+            return `${teamName} ${serveNum}번째 서브`;
           };
 
           for (let si = 0; si < sets.length; si++) {
@@ -1476,7 +1472,7 @@ export async function executeTool(
               serveCount = 0;
               serveNum = 1;
               t += 30000;
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: getServerName(), serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: getServerLabel(), serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
             }
 
             while (sc1 < s.player1Score || sc2 < s.player2Score) {
@@ -1487,7 +1483,7 @@ export async function executeTool(
               if (!sideChanged && maxSc >= sideChangePoint) {
                 sideChanged = true;
                 t += 60000; // 1분 휴식
-                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: getServerName(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: getServerLabel(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               }
 
               // 타임아웃 (30% 확률, 각 팀 1회씩, 10점 이상일 때)
@@ -1495,11 +1491,11 @@ export async function executeTool(
                 if (!timeoutUsed1 && Math.random() > 0.5) {
                   timeoutUsed1 = true;
                   t += 60000;
-                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: getServerName(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: getServerLabel(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 } else if (!timeoutUsed2) {
                   timeoutUsed2 = true;
                   t += 60000;
-                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: getServerName(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: getServerLabel(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 }
               }
 
@@ -1521,15 +1517,15 @@ export async function executeTool(
                 if (isTeamMatch) {
                   if (currentServer === "player1" && team1Members && team1Members.length > 0) {
                     p1MemberIdx = (p1MemberIdx + 1) % team1Members.length;
-                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: team1Members[p1MemberIdx % team1Members.length], actionType: "substitution", actionLabel: `${p1n} 서브 교대: ${team1Members[p1MemberIdx % team1Members.length]}`, points: 0, server: team1Members[p1MemberIdx % team1Members.length], serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "substitution", actionLabel: `${p1n} 선수 교체`, points: 0, server: `${p1n} 서브`, serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                   } else if (currentServer === "player2" && team2Members && team2Members.length > 0) {
                     p2MemberIdx = (p2MemberIdx + 1) % team2Members.length;
-                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: team2Members[p2MemberIdx % team2Members.length], actionType: "substitution", actionLabel: `${p2n} 서브 교대: ${team2Members[p2MemberIdx % team2Members.length]}`, points: 0, server: team2Members[p2MemberIdx % team2Members.length], serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "substitution", actionLabel: `${p2n} 선수 교체`, points: 0, server: `${p2n} 서브`, serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                   }
                 }
               }
 
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: getServerName(), serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: getServerLabel(), serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               if (history.length > 120) break;
             }
           }
