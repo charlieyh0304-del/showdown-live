@@ -230,6 +230,8 @@
       "time": "시간",
       "action": "내용",
       "pts": "득점",
+      "scorer": "득점자",
+      "server": "서버",
       "generatedAt": "생성 시각",
       "printButton": "인쇄하기"
     },

@@ -22,7 +22,14 @@
       "WebFetch(domain:ibsasport.org)",
       "WebSearch",
       "Bash(git -C \".claude/worktrees/agent-a25b9be3\" diff -- src/admin/components/tournament-create/WizardSte1)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(npx firebase:*)",
+      "Bash(npx vite:*)",
+      "Read(//tmp/**)",
+      "Bash(firebase functions:log --only onMatchChange)",
+      "Bash(grep -n \"team1SubUsed\\\\|team2SubUsed\\\\|substitution\" src/shared/types/*.ts src/shared/types/*.tsx)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

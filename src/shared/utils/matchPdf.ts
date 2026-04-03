@@ -144,13 +144,18 @@ export function generateMatchHtml(
             actionText = h.actionType || '';
           }
           const action = escHtml(actionText);
-          const pts = h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
-          const p1s = h.scoreAfter ? `${h.scoreAfter.player1}` : '';
-          const p2s = h.scoreAfter ? `${h.scoreAfter.player2}` : '';
-          return `<tr>
+          const isMeta = META_TYPES.has(h.actionType || '');
+          const scorer = !isMeta && h.scoringPlayer ? escHtml(h.scoringPlayer) : '';
+          const pts = !isMeta && h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
+          const p1s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player1}` : '';
+          const p2s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player2}` : '';
+          const serverName = h.server ? escHtml(h.server) : '';
+          return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}>
             <td>${time}</td>
+            <td>${scorer}</td>
             <td>${action}</td>
             <td>${pts}</td>
+            <td>${serverName}</td>
             <td>${p1s}</td>
             <td>${p2s}</td>
           </tr>`;
@@ -160,8 +165,10 @@ export function generateMatchHtml(
         <table aria-label="${escHtml(t('common.pdf.playByPlay'))} - ${escHtml(t('common.pdf.setNum'))} ${setNum}">
           <thead><tr>
             <th scope="col">${escHtml(t('common.pdf.time'))}</th>
+            <th scope="col">${escHtml(t('common.pdf.scorer') || '득점자')}</th>
             <th scope="col">${escHtml(t('common.pdf.action'))}</th>
             <th scope="col">${escHtml(t('common.pdf.pts'))}</th>
+            <th scope="col">${escHtml(t('common.pdf.server') || '서버')}</th>
             <th scope="col">${p1}</th>
             <th scope="col">${p2}</th>
           </tr></thead>

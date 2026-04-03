@@ -960,8 +960,10 @@ export async function executeTool(
                   team1Id: ids[i], team2Id: ids[j],
                   team1Name: nameMap.get(ids[i]) || ids[i],
                   team2Name: nameMap.get(ids[j]) || ids[j],
-                  team1: { memberIds: t1Data.memberIds || [], memberNames: t1Data.memberNames || [] },
-                  team2: { memberIds: t2Data.memberIds || [], memberNames: t2Data.memberNames || [] },
+                  team1: { memberIds: t1Data.memberIds || [], memberNames: t1Data.memberNames || [], coachName: t1Data.coachName || "" },
+                  team2: { memberIds: t2Data.memberIds || [], memberNames: t2Data.memberNames || [], coachName: t2Data.coachName || "" },
+                  player1Coach: t1Data.coachName || "",
+                  player2Coach: t2Data.coachName || "",
                   sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
                   currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null,
                   createdAt: now + matchCount, groupId: group.id, stageId: qualStageId,
@@ -1158,7 +1160,7 @@ export async function executeTool(
 
           // 팀 이름/멤버 조회
           const teamSnap = await db.ref(`teams/${tid}`).once("value");
-          const teamData = teamSnap.exists() ? teamSnap.val() as Record<string, { name: string; memberIds?: string[]; memberNames?: string[] }> : {};
+          const teamData = teamSnap.exists() ? teamSnap.val() as Record<string, { name: string; memberIds?: string[]; memberNames?: string[]; coachName?: string }> : {};
 
           for (let i = 0; i < teamIds.length; i++) {
             for (let j = i + 1; j < teamIds.length; j++) {
@@ -1173,8 +1175,10 @@ export async function executeTool(
                 team2Id: teamIds[j],
                 team1Name: t1.name,
                 team2Name: t2.name,
-                team1: { memberIds: t1.memberIds || [], memberNames: t1.memberNames || [] },
-                team2: { memberIds: t2.memberIds || [], memberNames: t2.memberNames || [] },
+                team1: { memberIds: t1.memberIds || [], memberNames: t1.memberNames || [], coachName: t1.coachName || "" },
+                team2: { memberIds: t2.memberIds || [], memberNames: t2.memberNames || [], coachName: t2.coachName || "" },
+                player1Coach: t1.coachName || "",
+                player2Coach: t2.coachName || "",
                 sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
                 currentSet: 0,
                 player1Timeouts: 0,
@@ -1316,20 +1320,19 @@ export async function executeTool(
           const history: Array<Record<string, unknown>> = [];
           let t = now;
           const fmt = (ms: number) => new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-          const zero = { player1: 0, player2: 0 };
           const firstServer = Math.random() > 0.5 ? "player1" : "player2";
           const firstServerName = firstServer === "player1" ? p1n : p2n;
 
-          // 코인 토스
-          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: p1n, actionType: "coin_toss", actionLabel: `코인 토스: ${firstServerName} 서브 선택`, points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
+          // 코인 토스 (메타 이벤트 — 점수 없음)
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: p1n, actionType: "coin_toss", actionLabel: `코인 토스: ${firstServerName} 서브 선택`, points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
           t += 30000;
 
-          // 워밍업
-          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "warmup_start", actionLabel: "워밍업 시작 (60초)", points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
+          // 워밍업 (메타 이벤트 — 점수 없음)
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "warmup_start", actionLabel: "워밍업 시작 (60초)", points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
           t += 60000;
 
-          // 경기 시작
-          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작 — ${firstServerName} 서브`, points: 0, server: firstServerName, serveNumber: 1, scoreBefore: zero, scoreAfter: zero, serverSide: firstServer });
+          // 경기 시작 (메타 이벤트 — 점수 없음)
+          history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작 — ${firstServerName} 서브`, points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
 
           // 팀전(31점 1세트)인지 개인전(11점 N세트)인지
           const isTeamMatch = (match.type === "team") || isTeamType;
