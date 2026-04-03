@@ -99,7 +99,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // setup_random_team_league: 도구 목록에서 제거됨 — setup_full_tournament(randomizeTeams=true)로 통합
   {
     name: "setup_full_tournament",
-    description: "대회 생성 통합 도구. 개인전/팀전/랜덤팀전 모두 처리. type=individual이면 players 사용, type=team이면 teams 사용(players 아님!). teams: [{name:'전남', memberNames:['안윤환','이종경','박다슬'], coachName:'고성순'}]. 코치는 coachName 필드, memberNames에 넣지 않음. 랜덤 팀 구성 시 type=randomTeamLeague + players + teamSize 사용. 동일 이름 중복 차단.",
+    description: "대회 생성. type=individual(개인전): players 사용. type=team(팀전/팀 리그전): teams 사용. teams 예시: [{name:'전남', memberNames:['안윤환','이종경','박다슬'], coachName:'고성순'}]. 사용자가 지정한 팀 구성을 그대로 teams에 전달. 코치는 coachName, memberNames에 넣지 않음. 동일 이름 중복 차단.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -791,6 +791,11 @@ export async function executeTool(
         const isTeamTour = (input.type as string) === "team";
         const players = (input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>) || [];
         const inputTeams = (input.teams as Array<{ name: string; memberNames?: string[]; coachName?: string }>) || [];
+
+        // 코드 가드: type=team인데 teams가 비어있으면 에러
+        if (isTeamTour && inputTeams.length === 0) {
+          return JSON.stringify({ error: "type=team이지만 teams 파라미터가 비어있습니다. 사용자가 지정한 팀 구성을 teams: [{name:'팀명', memberNames:['선수1','선수2'], coachName:'코치명'}] 형태로 전달하세요. players가 아닌 teams를 사용해야 합니다." });
+        }
         const groupCount = (input.groupCount as number) || 4;
         const advancePerGroup = (input.advancePerGroup as number) || 2;
         const seeds = (input.seeds as string[]) || [];
