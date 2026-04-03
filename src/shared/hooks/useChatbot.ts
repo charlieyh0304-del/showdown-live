@@ -17,8 +17,26 @@ export interface ChatAction {
 
 const FUNCTION_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/chatbot';
 
+function getChatStorageKey(role: ChatRole, tid?: string): string {
+  return `showdown_chat_${role}_${tid || 'global'}`;
+}
+
+function loadMessages(key: string): ChatMessage[] {
+  try {
+    const stored = sessionStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function saveMessages(key: string, msgs: ChatMessage[]) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(msgs.slice(-50))); // 최근 50개만
+  } catch { /* storage full */ }
+}
+
 export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInfo?: string) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const storageKey = getChatStorageKey(userRole, tournamentId);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(storageKey));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -31,6 +49,7 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
     const userMsg: ChatMessage = { role: 'user', content: text, timestamp: Date.now() };
     const updatedMessages = [...messagesRef.current, userMsg];
     setMessages(updatedMessages);
+    saveMessages(storageKey, updatedMessages);
     setIsLoading(true);
     setError(null);
     setElapsedSec(0);
@@ -58,9 +77,13 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
       }
 
       const data = await res.json();
-      setMessages(prev => [...prev, {
-        role: 'assistant', content: data.reply, timestamp: Date.now(), actions: data.actions || [],
-      }]);
+      setMessages(prev => {
+        const updated = [...prev, {
+          role: 'assistant' as const, content: data.reply as string, timestamp: Date.now(), actions: data.actions || [],
+        }];
+        saveMessages(storageKey, updated);
+        return updated;
+      });
     } catch (err: unknown) {
       if ((err as Error).name === 'AbortError') return;
       const msg = (err as Error).message || 'AI 요청 실패';
@@ -70,7 +93,7 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
       setIsLoading(false);
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
-  }, [tournamentId, userRole, contextInfo]);
+  }, [tournamentId, userRole, contextInfo, storageKey]);
 
   const cancelRequest = useCallback(() => {
     abortRef.current?.abort();
@@ -86,7 +109,8 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
     setMessages([]);
     setError(null);
     setElapsedSec(0);
-  }, []);
+    saveMessages(storageKey, []);
+  }, [storageKey]);
 
   return { messages, isLoading, error, elapsedSec, sendMessage, cancelRequest, clearChat };
 }

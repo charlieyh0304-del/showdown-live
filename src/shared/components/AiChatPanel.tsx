@@ -56,6 +56,24 @@ function ActionBadges({ actions }: { actions: ChatAction[] }) {
   );
 }
 
+/** 간단한 마크다운 → HTML 변환 (헤딩, 목록, 굵은 글씨, 테이블) */
+function simpleMarkdown(text: string): string {
+  return text
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-cyan-400 mt-2 mb-1">$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-cyan-300 mt-3 mb-1">$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2 class="text-lg font-bold text-cyan-200 mt-3 mb-1">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\|(.+)\|$/gm, (_, row) => {
+      const cells = row.split('|').map((c: string) => c.trim());
+      return '<tr>' + cells.map((c: string) => `<td class="border border-gray-600 px-2 py-1 text-xs">${c}</td>`).join('') + '</tr>';
+    })
+    .replace(/^[-*] (.+)$/gm, '<li class="ml-4 list-disc text-sm">$1</li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 list-decimal text-sm">$2</li>')
+    .replace(/---/g, '<hr class="border-gray-600 my-2" />')
+    .replace(/\n{2,}/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user';
   return (
@@ -64,8 +82,11 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         {isUser ? '👤' : '🤖'}
       </div>
       <div className={`max-w-[80%] ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className={`rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${isUser ? 'bg-cyan-800 text-white rounded-tr-sm' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tl-sm'}`}>
-          {msg.content}
+        <div className={`rounded-xl px-3 py-2 text-sm ${isUser ? 'bg-cyan-800 text-white rounded-tr-sm whitespace-pre-wrap' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tl-sm'}`}>
+          {isUser
+            ? msg.content
+            : <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.content) }} />
+          }
         </div>
         {!isUser && msg.actions && <ActionBadges actions={msg.actions} />}
         <div className={`text-[10px] text-gray-500 mt-0.5 ${isUser ? 'text-right' : 'text-left'}`}>{formatTime(msg.timestamp)}</div>
