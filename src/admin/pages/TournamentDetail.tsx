@@ -1938,7 +1938,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-xl font-bold text-center">{t('admin.tournamentDetail.bracketTab.title')}</h2>
         <div className="flex gap-2 flex-wrap">
-          {!isManualMode && (
+          {!isManualMode && tournament.status !== 'completed' && (
             <button
               className="btn btn-accent"
               onClick={generateBracket}
@@ -1948,13 +1948,15 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
               {generating ? t('admin.tournamentDetail.bracketTab.generatingText') : (groupAssignment.length > 0 && groupAssignment.some(g => (g.playerIds?.length || 0) > 0 || (g.teamIds?.length || 0) > 0) ? t('admin.tournamentDetail.bracketTab.groupRoundRobinGenerate') : t('admin.tournamentDetail.bracketTab.autoGenerateText'))}
             </button>
           )}
-          <button
-            className="btn btn-success"
-            onClick={() => setShowAddForm(v => !v)}
-            aria-label={t('admin.tournamentDetail.bracketTab.addMatchAriaLabel')}
-          >
-            {t('admin.tournamentDetail.bracketTab.addMatchButton')}
-          </button>
+          {tournament.status !== 'completed' && (
+            <button
+              className="btn btn-success"
+              onClick={() => setShowAddForm(v => !v)}
+              aria-label={t('admin.tournamentDetail.bracketTab.addMatchAriaLabel')}
+            >
+              {t('admin.tournamentDetail.bracketTab.addMatchButton')}
+            </button>
+          )}
           {matches.length > 0 && tournament.status !== 'completed' && (
             <button
               className="btn btn-primary"

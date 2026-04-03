@@ -1413,8 +1413,16 @@ export async function executeTool(
           const p2n = (isTeamType ? (match.team2Name || match.player2Name) : (match.player2Name || match.team2Name) || "P2") as string;
           // p1id/p2id는 winnerId에서 이미 사용
           const history: Array<Record<string, unknown>> = [];
-          let t = now;
-          const fmt = (ms: number) => new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+          // 경기 예정 시간 기반으로 히스토리 시간 생성 (KST)
+          const schedDate = (match.scheduledDate as string) || new Date().toISOString().split("T")[0];
+          const schedTime = (match.scheduledTime as string) || "09:00";
+          const [sh, sm] = schedTime.split(":").map(Number);
+          let t = new Date(`${schedDate}T${String(sh).padStart(2, "0")}:${String(sm).padStart(2, "0")}:00+09:00`).getTime();
+          const fmt = (ms: number) => {
+            const d = new Date(ms);
+            const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+            return `${String(kst.getUTCHours()).padStart(2, "0")}:${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+          };
           const firstServer = Math.random() > 0.5 ? "player1" : "player2";
           const firstServerName = firstServer === "player1" ? p1n : p2n;
 
@@ -1425,8 +1433,15 @@ export async function executeTool(
             const t2m = ((match.team2 as Record<string, unknown>)?.memberNames as string[]) || [];
             const c1 = (match.team1 as Record<string, unknown>)?.coachName as string || (match.player1Coach as string) || "";
             const c2 = (match.team2 as Record<string, unknown>)?.coachName as string || (match.player2Coach as string) || "";
-            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "lineup", actionLabel: `${p1n} 라인업: ${t1m.map((n, i) => `${i + 1}.${n}`).join(", ")}${c1 ? ` / 코치: ${c1}` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
-            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "lineup", actionLabel: `${p2n} 라인업: ${t2m.map((n, i) => `${i + 1}.${n}`).join(", ")}${c2 ? ` / 코치: ${c2}` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
+            // 팀전: 3명 출전, 나머지 예비
+            const maxActive = 3;
+            const fmtLineup = (members: string[]) => {
+              const active = members.slice(0, maxActive).map((n, i) => `${i + 1}.${n}`).join(", ");
+              const reserve = members.slice(maxActive).map(n => n).join(", ");
+              return reserve ? `${active} / 예비: ${reserve}` : active;
+            };
+            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "lineup", actionLabel: `${p1n} 라인업: ${fmtLineup(t1m)}${c1 ? ` / 코치: ${c1}` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
+            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "lineup", actionLabel: `${p2n} 라인업: ${fmtLineup(t2m)}${c2 ? ` / 코치: ${c2}` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
           }
 
           // 코인 토스
@@ -1499,33 +1514,36 @@ export async function executeTool(
                 }
               }
 
-              // 득점
+              // 1. 현재 서브 번호 캡처 (교체 전)
+              serveNum = serveCount + 1;
+              const currentServeLabel = getServerLabel(); // 교체 전 서브 라벨
+
+              // 2. 득점
               const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
               const pts = Math.random() < 0.7 ? 2 : 1;
               const prevSc = { player1: sc1, player2: sc2 };
               if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
               const scorer = p1Turn ? p1n : p2n;
 
-              // 서브 교대 (팀전: 3회, 개인전: 2회 서브 후 교대)
-              serveNum = serveCount + 1; // 현재 서브 번호 (1-based)
+              // 3. 득점 기록 (교체 전 서브 라벨 사용)
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+
+              // 4. 서브 카운트 증가 + 교체 (득점 기록 뒤에)
               serveCount++;
               if (serveCount >= maxServesPerPerson) {
                 serveCount = 0;
-                // 서버 교대: 상대편으로 전환
+                serveNum = 0; // 리셋 — 다음 랠리에서 1로 설정됨
                 currentServer = currentServer === "player1" ? "player2" : "player1";
-                // 팀전: 새 서버 쪽의 다음 팀원으로 순환 + 교체 이벤트 기록
                 if (isTeamMatch) {
+                  const newServerTeam = currentServer === "player1" ? p1n : p2n;
                   if (currentServer === "player1" && team1Members && team1Members.length > 0) {
                     p1MemberIdx = (p1MemberIdx + 1) % team1Members.length;
-                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "substitution", actionLabel: `${p1n} 선수 교체`, points: 0, server: `${p1n} 서브`, serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                   } else if (currentServer === "player2" && team2Members && team2Members.length > 0) {
                     p2MemberIdx = (p2MemberIdx + 1) % team2Members.length;
-                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "substitution", actionLabel: `${p2n} 선수 교체`, points: 0, server: `${p2n} 서브`, serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                   }
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: newServerTeam, actionType: "substitution", actionLabel: `${newServerTeam} 선수 교체`, points: 0, server: "", serveNumber: 0, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 }
               }
-
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: getServerLabel(), serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               if (history.length > 120) break;
             }
           }
