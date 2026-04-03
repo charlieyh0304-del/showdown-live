@@ -79,6 +79,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
 
   // --- Write: Tournament ---
+  /* INTERNAL - called by workflow tools
   {
     name: "create_tournament",
     description: "단순 대회 생성 (조편성/대진 없음). 복잡한 대회는 setup_full_tournament 사용. 동일 이름 대회 중복 생성 차단.",
@@ -96,7 +97,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["name", "date", "type"],
     },
   },
-  // setup_random_team_league: 도구 목록에서 제거됨 — setup_full_tournament(randomizeTeams=true)로 통합
+  */
+  /* INTERNAL - called by workflow tools
   {
     name: "setup_full_tournament",
     description: "대회 생성. type=individual(개인전): players 사용. type=team(팀전/팀 리그전): teams 사용. teams 예시: [{name:'전남', memberNames:['안윤환','이종경','박다슬'], coachName:'고성순'}]. 사용자가 지정한 팀 구성을 그대로 teams에 전달. 코치는 coachName, memberNames에 넣지 않음. 동일 이름 중복 차단.",
@@ -122,6 +124,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["name", "date", "type", "groupCount"],
     },
   },
+  */
   {
     name: "update_tournament",
     description: "대회 정보 수정. 변경할 필드만 전달.",
@@ -248,6 +251,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId", "matchId"],
     },
   },
+  /* INTERNAL - called by workflow tools
   {
     name: "generate_round_robin",
     description: "라운드로빈 대진 자동 생성. 개인전: playerIds 사용, 팀전: teamIds 사용. 대회 type을 자동 감지하여 팀전이면 팀 매치(team1Id/team2Id), 개인전이면 개인 매치(player1Id/player2Id) 생성.",
@@ -262,8 +266,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId"],
     },
   },
+  */
 
   // --- Write: Schedule ---
+  /* INTERNAL - called by workflow tools
   {
     name: "generate_schedule",
     description: "고급 스케줄 자동 생성. 지원: 선수 휴식(playerRestMinutes, 기본60분), 점심시간 제외(breakStart/End), 일일 마감(endTime)+다음날(nextDayStartTime), 코트별 배정, 심판 자동 라운드로빈 배정, 미배정만(onlyUnassigned), 스테이지 필터(stageFilter).",
@@ -285,6 +291,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId"],
     },
   },
+  */
+  /* INTERNAL - called by workflow tools
   {
     name: "simulate_matches",
     description: "사용자가 '시뮬레이션/경기 진행/결과'를 요청할 때만 호출. pending 경기를 현실적 점수로 완료. 코인토스→워밍업→서브교대→사이드체인지(팀16점/개인6점)→타임아웃 자동 기록. 팀전: 31점 1세트, 개인전: 대회 설정. 빈 슬롯(선수 미배정) 자동 제외. 완료 후 다음 라운드에 승자 자동 배치.",
@@ -300,6 +308,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId"],
     },
   },
+  */
+  /* INTERNAL - called by workflow tools
   {
     name: "generate_finals",
     description: "예선 완료 후 호출. 조별 순위 자동 계산(승→세트득실→점수득실)→진출자 추출→교차 시드(A1위 vs B2위)→전체 브라켓(16강→8강→4강→결승) + 3/4위/5-8위/하위순위 결정전. 팀전도 지원(team1Id/team2Id 자동 설정). 빈 슬롯에 sourceMatch 참조로 승자 자동 진출.",
@@ -315,6 +325,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId"],
     },
   },
+  */
   {
     name: "shift_schedule",
     description: "스케줄 일괄 시간 이동(분). 양수=뒤로, 음수=앞으로. courtId로 특정 코트만 가능. 자정 넘으면 날짜 자동 변경.",
@@ -345,6 +356,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
 
   // --- Write: Courts & Referees ---
+  /* INTERNAL - called by workflow tools
   {
     name: "add_court",
     description: "코트(경기장) 추가.",
@@ -357,6 +369,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["name"],
     },
   },
+  */
+  /* INTERNAL - called by workflow tools
   {
     name: "add_referee",
     description: "심판 추가. 동일 이름 자동 중복 방지(기존 ID 반환). role: main(주심)/assistant(부심).",
@@ -369,6 +383,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["name"],
     },
   },
+  */
   {
     name: "delete_referee",
     description: "심판 삭제.",
@@ -417,6 +432,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["playerId"],
     },
   },
+  /* INTERNAL - called by workflow tools
   {
     name: "bulk_assign_referees",
     description: "미배정 경기에 등록된 심판을 라운드로빈으로 자동 배정. 이미 심판이 있는 경기는 건너뜀.",
@@ -426,6 +442,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId"],
     },
   },
+  */
   {
     name: "reset_schedule",
     description: "대회의 모든 스케줄 초기화 (경기의 시간/코트 배정 제거).",
@@ -468,6 +485,66 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ["tournamentId"],
     },
   },
+  // ===== 워크플로우 도구 (원스톱) =====
+  {
+    name: "create_team_league",
+    description: "팀전/팀 리그전 원스톱 생성. 사용자가 지정한 팀 구성을 그대로 전달. 대회 생성→코트 등록→심판 등록→스케줄 생성→심판 배정까지 한번에 처리. 결과에 팀 명단, 조 편성, 스케줄 상세가 포함됨.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "대회 이름" },
+        date: { type: "string", description: "시작일 YYYY-MM-DD" },
+        endDate: { type: "string", description: "종료일 YYYY-MM-DD (선택)" },
+        teams: { type: "array", items: { type: "object", properties: { name: { type: "string" }, memberNames: { type: "array", items: { type: "string" } }, coachName: { type: "string" } }, required: ["name", "memberNames"] }, description: "팀 목록. 사용자가 지정한 대로 전달. 예: [{name:'전남', memberNames:['안윤환','이종경'], coachName:'고성순'}]" },
+        groupCount: { type: "number", description: "조 수 (기본 2)" },
+        advancePerGroup: { type: "number", description: "조당 본선 진출 수 (기본 2)" },
+        courts: { type: "array", items: { type: "string" }, description: "경기장 이름 목록 (예: ['레벨업실','심쿵실'])" },
+        referees: { type: "array", items: { type: "string" }, description: "심판 이름 목록 (예: ['이선영','임옥화'])" },
+        startTime: { type: "string", description: "시작 시간 (기본 09:00)" },
+        endTime: { type: "string", description: "종료 시간 (기본 18:00)" },
+        nextDayStartTime: { type: "string", description: "다음날 시작 시간 (선택)" },
+        matchDurationMinutes: { type: "number", description: "경기 시간 분 (기본 60)" },
+        teamRestMinutes: { type: "number", description: "팀당 경기 간격 분 (기본 30)" },
+        thirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
+        fifthToEighth: { type: "boolean", description: "5~8위 결정전 (기본 true)" },
+      },
+      required: ["name", "date", "teams"],
+    },
+  },
+  {
+    name: "create_individual_tournament",
+    description: "개인전 원스톱 생성. 대회 생성→코트 등록→심판 등록→스케줄 생성→심판 배정까지 한번에 처리.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "대회 이름" },
+        date: { type: "string", description: "시작일 YYYY-MM-DD" },
+        endDate: { type: "string", description: "종료일 (선택)" },
+        players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, gender: { type: "string" }, club: { type: "string" } }, required: ["name"] }, description: "선수 목록" },
+        groupCount: { type: "number", description: "조 수 (기본 4)" },
+        advancePerGroup: { type: "number", description: "조당 본선 진출 수 (기본 2)" },
+        courts: { type: "array", items: { type: "string" }, description: "경기장 이름 목록" },
+        referees: { type: "array", items: { type: "string" }, description: "심판 이름 목록" },
+        startTime: { type: "string", description: "시작 시간 (기본 09:00)" },
+        endTime: { type: "string", description: "종료 시간 (기본 18:00)" },
+        matchDurationMinutes: { type: "number", description: "경기 시간 분 (기본 30)" },
+        playerRestMinutes: { type: "number", description: "선수 경기 간격 분 (기본 30)" },
+        setsToWin: { type: "number", description: "세트 수 (3세트=2, 5세트=3, 기본 2)" },
+      },
+      required: ["name", "date", "players"],
+    },
+  },
+  {
+    name: "run_full_simulation",
+    description: "예선부터 결승까지 전체 시뮬레이션. tournamentId만 전달하면 예선→순위 계산→결승 생성→결승 시뮬레이션→대회 완료까지 자동 처리. 결과에 조별 순위, 본선 결과, 최종 순위, 팀 로스터가 포함됨.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tournamentId: { type: "string", description: "대회 ID" },
+      },
+      required: ["tournamentId"],
+    },
+  },
 ];
 
 // ===== Tool Executor =====
@@ -476,9 +553,14 @@ export async function executeTool(
   name: string,
   input: Record<string, unknown>,
 ): Promise<string> {
-  // 도구 이름 검증: TOOL_DEFINITIONS에 없는 도구 호출 차단
+  // 도구 이름 검증: TOOL_DEFINITIONS에 없고 내부 도구도 아닌 호출 차단
   const validNames = new Set(TOOL_DEFINITIONS.map(t => t.name));
-  if (!validNames.has(name)) {
+  const internalTools = new Set([
+    "create_tournament", "setup_full_tournament", "generate_round_robin",
+    "generate_schedule", "simulate_matches", "generate_finals",
+    "add_court", "add_referee", "bulk_assign_referees",
+  ]);
+  if (!validNames.has(name) && !internalTools.has(name)) {
     return JSON.stringify({ error: `"${name}" 도구는 존재하지 않습니다. 사용 가능한 도구: ${[...validNames].join(", ")}` });
   }
   try {
@@ -2264,6 +2346,201 @@ export async function executeTool(
         const tSnap = await db.ref(`teams/${input.tournamentId}`).once("value");
         if (!tSnap.exists()) return JSON.stringify([]);
         return JSON.stringify(Object.entries(tSnap.val()).map(([id, v]) => ({ id, ...(v as object) })));
+      }
+
+      // ===== 워크플로우 핸들러 =====
+
+      case "create_team_league": {
+        const steps: string[] = [];
+
+        // 1. 대회 생성
+        const tlResult = await executeTool("setup_full_tournament", {
+          name: input.name, date: input.date, endDate: input.endDate,
+          type: "team", teams: input.teams,
+          groupCount: (input.groupCount as number) || 2,
+          advancePerGroup: (input.advancePerGroup as number) || 2,
+          qualifyingWinScore: 31, qualifyingSetsToWin: 1,
+          finalsFormat: "single_elimination",
+          thirdPlace: input.thirdPlace !== false,
+          fifthToEighth: input.fifthToEighth !== false,
+        });
+        const tlParsed = JSON.parse(tlResult);
+        if (!tlParsed.success) return JSON.stringify({ error: `대회 생성 실패: ${tlParsed.error}` });
+        const tlTid = tlParsed.tournamentId as string;
+        steps.push(`대회 생성 완료: ${tlParsed.matchCount}경기 (${tlParsed.groupCount}개 조)`);
+
+        // 2. 코트 등록
+        for (const court of ((input.courts as string[]) || [])) {
+          await executeTool("add_court", { name: court });
+        }
+        if ((input.courts as string[])?.length) steps.push(`경기장 ${(input.courts as string[]).length}개 등록`);
+
+        // 3. 심판 등록
+        for (const ref of ((input.referees as string[]) || [])) {
+          await executeTool("add_referee", { name: ref, role: "main" });
+        }
+        if ((input.referees as string[])?.length) steps.push(`심판 ${(input.referees as string[]).length}명 등록`);
+
+        // 4. 스케줄 생성
+        const matchDur = (input.matchDurationMinutes as number) || 60;
+        const teamRest = (input.teamRestMinutes as number) || 30;
+        const schedResult = await executeTool("generate_schedule", {
+          tournamentId: tlTid, scheduleDate: input.date as string,
+          startTime: (input.startTime as string) || "09:00",
+          endTime: (input.endTime as string) || "18:00",
+          nextDayStartTime: (input.nextDayStartTime as string) || (input.startTime as string) || "09:00",
+          intervalMinutes: matchDur, playerRestMinutes: matchDur + teamRest,
+        });
+        const schedParsed = JSON.parse(schedResult);
+        if (schedParsed.success) steps.push(`스케줄: ${schedParsed.summary}`);
+
+        // 5. 심판 자동 배정
+        if ((input.referees as string[])?.length) {
+          await executeTool("bulk_assign_referees", { tournamentId: tlTid });
+          steps.push("심판 자동 배정 완료");
+        }
+
+        return JSON.stringify({
+          success: true, tournamentId: tlTid, steps,
+          groupAssignment: tlParsed.groupAssignment,
+          teamRoster: tlParsed.message,
+          scheduleDetail: schedParsed.scheduleDetail || "",
+          matchCount: tlParsed.matchCount, groupCount: tlParsed.groupCount,
+        });
+      }
+
+      case "create_individual_tournament": {
+        const steps: string[] = [];
+        const setsToWin = (input.setsToWin as number) || 2;
+        const matchDur = (input.matchDurationMinutes as number) || 30;
+        const pRest = (input.playerRestMinutes as number) || 30;
+
+        const itResult = await executeTool("setup_full_tournament", {
+          name: input.name, date: input.date, endDate: input.endDate,
+          type: "individual", players: input.players,
+          groupCount: (input.groupCount as number) || 4,
+          advancePerGroup: (input.advancePerGroup as number) || 2,
+          qualifyingWinScore: 11, qualifyingSetsToWin: setsToWin,
+          finalsFormat: "single_elimination", thirdPlace: true,
+        });
+        const itParsed = JSON.parse(itResult);
+        if (!itParsed.success) return JSON.stringify({ error: `대회 생성 실패: ${itParsed.error}` });
+        const itTid = itParsed.tournamentId as string;
+        steps.push(`대회 생성: ${itParsed.matchCount}경기 (${itParsed.groupCount}개 조)`);
+
+        for (const c of ((input.courts as string[]) || [])) await executeTool("add_court", { name: c });
+        for (const r of ((input.referees as string[]) || [])) await executeTool("add_referee", { name: r, role: "main" });
+
+        const itSched = await executeTool("generate_schedule", {
+          tournamentId: itTid, scheduleDate: input.date as string,
+          startTime: (input.startTime as string) || "09:00",
+          endTime: (input.endTime as string) || "18:00",
+          intervalMinutes: matchDur, playerRestMinutes: matchDur + pRest,
+        });
+        const itSchedP = JSON.parse(itSched);
+        if (itSchedP.success) steps.push(`스케줄: ${itSchedP.summary}`);
+        if ((input.referees as string[])?.length) {
+          await executeTool("bulk_assign_referees", { tournamentId: itTid });
+          steps.push("심판 자동 배정");
+        }
+
+        return JSON.stringify({
+          success: true, tournamentId: itTid, steps,
+          groupAssignment: itParsed.groupAssignment,
+          scheduleDetail: itSchedP.scheduleDetail || "",
+          matchCount: itParsed.matchCount, groupCount: itParsed.groupCount,
+        });
+      }
+
+      case "run_full_simulation": {
+        const tid = input.tournamentId as string;
+        const allSteps: string[] = [];
+
+        const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
+        if (!tourSnap.exists()) return JSON.stringify({ error: "대회를 찾을 수 없습니다." });
+        const tourData = tourSnap.val() as Record<string, unknown>;
+        const isTeam = tourData.type === "team" || tourData.type === "randomTeamLeague";
+
+        // 1. 예선 시뮬레이션
+        const simResult = await executeTool("simulate_matches", { tournamentId: tid });
+        const simParsed = JSON.parse(simResult);
+        if (!simParsed.success) return JSON.stringify({ error: `예선 시뮬레이션 실패: ${simParsed.error}` });
+        allSteps.push(`예선 ${simParsed.count}경기 완료`);
+
+        // 2. 결승 생성 (아직 없으면)
+        const mSnap = await db.ref(`matches/${tid}`).once("value");
+        const allM = mSnap.exists() ? Object.values(mSnap.val() as Record<string, Record<string, unknown>>) : [];
+        const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
+
+        if (!hasFinals) {
+          const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
+          const genR = await executeTool("generate_finals", {
+            tournamentId: tid,
+            advancePerGroup: ((tourData.finalsConfig as Record<string, unknown>)?.advancePerGroup as number) || 2,
+            includeThirdPlace: true,
+            includeFifthToEighth: rc?.fifthToEighth !== false,
+          });
+          const genP = JSON.parse(genR);
+          if (genP.success) {
+            allSteps.push(`본선 ${genP.matchCount}경기 생성`);
+            const finSim = await executeTool("simulate_matches", { tournamentId: tid });
+            const finP = JSON.parse(finSim);
+            if (finP.success) allSteps.push(`본선 ${finP.count}경기 완료`);
+          }
+        }
+
+        // 3. 대회 완료
+        await db.ref(`tournaments/${tid}/status`).set("completed");
+
+        // 4. 조별 순위 계산
+        const finalSnap = await db.ref(`matches/${tid}`).once("value");
+        const finalM = finalSnap.exists() ? Object.entries(finalSnap.val() as Record<string, Record<string, unknown>>) : [];
+        const gStats = new Map<string, Map<string, { name: string; wins: number; pd: number }>>();
+        for (const [, m] of finalM) {
+          const gid = m.groupId as string; if (!gid || m.status !== "completed") continue;
+          if (!gStats.has(gid)) gStats.set(gid, new Map());
+          const st = gStats.get(gid)!;
+          const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
+          const id1 = (m.team1Id || m.player1Id) as string, id2 = (m.team2Id || m.player2Id) as string;
+          if (!st.has(id1)) st.set(id1, { name: n1, wins: 0, pd: 0 });
+          if (!st.has(id2)) st.set(id2, { name: n2, wins: 0, pd: 0 });
+          if (m.winnerId === id1) st.get(id1)!.wins++; else if (m.winnerId === id2) st.get(id2)!.wins++;
+          for (const s of ((m.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
+            st.get(id1)!.pd += s.player1Score - s.player2Score;
+            st.get(id2)!.pd += s.player2Score - s.player1Score;
+          }
+        }
+        const groupRankings = [...gStats.entries()].sort().map(([gid, stats]) => {
+          const sorted = [...stats.values()].sort((a, b) => b.wins - a.wins || b.pd - a.pd);
+          return `${gid}: ${sorted.map((s, i) => `${i + 1}위 ${s.name}(${s.wins}승)`).join(", ")}`;
+        }).join("\n");
+
+        // 5. 본선 결과
+        const finalsResults = finalM
+          .filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8/))
+          .map(([, m]) => {
+            const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
+            const winner = m.winnerId === (m.team1Id || m.player1Id) ? n1 : n2;
+            const label = (m.roundLabel || m.bracketRound || "본선") as string;
+            const sets = (m.sets || []) as Array<{ player1Score: number; player2Score: number }>;
+            return `[${label}] ${n1} vs ${n2} → ${winner} 승 (${sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ")})`;
+          }).join("\n");
+
+        // 6. 팀 로스터
+        let teamRoster = "";
+        if (isTeam) {
+          const tSnap = await db.ref(`teams/${tid}`).once("value");
+          if (tSnap.exists()) {
+            teamRoster = Object.values(tSnap.val() as Record<string, { name: string; memberNames?: string[]; coachName?: string }>)
+              .map(t => `${t.name}: ${(t.memberNames || []).join(", ")}${t.coachName ? ` (코치: ${t.coachName})` : ""}`).join("\n");
+          }
+        }
+
+        return JSON.stringify({
+          success: true, steps: allSteps, groupRankings, finalsResults, teamRoster,
+          totalMatches: finalM.length,
+          completedMatches: finalM.filter(([, m]) => m.status === "completed").length,
+        });
       }
 
       default:
