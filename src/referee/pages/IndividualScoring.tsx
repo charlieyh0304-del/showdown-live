@@ -100,7 +100,7 @@ export default function IndividualScoring() {
   const { tournament } = useTournament(tournamentId ?? null);
 
   const { canAct, startProcessing, done } = useDoubleClickGuard();
-  const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
+  const { shortWhistle, longWhistle, goalWhistle, initAudio } = useWhistle();
 
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
@@ -971,10 +971,10 @@ export default function IndividualScoring() {
           <div className="card w-full max-w-md space-y-4">
             <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
             <div className="flex gap-4">
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player1'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player1'); setCoinTossStep('choice'); }}>
                 {player1Name}
               </button>
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { setTossWinner('player2'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player2'); setCoinTossStep('choice'); }}>
                 {player2Name}
               </button>
             </div>

@@ -927,17 +927,18 @@ export async function executeTool(
         const qualStageId = `stage_qualifying_${tid}`;
         const finalsStageId = `stage_finals_${tid}`;
 
+        const isFullLeague = groupCount <= 1;
         const tournamentData = {
           name: input.name || "새 대회",
           date: input.date || new Date().toISOString().split("T")[0],
           ...(input.endDate ? { endDate: input.endDate } : {}),
           type: input.type || "individual",
-          format: "group_league",
-          formatType: "group_knockout",
+          format: isFullLeague ? "full_league" : "group_league",
+          formatType: isFullLeague ? "round_robin" : "group_knockout",
           status: "draft",
           gameConfig: { winScore: qualWinScore, setsToWin: qualSetsToWin },
           ...(isTeamTour ? { teamMatchSettings: { winScore: qualWinScore, setsToWin: qualSetsToWin, minLead: 2 }, teamRules: { teamSize: 3, rotationEnabled: false } } : {}),
-          qualifyingConfig: { format: "group_round_robin", groupCount },
+          qualifyingConfig: isFullLeague ? { format: "round_robin" } : { format: "group_round_robin", groupCount },
           finalsConfig: {
             format: finalsFormat,
             advanceCount: totalAdvance,
@@ -953,10 +954,12 @@ export async function executeTool(
             classificationGroups,
             classificationGroupSize: 4,
           },
-          stages: [
-            { id: qualStageId, type: "qualifying", format: "group_round_robin", status: "pending", groupCount, groups: [] },
-            { id: finalsStageId, type: "finals", format: finalsFormat, status: "pending", advanceCount: totalAdvance },
-          ],
+          stages: isFullLeague
+            ? [{ id: qualStageId, type: "qualifying", format: "round_robin", status: "pending", groupCount: 1, groups: [] }]
+            : [
+                { id: qualStageId, type: "qualifying", format: "group_round_robin", status: "pending", groupCount, groups: [] },
+                { id: finalsStageId, type: "finals", format: finalsFormat, status: "pending", advanceCount: totalAdvance },
+              ],
           createdAt: now,
           updatedAt: now,
         };
@@ -994,27 +997,38 @@ export async function executeTool(
           }
         }
 
-        // 3. 조 편성 (스네이크 드래프트 + 시드)
+        // 3. 조 편성
         const groups: Array<{ id: string; stageId: string; name: string; playerIds: string[]; teamIds: string[] }> = [];
-        for (let i = 0; i < groupCount; i++) {
-          groups.push({ id: `group_${String.fromCharCode(65 + i)}`, stageId: qualStageId, name: `${String.fromCharCode(65 + i)}조`, playerIds: [], teamIds: [] });
-        }
-        const seedSet = new Set<string>();
-        for (let i = 0; i < Math.min(seeds.length, groupCount); i++) {
-          const seedId = idMap.get(seeds[i]);
-          if (seedId) {
-            if (isTeamTour) groups[i].teamIds.push(seedId);
-            else groups[i].playerIds.push(seedId);
-            seedSet.add(seedId);
+        const allIds = participants.map(p => idMap.get(p.name)!).filter(Boolean);
+
+        if (isFullLeague) {
+          // 풀리그: 조 없이 전체 참가자를 하나의 그룹으로
+          const fullGroup = { id: "full_league", stageId: qualStageId, name: "전체 리그", playerIds: [] as string[], teamIds: [] as string[] };
+          if (isTeamTour) fullGroup.teamIds = allIds;
+          else fullGroup.playerIds = allIds;
+          groups.push(fullGroup);
+        } else {
+          // 조별 리그: 스네이크 드래프트 + 시드
+          for (let i = 0; i < groupCount; i++) {
+            groups.push({ id: `group_${String.fromCharCode(65 + i)}`, stageId: qualStageId, name: `${String.fromCharCode(65 + i)}조`, playerIds: [], teamIds: [] });
           }
-        }
-        const remainingIds = participants.map(p => idMap.get(p.name)!).filter(id => id && !seedSet.has(id));
-        for (let i = 0; i < remainingIds.length; i++) {
-          const round = Math.floor(i / groupCount);
-          const pos = i % groupCount;
-          const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
-          if (isTeamTour) groups[groupIndex].teamIds.push(remainingIds[i]);
-          else groups[groupIndex].playerIds.push(remainingIds[i]);
+          const seedSet = new Set<string>();
+          for (let i = 0; i < Math.min(seeds.length, groupCount); i++) {
+            const seedId = idMap.get(seeds[i]);
+            if (seedId) {
+              if (isTeamTour) groups[i].teamIds.push(seedId);
+              else groups[i].playerIds.push(seedId);
+              seedSet.add(seedId);
+            }
+          }
+          const remainingIds = allIds.filter(id => !seedSet.has(id));
+          for (let i = 0; i < remainingIds.length; i++) {
+            const round = Math.floor(i / groupCount);
+            const pos = i % groupCount;
+            const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
+            if (isTeamTour) groups[groupIndex].teamIds.push(remainingIds[i]);
+            else groups[groupIndex].playerIds.push(remainingIds[i]);
+          }
         }
 
         bulkUpdate[`tournaments/${tid}/stages`] = [
