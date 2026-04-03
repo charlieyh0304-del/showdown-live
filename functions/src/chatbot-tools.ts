@@ -476,6 +476,11 @@ export async function executeTool(
   name: string,
   input: Record<string, unknown>,
 ): Promise<string> {
+  // 도구 이름 검증: TOOL_DEFINITIONS에 없는 도구 호출 차단
+  const validNames = new Set(TOOL_DEFINITIONS.map(t => t.name));
+  if (!validNames.has(name)) {
+    return JSON.stringify({ error: `"${name}" 도구는 존재하지 않습니다. 사용 가능한 도구: ${[...validNames].join(", ")}` });
+  }
   try {
     switch (name) {
       // --- Read ---
