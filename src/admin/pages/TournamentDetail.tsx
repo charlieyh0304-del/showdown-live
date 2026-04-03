@@ -2151,23 +2151,32 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                     <div key={group.id} className="bg-gray-800 rounded p-3">
                       <h4 className="text-lg font-bold text-cyan-400 mb-2">{group.name} ({t('admin.tournamentDetail.bracketTab.personCount', { count: (group.playerIds?.length || 0) + (group.teamIds?.length || 0) })})</h4>
                       <ul className="space-y-1">
-                        {(group.playerIds || group.teamIds || []).map((pid) => {
-                          const player = tournamentPlayers.find(p => p.id === pid);
+                        {(isTeamType ? (group.teamIds || []) : (group.playerIds || [])).map((pid) => {
+                          const teamData = isTeamType ? teams.find(t => t.id === pid) : undefined;
+                          const player = !isTeamType ? tournamentPlayers.find(p => p.id === pid) : undefined;
+                          const displayName = isTeamType ? (teamData?.name || pid) : (player?.name || pid);
                           const seedIdx2 = toArray(tournament.seeds).findIndex(s => s.playerId === pid);
                           return (
                             <li key={pid} className="text-sm text-gray-300 flex items-center gap-2">
                               {seedIdx2 >= 0 && <span className="text-yellow-400 text-xs font-bold">{String.fromCharCode(65 + seedIdx2)}</span>}
-                              <span className="flex-1">{player?.name || pid}</span>
-                              <select
-                                className="bg-gray-700 text-gray-200 text-xs rounded px-1 py-0.5 border border-gray-600"
-                                value={group.id}
-                                onChange={e => handleMovePlayer(pid, group.id, e.target.value)}
-                                aria-label={t('admin.tournamentDetail.bracketTab.moveGroupAriaLabel', { name: player?.name || pid })}
-                              >
-                                {groupAssignment.map(g => (
-                                  <option key={g.id} value={g.id}>{g.name}</option>
-                                ))}
-                              </select>
+                              <span className="flex-1">
+                                {displayName}
+                                {isTeamType && teamData?.memberNames && (
+                                  <span className="text-xs text-gray-500 ml-1">({teamData.memberNames.join(', ')})</span>
+                                )}
+                              </span>
+                              {!isTeamType && (
+                                <select
+                                  className="bg-gray-700 text-gray-200 text-xs rounded px-1 py-0.5 border border-gray-600"
+                                  value={group.id}
+                                  onChange={e => handleMovePlayer(pid, group.id, e.target.value)}
+                                  aria-label={t('admin.tournamentDetail.bracketTab.moveGroupAriaLabel', { name: displayName })}
+                                >
+                                  {groupAssignment.map(g => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                  ))}
+                                </select>
+                              )}
                             </li>
                           );
                         })}
