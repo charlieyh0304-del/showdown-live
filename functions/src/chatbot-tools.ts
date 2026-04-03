@@ -1347,8 +1347,16 @@ export async function executeTool(
           // 경기 시작 (메타 이벤트 — 점수 없음)
           history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작 — ${firstServerName} 서브`, points: 0, server: firstServerName, serveNumber: 1, serverSide: firstServer });
 
-          // 팀전(31점 1세트)인지 개인전(11점 N세트)인지
+          // 팀전: 경기 시작 시 팀 명단 기록
           const isTeamMatch = (match.type === "team") || isTeamType;
+          const team1Coach = (match.team1 as Record<string, unknown>)?.coachName as string || (match.player1Coach as string) || "";
+          const team2Coach = (match.team2 as Record<string, unknown>)?.coachName as string || (match.player2Coach as string) || "";
+          if (isTeamMatch) {
+            const t1m = ((match.team1 as Record<string, unknown>)?.memberNames as string[]) || [];
+            const t2m = ((match.team2 as Record<string, unknown>)?.memberNames as string[]) || [];
+            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "player_rotation", actionLabel: `${p1n} 명단: ${t1m.join(", ")}${team1Coach ? ` (코치: ${team1Coach})` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
+            history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "player_rotation", actionLabel: `${p2n} 명단: ${t2m.join(", ")}${team2Coach ? ` (코치: ${team2Coach})` : ""}`, points: 0, server: "", serveNumber: 0, serverSide: "" });
+          }
           const sideChangePoint = isTeamMatch ? 16 : 6;
           const maxServesPerPerson = isTeamMatch ? 3 : 2;
           let serveCount = 0;
@@ -1421,25 +1429,25 @@ export async function executeTool(
               const scorer = p1Turn ? p1n : p2n;
 
               // 서브 교대 (팀전: 3회, 개인전: 2회 서브 후 교대)
+              serveNum = serveCount + 1; // 현재 서브 번호 (1-based)
               serveCount++;
               if (serveCount >= maxServesPerPerson) {
                 serveCount = 0;
-                serveNum = 1;
                 // 서버 교대: 상대편으로 전환
                 currentServer = currentServer === "player1" ? "player2" : "player1";
-                // 팀전: 새 서버 쪽의 다음 팀원으로 순환
+                // 팀전: 새 서버 쪽의 다음 팀원으로 순환 + 교체 이벤트 기록
                 if (isTeamMatch) {
                   if (currentServer === "player1" && team1Members && team1Members.length > 0) {
                     p1MemberIdx = (p1MemberIdx + 1) % team1Members.length;
+                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: team1Members[p1MemberIdx % team1Members.length], actionType: "substitution", actionLabel: `${p1n} 서브 교대: ${team1Members[p1MemberIdx % team1Members.length]}`, points: 0, server: team1Members[p1MemberIdx % team1Members.length], serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                   } else if (currentServer === "player2" && team2Members && team2Members.length > 0) {
                     p2MemberIdx = (p2MemberIdx + 1) % team2Members.length;
+                    history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: team2Members[p2MemberIdx % team2Members.length], actionType: "substitution", actionLabel: `${p2n} 서브 교대: ${team2Members[p2MemberIdx % team2Members.length]}`, points: 0, server: team2Members[p2MemberIdx % team2Members.length], serveNumber: 1, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                   }
                 }
-              } else {
-                serveNum = serveCount + 1;
               }
 
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} 골 +2` : `${scorer} 파울 +1`, points: pts, server: getServerName(), serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: getServerName(), serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               if (history.length > 120) break;
             }
           }
@@ -1569,6 +1577,16 @@ export async function executeTool(
           }
         }
 
+        // 최종 상태 확인: 모든 경기 완료 시 대회 상태를 completed로
+        const finalCheckSnap = await db.ref(`matches/${tid}`).once("value");
+        if (finalCheckSnap.exists()) {
+          const finalAllMatches = Object.values(finalCheckSnap.val() as Record<string, Record<string, unknown>>);
+          const finalAllCompleted = finalAllMatches.every(m => m.status === "completed");
+          if (finalAllCompleted) {
+            await db.ref(`tournaments/${tid}/status`).set("completed");
+          }
+        }
+
         return JSON.stringify({
           success: true,
           count: matchList.length,
@@ -1672,7 +1690,7 @@ export async function executeTool(
           const mKey = db.ref(`matches/${tid}`).push().key!;
           bulk2[`matches/${tid}/${mKey}`] = {
             tournamentId: tid, type: tour2.type || "individual", status: "pending",
-            round: 1, bracketPosition: i, bracketRound: getRoundName(r1.length * 2),
+            round: 1, bracketPosition: i, bracketRound: getRoundName(r1.length * 2), roundLabel: getRoundName(r1.length * 2),
             stageId: finalsStageId2,
             player1Id: p1.id, player2Id: p2.id,
             player1Name: p1.name, player2Name: p2.name,
@@ -1700,7 +1718,7 @@ export async function executeTool(
             const prevRName = getRoundName(prevCount * 2 > 2 ? prevCount * 2 : prevCount);
             bulk2[`matches/${tid}/${mKey}`] = {
               tournamentId: tid, type: tour2.type || "individual", status: "pending",
-              round: roundNum, bracketPosition: i, bracketRound: rName,
+              round: roundNum, bracketPosition: i, bracketRound: rName, roundLabel: rName,
               stageId: finalsStageId2,
               player1Id: "", player2Id: "",
               player1Name: `${prevRName} 승자${i * 2 + 1}`, player2Name: `${prevRName} 승자${i * 2 + 2}`,
@@ -1727,7 +1745,7 @@ export async function executeTool(
           const mKey = db.ref(`matches/${tid}`).push().key!;
           bulk2[`matches/${tid}/${mKey}`] = {
             tournamentId: tid, type: tour2.type || "individual", status: "pending",
-            round: roundNum, bracketRound: "3/4위", stageId: `${finalsStageId2}_3rd`,
+            round: roundNum, bracketRound: "3/4위", roundLabel: "3/4위 결정전", stageId: `${finalsStageId2}_3rd`,
             player1Id: "", player2Id: "", player1Name: "4강 패자1", player2Name: "4강 패자2",
             ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: "4강 패자1", team2Name: "4강 패자2" } : {}),
             sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
@@ -1746,7 +1764,7 @@ export async function executeTool(
             const mKey = db.ref(`matches/${tid}`).push().key!;
             bulk2[`matches/${tid}/${mKey}`] = {
               tournamentId: tid, type: tour2.type || "individual", status: "pending",
-              round: roundNum, bracketRound: "5-8위", stageId: `${finalsStageId2}_5to8`,
+              round: roundNum, bracketRound: "5-8위", roundLabel: "5~8위 결정전", stageId: `${finalsStageId2}_5to8`,
               player1Id: "", player2Id: "",
               player1Name: `8강 패자${i * 2 + 1}`, player2Name: `8강 패자${i * 2 + 2}`,
               ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: `8강 패자${i * 2 + 1}`, team2Name: `8강 패자${i * 2 + 2}` } : {}),
@@ -1773,7 +1791,7 @@ export async function executeTool(
                 bulk2[`matches/${tid}/${mKey}`] = {
                   tournamentId: tid, type: tour2.type || "individual", status: "pending",
                   round: cmc + 1, stageId: `${finalsStageId2}_class_${g}`,
-                  bracketRound: `하위${g + 1}조`,
+                  bracketRound: `하위${g + 1}조`, roundLabel: `하위 순위 결정전 ${g + 1}조`,
                   player1Id: gp[i].id, player2Id: gp[j].id,
                   player1Name: gp[i].name, player2Name: gp[j].name,
                   ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: gp[i].id, team2Id: gp[j].id, team1Name: gp[i].name, team2Name: gp[j].name } : {}),
