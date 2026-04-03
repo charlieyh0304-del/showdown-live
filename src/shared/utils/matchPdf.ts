@@ -10,7 +10,7 @@ function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
 const META_TYPES = new Set([
   'pause', 'resume', 'timeout', 'timeout_player', 'timeout_medical', 'timeout_referee',
   'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start',
-  'match_start', 'player_rotation', 'lineup',
+  'match_start', 'player_rotation', 'lineup', 'serve',
 ]);
 
 const ACTION_KEY_MAP: Record<string, string> = {
@@ -150,13 +150,12 @@ export function generateMatchHtml(
           const pts = !isMeta && h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
           const p1s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player1}` : '';
           const p2s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player2}` : '';
-          const serverLabel = h.server ? escHtml(h.server) : '';
-          return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}>
+          const isServeEvent = (h.actionType as string) === 'serve';
+          const displayAction = isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : `${scorer} ${action}`;
+          return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}${isServeEvent ? ' style="background:#e8f4fd;font-weight:bold"' : ''}>
             <td>${time}</td>
-            <td>${isMeta ? '' : scorer}</td>
-            <td>${isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : action}</td>
+            <td>${displayAction}</td>
             <td>${pts}</td>
-            <td>${!isMeta ? serverLabel : ''}</td>
             <td>${p1s}</td>
             <td>${p2s}</td>
           </tr>`;
@@ -166,12 +165,10 @@ export function generateMatchHtml(
         <table aria-label="${escHtml(t('common.pdf.playByPlay'))} - ${escHtml(t('common.pdf.setNum'))} ${setNum}">
           <thead><tr>
             <th scope="col">${escHtml(t('common.pdf.time'))}</th>
-            <th scope="col">${escHtml(t('common.pdf.scorer') || '득점자')}</th>
             <th scope="col">${escHtml(t('common.pdf.action'))}</th>
             <th scope="col">${escHtml(t('common.pdf.pts'))}</th>
-            <th scope="col">${escHtml(t('common.pdf.server') || '서버')}</th>
-            <th scope="col">${p1}</th>
-            <th scope="col">${p2}</th>
+            <th scope="col">${escHtml(t('common.pdf.serverScore') || '서브')}</th>
+            <th scope="col">${escHtml(t('common.pdf.receiverScore') || '리시브')}</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>`;

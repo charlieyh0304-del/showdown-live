@@ -1490,43 +1490,58 @@ export async function executeTool(
               history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: getServerLabel(), serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
             }
 
+            // 개인전 사이드체인지: 결정세트(마지막 세트)에서만 6점에서 수행
+            const isDecidingSet = !isTeamMatch && si === sets.length - 1;
+            const doSideChange = isTeamMatch || isDecidingSet;
+
             while (sc1 < s.player1Score || sc2 < s.player2Score) {
               t += 10000 + Math.floor(Math.random() * 20000);
               const maxSc = Math.max(sc1, sc2);
 
-              // 16점(팀전) 또는 6점(개인전 결정세트) 사이드 체인지
-              if (!sideChanged && maxSc >= sideChangePoint) {
+              // 사이드 체인지: 팀전=매 세트 16점, 개인전=결정세트만 6점
+              if (doSideChange && !sideChanged && maxSc >= sideChangePoint) {
                 sideChanged = true;
-                t += 60000; // 1분 휴식
-                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: getServerLabel(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                t += 60000;
+                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: "", serveNumber: 0, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               }
 
-              // 타임아웃 (30% 확률, 각 팀 1회씩, 10점 이상일 때)
+              // 타임아웃
               if (maxSc >= 10 && Math.random() < 0.08) {
                 if (!timeoutUsed1 && Math.random() > 0.5) {
                   timeoutUsed1 = true;
                   t += 60000;
-                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: getServerLabel(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: "", serveNumber: 0, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 } else if (!timeoutUsed2) {
                   timeoutUsed2 = true;
                   t += 60000;
-                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: getServerLabel(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: "", serveNumber: 0, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 }
               }
 
-              // 1. 현재 서브 번호 캡처 (교체 전)
+              // 1. 서브 번호 + 라벨 캡처
               serveNum = serveCount + 1;
-              const currentServeLabel = getServerLabel(); // 교체 전 서브 라벨
+              const currentServeLabel = getServerLabel();
 
-              // 2. 득점
+              // 2. 서브 이벤트 기록 (별도 행으로)
+              const serverTeam = currentServer === "player1" ? p1n : p2n;
+              const receiverTeam = currentServer === "player1" ? p2n : p1n;
+              // 서브 기준 점수: 서버 점수가 왼쪽
+              const serveSc = currentServer === "player1"
+                ? { server: sc1, receiver: sc2 }
+                : { server: sc2, receiver: sc1 };
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "serve", actionLabel: currentServeLabel, points: 0, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: serveSc.server, player2: serveSc.receiver }, scoreAfter: { player1: serveSc.server, player2: serveSc.receiver }, serverSide: currentServer, serverName: serverTeam, receiverName: receiverTeam });
+
+              // 3. 득점
               const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
               const pts = Math.random() < 0.7 ? 2 : 1;
-              const prevSc = { player1: sc1, player2: sc2 };
               if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
               const scorer = p1Turn ? p1n : p2n;
 
-              // 3. 득점 기록 (교체 전 서브 라벨 사용)
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              // 4. 득점 기록 (서브 기준 점수)
+              const afterServeSc = currentServer === "player1"
+                ? { server: sc1, receiver: sc2 }
+                : { server: sc2, receiver: sc1 };
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: serveSc.server, player2: serveSc.receiver }, scoreAfter: { player1: afterServeSc.server, player2: afterServeSc.receiver }, serverSide: currentServer });
 
               // 4. 서브 카운트 증가 + 교체 (득점 기록 뒤에)
               serveCount++;

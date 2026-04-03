@@ -231,8 +231,8 @@
       "time": "Time",
       "action": "Action",
       "pts": "Pts",
-      "scorer": "Scorer",
-      "server": "Server",
+      "serverScore": "Serve",
+      "receiverScore": "Receive",
       "generatedAt": "Generated at",
       "printButton": "Print"
     },
