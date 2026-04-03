@@ -81,7 +81,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // --- Write: Tournament ---
   {
     name: "create_tournament",
-    description: "단순 대회 생성 (조편성/대진 없음). 복잡한 대회는 setup_full_tournament 또는 setup_random_team_league 사용. 동일 이름 대회 중복 생성 차단.",
+    description: "단순 대회 생성 (조편성/대진 없음). 복잡한 대회는 setup_full_tournament 사용. 동일 이름 대회 중복 생성 차단.",
     input_schema: {
       type: "object" as const,
       properties: {
