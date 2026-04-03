@@ -1324,9 +1324,29 @@ export async function executeTool(
           // 팀전(31점 1세트)인지 개인전(11점 N세트)인지
           const isTeamMatch = (match.type === "team") || isTeamType;
           const sideChangePoint = isTeamMatch ? 16 : 6;
+          const maxServesPerPerson = isTeamMatch ? 3 : 2;
           let serveCount = 0;
           let currentServer = firstServer;
           let serveNum = 1;
+
+          // 팀전: 팀원 이름 순환 (memberNames 배열 사용)
+          const team1Members = (match.team1 as Record<string, unknown>)?.memberNames as string[] | undefined;
+          const team2Members = (match.team2 as Record<string, unknown>)?.memberNames as string[] | undefined;
+          let p1MemberIdx = 0; // player1(team1) 쪽 현재 서브하는 팀원 인덱스
+          let p2MemberIdx = 0; // player2(team2) 쪽 현재 서브하는 팀원 인덱스
+
+          // 현재 서버의 실제 이름 반환 (팀전이면 팀원 이름, 개인전이면 선수 이름)
+          const getServerName = () => {
+            if (isTeamMatch) {
+              if (currentServer === "player1" && team1Members && team1Members.length > 0) {
+                return team1Members[p1MemberIdx % team1Members.length];
+              }
+              if (currentServer === "player2" && team2Members && team2Members.length > 0) {
+                return team2Members[p2MemberIdx % team2Members.length];
+              }
+            }
+            return currentServer === "player1" ? p1n : p2n;
+          };
 
           for (let si = 0; si < sets.length; si++) {
             const s = sets[si];
@@ -1337,8 +1357,10 @@ export async function executeTool(
             // 세트 시작 (2세트부터 사이드 체인지 + 서브 교대)
             if (si > 0) {
               currentServer = currentServer === "player1" ? "player2" : "player1";
+              serveCount = 0;
+              serveNum = 1;
               t += 30000;
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: getServerName(), serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
             }
 
             while (sc1 < s.player1Score || sc2 < s.player2Score) {
@@ -1349,7 +1371,7 @@ export async function executeTool(
               if (!sideChanged && maxSc >= sideChangePoint) {
                 sideChanged = true;
                 t += 60000; // 1분 휴식
-                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `사이드 체인지 (${sideChangePoint}점)`, points: 0, server: getServerName(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               }
 
               // 타임아웃 (30% 확률, 각 팀 1회씩, 10점 이상일 때)
@@ -1357,11 +1379,11 @@ export async function executeTool(
                 if (!timeoutUsed1 && Math.random() > 0.5) {
                   timeoutUsed1 = true;
                   t += 60000;
-                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p1n, actionType: "timeout_player", actionLabel: `${p1n} 타임아웃`, points: 0, server: getServerName(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 } else if (!timeoutUsed2) {
                   timeoutUsed2 = true;
                   t += 60000;
-                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+                  history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: p2n, actionType: "timeout_player", actionLabel: `${p2n} 타임아웃`, points: 0, server: getServerName(), serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
                 }
               }
 
@@ -1372,11 +1394,26 @@ export async function executeTool(
               if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
               const scorer = p1Turn ? p1n : p2n;
 
-              // 서브 교대 (2회 서브 후 교대)
+              // 서브 교대 (팀전: 3회, 개인전: 2회 서브 후 교대)
               serveCount++;
-              if (serveCount >= 2) { serveCount = 0; currentServer = currentServer === "player1" ? "player2" : "player1"; serveNum++; }
+              if (serveCount >= maxServesPerPerson) {
+                serveCount = 0;
+                serveNum = 1;
+                // 서버 교대: 상대편으로 전환
+                currentServer = currentServer === "player1" ? "player2" : "player1";
+                // 팀전: 새 서버 쪽의 다음 팀원으로 순환
+                if (isTeamMatch) {
+                  if (currentServer === "player1" && team1Members && team1Members.length > 0) {
+                    p1MemberIdx = (p1MemberIdx + 1) % team1Members.length;
+                  } else if (currentServer === "player2" && team2Members && team2Members.length > 0) {
+                    p2MemberIdx = (p2MemberIdx + 1) % team2Members.length;
+                  }
+                }
+              } else {
+                serveNum = serveCount + 1;
+              }
 
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} 골 +2` : `${scorer} 파울 +1`, points: pts, server: currentServer === "player1" ? p1n : p2n, serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} 골 +2` : `${scorer} 파울 +1`, points: pts, server: getServerName(), serveNumber: serveNum, scoreBefore: prevSc, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               if (history.length > 120) break;
             }
           }
@@ -1476,6 +1513,34 @@ export async function executeTool(
           }
 
           if (Object.keys(statusBulk).length > 0) await db.ref().update(statusBulk);
+
+          // 예선 완료 시 결승 자동 생성 + 시뮬레이션
+          const tourStagesTyped = tourData.stages as Array<{ id: string; type?: string }> | undefined;
+          const qualifyingStage = tourStagesTyped?.find(s => s.type === "qualifying");
+          if (qualifyingStage) {
+            const qualMatches = allMatches.filter(m => m.stageId === qualifyingStage.id);
+            const qualAllDone = qualMatches.length > 0 && qualMatches.every(m => m.status === "completed");
+            if (qualAllDone) {
+              // 결승이 아직 없는 경우에만 자동 생성
+              const finalsExist = allMatches.some(m => {
+                const sid = m.stageId as string | undefined;
+                return sid && sid.includes("finals");
+              });
+              if (!finalsExist) {
+                const genResult = await executeTool("generate_finals", { tournamentId: tid });
+                const genParsed = JSON.parse(genResult);
+                if (genParsed.success) {
+                  results.push({ match: "결승 자동 생성", score: "", winner: `${genParsed.matchCount}경기 생성` });
+                  // 결승 경기 시뮬레이션
+                  const simResult = await executeTool("simulate_matches", { tournamentId: tid });
+                  const simParsed = JSON.parse(simResult);
+                  if (simParsed.success) {
+                    results.push({ match: "결승 시뮬레이션", score: "", winner: `${simParsed.count}경기 완료` });
+                  }
+                }
+              }
+            }
+          }
         }
 
         return JSON.stringify({

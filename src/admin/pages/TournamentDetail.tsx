@@ -3657,8 +3657,6 @@ interface StatusTabProps {
 function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
-  const [statusPage, setStatusPage] = useState(1);
-  const STATUS_PAGE_SIZE = 30;
   const [correctionMatch, setCorrectionMatch] = useState<Match | null>(null);
   const [correctionSets, setCorrectionSets] = useState<SetScore[]>([]);
   const [correctionReason, setCorrectionReason] = useState('');
@@ -3678,6 +3676,80 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
     matches.forEach(m => { c[m.status]++; });
     return c;
   }, [matches]);
+
+  // Group filtered matches into sections for display
+  const groupedSections = useMemo(() => {
+    const qualifying: Match[] = [];
+    const finals: Match[] = [];
+    const ranking: Match[] = [];
+    const other: Match[] = [];
+
+    filtered.forEach(m => {
+      if (m.groupId || m.stageId?.includes('qualifying')) {
+        qualifying.push(m);
+      } else if (m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전')) {
+        ranking.push(m);
+      } else if (m.stageId?.includes('finals') || m.roundLabel) {
+        finals.push(m);
+      } else {
+        other.push(m);
+      }
+    });
+
+    // Sub-group qualifying by groupId
+    const qualifyingGroups = new Map<string, Match[]>();
+    qualifying.forEach(m => {
+      const gid = m.groupId || 'default';
+      if (!qualifyingGroups.has(gid)) qualifyingGroups.set(gid, []);
+      qualifyingGroups.get(gid)!.push(m);
+    });
+    const qualifyingEntries = Array.from(qualifyingGroups.entries()).sort(([a], [b]) => a.localeCompare(b));
+
+    // Sub-group finals by roundLabel
+    const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
+    const finalsMap = new Map<string, Match[]>();
+    finals.forEach(m => {
+      const label = m.roundLabel || `R${m.round}`;
+      if (!finalsMap.has(label)) finalsMap.set(label, []);
+      finalsMap.get(label)!.push(m);
+    });
+    const finalsEntries = Array.from(finalsMap.entries()).sort(([a], [b]) => {
+      const ai = roundOrder.indexOf(a);
+      const bi = roundOrder.indexOf(b);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    // Sub-group ranking by roundLabel
+    const rankingMap = new Map<string, Match[]>();
+    ranking.forEach(m => {
+      const label = m.roundLabel || '순위 결정전';
+      if (!rankingMap.has(label)) rankingMap.set(label, []);
+      rankingMap.get(label)!.push(m);
+    });
+    const rankingEntries = Array.from(rankingMap.entries());
+
+    // Build ordered section list: [{heading, matches}]
+    const sections: { heading: string; matches: Match[] }[] = [];
+
+    qualifyingEntries.forEach(([gid, gMatches]) => {
+      const label = gid === 'default' ? '예선' : `${gid} 예선`;
+      sections.push({ heading: label, matches: gMatches });
+    });
+    finalsEntries.forEach(([roundLabel, rMatches]) => {
+      sections.push({ heading: `본선 — ${roundLabel}`, matches: rMatches });
+    });
+    rankingEntries.forEach(([roundLabel, rMatches]) => {
+      sections.push({ heading: `순위 결정전 — ${roundLabel}`, matches: rMatches });
+    });
+    if (other.length > 0) {
+      sections.push({ heading: '기타', matches: other });
+    }
+
+    return sections;
+  }, [filtered]);
 
   const handleStatusChange = useCallback(async (newStatus: 'in_progress' | 'paused' | 'completed') => {
     await updateTournament({ status: newStatus });
@@ -4025,7 +4097,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
       <div className="flex gap-2 flex-wrap">
         <button
           className={`btn ${filter === 'all' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => { setFilter('all'); setStatusPage(1); }}
+          onClick={() => { setFilter('all'); }}
           aria-pressed={filter === 'all'}
           aria-label={t('admin.tournamentDetail.statusTab.filterAll', { count: '' })}
         >
@@ -4033,7 +4105,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </button>
         <button
           className={`btn ${filter === 'pending' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => { setFilter('pending'); setStatusPage(1); }}
+          onClick={() => { setFilter('pending'); }}
           aria-pressed={filter === 'pending'}
           aria-label={t('admin.tournamentDetail.statusTab.filterPending', { count: '' })}
         >
@@ -4041,7 +4113,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </button>
         <button
           className={`btn ${filter === 'in_progress' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => { setFilter('in_progress'); setStatusPage(1); }}
+          onClick={() => { setFilter('in_progress'); }}
           aria-pressed={filter === 'in_progress'}
           aria-label={t('admin.tournamentDetail.statusTab.filterInProgress', { count: '' })}
         >
@@ -4049,7 +4121,7 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
         </button>
         <button
           className={`btn ${filter === 'completed' ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-          onClick={() => { setFilter('completed'); setStatusPage(1); }}
+          onClick={() => { setFilter('completed'); }}
           aria-pressed={filter === 'completed'}
           aria-label={t('admin.tournamentDetail.statusTab.filterCompleted', { count: '' })}
         >
@@ -4063,11 +4135,18 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
             <p className="text-gray-400 text-center">{t('admin.tournamentDetail.statusTab.noMatches')}</p>
           </div>
         ) : (
-          filtered.slice((statusPage - 1) * STATUS_PAGE_SIZE, statusPage * STATUS_PAGE_SIZE).map(match => (
+          groupedSections.map(section => (
+            <div key={section.heading} className="space-y-2">
+              <h3 className="text-lg font-bold text-yellow-400 mt-4 mb-1 border-b border-gray-700 pb-1">
+                {section.heading}
+                <span className="text-sm text-gray-400 font-normal ml-2">
+                  ({section.matches.filter(m => m.status === 'completed').length}/{section.matches.length})
+                </span>
+              </h3>
+              {section.matches.map(match => (
             <div key={match.id} className="card space-y-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-400 text-sm">R{match.round}</span>
                   <span className="font-bold">
                     {match.type === 'individual'
                       ? `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`
@@ -4135,20 +4214,18 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
                 </div>
               )}
             </div>
+              ))}
+            </div>
           ))
         )}
       </div>
 
-      {(() => {
-        const totalStatusPages = Math.ceil(filtered.length / STATUS_PAGE_SIZE);
-        return totalStatusPages > 1 ? (
-          <div className="flex items-center justify-center gap-4 mt-4">
-            <button className="btn btn-sm btn-secondary" disabled={statusPage === 1} onClick={() => setStatusPage(p => p - 1)}>{t('common.previous')}</button>
-            <span className="text-gray-400 text-sm">{t('common.pageInfo', { page: statusPage, total: totalStatusPages })}</span>
-            <button className="btn btn-sm btn-secondary" disabled={statusPage >= totalStatusPages} onClick={() => setStatusPage(p => p + 1)}>{t('common.next')}</button>
-          </div>
-        ) : null;
-      })()}
+      {/* Total match count summary */}
+      {filtered.length > 0 && (
+        <div className="text-center text-sm text-gray-400 mt-4">
+          {filtered.filter(m => m.status === 'completed').length}/{filtered.length}
+        </div>
+      )}
 
       {/* 점수 수정 모달 */}
       {correctionMatch && (

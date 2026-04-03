@@ -2623,6 +2623,7 @@ function HistoryMatchCard({
     <button
       className="card"
       role="listitem"
+      aria-label={`${p1} vs ${p2}, ${t(`common.matchStatus.${match.status}`)}`}
       {...(total !== undefined && index !== undefined ? { 'aria-setsize': total, 'aria-posinset': index + 1 } : {})}
       onClick={() => navigate(`/spectator/match/${tournamentId}/${match.id}`)}
       style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${borderColor}`, padding: '0.75rem 1rem' }}
@@ -2848,7 +2849,7 @@ function HistoryTab({
                   ))}
                 </div>
                 {gMatches.length > SECTION_INITIAL_LIMIT && (
-                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection(`q_${groupId}`)}>
+                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} aria-label={expandedSections.has(`q_${groupId}`) ? `${t('common.showLess')} - ${groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}` : `${t('common.showMore', { remaining: gMatches.length - SECTION_INITIAL_LIMIT })} - ${groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}`} onClick={() => toggleSection(`q_${groupId}`)}>
                     {expandedSections.has(`q_${groupId}`) ? t('common.showLess') : t('common.showMore', { remaining: gMatches.length - SECTION_INITIAL_LIMIT })}
                   </button>
                 )}
@@ -2887,7 +2888,7 @@ function HistoryTab({
                   ))}
                 </div>
                 {rMatches.length > SECTION_INITIAL_LIMIT && (
-                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection(`f_${roundLabel}`)}>
+                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} aria-label={expandedSections.has(`f_${roundLabel}`) ? `${t('common.showLess')} - ${roundLabel}` : `${t('common.showMore', { remaining: rMatches.length - SECTION_INITIAL_LIMIT })} - ${roundLabel}`} onClick={() => toggleSection(`f_${roundLabel}`)}>
                     {expandedSections.has(`f_${roundLabel}`) ? t('common.showLess') : t('common.showMore', { remaining: rMatches.length - SECTION_INITIAL_LIMIT })}
                   </button>
                 )}
@@ -2926,7 +2927,7 @@ function HistoryTab({
                   ))}
                 </div>
                 {rMatches.length > SECTION_INITIAL_LIMIT && (
-                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} onClick={() => toggleSection(`r_${roundLabel}`)}>
+                  <button className="text-sm text-cyan-400 underline mt-2" style={{ minHeight: '44px' }} aria-label={expandedSections.has(`r_${roundLabel}`) ? `${t('common.showLess')} - ${roundLabel}` : `${t('common.showMore', { remaining: rMatches.length - SECTION_INITIAL_LIMIT })} - ${roundLabel}`} onClick={() => toggleSection(`r_${roundLabel}`)}>
                     {expandedSections.has(`r_${roundLabel}`) ? t('common.showLess') : t('common.showMore', { remaining: rMatches.length - SECTION_INITIAL_LIMIT })}
                   </button>
                 )}

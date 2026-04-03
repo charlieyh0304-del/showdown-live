@@ -160,7 +160,7 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
 
   // 음성 입력 (Speech Recognition)
   const [isListening, setIsListening] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true); // TTS on/off
+  const [voiceEnabled, setVoiceEnabled] = useState(false); // TTS on/off
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
