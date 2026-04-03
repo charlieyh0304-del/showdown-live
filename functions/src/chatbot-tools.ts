@@ -2483,9 +2483,27 @@ export async function executeTool(
           const genP = JSON.parse(genR);
           if (genP.success) {
             allSteps.push(`본선 ${genP.matchCount}경기 생성`);
+            // 반복 시뮬레이션: 4강→결승 등 sourceMatch 전파 후 새로 채워진 경기까지 처리
+            for (let round = 0; round < 5; round++) {
+              const finSim = await executeTool("simulate_matches", { tournamentId: tid });
+              const finP = JSON.parse(finSim);
+              if (finP.success && finP.count > 0) {
+                allSteps.push(`본선 라운드${round + 1}: ${finP.count}경기 완료`);
+              } else {
+                break; // 더 이상 시뮬레이션할 경기 없음
+              }
+            }
+          }
+        } else {
+          // 이미 결승이 있으면 미완료 경기 반복 시뮬레이션
+          for (let round = 0; round < 5; round++) {
             const finSim = await executeTool("simulate_matches", { tournamentId: tid });
             const finP = JSON.parse(finSim);
-            if (finP.success) allSteps.push(`본선 ${finP.count}경기 완료`);
+            if (finP.success && finP.count > 0) {
+              allSteps.push(`추가 라운드${round + 1}: ${finP.count}경기 완료`);
+            } else {
+              break;
+            }
           }
         }
 
