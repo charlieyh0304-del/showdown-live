@@ -1142,6 +1142,19 @@ export async function executeTool(
       case "generate_round_robin": {
         const tid = input.tournamentId as string;
 
+        // 중복 생성 방지: 이미 해당 그룹에 경기가 존재하면 에러
+        const existingMatchSnap = await db.ref(`matches/${tid}`).once("value");
+        if (existingMatchSnap.exists()) {
+          const existingMatches = Object.values(existingMatchSnap.val() as Record<string, Record<string, unknown>>);
+          const groupId = input.groupId as string | undefined;
+          const groupMatches = groupId
+            ? existingMatches.filter(m => m.groupId === groupId)
+            : existingMatches;
+          if (groupMatches.length > 0) {
+            return JSON.stringify({ error: `이미 ${groupMatches.length}경기가 존재합니다. 중복 생성 방지. 기존 경기를 삭제 후 재생성하거나 다른 groupId를 지정하세요.` });
+          }
+        }
+
         // 대회 타입 자동 감지
         const rrTourSnap = await db.ref(`tournaments/${tid}/type`).once("value");
         const isTeamTour = rrTourSnap.val() === "team";
