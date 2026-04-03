@@ -1757,25 +1757,39 @@ export async function executeTool(
           mc++;
         }
 
-        // 5-8위 결정전
-        if (includeFifthToEighth2 && r1.length >= 4) {
-          const qfKeys = roundMatchKeys.length >= 3 ? roundMatchKeys[roundMatchKeys.length - 3] : roundMatchKeys[0]; // 8강 키
-          for (let i = 0; i < 2; i++) {
-            const mKey = db.ref(`matches/${tid}`).push().key!;
-            bulk2[`matches/${tid}/${mKey}`] = {
-              tournamentId: tid, type: tour2.type || "individual", status: "pending",
-              round: roundNum, bracketRound: "5-8위", roundLabel: "5~8위 결정전", stageId: `${finalsStageId2}_5to8`,
-              player1Id: "", player2Id: "",
-              player1Name: `8강 패자${i * 2 + 1}`, player2Name: `8강 패자${i * 2 + 2}`,
-              ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: `8강 패자${i * 2 + 1}`, team2Name: `8강 패자${i * 2 + 2}` } : {}),
-              sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-              currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
-              winnerId: null, createdAt: now2 + mc,
-              sourceMatch1: qfKeys?.[i * 2], sourceMatch2: qfKeys?.[i * 2 + 1], sourceType: "loser",
-            };
-            mc++;
+        // 5-8위 결정전: 조별 탈락팀(eliminated)으로 직접 대진 생성
+        if (includeFifthToEighth2 && eliminated.length >= 2) {
+          // 탈락팀 라운드로빈 또는 토너먼트로 5~8위 결정
+          const isTeamTour2 = tour2.type === "team" || tour2.type === "randomTeamLeague";
+          const elimTeamData = isTeamTour2
+            ? await db.ref(`teams/${tid}`).once("value").then(s => s.exists() ? s.val() as Record<string, { memberIds?: string[]; memberNames?: string[]; coachName?: string }> : {})
+            : {};
+          for (let i = 0; i < eliminated.length; i++) {
+            for (let j = i + 1; j < eliminated.length; j++) {
+              const e1 = eliminated[i], e2 = eliminated[j];
+              const mKey = db.ref(`matches/${tid}`).push().key!;
+              const t1d = elimTeamData[e1.id] || {};
+              const t2d = elimTeamData[e2.id] || {};
+              bulk2[`matches/${tid}/${mKey}`] = {
+                tournamentId: tid, type: tour2.type || "individual", status: "pending",
+                round: roundNum, bracketRound: "5-8위", roundLabel: "5~8위 순위 결정전", stageId: `${finalsStageId2}_ranking`,
+                player1Id: e1.id, player2Id: e2.id,
+                player1Name: e1.name, player2Name: e2.name,
+                ...(isTeamTour2 ? {
+                  team1Id: e1.id, team2Id: e2.id, team1Name: e1.name, team2Name: e2.name,
+                  team1: { memberIds: t1d.memberIds || [], memberNames: t1d.memberNames || [], coachName: t1d.coachName || "" },
+                  team2: { memberIds: t2d.memberIds || [], memberNames: t2d.memberNames || [], coachName: t2d.coachName || "" },
+                  player1Coach: t1d.coachName || "", player2Coach: t2d.coachName || "",
+                } : {}),
+                sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+                currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+                winnerId: null, createdAt: now2 + mc,
+              };
+              mc++;
+            }
           }
-          summary.push("[ 5-8위 결정전 ] 2경기");
+          const elimMatchCount = (eliminated.length * (eliminated.length - 1)) / 2;
+          summary.push(`[ 5~8위 순위 결정전 ] ${elimMatchCount}경기`);
         }
 
         // 하위 순위 결정전
