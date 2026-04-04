@@ -1114,22 +1114,40 @@ export async function executeTool(
           for (let i = 0; i < groupCount; i++) {
             groups.push({ id: `group_${String.fromCharCode(65 + i)}`, stageId: qualStageId, name: `${String.fromCharCode(65 + i)}조`, playerIds: [], teamIds: [] });
           }
+          // 시드 배치: 각 조에 1명씩, 초과 시드는 2번째 라운드로 분산
           const seedSet = new Set<string>();
-          for (let i = 0; i < Math.min(seeds.length, groupCount); i++) {
-            const seedId = idMap.get(seeds[i]);
-            if (seedId) {
-              if (isTeamTour) groups[i].teamIds.push(seedId);
-              else groups[i].playerIds.push(seedId);
-              seedSet.add(seedId);
-            }
+          const seedIds: string[] = [];
+          for (const sName of seeds) {
+            const sid = idMap.get(sName);
+            if (sid) seedIds.push(sid);
           }
+          // 1라운드: 각 조에 시드 1명씩 (최대 groupCount명)
+          for (let i = 0; i < Math.min(seedIds.length, groupCount); i++) {
+            if (isTeamTour) groups[i].teamIds.push(seedIds[i]);
+            else groups[i].playerIds.push(seedIds[i]);
+            seedSet.add(seedIds[i]);
+          }
+          // 초과 시드: 뒤쪽 조부터 역순 배치 (시드끼리 같은 조 최소화)
+          for (let i = groupCount; i < seedIds.length; i++) {
+            const groupIdx = groupCount - 1 - (i - groupCount);
+            const safeIdx = Math.max(0, groupIdx);
+            if (isTeamTour) groups[safeIdx].teamIds.push(seedIds[i]);
+            else groups[safeIdx].playerIds.push(seedIds[i]);
+            seedSet.add(seedIds[i]);
+          }
+          // 나머지 선수: 스네이크 드래프트 (시드가 적은 조부터 우선 배정)
           const remainingIds = allIds.filter(id => !seedSet.has(id));
-          for (let i = 0; i < remainingIds.length; i++) {
-            const round = Math.floor(i / groupCount);
-            const pos = i % groupCount;
-            const groupIndex = round % 2 === 0 ? pos : groupCount - 1 - pos;
-            if (isTeamTour) groups[groupIndex].teamIds.push(remainingIds[i]);
-            else groups[groupIndex].playerIds.push(remainingIds[i]);
+          // 각 조의 현재 인원수 기준으로 적은 조부터 채움
+          for (const rid of remainingIds) {
+            // 가장 인원이 적은 조 찾기 (동점이면 앞쪽 조 우선)
+            let minIdx = 0;
+            let minSize = Infinity;
+            for (let g = 0; g < groups.length; g++) {
+              const size = isTeamTour ? groups[g].teamIds.length : groups[g].playerIds.length;
+              if (size < minSize) { minSize = size; minIdx = g; }
+            }
+            if (isTeamTour) groups[minIdx].teamIds.push(rid);
+            else groups[minIdx].playerIds.push(rid);
           }
         }
 
