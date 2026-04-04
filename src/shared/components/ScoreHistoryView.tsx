@@ -156,7 +156,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                   return (
                     <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117',  }}>
                       <div>{timeStr} {icon} {desc}</div>
-                      {!hideScore && <div style={{ fontSize: '0.75rem' }}>{t('common.matchHistory.score')}: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}</div>}
+                      {!hideScore && <div style={{ fontSize: '0.75rem' }}>{t('common.matchHistory.score')}: {(h.scoreAfter?.player1 ?? 0)} : {(h.scoreAfter?.player2 ?? 0)}</div>}
                     </div>
                   );
                 }
@@ -179,7 +179,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                       {icon} {actionDesc}
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: '#d1d5db' }}>
-                      {t('common.matchHistory.score')}: {(() => { const p1 = h.scoreAfter?.player1 ?? 0; const p2 = h.scoreAfter?.player2 ?? 0; return h.serverSide === 'player2' ? `${p2} : ${p1}` : `${p1} : ${p2}`; })()}
+                      {t('common.matchHistory.score')}: {(h.scoreAfter?.player1 ?? 0)} : {(h.scoreAfter?.player2 ?? 0)}
                     </div>
                   </div>
                 );

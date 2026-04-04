@@ -940,21 +940,23 @@ export async function executeTool(
           gameConfig: { winScore: qualWinScore, setsToWin: qualSetsToWin },
           ...(isTeamTour ? { teamMatchSettings: { winScore: qualWinScore, setsToWin: qualSetsToWin, minLead: 2 }, teamRules: { teamSize: 3, rotationEnabled: false } } : {}),
           qualifyingConfig: isFullLeague ? { format: "round_robin" } : { format: "group_round_robin", groupCount },
-          finalsConfig: {
-            format: finalsFormat,
-            advanceCount: totalAdvance,
-            startingRound: totalAdvance,
-            seedMethod: "ranking",
-            advancePerGroup,
-          },
-          rankingMatchConfig: {
-            enabled: thirdPlace || fifthToEighth || classificationGroups,
-            thirdPlace,
-            fifthToEighth,
-            fifthToEighthFormat: "simple",
-            classificationGroups,
-            classificationGroupSize: 4,
-          },
+          ...(isFullLeague ? {} : {
+            finalsConfig: {
+              format: finalsFormat,
+              advanceCount: totalAdvance,
+              startingRound: totalAdvance,
+              seedMethod: "ranking",
+              advancePerGroup,
+            },
+            rankingMatchConfig: {
+              enabled: thirdPlace || fifthToEighth || classificationGroups,
+              thirdPlace,
+              fifthToEighth,
+              fifthToEighthFormat: "simple",
+              classificationGroups,
+              classificationGroupSize: 4,
+            },
+          }),
           stages: isFullLeague
             ? [{ id: qualStageId, type: "qualifying", format: "round_robin", status: "pending", groupCount: 1, groups: [] }]
             : [
@@ -1032,10 +1034,9 @@ export async function executeTool(
           }
         }
 
-        bulkUpdate[`tournaments/${tid}/stages`] = [
-          { ...tournamentData.stages[0], groups },
-          tournamentData.stages[1],
-        ];
+        bulkUpdate[`tournaments/${tid}/stages`] = isFullLeague
+          ? [{ ...tournamentData.stages[0], groups }]
+          : [{ ...tournamentData.stages[0], groups }, tournamentData.stages[1]];
         bulkUpdate[`tournaments/${tid}/seeds`] = seeds.map((name, i) => ({
           position: i + 1, playerId: idMap.get(name) || "", name,
         }));
@@ -2596,7 +2597,11 @@ export async function executeTool(
         const finalM = finalSnap.exists() ? Object.entries(finalSnap.val() as Record<string, Record<string, unknown>>) : [];
         const gStats = new Map<string, Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>>();
         for (const [, m] of finalM) {
-          const gid = m.groupId as string; if (!gid || m.status !== "completed") continue;
+          if (m.status !== "completed") continue;
+          // 풀리그: groupId 없는 리그 경기도 포함, 본선/순위결정전은 제외
+          const sid = (m.stageId as string) || "";
+          if (sid.includes("finals") || sid.includes("ranking") || sid.includes("3rd") || sid.includes("5to8")) continue;
+          const gid = (m.groupId as string) || "full_league";
           if (!gStats.has(gid)) gStats.set(gid, new Map());
           const st = gStats.get(gid)!;
           const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
