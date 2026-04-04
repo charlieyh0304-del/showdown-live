@@ -513,7 +513,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "create_individual_tournament",
-    description: "개인전 원스톱 생성. 대회 생성→코트 등록→심판 등록→스케줄 생성→심판 배정까지 한번에 처리.",
+    description: "개인전 원스톱 생성. 대회 생성→코트 등록→심판 등록→스케줄 생성→심판 배정까지 한번에 처리. 풀리그는 format='full_league'로 설정.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -521,7 +521,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
         date: { type: "string", description: "시작일 YYYY-MM-DD" },
         endDate: { type: "string", description: "종료일 (선택)" },
         players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, gender: { type: "string" }, club: { type: "string" } }, required: ["name"] }, description: "선수 목록" },
-        groupCount: { type: "number", description: "조 수 (기본 4)" },
+        format: { type: "string", enum: ["full_league", "group_knockout"], description: "대회 방식. 풀리그=full_league, 조별리그+결승=group_knockout (기본 group_knockout)" },
+        groupCount: { type: "number", description: "조 수 (풀리그는 1, 조별리그 기본 4)" },
         advancePerGroup: { type: "number", description: "조당 본선 진출 수 (기본 2)" },
         courts: { type: "array", items: { type: "string" }, description: "경기장 이름 목록" },
         referees: { type: "array", items: { type: "string" }, description: "심판 이름 목록" },
@@ -536,7 +537,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "run_full_simulation",
-    description: "예선부터 결승까지 전체 시뮬레이션. tournamentId만 전달하면 예선→순위 계산→결승 생성→결승 시뮬레이션→대회 완료까지 자동 처리. 결과에 조별 순위, 본선 결과, 최종 순위, 팀 로스터가 포함됨.",
+    description: "전체 시뮬레이션. tournamentId만 전달하면 자동 처리. 풀리그는 리그전만, 조별리그는 예선→결승까지 진행. 결과에 순위, 본선 결과, 팀 로스터 포함.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1551,13 +1552,15 @@ export async function executeTool(
               history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "serve", actionLabel: currentServeLabel, points: 0, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer, serverName: serverTeam, receiverName: receiverTeam });
 
               // 3. 득점
+              const prevSc1 = sc1, prevSc2 = sc2;
               const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
               const pts = Math.random() < 0.7 ? 2 : 1;
               if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
               const scorer = p1Turn ? p1n : p2n;
+              const actualPts = p1Turn ? (sc1 - prevSc1) : (sc2 - prevSc2);
 
               // 4. 득점 기록 (player1/player2 실제 점수 기준)
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: sc1 - (p1Turn ? pts : 0), player2: sc2 - (p1Turn ? 0 : pts) }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: actualPts === 2 ? "goal" : "foul", actionLabel: actualPts === 2 ? `${scorer} +2` : `${scorer} +1`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
 
               // 5. 서브 카운트 증가 + 서버 교대 + 팀전 선수 교체
               serveCount++;
@@ -2482,19 +2485,23 @@ export async function executeTool(
         const setsToWin = (input.setsToWin as number) || 2;
         const matchDur = (input.matchDurationMinutes as number) || 30;
         const pRest = (input.playerRestMinutes as number) || 30;
+        const isFullLeagueReq = (input.format as string) === "full_league" || (input.groupCount as number) === 1;
+        const itGroupCount = isFullLeagueReq ? 1 : ((input.groupCount as number) || 4);
 
         const itResult = await executeTool("setup_full_tournament", {
           name: input.name, date: input.date, endDate: input.endDate,
           type: "individual", players: input.players,
-          groupCount: (input.groupCount as number) || 4,
-          advancePerGroup: (input.advancePerGroup as number) || 2,
+          groupCount: itGroupCount,
+          advancePerGroup: isFullLeagueReq ? 0 : ((input.advancePerGroup as number) || 2),
           qualifyingWinScore: 11, qualifyingSetsToWin: setsToWin,
-          finalsFormat: "single_elimination", thirdPlace: true,
+          finalsFormat: "single_elimination", thirdPlace: !isFullLeagueReq,
         });
         const itParsed = JSON.parse(itResult);
         if (!itParsed.success) return JSON.stringify({ error: `대회 생성 실패: ${itParsed.error}` });
         const itTid = itParsed.tournamentId as string;
-        steps.push(`대회 생성: ${itParsed.matchCount}경기 (${itParsed.groupCount}개 조)`);
+        steps.push(isFullLeagueReq
+          ? `대회 생성: 풀리그 ${itParsed.matchCount}경기`
+          : `대회 생성: ${itParsed.matchCount}경기 (${itParsed.groupCount}개 조)`);
 
         for (const c of ((input.courts as string[]) || [])) await executeTool("add_court", { name: c });
         for (const r of ((input.referees as string[]) || [])) await executeTool("add_referee", { name: r, role: "main" });
