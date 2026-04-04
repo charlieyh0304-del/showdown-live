@@ -488,7 +488,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   // ===== 워크플로우 도구 (원스톱) =====
   {
     name: "create_team_league",
-    description: "팀전/팀 리그전 원스톱 생성. 사용자가 지정한 팀 구성을 그대로 전달. 대회 생성→코트 등록→심판 등록→스케줄 생성→심판 배정까지 한번에 처리. 결과에 팀 명단, 조 편성, 스케줄 상세가 포함됨.",
+    description: "팀전/팀 리그전 원스톱 생성. 대회 생성→코트→심판→스케줄→심판배정 한번에 처리. 지원 기능: 조별리그+본선 토너먼트, 풀리그, 와일드카드 진출(wildcardCount), 탑시드(seeds), 점심시간(breakStart/breakEnd), 3/4위전·5~8위전·하위순위결정전(classificationGroups: 9-16위,17-24위 등 자동 다중티어), 라운드별 세트오버라이드, 대회그룹(groupId). 모든 세부 설정이 파라미터로 가능하므로 수동 구성 불필요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -541,7 +541,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "create_individual_tournament",
-    description: "개인전 원스톱 생성. 대회 생성→코트 등록→심판 등록→스케줄 생성→심판 배정까지 한번에 처리. 풀리그는 format='full_league'로 설정.",
+    description: "개인전 원스톱 생성. 대회 생성→코트→심판→스케줄→심판배정 한번에 처리. 지원 기능: 조별리그+본선 토너먼트(group_knockout), 풀리그(full_league), 와일드카드 진출(wildcardCount: 조 3위 중 상위 N명 추가진출), 탑시드 분산배치(seeds), 점심시간(breakStart/breakEnd), 3/4위전(thirdPlace)·5~8위전(fifthToEighth)·하위순위결정전(classificationGroups: 9-16위,17-24위,25-32위 등 자동 다중티어 생성), 라운드별 세트오버라이드(roundOverrideFromRound), 순위범위제한(rankingUpTo), 대회그룹(groupId). 모든 세부 설정이 파라미터로 가능하므로 수동 구성 불필요.",
     input_schema: {
       type: "object" as const,
       properties: {
