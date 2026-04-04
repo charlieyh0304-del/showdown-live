@@ -146,12 +146,15 @@ export function generateMatchHtml(
           }
           const action = escHtml(actionText);
           const isMeta = META_TYPES.has(h.actionType || '');
-          const scorer = !isMeta && h.scoringPlayer ? escHtml(h.scoringPlayer) : '';
+          // 파울류 액션은 actionPlayer(파울한 자) 표시, 그 외는 scoringPlayer(득점자) 표시
+          const FOUL_TYPES = new Set(['foul', 'irregular_serve', 'centerboard', 'body_touch', 'illegal_defense', 'out', 'ball_holding', 'mask_touch', 'penalty', 'penalty_table_pushing', 'penalty_electronic', 'penalty_talking', 'serve_miss']);
+          const isFoulAction = FOUL_TYPES.has(h.actionType || '');
+          const displayName = !isMeta ? escHtml((isFoulAction ? h.actionPlayer : h.scoringPlayer) || '') : '';
           const pts = !isMeta && h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
           const p1s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player1}` : '';
           const p2s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player2}` : '';
           const isServeEvent = (h.actionType as string) === 'serve';
-          const displayAction = isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : `${scorer} ${action}`;
+          const displayAction = isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : `${displayName} ${action}`;
           return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}${isServeEvent ? ' style="background:#e8f4fd;font-weight:bold"' : ''}>
             <td>${time}</td>
             <td>${displayAction}</td>

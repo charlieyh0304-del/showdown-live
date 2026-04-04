@@ -1552,16 +1552,29 @@ export async function executeTool(
               // 점수는 항상 player1=player1 실제 점수, player2=player2 실제 점수로 저장
               history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "serve", actionLabel: currentServeLabel, points: 0, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer, serverName: serverTeam, receiverName: receiverTeam });
 
-              // 3. 득점
+              // 3. 득점 (IBSA: 골=+2 득점자에게, 파울=+1 상대에게)
               const prevSc1 = sc1, prevSc2 = sc2;
               const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
-              const pts = Math.random() < 0.7 ? 2 : 1;
-              if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
-              const scorer = p1Turn ? p1n : p2n;
+              const isGoal = Math.random() < 0.7;
+              if (isGoal) {
+                // 골: +2 득점자에게
+                if (p1Turn) { sc1 = Math.min(sc1 + 2, s.player1Score); } else { sc2 = Math.min(sc2 + 2, s.player2Score); }
+              } else {
+                // 파울: +1 상대에게 (p1Turn이면 p2가 파울 → p1에게 +1)
+                if (p1Turn) { sc1 = Math.min(sc1 + 1, s.player1Score); } else { sc2 = Math.min(sc2 + 1, s.player2Score); }
+              }
               const actualPts = p1Turn ? (sc1 - prevSc1) : (sc2 - prevSc2);
+              // 골: scorer=득점자, actionPlayer=득점자
+              // 파울: scorer=점수받는자(p1Turn), actionPlayer=상대(파울한자)
+              const scorerName = p1Turn ? p1n : p2n;
+              const foulerName = p1Turn ? p2n : p1n; // 파울한 선수 = 상대
 
-              // 4. 득점 기록 (player1/player2 실제 점수 기준)
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: actualPts === 2 ? "goal" : "foul", actionLabel: actualPts === 2 ? `${scorer} +2` : `${scorer} +1`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              // 4. 득점 기록
+              if (isGoal) {
+                history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorerName, actionPlayer: scorerName, actionType: "goal", actionLabel: `${scorerName} 골 득점`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              } else {
+                history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorerName, actionPlayer: foulerName, actionType: "foul", actionLabel: `${foulerName} foul`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
+              }
 
               // 5. 서브 카운트 증가 + 서버 교대 + 팀전 선수 교체
               serveCount++;
