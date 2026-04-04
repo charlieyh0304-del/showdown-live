@@ -1100,7 +1100,9 @@ export async function executeTool(
           fifthToEighth,
           classificationGroups,
           groupAssignment: groupSummary,
-          message: `${isTeamTour ? "팀전" : "개인전"} "${input.name}" 생성 완료\n${isTeamTour ? "팀" : "선수"} ${participantCount}${isTeamTour ? "팀" : "명"}, ${groupCount}개 조, 예선 ${matchCount}경기\n조당 ${advancePerGroup}${isTeamTour ? "팀" : "명"} 본선 진출 (총 ${totalAdvance})\n3/4위=${thirdPlace}, 5-8위=${fifthToEighth}, 하위순위=${classificationGroups}`,
+          message: isFullLeague
+            ? `${isTeamTour ? "팀전" : "개인전"} "${input.name}" 생성 완료\n${isTeamTour ? "팀" : "선수"} ${participantCount}${isTeamTour ? "팀" : "명"}, 풀리그 ${matchCount}경기`
+            : `${isTeamTour ? "팀전" : "개인전"} "${input.name}" 생성 완료\n${isTeamTour ? "팀" : "선수"} ${participantCount}${isTeamTour ? "팀" : "명"}, ${groupCount}개 조, 예선 ${matchCount}경기\n조당 ${advancePerGroup}${isTeamTour ? "팀" : "명"} 본선 진출 (총 ${totalAdvance})\n3/4위=${thirdPlace}, 5-8위=${fifthToEighth}, 하위순위=${classificationGroups}`,
         });
       }
 
@@ -1419,6 +1421,7 @@ export async function executeTool(
             ? (match.player1Name || match.team1Name || "P1") as string
             : (match.player2Name || match.team2Name || "P2") as string;
 
+          // 서브 기준 점수 표시 (coinToss 후 계산되므로 여기서는 player1 기준, coinToss 후 재계산)
           const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
           results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
@@ -1592,8 +1595,21 @@ export async function executeTool(
           bulk[`matches/${tid}/${mid}/currentSet`] = sets.length - 1;
           bulk[`matches/${tid}/${mid}/status`] = "completed";
           bulk[`matches/${tid}/${mid}/winnerId`] = winnerId;
+          bulk[`matches/${tid}/${mid}/coinTossWinner`] = coinTossWinner;
+          bulk[`matches/${tid}/${mid}/coinTossChoice`] = choosesServe ? "serve" : "receive";
           bulk[`matches/${tid}/${mid}/scoreHistory`] = history.reverse(); // newest first (앱 형식과 동일)
           bulk[`matches/${tid}/${mid}/updatedAt`] = now;
+
+          // 서브 기준 점수로 결과 업데이트
+          const serverScoreStr = sets.map((s, si) => {
+            const setServer = si % 2 === 0 ? firstServer : (firstServer === "player1" ? "player2" : "player1");
+            const srvScore = setServer === "player1" ? s.player1Score : s.player2Score;
+            const rcvScore = setServer === "player1" ? s.player2Score : s.player1Score;
+            return `${srvScore}-${rcvScore}`;
+          }).join(", ");
+          // 결과의 score를 서브 기준으로 갱신
+          const lastResult = results[results.length - 1];
+          if (lastResult) lastResult.score = serverScoreStr;
         }
 
         await db.ref().update(bulk);
@@ -1684,28 +1700,32 @@ export async function executeTool(
 
           if (Object.keys(statusBulk).length > 0) await db.ref().update(statusBulk);
 
-          // 예선 완료 시 결승 자동 생성 + 시뮬레이션
-          const tourStagesTyped = tourData.stages as Array<{ id: string; type?: string }> | undefined;
-          const qualifyingStage = tourStagesTyped?.find(s => s.type === "qualifying");
-          if (qualifyingStage) {
-            const qualMatches = allMatches.filter(m => m.stageId === qualifyingStage.id);
-            const qualAllDone = qualMatches.length > 0 && qualMatches.every(m => m.status === "completed");
-            if (qualAllDone) {
-              // 결승이 아직 없는 경우에만 자동 생성
-              const finalsExist = allMatches.some(m => {
-                const sid = m.stageId as string | undefined;
-                return sid && sid.includes("finals");
-              });
-              if (!finalsExist) {
-                const genResult = await executeTool("generate_finals", { tournamentId: tid });
-                const genParsed = JSON.parse(genResult);
-                if (genParsed.success) {
-                  results.push({ match: "결승 자동 생성", score: "", winner: `${genParsed.matchCount}경기 생성` });
-                  // 결승 경기 시뮬레이션
-                  const simResult = await executeTool("simulate_matches", { tournamentId: tid });
-                  const simParsed = JSON.parse(simResult);
-                  if (simParsed.success) {
-                    results.push({ match: "결승 시뮬레이션", score: "", winner: `${simParsed.count}경기 완료` });
+          // 예선 완료 시 결승 자동 생성 + 시뮬레이션 (풀리그는 결승 없음)
+          const tourFormat = tourData.format as string || "";
+          const isFullLeagueFormat = tourFormat === "full_league" || tourData.formatType === "round_robin";
+          if (!isFullLeagueFormat) {
+            const tourStagesTyped = tourData.stages as Array<{ id: string; type?: string }> | undefined;
+            const qualifyingStage = tourStagesTyped?.find(s => s.type === "qualifying");
+            if (qualifyingStage) {
+              const qualMatches = allMatches.filter(m => m.stageId === qualifyingStage.id);
+              const qualAllDone = qualMatches.length > 0 && qualMatches.every(m => m.status === "completed");
+              if (qualAllDone) {
+                // 결승이 아직 없는 경우에만 자동 생성
+                const finalsExist = allMatches.some(m => {
+                  const sid = m.stageId as string | undefined;
+                  return sid && sid.includes("finals");
+                });
+                if (!finalsExist) {
+                  const genResult = await executeTool("generate_finals", { tournamentId: tid });
+                  const genParsed = JSON.parse(genResult);
+                  if (genParsed.success) {
+                    results.push({ match: "결승 자동 생성", score: "", winner: `${genParsed.matchCount}경기 생성` });
+                    // 결승 경기 시뮬레이션
+                    const simResult = await executeTool("simulate_matches", { tournamentId: tid });
+                    const simParsed = JSON.parse(simResult);
+                    if (simParsed.success) {
+                      results.push({ match: "결승 시뮬레이션", score: "", winner: `${simParsed.count}경기 완료` });
+                    }
                   }
                 }
               }
@@ -2515,48 +2535,54 @@ export async function executeTool(
         const tourData = tourSnap.val() as Record<string, unknown>;
         const isTeam = tourData.type === "team" || tourData.type === "randomTeamLeague";
 
-        // 1. 예선 시뮬레이션
+        // 풀리그 여부 확인
+        const simTourFormat = tourData.format as string || "";
+        const simIsFullLeague = simTourFormat === "full_league" || tourData.formatType === "round_robin";
+
+        // 1. 리그/예선 시뮬레이션
         const simResult = await executeTool("simulate_matches", { tournamentId: tid });
         const simParsed = JSON.parse(simResult);
-        if (!simParsed.success) return JSON.stringify({ error: `예선 시뮬레이션 실패: ${simParsed.error}` });
-        allSteps.push(`예선 ${simParsed.count}경기 완료`);
+        if (!simParsed.success) return JSON.stringify({ error: `${simIsFullLeague ? "리그" : "예선"} 시뮬레이션 실패: ${simParsed.error}` });
+        allSteps.push(`${simIsFullLeague ? "리그" : "예선"} ${simParsed.count}경기 완료`);
 
-        // 2. 결승 생성 (아직 없으면)
-        const mSnap = await db.ref(`matches/${tid}`).once("value");
-        const allM = mSnap.exists() ? Object.values(mSnap.val() as Record<string, Record<string, unknown>>) : [];
-        const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
+        // 2. 결승 생성 (풀리그는 결승 없이 리그전만 진행)
+        if (!simIsFullLeague) {
+          const mSnap = await db.ref(`matches/${tid}`).once("value");
+          const allM = mSnap.exists() ? Object.values(mSnap.val() as Record<string, Record<string, unknown>>) : [];
+          const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
 
-        if (!hasFinals) {
-          const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-          const genR = await executeTool("generate_finals", {
-            tournamentId: tid,
-            advancePerGroup: ((tourData.finalsConfig as Record<string, unknown>)?.advancePerGroup as number) || 2,
-            includeThirdPlace: true,
-            includeFifthToEighth: rc?.fifthToEighth !== false,
-          });
-          const genP = JSON.parse(genR);
-          if (genP.success) {
-            allSteps.push(`본선 ${genP.matchCount}경기 생성`);
-            // 반복 시뮬레이션: 4강→결승 등 sourceMatch 전파 후 새로 채워진 경기까지 처리
+          if (!hasFinals) {
+            const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
+            const genR = await executeTool("generate_finals", {
+              tournamentId: tid,
+              advancePerGroup: ((tourData.finalsConfig as Record<string, unknown>)?.advancePerGroup as number) || 2,
+              includeThirdPlace: true,
+              includeFifthToEighth: rc?.fifthToEighth !== false,
+            });
+            const genP = JSON.parse(genR);
+            if (genP.success) {
+              allSteps.push(`본선 ${genP.matchCount}경기 생성`);
+              // 반복 시뮬레이션: 4강→결승 등 sourceMatch 전파 후 새로 채워진 경기까지 처리
+              for (let round = 0; round < 5; round++) {
+                const finSim = await executeTool("simulate_matches", { tournamentId: tid });
+                const finP = JSON.parse(finSim);
+                if (finP.success && finP.count > 0) {
+                  allSteps.push(`본선 라운드${round + 1}: ${finP.count}경기 완료`);
+                } else {
+                  break; // 더 이상 시뮬레이션할 경기 없음
+                }
+              }
+            }
+          } else {
+            // 이미 결승이 있으면 미완료 경기 반복 시뮬레이션
             for (let round = 0; round < 5; round++) {
               const finSim = await executeTool("simulate_matches", { tournamentId: tid });
               const finP = JSON.parse(finSim);
               if (finP.success && finP.count > 0) {
-                allSteps.push(`본선 라운드${round + 1}: ${finP.count}경기 완료`);
+                allSteps.push(`추가 라운드${round + 1}: ${finP.count}경기 완료`);
               } else {
-                break; // 더 이상 시뮬레이션할 경기 없음
+                break;
               }
-            }
-          }
-        } else {
-          // 이미 결승이 있으면 미완료 경기 반복 시뮬레이션
-          for (let round = 0; round < 5; round++) {
-            const finSim = await executeTool("simulate_matches", { tournamentId: tid });
-            const finP = JSON.parse(finSim);
-            if (finP.success && finP.count > 0) {
-              allSteps.push(`추가 라운드${round + 1}: ${finP.count}경기 완료`);
-            } else {
-              break;
             }
           }
         }
@@ -2564,30 +2590,38 @@ export async function executeTool(
         // 3. 대회 완료
         await db.ref(`tournaments/${tid}/status`).set("completed");
 
-        // 4. 조별 순위 계산
+        // 4. 조별 순위 계산 (프론트엔드 calculateIndividualRanking과 동일: 승수→세트득실→점수득실)
         const finalSnap = await db.ref(`matches/${tid}`).once("value");
         const finalM = finalSnap.exists() ? Object.entries(finalSnap.val() as Record<string, Record<string, unknown>>) : [];
-        const gStats = new Map<string, Map<string, { name: string; wins: number; pd: number }>>();
+        const gStats = new Map<string, Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>>();
         for (const [, m] of finalM) {
           const gid = m.groupId as string; if (!gid || m.status !== "completed") continue;
           if (!gStats.has(gid)) gStats.set(gid, new Map());
           const st = gStats.get(gid)!;
           const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
           const id1 = (m.team1Id || m.player1Id) as string, id2 = (m.team2Id || m.player2Id) as string;
-          if (!st.has(id1)) st.set(id1, { name: n1, wins: 0, pd: 0 });
-          if (!st.has(id2)) st.set(id2, { name: n2, wins: 0, pd: 0 });
-          if (m.winnerId === id1) st.get(id1)!.wins++; else if (m.winnerId === id2) st.get(id2)!.wins++;
+          if (!st.has(id1)) st.set(id1, { name: n1, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
+          if (!st.has(id2)) st.set(id2, { name: n2, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
+          if (m.winnerId === id1) { st.get(id1)!.wins++; st.get(id2)!.losses++; }
+          else if (m.winnerId === id2) { st.get(id2)!.wins++; st.get(id1)!.losses++; }
           for (const s of ((m.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
-            st.get(id1)!.pd += s.player1Score - s.player2Score;
-            st.get(id2)!.pd += s.player2Score - s.player1Score;
+            if (s.player1Score > s.player2Score) { st.get(id1)!.setsWon++; st.get(id2)!.setsLost++; }
+            else if (s.player2Score > s.player1Score) { st.get(id2)!.setsWon++; st.get(id1)!.setsLost++; }
+            st.get(id1)!.pf += s.player1Score; st.get(id1)!.pa += s.player2Score;
+            st.get(id2)!.pf += s.player2Score; st.get(id2)!.pa += s.player1Score;
           }
         }
         const groupRankings = [...gStats.entries()].sort().map(([gid, stats]) => {
-          const sorted = [...stats.values()].sort((a, b) => b.wins - a.wins || b.pd - a.pd);
-          return `${gid}: ${sorted.map((s, i) => `${i + 1}위 ${s.name}(${s.wins}승)`).join(", ")}`;
+          const sorted = [...stats.values()].sort((a, b) => {
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            const aSetDiff = a.setsWon - a.setsLost, bSetDiff = b.setsWon - b.setsLost;
+            if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
+            return (b.pf - b.pa) - (a.pf - a.pa);
+          });
+          return `${gid}: ${sorted.map((s, i) => `${i + 1}위 ${s.name}(${s.wins}승 ${s.losses}패, 세트 ${s.setsWon}-${s.setsLost}, 점수 ${s.pf}-${s.pa})`).join(", ")}`;
         }).join("\n");
 
-        // 5. 본선 결과
+        // 5. 본선 결과 (서브 기준 점수)
         const finalsResults = finalM
           .filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8/))
           .map(([, m]) => {
@@ -2595,7 +2629,17 @@ export async function executeTool(
             const winner = m.winnerId === (m.team1Id || m.player1Id) ? n1 : n2;
             const label = (m.roundLabel || m.bracketRound || "본선") as string;
             const sets = (m.sets || []) as Array<{ player1Score: number; player2Score: number }>;
-            return `[${label}] ${n1} vs ${n2} → ${winner} 승 (${sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ")})`;
+            // 서브 기준 점수 계산
+            const ctWinner = m.coinTossWinner as string || "player1";
+            const ctChoice = m.coinTossChoice as string || "serve";
+            const fServer = ctChoice === "serve" ? ctWinner : (ctWinner === "player1" ? "player2" : "player1");
+            const scoreStr = sets.map((s, si) => {
+              const srv = si % 2 === 0 ? fServer : (fServer === "player1" ? "player2" : "player1");
+              const srvScore = srv === "player1" ? s.player1Score : s.player2Score;
+              const rcvScore = srv === "player1" ? s.player2Score : s.player1Score;
+              return `${srvScore}-${rcvScore}`;
+            }).join(", ");
+            return `[${label}] ${n1} vs ${n2} → ${winner} 승 (${scoreStr})`;
           }).join("\n");
 
         // 6. 팀 로스터

@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTournament, useMatches, useFavorites, useSchedule, useReferees, useTournamentReferees } from '@shared/hooks/useFirebase';
-import { countSetWins } from '@shared/utils/scoring';
+import { countSetWins, getSetScoresByServer } from '@shared/utils/scoring';
 import { parseTimeDisplay } from '@shared/utils/locale';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { requestNotificationPermission } from '@shared/utils/notifications';
@@ -83,12 +83,12 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
     return { qualifying, finals, ranking, other };
   }, [matches]);
 
-  // 개인전 풀리그: 예선/본선 구분 없이 모든 경기가 라운드로빈
+  // 개인전 풀리그: 리그전만 진행 (예선/본선 구분 없음)
   const isFullLeagueOnly = useMemo(() => {
     if (!tournament) return false;
     // formatType이 round_robin이면 풀리그
     if (tournament.formatType === 'round_robin') return true;
-    // stages에 finals가 없으면 풀리그 (예선만 있는 경우)
+    // stages에 finals가 없으면 풀리그
     const hasFinalsStage = tournament.stages?.some(s => (s as { type?: string }).type === 'finals');
     if (!hasFinalsStage && !tournament.finalsConfig) {
       // 실제 본선 경기가 없으면 풀리그
@@ -317,7 +317,7 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
           })()}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '20rem', overflowY: 'auto' }}>
             {isFullLeagueOnly ? (
-              /* 풀리그: 예선/본선 구분 없이 모든 경기 표시 */
+              /* 풀리그: 리그 경기 전체 표시 */
               <div>
                 {playerMatches.map(m => (
                   <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
@@ -1098,7 +1098,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                       }}>
                         {/* Set scores */}
                         <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-                          {sets.map((s, i) => (
+                          {getSetScoresByServer(m).map((ss, i) => (
                             <span key={i} style={{
                               fontSize: '0.6875rem',
                               color: '#9ca3af',
@@ -1106,8 +1106,8 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                               padding: '0.0625rem 0.375rem',
                               borderRadius: '0.25rem',
                               fontVariantNumeric: 'tabular-nums',
-                            }}>
-                              {s.player1Score}-{s.player2Score}
+                            }} title={`${t('spectator.tournament.view.serveLabel', '서브')}: ${ss.serverSide === 'player1' ? (m.player1Name || m.team1Name || 'P1') : (m.player2Name || m.team2Name || 'P2')}`}>
+                              {ss.serverScore}-{ss.receiverScore}
                             </span>
                           ))}
                         </div>
@@ -1219,15 +1219,15 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
         <div style={{ textAlign: 'center', padding: '0 1rem' }}>
           {isCompleted && sets.length > 0 ? (
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {sets.map((s, i) => (
+              {getSetScoresByServer(match).map((ss, i) => (
                 <span key={i} style={{
                   fontSize: '0.875rem',
                   color: '#9ca3af',
                   backgroundColor: '#374151',
                   padding: '0.25rem 0.5rem',
                   borderRadius: '0.25rem',
-                }}>
-                  {s.player1Score}-{s.player2Score}
+                }} title={`${t('spectator.tournament.view.serveLabel', '서브')}: ${ss.serverSide === 'player1' ? (match.player1Name || match.team1Name || 'P1') : (match.player2Name || match.team2Name || 'P2')}`}>
+                  {ss.serverScore}-{ss.receiverScore}
                 </span>
               ))}
             </div>
@@ -1541,8 +1541,8 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
       </span>
       <div style={{ textAlign: 'center', minWidth: '80px' }}>
         {isCompleted && Array.isArray(match.sets) && match.sets.length > 0 ? (
-          match.sets.map((s, i) => (
-            <span key={i} style={{ color: '#9ca3af', margin: '0 0.25rem' }}>{s.player1Score}-{s.player2Score}</span>
+          getSetScoresByServer(match).map((ss, i) => (
+            <span key={i} style={{ color: '#9ca3af', margin: '0 0.25rem' }}>{ss.serverScore}-{ss.receiverScore}</span>
           ))
         ) : (
           <span style={{ color: '#9ca3af' }}>

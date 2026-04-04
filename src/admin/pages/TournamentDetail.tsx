@@ -13,7 +13,7 @@ import {
 } from '@shared/hooks/useFirebase';
 import { push, set, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
+import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig, getSetScoresByServer } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
@@ -3747,8 +3747,11 @@ function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamT
     // Build ordered section list: [{heading, matches}]
     const sections: { heading: string; matches: Match[] }[] = [];
 
+    const isFullLeagueFormat = tournament.format === 'full_league' || tournament.formatType === 'round_robin';
     qualifyingEntries.forEach(([gid, gMatches]) => {
-      const label = gid === 'default' ? '예선' : `${gid} 예선`;
+      const label = isFullLeagueFormat
+        ? (gid === 'default' || gid === 'full_league' ? '리그' : `${gid}`)
+        : (gid === 'default' ? '예선' : `${gid} 예선`);
       sections.push({ heading: label, matches: gMatches });
     });
     finalsEntries.forEach(([roundLabel, rMatches]) => {
@@ -4658,21 +4661,26 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
         <div className="card">
           <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
           <div className="space-y-2">
-            {completedMatchesSorted.map(match => (
-              <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-                <span className="font-semibold">{match.player1Name ?? '?'} vs {match.player2Name ?? '?'}</span>
-                <div className="flex gap-2">
-                  {(() => {
-                    const isP2W = match.winnerId === (match.player2Id || match.team2Id);
-                    return (match.sets || []).map((s, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono">
-                        {isP2W ? s.player2Score : s.player1Score}-{isP2W ? s.player1Score : s.player2Score}
+            {completedMatchesSorted.map(match => {
+              const serverScores = getSetScoresByServer(match);
+              const winnerName = match.winnerId === (match.player1Id || match.team1Id)
+                ? (match.player1Name ?? '?') : (match.player2Name ?? '?');
+              return (
+                <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <span className="font-semibold">{match.player1Name ?? '?'} vs {match.player2Name ?? '?'}</span>
+                    <span className="ml-2 text-xs text-green-400">({winnerName} {t('admin.tournamentDetail.rankingTab.winLabel', '승')})</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {serverScores.map((ss, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono" title={`${t('admin.tournamentDetail.rankingTab.serveLabel', '서브')}: ${ss.serverSide === 'player1' ? (match.player1Name ?? 'P1') : (match.player2Name ?? 'P2')}`}>
+                        {ss.serverScore}-{ss.receiverScore}
                       </span>
-                    ));
-                  })()}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

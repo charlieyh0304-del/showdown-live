@@ -201,3 +201,47 @@ export function getEffectiveScoringRules(
   }
   return getEffectiveGameConfig(tournament.gameConfig, match.type);
 }
+
+/**
+ * 각 세트의 첫 서버를 기준으로 점수를 [serverScore, receiverScore] 형태로 반환.
+ * IBSA 쇼다운 기록지 규칙: 서브권 있는 선수의 점수를 먼저 표시.
+ */
+export function getSetScoresByServer(match: Match): Array<{ serverScore: number; receiverScore: number; serverSide: 'player1' | 'player2' }> {
+  const sets = match.sets || [];
+  if (sets.length === 0) return [];
+
+  // 1. scoreHistory에서 각 세트 첫 서버 판별
+  const setServerMap = new Map<number, 'player1' | 'player2'>();
+  if (match.scoreHistory && match.scoreHistory.length > 0) {
+    // scoreHistory는 newest-first → reverse
+    const ordered = [...match.scoreHistory].reverse();
+    for (const entry of ordered) {
+      if (entry.serverSide && !setServerMap.has(entry.set)) {
+        setServerMap.set(entry.set, entry.serverSide);
+      }
+    }
+  }
+
+  // 2. scoreHistory에 없으면 coinToss로 추정
+  let firstServer: 'player1' | 'player2' = 'player1';
+  if (setServerMap.has(1)) {
+    firstServer = setServerMap.get(1)!;
+  } else if (match.coinTossWinner && match.coinTossChoice) {
+    if (match.coinTossChoice === 'serve') {
+      firstServer = match.coinTossWinner.replace('team', 'player') as 'player1' | 'player2';
+    } else {
+      const w = match.coinTossWinner.replace('team', 'player');
+      firstServer = w === 'player1' ? 'player2' : 'player1';
+    }
+  }
+
+  return sets.map((s, i) => {
+    const setNum = i + 1;
+    // scoreHistory 우선, 없으면 홀수 세트=firstServer, 짝수 세트=opposite
+    const server = setServerMap.get(setNum) ?? (i % 2 === 0 ? firstServer : (firstServer === 'player1' ? 'player2' : 'player1'));
+    if (server === 'player1') {
+      return { serverScore: s.player1Score, receiverScore: s.player2Score, serverSide: 'player1' as const };
+    }
+    return { serverScore: s.player2Score, receiverScore: s.player1Score, serverSide: 'player2' as const };
+  });
+}
