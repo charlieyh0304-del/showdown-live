@@ -1547,11 +1547,8 @@ export async function executeTool(
               // 2. 서브 이벤트 기록 (별도 행으로)
               const serverTeam = currentServer === "player1" ? p1n : p2n;
               const receiverTeam = currentServer === "player1" ? p2n : p1n;
-              // 서브 기준 점수: 서버 점수가 왼쪽
-              const serveSc = currentServer === "player1"
-                ? { server: sc1, receiver: sc2 }
-                : { server: sc2, receiver: sc1 };
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "serve", actionLabel: currentServeLabel, points: 0, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: serveSc.server, player2: serveSc.receiver }, scoreAfter: { player1: serveSc.server, player2: serveSc.receiver }, serverSide: currentServer, serverName: serverTeam, receiverName: receiverTeam });
+              // 점수는 항상 player1=player1 실제 점수, player2=player2 실제 점수로 저장
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "serve", actionLabel: currentServeLabel, points: 0, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer, serverName: serverTeam, receiverName: receiverTeam });
 
               // 3. 득점
               const p1Turn = sc1 < s.player1Score && (sc2 >= s.player2Score || Math.random() > 0.5);
@@ -1559,11 +1556,8 @@ export async function executeTool(
               if (p1Turn) { sc1 = Math.min(sc1 + pts, s.player1Score); } else { sc2 = Math.min(sc2 + pts, s.player2Score); }
               const scorer = p1Turn ? p1n : p2n;
 
-              // 4. 득점 기록 (서브 기준 점수)
-              const afterServeSc = currentServer === "player1"
-                ? { server: sc1, receiver: sc2 }
-                : { server: sc2, receiver: sc1 };
-              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: serveSc.server, player2: serveSc.receiver }, scoreAfter: { player1: afterServeSc.server, player2: afterServeSc.receiver }, serverSide: currentServer });
+              // 4. 득점 기록 (player1/player2 실제 점수 기준)
+              history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorer, actionPlayer: scorer, actionType: pts === 2 ? "goal" : "foul", actionLabel: pts === 2 ? `${scorer} +2` : `${scorer} +1`, points: pts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: sc1 - (p1Turn ? pts : 0), player2: sc2 - (p1Turn ? 0 : pts) }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
 
               // 5. 서브 카운트 증가 + 서버 교대 + 팀전 선수 교체
               serveCount++;
@@ -2618,8 +2612,9 @@ export async function executeTool(
             if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
             return (b.pf - b.pa) - (a.pf - a.pa);
           });
-          return `${gid}: ${sorted.map((s, i) => `${i + 1}위 ${s.name}(${s.wins}승 ${s.losses}패, 세트 ${s.setsWon}-${s.setsLost}, 점수 ${s.pf}-${s.pa})`).join(", ")}`;
-        }).join("\n");
+          const header = gid === "full_league" ? "최종 순위" : `${gid} 순위`;
+          return `${header}:\n${sorted.map((s, i) => `  ${i + 1}위 ${s.name} (${s.wins}승 ${s.losses}패, 세트 ${s.setsWon}-${s.setsLost}, 점수 ${s.pf}-${s.pa})`).join("\n")}`;
+        }).join("\n\n");
 
         // 5. 본선 결과 (서브 기준 점수)
         const finalsResults = finalM
