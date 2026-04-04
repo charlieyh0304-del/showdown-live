@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { speak } from '@shared/utils/locale';
+import { speak, preWarmSpeech } from '@shared/utils/locale';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
   checkSetWinner,
@@ -202,6 +202,7 @@ export default function TeamMatchScoring() {
 
   const handleStartMatch = useCallback(async (tossWinnerVal: 'team1' | 'team2', choice: 'serve' | 'receive') => {
     if (!match) return;
+    preWarmSpeech();
 
     // Determine who serves first
     const firstServe = choice === 'serve'

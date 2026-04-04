@@ -114,6 +114,7 @@ export interface RankingMatchConfig {
   // round_robin: 4명 풀리그 6경기
   classificationGroups: boolean;          // 하위 순위 그룹 결정전 (IBSA 방식)
   classificationGroupSize: number;        // 그룹 크기 (기본 4)
+  rankingUpTo?: number;                   // N위까지만 순위 산출 (0이면 제한 없음)
   scoringRules?: ScoringRules;
 }
 
@@ -181,6 +182,9 @@ export interface Tournament {
   name: string;
   date: string;
   endDate?: string;
+  scheduleDates?: string[];
+  groupId?: string;
+  groupName?: string;
   type: TournamentType;
   format: TournamentFormat;
   status: TournamentStatus;

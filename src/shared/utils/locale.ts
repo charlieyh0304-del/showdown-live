@@ -31,19 +31,37 @@ export function formatDateTime(date?: Date): string {
   return d.toLocaleString(getLocale());
 }
 
-/** TTS helper: speak text using Web Speech API (iOS compatible) */
+/**
+ * Pre-warm speechSynthesis on user gesture.
+ * Mobile browsers require speechSynthesis.speak() to be first called from a user gesture.
+ * Call this from button click handlers (timer start, match start, etc.)
+ */
+let speechPreWarmed = false;
+export function preWarmSpeech() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  if (speechPreWarmed) return;
+  // Speak a silent utterance to unlock speechSynthesis on mobile
+  const utterance = new SpeechSynthesisUtterance('');
+  utterance.volume = 0;
+  utterance.lang = getLocale();
+  window.speechSynthesis.speak(utterance);
+  speechPreWarmed = true;
+}
+
+/** TTS helper: speak text using Web Speech API (iOS/Android compatible) */
 export function speak(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  // iOS Safari requires a short delay after cancel() before speak() works
   const doSpeak = () => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = getLocale();
     utterance.rate = 1.2;
+    utterance.volume = 1;
     window.speechSynthesis.speak(utterance);
   };
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if (isIOS) {
+    // iOS Safari requires a short delay after cancel() before speak() works
     setTimeout(doSpeak, 100);
   } else {
     doSpeak();

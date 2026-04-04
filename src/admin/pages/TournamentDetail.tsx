@@ -333,6 +333,9 @@ export default function TournamentDetail() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-yellow-400">{tournament.name}</h1>
         <p className="text-gray-400">{tournament.date}{tournament.endDate ? ` ~ ${tournament.endDate}` : ''} | {tournament.type === 'individual' ? t('admin.tournamentDetail.header.typeIndividual') : tournament.type === 'team' ? t('admin.tournamentDetail.header.typeTeam') : t('admin.tournamentDetail.header.typeRandomTeamLeague')}</p>
+        {tournament.scheduleDates && tournament.scheduleDates.length > 0 && (
+          <p className="text-gray-500 text-sm">{t('admin.tournamentDetail.header.scheduleDates')}: {tournament.scheduleDates.join(', ')}</p>
+        )}
         <button className="btn btn-secondary" onClick={() => navigate('/admin')} aria-label={t('common.back')}>
           {t('common.back')}
         </button>

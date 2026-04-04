@@ -18,6 +18,7 @@ interface WizardState {
   name: string;
   date: string;
   endDate: string;
+  scheduleDates: string[];
   type: TournamentType;
   presetId: string | null;
   // Step 2
@@ -56,6 +57,7 @@ interface WizardState {
   fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
   classificationGroups: boolean;
   classificationGroupSize: number;
+  rankingUpTo: number;
   // 라운드별 세트 수 오버라이드
   hasRoundScoringOverride: boolean;
   roundOverrideFromRound: number;
@@ -79,7 +81,9 @@ type Action =
   | { type: 'APPLY_PRESET'; presetId: string }
   | { type: 'NEXT_STEP' }
   | { type: 'PREV_STEP' }
-  | { type: 'GO_TO_STEP'; step: number };
+  | { type: 'GO_TO_STEP'; step: number }
+  | { type: 'ADD_SCHEDULE_DATE'; date: string }
+  | { type: 'REMOVE_SCHEDULE_DATE'; date: string };
 
 const DEFAULT_SCORING: ScoringRules = {
   winScore: 11,
@@ -107,6 +111,7 @@ const defaultState: WizardState = {
   name: '',
   date: new Date().toISOString().split('T')[0],
   endDate: '',
+  scheduleDates: [],
   type: 'individual',
   presetId: null,
   tournamentMode: 'direct_tournament',
@@ -141,6 +146,7 @@ const defaultState: WizardState = {
   fifthToEighthFormat: 'simple' as const,
   classificationGroups: false,
   classificationGroupSize: 4,
+  rankingUpTo: 0,
   hasRoundScoringOverride: false,
   roundOverrideFromRound: 4,
   roundOverrideSetsToWin: 3,
@@ -316,6 +322,12 @@ function reducer(state: WizardState, action: Action): WizardState {
     }
     case 'GO_TO_STEP':
       return { ...state, step: Math.max(1, Math.min(4, action.step)) };
+    case 'ADD_SCHEDULE_DATE': {
+      if (state.scheduleDates.includes(action.date)) return state;
+      return { ...state, scheduleDates: [...state.scheduleDates, action.date].sort() };
+    }
+    case 'REMOVE_SCHEDULE_DATE':
+      return { ...state, scheduleDates: state.scheduleDates.filter(d => d !== action.date) };
     default:
       return state;
   }
@@ -387,6 +399,7 @@ export default function TournamentCreate() {
           name: state.name.trim(),
           date: state.date,
           ...(state.endDate ? { endDate: state.endDate } : {}),
+          ...(state.scheduleDates.length > 0 ? { scheduleDates: state.scheduleDates } : {}),
           type: state.type,
           format: 'full_league',
           status: 'draft',
@@ -436,6 +449,7 @@ export default function TournamentCreate() {
         name: state.name.trim(),
         date: state.date,
         ...(state.endDate ? { endDate: state.endDate } : {}),
+        ...(state.scheduleDates.length > 0 ? { scheduleDates: state.scheduleDates } : {}),
         type: state.type,
         format: legacyFormat,
         status: 'draft',
@@ -587,6 +601,51 @@ export default function TournamentCreate() {
                 })()}
               </div>
               <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.basicInfo.oneDayHint')}</p>
+            </div>
+
+            {/* 다중 날짜 선택 */}
+            <div>
+              <label className="block mb-2 font-semibold text-lg">{t('admin.tournamentCreate.basicInfo.scheduleDatesLabel')}</label>
+              <p className="text-gray-400 text-xs mb-2">{t('admin.tournamentCreate.basicInfo.scheduleDatesHint')}</p>
+              <div className="flex gap-2 items-center flex-wrap">
+                <input
+                  type="date"
+                  className="input text-sm"
+                  id="schedule-date-input"
+                  min={state.date || undefined}
+                  max={state.endDate || undefined}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary text-sm px-3 py-1"
+                  onClick={() => {
+                    const input = document.getElementById('schedule-date-input') as HTMLInputElement;
+                    if (input?.value) {
+                      dispatch({ type: 'ADD_SCHEDULE_DATE', date: input.value });
+                      input.value = '';
+                    }
+                  }}
+                >
+                  {t('admin.tournamentCreate.basicInfo.addDate')}
+                </button>
+              </div>
+              {state.scheduleDates.length > 0 && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {state.scheduleDates.map(d => (
+                    <span key={d} className="inline-flex items-center gap-1 bg-gray-700 text-white text-sm px-3 py-1 rounded-full">
+                      {d}
+                      <button
+                        type="button"
+                        className="text-gray-400 hover:text-red-400 ml-1"
+                        onClick={() => dispatch({ type: 'REMOVE_SCHEDULE_DATE', date: d })}
+                        aria-label={`${d} ${t('common.delete')}`}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -988,6 +1047,94 @@ export default function TournamentCreate() {
                 )}
               </fieldset>
             </div>
+
+            {/* 순위 결정전 설정 */}
+            {state.hasFinalsStage && (
+              <div className="space-y-4 mt-4">
+                <h3 className="text-lg font-bold text-cyan-400">{t('admin.tournamentCreate.rankingMatch.title')}</h3>
+
+                {/* 3/4위 결정전 */}
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold">{t('admin.tournamentCreate.rankingMatch.thirdPlace')}</span>
+                  <button
+                    role="switch"
+                    aria-checked={state.thirdPlaceMatch}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.thirdPlaceMatch ? 'bg-green-600' : 'bg-gray-600'}`}
+                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'thirdPlaceMatch', value: !state.thirdPlaceMatch })}
+                  >
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.thirdPlaceMatch ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </label>
+
+                {/* 5~8위 결정전 */}
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold">{t('admin.tournamentCreate.rankingMatch.fifthToEighth')}</span>
+                  <button
+                    role="switch"
+                    aria-checked={state.fifthToEighth}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
+                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'fifthToEighth', value: !state.fifthToEighth })}
+                  >
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.fifthToEighth ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </label>
+                {state.fifthToEighth && (
+                  <div className="ml-4 flex gap-2">
+                    {(['simple', 'full', 'round_robin'] as const).map(fmt => (
+                      <button
+                        key={fmt}
+                        className={`btn py-1 px-3 text-sm ${state.fifthToEighthFormat === fmt ? 'btn-primary' : 'bg-gray-700 text-white'}`}
+                        onClick={() => dispatch({ type: 'SET_FIELD', field: 'fifthToEighthFormat', value: fmt })}
+                      >
+                        {t(`admin.tournamentCreate.rankingMatch.format_${fmt}`)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 하위 순위 결정전 (전체 순위 산출) */}
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold">{t('admin.tournamentCreate.rankingMatch.classification')}</span>
+                  <button
+                    role="switch"
+                    aria-checked={state.classificationGroups}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
+                    onClick={() => dispatch({ type: 'SET_FIELD', field: 'classificationGroups', value: !state.classificationGroups })}
+                  >
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.classificationGroups ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </label>
+                {state.classificationGroups && (
+                  <div className="ml-4">
+                    <NumberStepper
+                      label={t('admin.tournamentCreate.rankingMatch.classGroupSize')}
+                      value={state.classificationGroupSize}
+                      min={3}
+                      max={16}
+                      onChange={v => dispatch({ type: 'SET_FIELD', field: 'classificationGroupSize', value: v })}
+                      ariaLabel={t('admin.tournamentCreate.rankingMatch.classGroupSize')}
+                    />
+                    <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.rankingMatch.classGroupHint')}</p>
+                  </div>
+                )}
+
+                {/* N위까지만 순위 산출 */}
+                <div>
+                  <label className="block font-semibold mb-1">{t('admin.tournamentCreate.rankingMatch.rankingUpTo')}</label>
+                  <div className="flex items-center gap-2">
+                    <NumberStepper
+                      label=""
+                      value={state.rankingUpTo}
+                      min={0}
+                      max={state.participantCount}
+                      onChange={v => dispatch({ type: 'SET_FIELD', field: 'rankingUpTo', value: v })}
+                      ariaLabel={t('admin.tournamentCreate.rankingMatch.rankingUpTo')}
+                    />
+                  </div>
+                  <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.rankingMatch.rankingUpToHint')}</p>
+                </div>
+              </div>
+            )}
 
             {!state.hasGroupStage && !state.hasFinalsStage && (
               <div className="bg-gray-800 rounded-lg p-3">

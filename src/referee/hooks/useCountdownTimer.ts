@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { preWarmSpeech } from '../../shared/utils/locale';
 
 /**
  * Time-based countdown timer.
@@ -93,6 +94,9 @@ export function useCountdownTimer(onComplete?: () => void) {
       osc.start();
       osc.stop(ctx.currentTime + 0.01);
     } catch { /* ignore */ }
+
+    // Pre-warm speechSynthesis on user gesture so TTS works from setInterval
+    preWarmSpeech();
 
     endTimeRef.current = Date.now() + totalSeconds * 1000;
     setSeconds(totalSeconds);

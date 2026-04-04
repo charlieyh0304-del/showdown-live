@@ -100,45 +100,72 @@ export default function SpectatorHome() {
           </div>
         ) : (
           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {visibleTournaments.map((t) => (
-              <li key={t.id}>
-                <button
-                  className="card"
-                  onClick={() => navigate(`/spectator/tournament/${t.id}`)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    border: '2px solid #374151',
-                  }}
-                  aria-label={`${t.name}, ${getTournamentTypeLabel(t.type)}, ${getStatusLabel(t.status)}`}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)', display: 'block' }}>
-                      {t.name}
-                    </span>
-                    <span
-                      style={{
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.875rem',
-                        fontWeight: 'bold',
-                        backgroundColor: (t.status === 'in_progress' || t.status === 'draft') ? '#16a34a' : t.status === 'registration' ? '#3b82f6' : t.status === 'paused' ? '#d97706' : '#6b7280',
-                        color: '#ffffff',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {(t.status === 'in_progress' || t.status === 'draft' || t.status === 'paused') && <span aria-hidden="true">{'● '}</span>}
-                      {getStatusLabel(t.status)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db' }}>
-                    <span>{t.date}</span>
-                    <span>{getTournamentTypeLabel(t.type)}</span>
-                  </div>
-                </button>
-              </li>
-            ))}
+            {(() => {
+              const grouped = new Map<string, typeof visibleTournaments>();
+              const ungrouped: typeof visibleTournaments = [];
+              for (const tour of visibleTournaments) {
+                if (tour.groupId && tour.groupName) {
+                  if (!grouped.has(tour.groupId)) grouped.set(tour.groupId, []);
+                  grouped.get(tour.groupId)!.push(tour);
+                } else {
+                  ungrouped.push(tour);
+                }
+              }
+              return (
+                <>
+                  {[...grouped.entries()].map(([groupId, groupTours]) => (
+                    <li key={groupId}>
+                      <div className="card" style={{ border: '2px solid #374151' }}>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)', display: 'block', marginBottom: '0.5rem' }}>
+                          {groupTours[0].groupName}
+                        </span>
+                        <div style={{ color: '#d1d5db', marginBottom: '0.75rem' }}>{groupTours[0].date} | {groupTours.length}개 부문</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {groupTours.map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => navigate(`/spectator/tournament/${t.id}`)}
+                              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '0.75rem 1rem', borderRadius: '0.5rem', backgroundColor: '#1f2937', border: 'none', color: 'inherit' }}
+                              aria-label={`${t.name}, ${getTournamentTypeLabel(t.type)}, ${getStatusLabel(t.status)}`}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 'bold' }}>{t.name}</span>
+                                <span style={{ padding: '0.15rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold', backgroundColor: (t.status === 'in_progress' || t.status === 'draft') ? '#16a34a' : t.status === 'registration' ? '#3b82f6' : t.status === 'paused' ? '#d97706' : '#6b7280', color: '#fff' }}>
+                                  {getStatusLabel(t.status)}
+                                </span>
+                              </div>
+                              <span style={{ color: '#67e8f9', fontSize: '0.875rem' }}>{getTournamentTypeLabel(t.type)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                  {ungrouped.map((t) => (
+                    <li key={t.id}>
+                      <button
+                        className="card"
+                        onClick={() => navigate(`/spectator/tournament/${t.id}`)}
+                        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: '2px solid #374151' }}
+                        aria-label={`${t.name}, ${getTournamentTypeLabel(t.type)}, ${getStatusLabel(t.status)}`}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)', display: 'block' }}>{t.name}</span>
+                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: 'bold', backgroundColor: (t.status === 'in_progress' || t.status === 'draft') ? '#16a34a' : t.status === 'registration' ? '#3b82f6' : t.status === 'paused' ? '#d97706' : '#6b7280', color: '#ffffff', whiteSpace: 'nowrap' }}>
+                            {(t.status === 'in_progress' || t.status === 'draft' || t.status === 'paused') && <span aria-hidden="true">{'● '}</span>}
+                            {getStatusLabel(t.status)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db' }}>
+                          <span>{t.date}</span>
+                          <span>{getTournamentTypeLabel(t.type)}</span>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </>
+              );
+            })()}
           </ul>
         )}
       </div>

@@ -337,7 +337,8 @@
       "tournamentListLabel": "대회 목록",
       "tournamentDetailAriaLabel": "{{name}} 대회 상세보기",
       "loadingTournaments": "대회 목록 로딩 중...",
-      "deleteTournamentAriaLabel": "{{name}} 대회 삭제"
+      "deleteTournamentAriaLabel": "{{name}} 대회 삭제",
+      "categoryCount": "개 부문"
     },
 
     "deleteModal": {
@@ -495,6 +496,9 @@
         "startDate": "시작 날짜",
         "endDate": "종료 날짜",
         "oneDayHint": "1일 대회는 종료 날짜를 비워두세요",
+        "scheduleDatesLabel": "경기 날짜 지정",
+        "scheduleDatesHint": "여러 날짜에 걸쳐 진행하는 경우, 경기 진행할 날짜를 추가하세요",
+        "addDate": "날짜 추가",
         "typeSelection": "유형 선택",
         "individual": "개인전",
         "team": "팀전",
@@ -592,6 +596,20 @@
         "roundScoringOverride": "후반 라운드에서 세트 수 변경",
         "overrideStart": "시작",
         "overrideSets": "변경 세트 수: {{maxSets}}세트 ({{setsToWin}}세트 선승)"
+      },
+
+      "rankingMatch": {
+        "title": "순위 결정전",
+        "thirdPlace": "3/4위 결정전",
+        "fifthToEighth": "5~8위 결정전",
+        "format_simple": "간단",
+        "format_full": "풀 대진",
+        "format_round_robin": "리그전",
+        "classification": "하위 순위 결정전 (전체 순위 산출)",
+        "classGroupSize": "티어별 인원",
+        "classGroupHint": "탈락자를 이 인원 단위로 나눠 순위 결정전을 진행합니다 (예: 8명 → 9~16위, 17~24위 ...)",
+        "rankingUpTo": "순위 산출 범위",
+        "rankingUpToHint": "0이면 제한 없음. 숫자를 입력하면 해당 순위까지만 순위 결정전을 진행합니다."
       },
 
       "finals": {
@@ -838,7 +856,7 @@
         "description": "조별 예선 후 본선에 진출할 인원 수를 설정합니다.",
         "advancePerGroup": "조당 진출 인원"
       },
-      "header": { "typeIndividual": "개인전", "typeTeam": "팀전", "typeRandomTeamLeague": "랜덤 팀리그전" },
+      "header": { "typeIndividual": "개인전", "typeTeam": "팀전", "typeRandomTeamLeague": "랜덤 팀리그전", "scheduleDates": "경기 날짜" },
       "simulationConfirm": { "intro": "시뮬레이션을 실행합니다.\n", "existingTeams": "• 등록된 {{count}}개 팀으로 진행", "existingPlayers": "• 등록된 선수 {{count}}명으로 진행", "virtualPlayers": "• 가상 참가자 {{count}}명 생성", "existingReferees": "• 등록된 심판 {{count}}명 배정", "virtualReferees": "• 가상 심판 3명 생성", "refereeOff": "• 심판 자동 배정: OFF", "courtOn": "• 경기장 자동 배정: ON", "courtOff": "• 경기장 자동 배정: OFF", "dataReset": "• 기존 경기 데이터가 초기화됩니다", "rulesKept": "• 대회 규칙 설정은 유지됩니다", "confirmContinue": "\n계속하시겠습니까?" },
       "koreanInput": { "playerNamePlaceholder": "선수 이름", "genderAriaLabel": "성별", "genderLabel": "성별", "genderMale": "남", "genderFemale": "여", "addPlayerAriaLabel": "선수 추가" },
       "playersTabInline": { "playerNamePlaceholder": "선수 이름", "playerNameAriaLabel": "선수 이름", "genderAriaLabel": "성별", "genderLabel": "성별", "genderMale": "남", "genderFemale": "여", "addButton": "추가", "addPlayerAriaLabel": "선수 추가", "bulkAddSummary": "여러 명 한번에 등록", "bulkAddPlaceholder": "이름을 줄바꿈으로 구분하여 입력\n홍길동\n김철수\n이영희", "bulkAddAriaLabel": "일괄 등록할 선수 이름 목록", "bulkAddButton": "{{count}}명 일괄 등록", "deletePlayerAriaLabel": "{{name}} 삭제", "teamCompositionTitle": "팀 구성 ({{count}}팀)", "randomTeamGenerate": "랜덤 팀 생성", "generating": "생성 중...", "randomTeamAriaLabel": "랜덤 팀 생성", "addNewTeam": "+ 새 팀 추가", "addNewTeamAriaLabel": "새 팀 추가", "noTeams": "팀이 아직 생성되지 않았습니다.", "teamHeader": "{{name}} ({{count}}명)", "teamHeaderWithCoach": "{{name}} ({{count}}명) / 코치: {{coach}}", "foldButton": "접기", "editButton": "편집", "foldAriaLabel": "{{name}} 접기", "editAriaLabel": "{{name}} 편집", "deleteButton": "삭제", "deleteAriaLabel": "{{name}} 삭제", "removeMemberAriaLabel": "{{name}} 제거", "addMemberPlaceholder": "선수를 추가해주세요.", "addMemberToTeamAriaLabel": "{{team}} 선수 추가", "teamSettingsHint": "팀별 설정 (비워두면 대회 기본값 적용", "teamSettingsHintDefaults": ": 예비 {{reserves}}명, 남 {{male}} / 여 {{female}}", "coachLabel": "코치", "coachPlaceholder": "코치 이름", "coachAriaLabel": "{{team}} 코치", "reserveCountLabel": "예비 선수 수", "reservePlaceholderDefault": "기본값: {{value}}", "reservePlaceholderNone": "미설정", "reserveAriaLabel": "{{team}} 예비 선수 수", "genderRatioLabel": "성별 비율", "maleLabel": "남", "femaleLabel": "여", "genderPlaceholderDefault": "기본: {{value}}", "genderPlaceholderNone": "미설정", "maleAriaLabel": "{{team}} 남자 선수 수", "femaleAriaLabel": "{{team}} 여자 선수 수", "saveSettingsButton": "설정 저장", "saveSettingsAriaLabel": "팀 설정 저장", "genderShortageAlert": "성별 비율에 맞는 선수가 부족합니다.\n필요: 남자 {{requiredMale}}명, 여자 {{requiredFemale}}명\n현재: 남자 {{currentMale}}명, 여자 {{currentFemale}}명", "defaultTeamName": "{{idx}}팀", "deleteTeamConfirm": "이 팀을 삭제하시겠습니까?" },

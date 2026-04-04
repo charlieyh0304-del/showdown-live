@@ -84,34 +84,88 @@ export default function AdminHome() {
         </div>
       ) : (
         <div className="space-y-4" aria-label={t('admin.home.tournamentListLabel')}>
-          {tournaments.map(tour => (
-            <div key={tour.id} className="card flex items-center justify-between flex-wrap gap-4">
-              <div
-                className="flex-1 cursor-pointer min-w-0"
-                onClick={() => navigate(`/admin/tournament/${tour.id}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/tournament/${tour.id}`); }}
-                aria-label={t('admin.home.tournamentDetailAriaLabel', { name: tour.name })}
-              >
-                <h2 className="text-xl font-bold truncate">{tour.name}</h2>
-                <div className="flex items-center gap-3 mt-2 flex-wrap">
-                  <span className="text-gray-400">{tour.date}</span>
-                  <span className="text-cyan-400">{t(TYPE_KEYS[tour.type])}</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[tour.status]}`}>
-                    {STATUS_ICONS[tour.status]} {t(STATUS_KEYS[tour.status])}
-                  </span>
-                </div>
-              </div>
-              <button
-                className="btn btn-danger"
-                onClick={() => setDeleteTarget(tour.id)}
-                aria-label={t('admin.home.deleteTournamentAriaLabel', { name: tour.name })}
-              >
-                {t('common.delete')}
-              </button>
-            </div>
-          ))}
+          {(() => {
+            // 그룹별로 묶기
+            const grouped = new Map<string, typeof tournaments>();
+            const ungrouped: typeof tournaments = [];
+            for (const tour of tournaments) {
+              if (tour.groupId && tour.groupName) {
+                if (!grouped.has(tour.groupId)) grouped.set(tour.groupId, []);
+                grouped.get(tour.groupId)!.push(tour);
+              } else {
+                ungrouped.push(tour);
+              }
+            }
+            return (
+              <>
+                {/* 그룹 대회 */}
+                {[...grouped.entries()].map(([groupId, groupTours]) => (
+                  <div key={groupId} className="card space-y-3">
+                    <h2 className="text-xl font-bold text-yellow-400">{groupTours[0].groupName}</h2>
+                    <p className="text-gray-400 text-sm">{groupTours[0].date} | {groupTours.length}{t('admin.home.categoryCount')}</p>
+                    <div className="space-y-2">
+                      {groupTours.map(tour => (
+                        <div key={tour.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-3">
+                          <div
+                            className="flex-1 cursor-pointer min-w-0"
+                            onClick={() => navigate(`/admin/tournament/${tour.id}`)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/tournament/${tour.id}`); }}
+                            aria-label={t('admin.home.tournamentDetailAriaLabel', { name: tour.name })}
+                          >
+                            <span className="font-semibold">{tour.name}</span>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <span className="text-cyan-400 text-sm">{t(TYPE_KEYS[tour.type])}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[tour.status]}`}>
+                                {STATUS_ICONS[tour.status]} {t(STATUS_KEYS[tour.status])}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            className="btn btn-danger text-sm px-3 py-1"
+                            onClick={() => setDeleteTarget(tour.id)}
+                            aria-label={t('admin.home.deleteTournamentAriaLabel', { name: tour.name })}
+                          >
+                            {t('common.delete')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {/* 비그룹 대회 */}
+                {ungrouped.map(tour => (
+                  <div key={tour.id} className="card flex items-center justify-between flex-wrap gap-4">
+                    <div
+                      className="flex-1 cursor-pointer min-w-0"
+                      onClick={() => navigate(`/admin/tournament/${tour.id}`)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter') navigate(`/admin/tournament/${tour.id}`); }}
+                      aria-label={t('admin.home.tournamentDetailAriaLabel', { name: tour.name })}
+                    >
+                      <h2 className="text-xl font-bold truncate">{tour.name}</h2>
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <span className="text-gray-400">{tour.date}</span>
+                        <span className="text-cyan-400">{t(TYPE_KEYS[tour.type])}</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[tour.status]}`}>
+                          {STATUS_ICONS[tour.status]} {t(STATUS_KEYS[tour.status])}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => setDeleteTarget(tour.id)}
+                      aria-label={t('admin.home.deleteTournamentAriaLabel', { name: tour.name })}
+                    >
+                      {t('common.delete')}
+                    </button>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </div>
       )}
 

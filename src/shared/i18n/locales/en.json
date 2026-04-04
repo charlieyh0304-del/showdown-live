@@ -337,7 +337,8 @@
       "tournamentListLabel": "Tournament List",
       "tournamentDetailAriaLabel": "View details for {{name}} tournament",
       "loadingTournaments": "Loading tournaments...",
-      "deleteTournamentAriaLabel": "Delete {{name}} tournament"
+      "deleteTournamentAriaLabel": "Delete {{name}} tournament",
+      "categoryCount": " categories"
     },
 
     "deleteModal": {
@@ -495,6 +496,9 @@
         "startDate": "Start Date",
         "endDate": "End Date",
         "oneDayHint": "Leave end date blank for a one-day tournament",
+        "scheduleDatesLabel": "Match Dates",
+        "scheduleDatesHint": "Add specific dates when matches will be played (for multi-week tournaments)",
+        "addDate": "Add Date",
         "typeSelection": "Type Selection",
         "individual": "Singles",
         "team": "Teams",
@@ -592,6 +596,20 @@
         "roundScoringOverride": "Change set count in later rounds",
         "overrideStart": "Start",
         "overrideSets": "Modified sets: {{maxSets}} sets (best of {{setsToWin}})"
+      },
+
+      "rankingMatch": {
+        "title": "Ranking Matches",
+        "thirdPlace": "3rd/4th Place Match",
+        "fifthToEighth": "5th-8th Place Match",
+        "format_simple": "Simple",
+        "format_full": "Full Bracket",
+        "format_round_robin": "Round Robin",
+        "classification": "Lower Ranking Matches (Full Ranking)",
+        "classGroupSize": "Players per Tier",
+        "classGroupHint": "Eliminated players are grouped into tiers of this size for ranking matches (e.g., 8 → 9th-16th, 17th-24th ...)",
+        "rankingUpTo": "Ranking Range",
+        "rankingUpToHint": "0 for no limit. Enter a number to rank only up to that position."
       },
 
       "finals": {
@@ -838,7 +856,7 @@
         "description": "Set the number of participants advancing to the finals from each group.",
         "advancePerGroup": "Advance per Group"
       },
-      "header": { "typeIndividual": "Singles", "typeTeam": "Teams", "typeRandomTeamLeague": "Random Team League" },
+      "header": { "typeIndividual": "Singles", "typeTeam": "Teams", "typeRandomTeamLeague": "Random Team League", "scheduleDates": "Match Dates" },
       "simulationConfirm": { "intro": "Running simulation.\n", "existingTeams": "• Using {{count}} registered teams", "existingPlayers": "• Using {{count}} registered players", "virtualPlayers": "• Creating {{count}} virtual participants", "existingReferees": "• Assigning {{count}} registered referees", "virtualReferees": "• Creating 3 virtual referees", "refereeOff": "• Auto referee assignment: OFF", "courtOn": "• Auto court assignment: ON", "courtOff": "• Auto court assignment: OFF", "dataReset": "• Existing match data will be reset", "rulesKept": "• Tournament rules settings will be preserved", "confirmContinue": "\nContinue?" },
       "koreanInput": { "playerNamePlaceholder": "Player name", "genderAriaLabel": "Gender", "genderLabel": "Gender", "genderMale": "M", "genderFemale": "F", "addPlayerAriaLabel": "Add player" },
       "playersTabInline": { "playerNamePlaceholder": "Player name", "playerNameAriaLabel": "Player name", "genderAriaLabel": "Gender", "genderLabel": "Gender", "genderMale": "M", "genderFemale": "F", "addButton": "Add", "addPlayerAriaLabel": "Add player", "bulkAddSummary": "Bulk registration", "bulkAddPlaceholder": "Enter names separated by line breaks\nJohn Smith\nJane Doe\nBob Wilson", "bulkAddAriaLabel": "Player names for bulk registration", "bulkAddButton": "Register {{count}} players", "deletePlayerAriaLabel": "Delete {{name}}", "teamCompositionTitle": "Team Composition ({{count}} teams)", "randomTeamGenerate": "Generate Random Teams", "generating": "Generating...", "randomTeamAriaLabel": "Generate random teams", "addNewTeam": "+ Add New Team", "addNewTeamAriaLabel": "Add new team", "noTeams": "No teams have been created yet.", "teamHeader": "{{name}} ({{count}} members)", "teamHeaderWithCoach": "{{name}} ({{count}} members) / Coach: {{coach}}", "foldButton": "Collapse", "editButton": "Edit", "foldAriaLabel": "Collapse {{name}}", "editAriaLabel": "Edit {{name}}", "deleteButton": "Delete", "deleteAriaLabel": "Delete {{name}}", "removeMemberAriaLabel": "Remove {{name}}", "addMemberPlaceholder": "Please add players.", "addMemberToTeamAriaLabel": "Add player to {{team}}", "teamSettingsHint": "Team settings (leave blank for tournament defaults", "teamSettingsHintDefaults": ": Reserves {{reserves}}, M {{male}} / F {{female}}", "coachLabel": "Coach", "coachPlaceholder": "Coach name", "coachAriaLabel": "{{team}} coach", "reserveCountLabel": "Reserve Players", "reservePlaceholderDefault": "Default: {{value}}", "reservePlaceholderNone": "Not set", "reserveAriaLabel": "{{team}} reserve players", "genderRatioLabel": "Gender Ratio", "maleLabel": "M", "femaleLabel": "F", "genderPlaceholderDefault": "Default: {{value}}", "genderPlaceholderNone": "Not set", "maleAriaLabel": "{{team}} male players", "femaleAriaLabel": "{{team}} female players", "saveSettingsButton": "Save Settings", "saveSettingsAriaLabel": "Save team settings", "genderShortageAlert": "Not enough players for the gender ratio.\nRequired: {{requiredMale}} male, {{requiredFemale}} female\nCurrent: {{currentMale}} male, {{currentFemale}} female", "defaultTeamName": "Team {{idx}}", "deleteTeamConfirm": "Are you sure you want to delete this team?" },

@@ -15,7 +15,7 @@ import {
   createScoreHistoryEntry,
   getMaxServes,
 } from '@shared/utils/scoring';
-import { formatTime, speak } from '@shared/utils/locale';
+import { formatTime, speak, preWarmSpeech } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
@@ -288,6 +288,7 @@ export default function IndividualScoring() {
 
   const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2', withWarmup = false) => {
     if (!match) return;
+    preWarmSpeech();
     const p1Name = match.player1Name ?? t('referee.home.player1Default');
     const p2Name = match.player2Name ?? t('referee.home.player2Default');
     const winnerName = tossWinner === 'player1' ? p1Name : p2Name;
