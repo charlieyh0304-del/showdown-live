@@ -2023,11 +2023,9 @@ export async function executeTool(
 
         if (advanced.length < 2) return JSON.stringify({ error: `진출자 ${advanced.length}명. 최소 2명 필요.` });
 
-        // 진출자를 2의 거듭제곱으로 맞추기 (BYE 없이 정확한 브라켓)
-        // finalsStartRound가 설정되어 있으면 그걸 사용, 아니면 가장 가까운 2의 거듭제곱
-        const configStartRound = (finalsConfig2?.startingRound as number) || 0;
-        const nearestPow2 = Math.pow(2, Math.ceil(Math.log2(advanced.length)));
-        const bracketSize = configStartRound > 0 ? configStartRound : nearestPow2;
+        // 브라켓 크기: 항상 진출자 수에서 가장 가까운 2의 거듭제곱
+        const nearestPow2 = Math.pow(2, Math.ceil(Math.log2(Math.max(2, advanced.length))));
+        const bracketSize = nearestPow2;
 
         // 교차 시드 배치 (A조1 vs G조2, B조1 vs F조2, ...)
         const top = advanced.filter(p => p.rank === 1);
@@ -2861,13 +2859,14 @@ export async function executeTool(
           if (!hasFinals) {
             const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
             const fc = tourData.finalsConfig as Record<string, unknown> | undefined;
+            // rc가 없으면 기본값 true (시뮬레이션은 전체 순위 산출)
             const genR = await executeTool("generate_finals", {
               tournamentId: tid,
               advancePerGroup: (fc?.advancePerGroup as number) || 2,
               wildcardCount: (fc?.wildcardCount as number) || 0,
-              includeThirdPlace: rc?.thirdPlace !== false,
-              includeFifthToEighth: rc?.fifthToEighth === true,
-              includeClassification: rc?.classificationGroups === true,
+              includeThirdPlace: rc ? rc.thirdPlace !== false : true,
+              includeFifthToEighth: rc ? rc.fifthToEighth !== false : true,
+              includeClassification: rc ? rc.classificationGroups === true : true,
             });
             const genP = JSON.parse(genR);
             if (genP.success) {
