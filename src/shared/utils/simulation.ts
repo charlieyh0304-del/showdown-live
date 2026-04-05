@@ -127,34 +127,17 @@ function simulateScoreHistory(
     });
     entryIndex++;
 
-    // 승자 판별: 더 높은 목표 점수를 가진 쪽이 승자
-    const isP1SetWinner = targetP1 > targetP2;
+    // 실시간 득점 시뮬레이션: winScore 도달하면 즉시 세트 종료
+    const winScore = targetP1 > targetP2 ? targetP1 : targetP2;
 
-    while (p1 < targetP1 || p2 < targetP2) {
-      const remainP1 = Math.max(0, targetP1 - p1);
-      const remainP2 = Math.max(0, targetP2 - p2);
-      if (remainP1 <= 0 && remainP2 <= 0) break;
-
-      // 승자의 마지막 득점이 경기 종료점이 되도록:
-      // 승자가 2점 이내로 남고 패자도 아직 남은 점수가 있으면 패자 먼저 득점
-      const winnerRemain = isP1SetWinner ? remainP1 : remainP2;
-      const loserRemain = isP1SetWinner ? remainP2 : remainP1;
-      let scoringPlayer1: boolean;
-      if (winnerRemain > 0 && winnerRemain <= 2 && loserRemain > 0) {
-        scoringPlayer1 = !isP1SetWinner;
-      } else if (remainP1 <= 0) {
-        scoringPlayer1 = false;
-      } else if (remainP2 <= 0) {
-        scoringPlayer1 = true;
-      } else {
-        scoringPlayer1 = Math.random() < remainP1 / (remainP1 + remainP2);
-      }
+    while (p1 < winScore && p2 < winScore) {
       const scoreBefore = { player1: p1, player2: p2 };
 
-      // 득점 선수의 남은 점수에 따라 액션 결정
-      const scorerRemain = scoringPlayer1 ? remainP1 : remainP2;
-      // 골은 항상 +2 (실제 쇼다운 규칙: 골로 11을 넘어도 승리)
-      const isGoal = scorerRemain >= 1 && Math.random() < 0.65;
+      // 득점자 결정 (랜덤)
+      const scoringPlayer1 = Math.random() < 0.5;
+
+      // 액션 결정: 65% 골(+2), 35% 파울(+1)
+      const isGoal = Math.random() < 0.65;
       let actionType: ScoreActionType;
       let points: number;
       let actingPlayer: string;
@@ -192,6 +175,7 @@ function simulateScoreHistory(
         actionType = foul.type;
         points = foul.points;
 
+        // 마스크터치(2점)로 winScore를 넘을 수 있음 → OK (실제 규칙과 동일)
         if (scoringPlayer1) {
           actingPlayer = p2Name;
           scoringName = p1Name;
@@ -297,11 +281,9 @@ function simulateScoreHistory(
       }
     }
 
-    // 골(+2)로 목표를 넘은 경우 실제 최종 점수로 sets 업데이트
-    if (p1 !== targetP1 || p2 !== targetP2) {
-      set.player1Score = p1;
-      set.player2Score = p2;
-    }
+    // 실제 시뮬레이션 점수로 sets 업데이트 (목표 점수와 다를 수 있음)
+    set.player1Score = p1;
+    set.player2Score = p2;
 
     // 세트당 랜덤으로 타임아웃 1회 삽입 (50% 확률, 이 세트 범위 내에서만)
     if (Math.random() < 0.5) {
