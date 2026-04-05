@@ -151,12 +151,9 @@ export function generateMatchHtml(
           const isFoulAction = FOUL_TYPES.has(h.actionType || '');
           const displayName = !isMeta ? escHtml((isFoulAction ? h.actionPlayer : h.scoringPlayer) || '') : '';
           const pts = !isMeta && h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
-          // 서브 기준: 서버 점수를 왼쪽에 표시
-          const isP2Server = h.serverSide === 'player2';
-          const leftScore = !isMeta && h.scoreAfter ? `${isP2Server ? h.scoreAfter.player2 : h.scoreAfter.player1}` : '';
-          const rightScore = !isMeta && h.scoreAfter ? `${isP2Server ? h.scoreAfter.player1 : h.scoreAfter.player2}` : '';
-          const p1s = leftScore;
-          const p2s = rightScore;
+          // 고정 컬럼: 항상 player1 | player2 순서
+          const p1s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player1}` : '';
+          const p2s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player2}` : '';
           const isServeEvent = (h.actionType as string) === 'serve';
           const displayAction = isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : `${displayName} ${action}`;
           return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}${isServeEvent ? ' style="background:#e8f4fd;font-weight:bold"' : ''}>
@@ -168,20 +165,14 @@ export function generateMatchHtml(
           </tr>`;
         }).join('');
 
-        // 세트 첫 서버 결정
-        const firstEntry = sorted.find(h => h.serverSide);
-        const setFirstServer = firstEntry?.serverSide || 'player1';
-        const serverName = setFirstServer === 'player1' ? p1 : p2;
-        const receiverName = setFirstServer === 'player1' ? p2 : p1;
-
         return `<h3>${escHtml(t('common.pdf.setNum'))} ${setNum}</h3>
         <table aria-label="${escHtml(t('common.pdf.playByPlay'))} - ${escHtml(t('common.pdf.setNum'))} ${setNum}">
           <thead><tr>
             <th scope="col">${escHtml(t('common.pdf.time'))}</th>
             <th scope="col">${escHtml(t('common.pdf.action'))}</th>
             <th scope="col">${escHtml(t('common.pdf.pts'))}</th>
-            <th scope="col">${serverName}</th>
-            <th scope="col">${receiverName}</th>
+            <th scope="col">${p1}</th>
+            <th scope="col">${p2}</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
