@@ -2857,8 +2857,16 @@ interface ScheduleTabProps {
   participantCount: number;
 }
 
-function ScheduleTab({ tournament, matches, courts, referees, schedule, setScheduleBulk, updateMatch, updateMatchesBulk, updateScheduleSlot, participantCount }: ScheduleTabProps) {
+function ScheduleTab({ tournament, matches, courts: allCourts, referees, schedule, setScheduleBulk, updateMatch, updateMatchesBulk, updateScheduleSlot, participantCount }: ScheduleTabProps) {
   const { t } = useTranslation();
+  // 대회에 배정된 경기장만 필터 (경기 또는 스케줄에서 사용된 courtId)
+  const courts = useMemo(() => {
+    const usedCourtIds = new Set<string>();
+    for (const m of matches) { if (m.courtId) usedCourtIds.add(m.courtId); }
+    for (const s of schedule) { if (s.courtId) usedCourtIds.add(s.courtId); }
+    if (usedCourtIds.size === 0) return allCourts; // 아직 배정 전이면 전체 표시
+    return allCourts.filter(c => usedCourtIds.has(c.id));
+  }, [allCourts, matches, schedule]);
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
   const [endTime, setEndTime] = useState('19:00');
