@@ -1889,7 +1889,16 @@ export async function executeTool(
                   return sid && sid.includes("finals");
                 });
                 if (!finalsExist) {
-                  const genResult = await executeTool("generate_finals", { tournamentId: tid });
+                  // 대회 설정에서 파라미터 추출
+                  const simFc = tourData.finalsConfig as Record<string, unknown> | undefined;
+                  const genResult = await executeTool("generate_finals", {
+                    tournamentId: tid,
+                    advancePerGroup: (simFc?.advancePerGroup as number) || 2,
+                    wildcardCount: (simFc?.wildcardCount as number) || 0,
+                    includeThirdPlace: true,
+                    includeFifthToEighth: true,
+                    includeClassification: true,
+                  });
                   const genParsed = JSON.parse(genResult);
                   if (genParsed.success) {
                     results.push({ match: "결승 자동 생성", score: "", winner: `${genParsed.matchCount}경기 생성` });
