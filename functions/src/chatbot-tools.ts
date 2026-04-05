@@ -2857,16 +2857,15 @@ export async function executeTool(
           const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
 
           if (!hasFinals) {
-            const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
             const fc = tourData.finalsConfig as Record<string, unknown> | undefined;
-            // rc가 없으면 기본값 true (시뮬레이션은 전체 순위 산출)
+            // 시뮬레이션은 전체 순위 산출: 3/4위, 5-8위, 하위순위 전부 기본 true
             const genR = await executeTool("generate_finals", {
               tournamentId: tid,
               advancePerGroup: (fc?.advancePerGroup as number) || 2,
               wildcardCount: (fc?.wildcardCount as number) || 0,
-              includeThirdPlace: rc ? rc.thirdPlace !== false : true,
-              includeFifthToEighth: rc ? rc.fifthToEighth !== false : true,
-              includeClassification: rc ? rc.classificationGroups === true : true,
+              includeThirdPlace: true,
+              includeFifthToEighth: true,
+              includeClassification: true,
             });
             const genP = JSON.parse(genR);
             if (genP.success) {
