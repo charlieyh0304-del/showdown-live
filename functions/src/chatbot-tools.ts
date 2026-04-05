@@ -1953,9 +1953,9 @@ export async function executeTool(
           await db.ref(`tournaments/${tid}/stages`).set(newStages);
         }
         const advancePerGroup2 = (input.advancePerGroup as number) || (finalsConfig2?.advancePerGroup as number) || 2;
-        const includeThirdPlace2 = input.includeThirdPlace !== false && (rankingConfig2?.thirdPlace !== false);
-        const includeFifthToEighth2 = (input.includeFifthToEighth as boolean) || (rankingConfig2?.fifthToEighth as boolean) || false;
-        const includeClassification2 = (input.includeClassification as boolean) || (rankingConfig2?.classificationGroups as boolean) || false;
+        const includeThirdPlace2 = input.includeThirdPlace !== false;
+        const includeFifthToEighth2 = input.includeFifthToEighth !== false;
+        const includeClassification2 = input.includeClassification !== false;
         const rankingUpTo = (input.rankingUpTo as number) || (rankingConfig2?.rankingUpTo as number) || 0;
 
         // 예선 경기 로드
@@ -1989,7 +1989,17 @@ export async function executeTool(
           }
         }
 
-        const wildcardCount = (input.wildcardCount as number) || (finalsConfig2?.wildcardCount as number) || 0;
+        let wildcardCount = (input.wildcardCount as number) || (finalsConfig2?.wildcardCount as number) || 0;
+
+        // 자동 와일드카드 추론: 조당 진출자 × 조 수가 2의 거듭제곱이 아니면 자동 보충
+        const groupCount2 = gStats.size;
+        const baseAdvance = advancePerGroup2 * groupCount2;
+        if (wildcardCount === 0 && baseAdvance > 0) {
+          const nearestPow = Math.pow(2, Math.ceil(Math.log2(baseAdvance)));
+          if (nearestPow > baseAdvance) {
+            wildcardCount = nearestPow - baseAdvance; // 예: 14→16, 와일드카드=2
+          }
+        }
 
         const advanced: Array<{ id: string; name: string; gid: string; rank: number }> = [];
         const eliminated: Array<{ id: string; name: string; gid: string; rank: number }> = [];
@@ -2001,7 +2011,6 @@ export async function executeTool(
             if (i < advancePerGroup2) {
               advanced.push({ id: p.id, name: p.name, gid, rank: i + 1 });
             } else if (wildcardCount > 0 && i === advancePerGroup2) {
-              // 와일드카드 후보: 각 조의 advancePerGroup+1 위 (예: 3위)
               wildcardCandidates.push({ id: p.id, name: p.name, gid, rank: i + 1, wins: p.wins, sd: p.sd, pd: p.pd });
             } else {
               eliminated.push({ id: p.id, name: p.name, gid, rank: i + 1 });
@@ -2012,8 +2021,8 @@ export async function executeTool(
         // 와일드카드: 전체 조의 차순위 중 성적 상위 M명 추가 진출
         if (wildcardCount > 0 && wildcardCandidates.length > 0) {
           wildcardCandidates.sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd);
-          const wcAdvanced = wildcardCandidates.slice(0, wildcardCount);
-          const wcEliminated = wildcardCandidates.slice(wildcardCount);
+          const wcAdvanced = wildcardCandidates.slice(0, Math.min(wildcardCount, wildcardCandidates.length));
+          const wcEliminated = wildcardCandidates.slice(Math.min(wildcardCount, wildcardCandidates.length));
           for (const wc of wcAdvanced) advanced.push({ id: wc.id, name: wc.name, gid: wc.gid, rank: wc.rank });
           for (const wc of wcEliminated) eliminated.push({ id: wc.id, name: wc.name, gid: wc.gid, rank: wc.rank });
         } else {
@@ -2970,8 +2979,54 @@ export async function executeTool(
           }
         }
 
+        // 7. 최종 전체 순위 산출 (본선 결과 + 순위결정전 결과 기반)
+        const finalRanking: string[] = [];
+        // 결승 경기에서 순위 추출
+        const finalsMatchList = finalM.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|3rd/));
+        // 결승전 → 1위, 2위
+        const finalMatch = finalsMatchList.find(([, m]) => (m.bracketRound as string) === "결승");
+        if (finalMatch) {
+          const [, fm] = finalMatch;
+          const w = fm.winnerId === (fm.player1Id || fm.team1Id) ? (fm.player1Name || fm.team1Name) : (fm.player2Name || fm.team2Name);
+          const l = fm.winnerId === (fm.player1Id || fm.team1Id) ? (fm.player2Name || fm.team2Name) : (fm.player1Name || fm.team1Name);
+          finalRanking.push(`1위: ${w} (우승)`);
+          finalRanking.push(`2위: ${l} (준우승)`);
+        }
+        // 3/4위
+        const thirdMatch = finalsMatchList.find(([, m]) => ((m.stageId as string) || "").includes("3rd") || (m.bracketRound as string) === "3/4위");
+        if (thirdMatch) {
+          const [, tm] = thirdMatch;
+          const w = tm.winnerId === (tm.player1Id || tm.team1Id) ? (tm.player1Name || tm.team1Name) : (tm.player2Name || tm.team2Name);
+          const l = tm.winnerId === (tm.player1Id || tm.team1Id) ? (tm.player2Name || tm.team2Name) : (tm.player1Name || tm.team1Name);
+          finalRanking.push(`3위: ${w}`);
+          finalRanking.push(`4위: ${l}`);
+        }
+        // 순위결정전 결과 (5-8위, 9-16위 등)
+        const classMatches = finalM.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").includes("class"));
+        if (classMatches.length > 0) {
+          // 티어별로 그룹핑
+          const tierMap = new Map<string, Array<{ name: string; wins: number }>>();
+          for (const [, cm] of classMatches) {
+            const label = (cm.roundLabel || cm.bracketRound || "순위결정전") as string;
+            if (!tierMap.has(label)) tierMap.set(label, []);
+            const tier = tierMap.get(label)!;
+            const n1 = (cm.player1Name || cm.team1Name) as string;
+            const n2 = (cm.player2Name || cm.team2Name) as string;
+            let e1 = tier.find(e => e.name === n1);
+            let e2 = tier.find(e => e.name === n2);
+            if (!e1) { e1 = { name: n1, wins: 0 }; tier.push(e1); }
+            if (!e2) { e2 = { name: n2, wins: 0 }; tier.push(e2); }
+            if (cm.winnerId === (cm.player1Id || cm.team1Id)) e1.wins++; else e2.wins++;
+          }
+          for (const [label, entries] of tierMap) {
+            entries.sort((a, b) => b.wins - a.wins);
+            finalRanking.push(`[${label}] ${entries.map((e, i) => `${i + 1}.${e.name}(${e.wins}승)`).join(", ")}`);
+          }
+        }
+
         return JSON.stringify({
           success: true, steps: allSteps, groupRankings, finalsResults, teamRoster,
+          finalRanking: finalRanking.join("\n"),
           totalMatches: finalM.length,
           completedMatches: finalM.filter(([, m]) => m.status === "completed").length,
         });
