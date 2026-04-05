@@ -159,6 +159,34 @@ export const chatbot = onRequest(
         response = await callClaude(anthropicMessages, currentModel);
       }
 
+      // AI가 도구를 호출하지 않고 텍스트만 반환했는데 대회 생성 요청인 경우 재시도
+      const lastUserMsg = messages[messages.length - 1]?.content || "";
+      const isCreateRequest = /대회.*(생성|만들|시작)|생성.*대회/.test(lastUserMsg);
+      if (response.stop_reason === "end_turn" && isCreateRequest && actions.length === 0 && loopCount === 0) {
+        // 강제 재시도: "도구를 호출하세요" 메시지를 추가하여 다시 시도
+        anthropicMessages.push({ role: "assistant", content: response.content });
+        anthropicMessages.push({ role: "user", content: "위 요청을 create_individual_tournament 또는 create_team_league 도구를 호출하여 즉시 실행하세요. 질문하지 마세요." });
+        response = await callClaude(anthropicMessages, currentModel);
+        // 재시도 후 도구 호출 루프
+        while (response.stop_reason === "tool_use" && loopCount < MAX_TOOL_LOOPS) {
+          loopCount++;
+          const toolUseBlocks2 = response.content.filter(
+            (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
+          );
+          const toolResults2: Anthropic.ToolResultBlockParam[] = [];
+          for (const toolUse of toolUseBlocks2) {
+            console.log(`[chatbot] Retry tool call: ${toolUse.name}`, JSON.stringify(toolUse.input));
+            const result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>);
+            console.log(`[chatbot] Retry tool result: ${result.slice(0, 200)}`);
+            actions.push({ tool: toolUse.name, input: toolUse.input as Record<string, unknown>, result });
+            toolResults2.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
+          }
+          anthropicMessages.push({ role: "assistant", content: response.content });
+          anthropicMessages.push({ role: "user", content: toolResults2 });
+          response = await callClaude(anthropicMessages, currentModel);
+        }
+      }
+
       // Extract final text response
       const textBlocks = response.content.filter(
         (b): b is Anthropic.TextBlock => b.type === "text",
