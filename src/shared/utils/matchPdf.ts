@@ -151,17 +151,21 @@ export function generateMatchHtml(
           const isFoulAction = FOUL_TYPES.has(h.actionType || '');
           const displayName = !isMeta ? escHtml((isFoulAction ? h.actionPlayer : h.scoringPlayer) || '') : '';
           const pts = !isMeta && h.points ? (h.points > 0 ? `+${h.points}` : `${h.points}`) : '';
-          // 고정 컬럼: 항상 player1 | player2 순서
-          const p1s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player1}` : '';
-          const p2s = !isMeta && h.scoreAfter ? `${h.scoreAfter.player2}` : '';
+          // 서버:리시버 단일 점수 표시
+          let scoreDisplay = '';
+          if (!isMeta && h.scoreAfter) {
+            const isP2Srv = h.serverSide === 'player2';
+            const srvScore = isP2Srv ? h.scoreAfter.player2 : h.scoreAfter.player1;
+            const rcvScore = isP2Srv ? h.scoreAfter.player1 : h.scoreAfter.player2;
+            scoreDisplay = `${srvScore}:${rcvScore}`;
+          }
           const isServeEvent = (h.actionType as string) === 'serve';
           const displayAction = isMeta ? (h.actionLabel ? escHtml(h.actionLabel) : action) : `${displayName} ${action}`;
           return `<tr${isMeta ? ' style="background:#f9f9f9;color:#666"' : ''}${isServeEvent ? ' style="background:#e8f4fd;font-weight:bold"' : ''}>
             <td>${time}</td>
             <td>${displayAction}</td>
             <td>${pts}</td>
-            <td>${p1s}</td>
-            <td>${p2s}</td>
+            <td style="text-align:center;font-weight:bold">${scoreDisplay}</td>
           </tr>`;
         }).join('');
 
@@ -171,8 +175,7 @@ export function generateMatchHtml(
             <th scope="col">${escHtml(t('common.pdf.time'))}</th>
             <th scope="col">${escHtml(t('common.pdf.action'))}</th>
             <th scope="col">${escHtml(t('common.pdf.pts'))}</th>
-            <th scope="col">${p1}</th>
-            <th scope="col">${p2}</th>
+            <th scope="col">${escHtml(t('common.pdf.scoreServerReceiver'))}</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>`;

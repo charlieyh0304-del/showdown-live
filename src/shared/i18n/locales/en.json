@@ -231,6 +231,7 @@
       "time": "Time",
       "action": "Action",
       "pts": "Pts",
+      "scoreServerReceiver": "Score (Srv:Rcv)",
       "serverScore": "Serve",
       "receiverScore": "Receive",
       "generatedAt": "Generated at",
