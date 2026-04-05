@@ -81,8 +81,10 @@ export const chatbot = onRequest(
       ? TOOL_DEFINITIONS
       : TOOL_DEFINITIONS.filter((t) => READ_ONLY_TOOLS.has(t.name));
 
-    // Retry with model fallback on overload
-    const MODELS = ["claude-haiku-4-5-20251001"];
+    // 역할별 모델 선택: 관리자=Opus(정교한 처리), 관람자/심판=Haiku(빠른 조회)
+    const MODELS = role === "admin"
+      ? ["claude-opus-4-0-20250514", "claude-sonnet-4-6-20250514"]
+      : ["claude-haiku-4-5-20251001"];
     const MAX_RETRIES = 2;
 
     async function callClaude(msgs: Anthropic.MessageParam[], model: string): Promise<Anthropic.Message> {
