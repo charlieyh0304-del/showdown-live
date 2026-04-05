@@ -658,20 +658,42 @@ export async function executeTool(
         const completed = rawList.filter(m => m.status === "completed").length;
         const inProgress = rawList.filter(m => m.status === "in_progress").length;
 
-        // 경기별 핵심 정보만 (토큰 절약)
-        const compact = filtered.slice(0, 50).map(m => {
+        // 경기별 핵심 정보 (조별/본선 구분)
+        const compact = filtered.map(m => {
           const sets = (m.sets || []) as Array<{ player1Score: number; player2Score: number }>;
           const score = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
+          const winner = m.winnerId ? (m.winnerId === (m.player1Id || m.team1Id) ? (m.player1Name || m.team1Name) : (m.player2Name || m.team2Name)) : null;
           return {
-            id: m.id, status: m.status, round: m.round,
+            id: m.id, status: m.status,
             p1: m.player1Name || m.team1Name || "", p2: m.player2Name || m.team2Name || "",
-            score, winnerId: m.winnerId,
+            score, winner: winner || "",
             groupId: m.groupId, stageId: m.stageId,
-            bracketRound: m.bracketRound,
+            bracketRound: m.bracketRound, roundLabel: m.roundLabel,
           };
         });
 
-        return JSON.stringify({ matches: compact, summary: `전체 ${total}경기 (완료 ${completed}, 진행 ${inProgress}, 대기 ${pending})` });
+        // 조별/본선/순위결정전으로 그룹핑
+        const groups: Record<string, typeof compact> = {};
+        const finals: typeof compact = [];
+        const classification: typeof compact = [];
+        for (const m of compact) {
+          const sid = (m.stageId as string) || "";
+          if (sid.includes("finals") || sid.includes("3rd")) {
+            finals.push(m);
+          } else if (sid.includes("class") || sid.includes("ranking")) {
+            classification.push(m);
+          } else if (m.groupId) {
+            if (!groups[m.groupId as string]) groups[m.groupId as string] = [];
+            groups[m.groupId as string].push(m);
+          } else {
+            finals.push(m);
+          }
+        }
+
+        return JSON.stringify({
+          summary: `전체 ${total}경기 (완료 ${completed}, 진행 ${inProgress}, 대기 ${pending})`,
+          groups, finals, classification,
+        });
       }
 
       case "list_courts": {
@@ -2919,9 +2941,9 @@ export async function executeTool(
           return `${header}:\n${tableHeader}\n${separator}\n${rows}`;
         }).join("\n\n");
 
-        // 5. 본선 결과 (서브 기준 점수)
+        // 5. 본선 + 순위결정전 결과
         const finalsResults = finalM
-          .filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8/))
+          .filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8|class/))
           .map(([, m]) => {
             const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
             const winner = m.winnerId === (m.team1Id || m.player1Id) ? n1 : n2;
