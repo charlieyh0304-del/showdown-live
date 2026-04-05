@@ -73,13 +73,13 @@ export default function TournamentDetail() {
   const [simAutoCourt, setSimAutoCourt] = useState(true);
 
   const { tournament, loading: tLoading, updateTournament } = useTournament(id ?? null);
-  const { matches, loading: mLoading, setMatchesBulk, updateMatch, addMatch, deleteMatch } = useMatches(id ?? null);
+  const { matches, loading: mLoading, setMatchesBulk, updateMatch, updateMatchesBulk, addMatch, deleteMatch } = useMatches(id ?? null);
   const { players: globalPlayers, loading: gpLoading } = usePlayers();
   const { players: tournamentPlayers, loading: tpLoading, addPlayer: addTournamentPlayer, deletePlayer: deleteTournamentPlayer, addPlayersFromGlobal } = useTournamentLocalPlayers(id ?? null);
   const { teams, setTeamsBulk } = useTeams(id ?? null);
   const { referees, addReferee, updateReferee } = useReferees();
   const { courts, addCourt } = useCourts();
-  const { schedule, setScheduleBulk } = useSchedule(id ?? null);
+  const { schedule, setScheduleBulk, updateScheduleSlot } = useSchedule(id ?? null);
 
   // 대회 설정에서 기본 참가자 수 추론 (tournament 로드 후 1회) - 빈 값 유지, 힌트만 제공
   useEffect(() => {
@@ -2949,33 +2949,35 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
     setScheduleConflict('');
     setSavingMatchId(matchId);
     try {
-      await updateMatch(matchId, {
+      const matchData: Partial<Match> = {
         scheduledDate: edit.scheduledDate || undefined,
         scheduledTime: edit.scheduledTime || undefined,
         courtId: edit.courtId || undefined,
         courtName: edit.courtName || undefined,
-      });
-      const existingSlots = schedule.map(s => {
-        if (s.matchId === matchId) {
-          return { matchId: s.matchId, courtId: edit.courtId || s.courtId, courtName: edit.courtName || s.courtName, scheduledTime: edit.scheduledTime || s.scheduledTime, scheduledDate: edit.scheduledDate || s.scheduledDate, label: s.label, status: s.status };
-        }
-        return { matchId: s.matchId, courtId: s.courtId, courtName: s.courtName, scheduledTime: s.scheduledTime, scheduledDate: s.scheduledDate, label: s.label, status: s.status };
-      });
-      if (!schedule.find(s => s.matchId === matchId)) {
-        const match = matches.find(m => m.id === matchId);
-        if (match && edit.scheduledTime) {
-          const label = match.type === 'individual'
-            ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
-            : `${match.team1Name ?? ''} vs ${match.team2Name ?? ''}`;
-          existingSlots.push({ matchId, courtId: edit.courtId, courtName: edit.courtName, scheduledTime: edit.scheduledTime, scheduledDate: edit.scheduledDate, label, status: match.status });
-        }
-      }
-      await setScheduleBulk(existingSlots);
+      };
+      // 매치 + 스케줄 슬롯을 동시에 업데이트
+      const match = matches.find(m => m.id === matchId);
+      const existingSlot = schedule.find(s => s.matchId === matchId);
+      const label = match?.type === 'individual'
+        ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
+        : `${match?.team1Name ?? ''} vs ${match?.team2Name ?? ''}`;
+      await Promise.all([
+        updateMatch(matchId, matchData),
+        updateScheduleSlot({
+          matchId,
+          courtId: edit.courtId || existingSlot?.courtId || '',
+          courtName: edit.courtName || existingSlot?.courtName || '',
+          scheduledTime: edit.scheduledTime || existingSlot?.scheduledTime || '',
+          scheduledDate: edit.scheduledDate || existingSlot?.scheduledDate || '',
+          label: existingSlot?.label || label,
+          status: existingSlot?.status || match?.status || 'pending',
+        }),
+      ]);
       setManualEdits(prev => { const next = { ...prev }; delete next[matchId]; return next; });
     } finally {
       setSavingMatchId(null);
     }
-  }, [manualEdits, matches, schedule, setScheduleBulk, updateMatch, checkPlayerTimeConflict]);
+  }, [manualEdits, matches, schedule, updateMatch, updateScheduleSlot, checkPlayerTimeConflict]);
 
   const handleResetSchedule = useCallback(async () => {
     if (!confirm(t('admin.tournamentDetail.scheduleTab.resetConfirm'))) return;
@@ -3097,12 +3099,10 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
       };
 
       let refereeIndex = 0;
+      const batchUpdates: Array<{ matchId: string; data: Partial<Match> }> = [];
       for (const match of targetMatches) {
         const playerIds = getPlayerIds(match);
 
-        // Find the earliest time this match can start:
-        // 1. Court must be free
-        // 2. Both players must have rested (interval minutes since their last match)
         let bestCourtIdx = 0;
         let bestDate = scheduleDate;
         let bestTime = Infinity;
@@ -3112,7 +3112,6 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
           let candidateDate = court.date;
           let candidateTime = skipBreak(court.timeMinutes);
 
-          // Check player rest time
           for (const pid of playerIds) {
             const last = playerLastEnd.get(pid);
             if (last) {
@@ -3127,7 +3126,6 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
 
           candidateTime = skipBreak(candidateTime);
 
-          // Compare: prefer earliest date+time
           const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
           const bestTotal = new Date(bestDate).getTime() + bestTime;
           if (ci === 0 || candidateTotal < bestTotal) {
@@ -3137,7 +3135,6 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
           }
         }
 
-        // If past day end, roll to next day
         if (bestTime >= dayEndMinutes) {
           bestDate = addDays(bestDate, 1);
           bestTime = skipBreak(nextDayStart);
@@ -3166,27 +3163,27 @@ function ScheduleTab({ tournament, matches, courts, referees, schedule, setSched
           courtId: court.courtId,
           courtName: court.courtName,
         };
-        // Auto-assign referee round-robin (only if not already assigned)
         if (!match.refereeId && referees.length > 0) {
           const ref = referees[refereeIndex % referees.length];
           matchUpdate.refereeId = ref.id;
           matchUpdate.refereeName = ref.name;
           refereeIndex++;
         }
-        await updateMatch(match.id, matchUpdate);
+        batchUpdates.push({ matchId: match.id, data: matchUpdate });
 
-        // Update court next available time
         const courtEndTime = bestTime + interval;
         court.date = bestDate;
         court.timeMinutes = courtEndTime >= dayEndMinutes ? (court.date = addDays(bestDate, 1), nextDayStart) : courtEndTime;
 
-        // Update player last end time (uses restInterval for player rest)
         const playerEndTime = bestTime + restInterval;
         const playerEnd = playerEndTime >= dayEndMinutes ? { date: addDays(bestDate, 1), time: nextDayStart } : { date: bestDate, time: playerEndTime };
         for (const pid of playerIds) {
           playerLastEnd.set(pid, playerEnd);
         }
       }
+
+      // 배치 업데이트: 모든 매치를 한번에 저장
+      await updateMatchesBulk(batchUpdates);
 
       // If only assigning unassigned, keep existing schedule slots
       if (onlyUnassigned) {

@@ -433,7 +433,21 @@ export function useMatches(tournamentId: string | null) {
     return ids;
   }, [tournamentId]);
 
-  return { matches: stableMatches, loading, addMatch, updateMatch, deleteMatch, setMatchesBulk };
+  /** Batch update multiple matches at once using multi-path update (no transactions) */
+  const updateMatchesBulk = useCallback(async (updates: Array<{ matchId: string; data: Partial<Match> }>) => {
+    if (!tournamentId || updates.length === 0) return;
+    const now = Date.now();
+    const bulkUpdate: Record<string, unknown> = {};
+    for (const { matchId, data } of updates) {
+      const clean = Object.fromEntries(Object.entries({ ...data, updatedAt: now }).filter(([, v]) => v !== undefined));
+      for (const [field, value] of Object.entries(clean)) {
+        bulkUpdate[`matches/${tournamentId}/${matchId}/${field}`] = value;
+      }
+    }
+    await update(ref(database), bulkUpdate);
+  }, [tournamentId]);
+
+  return { matches: stableMatches, loading, addMatch, updateMatch, updateMatchesBulk, deleteMatch, setMatchesBulk };
 }
 
 // ===== 단일 경기 구독 =====
@@ -666,7 +680,22 @@ export function useSchedule(tournamentId: string | null) {
     await set(ref(database, `schedule/${tournamentId}`), bulkData);
   }, [tournamentId]);
 
-  return { schedule, loading, setScheduleBulk };
+  /** Update or add a single schedule slot by matchId (no full rewrite) */
+  const updateScheduleSlot = useCallback(async (slot: Omit<ScheduleSlot, 'id'>) => {
+    if (!tournamentId) return;
+    // Find existing slot by matchId
+    const existingSlot = schedule.find(s => s.matchId === slot.matchId);
+    if (existingSlot) {
+      // Update in place
+      await update(ref(database, `schedule/${tournamentId}/${existingSlot.id}`), slot);
+    } else {
+      // Add new slot
+      const newRef = push(ref(database, `schedule/${tournamentId}`));
+      await set(newRef, slot);
+    }
+  }, [tournamentId, schedule]);
+
+  return { schedule, loading, setScheduleBulk, updateScheduleSlot };
 }
 
 // ===== 알림 =====

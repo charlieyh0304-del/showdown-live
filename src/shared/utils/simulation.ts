@@ -131,8 +131,8 @@ function simulateScoreHistory(
     const isP1SetWinner = targetP1 > targetP2;
 
     while (p1 < targetP1 || p2 < targetP2) {
-      const remainP1 = targetP1 - p1;
-      const remainP2 = targetP2 - p2;
+      const remainP1 = Math.max(0, targetP1 - p1);
+      const remainP2 = Math.max(0, targetP2 - p2);
       if (remainP1 <= 0 && remainP2 <= 0) break;
 
       // 승자의 마지막 득점이 경기 종료점이 되도록:
@@ -141,7 +141,6 @@ function simulateScoreHistory(
       const loserRemain = isP1SetWinner ? remainP2 : remainP1;
       let scoringPlayer1: boolean;
       if (winnerRemain > 0 && winnerRemain <= 2 && loserRemain > 0) {
-        // 패자를 먼저 득점시켜서 승자의 최종 득점이 마지막이 되도록
         scoringPlayer1 = !isP1SetWinner;
       } else if (remainP1 <= 0) {
         scoringPlayer1 = false;
@@ -154,9 +153,8 @@ function simulateScoreHistory(
 
       // 득점 선수의 남은 점수에 따라 액션 결정
       const scorerRemain = scoringPlayer1 ? remainP1 : remainP2;
-      // 남은 점수가 1이면 골(2점)은 불가 → 파울(1점)만 사용
-      const canGoal = scorerRemain >= 2;
-      const isGoal = canGoal && Math.random() < 0.65;
+      // 골은 항상 +2 (실제 쇼다운 규칙: 골로 11을 넘어도 승리)
+      const isGoal = scorerRemain >= 1 && Math.random() < 0.65;
       let actionType: ScoreActionType;
       let points: number;
       let actingPlayer: string;
@@ -178,7 +176,6 @@ function simulateScoreHistory(
         label = `${actingPlayer} 골`;
       } else {
         // 파울: 상대에게 1점
-        // 부정서브는 서버만 가능하므로 서버가 아닌 선수가 파울할 때는 부정서브 제외
         let foulCandidates = FOUL_ACTIONS;
 
         if (scoringPlayer1) {
@@ -189,11 +186,6 @@ function simulateScoreHistory(
           if (server !== 'player1') {
             foulCandidates = FOUL_ACTIONS.filter(f => f.type !== 'irregular_serve');
           }
-        }
-
-        // 남은 점수가 1이면 마스크터치(2점)도 제외
-        if (scorerRemain < 2) {
-          foulCandidates = foulCandidates.filter(f => f.points <= scorerRemain);
         }
 
         const foul = foulCandidates[Math.floor(Math.random() * foulCandidates.length)];
@@ -303,6 +295,12 @@ function simulateScoreHistory(
           }
         }
       }
+    }
+
+    // 골(+2)로 목표를 넘은 경우 실제 최종 점수로 sets 업데이트
+    if (p1 !== targetP1 || p2 !== targetP2) {
+      set.player1Score = p1;
+      set.player2Score = p2;
     }
 
     // 세트당 랜덤으로 타임아웃 1회 삽입 (50% 확률, 이 세트 범위 내에서만)
