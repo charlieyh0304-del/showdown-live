@@ -474,6 +474,8 @@ export default function TournamentDetail() {
             schedule={schedule}
             setScheduleBulk={setScheduleBulk}
             updateMatch={updateMatch}
+            updateMatchesBulk={updateMatchesBulk}
+            updateScheduleSlot={updateScheduleSlot}
             participantCount={isTeamType ? teams.length : tournamentPlayers.length}
           />
         )}
@@ -2849,10 +2851,12 @@ interface ScheduleTabProps {
   schedule: ScheduleSlot[];
   setScheduleBulk: (slots: Omit<ScheduleSlot, 'id'>[]) => Promise<void>;
   updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
+  updateMatchesBulk: (updates: Array<{ matchId: string; data: Partial<Match> }>) => Promise<void>;
+  updateScheduleSlot: (slot: Omit<ScheduleSlot, 'id'>) => Promise<void>;
   participantCount: number;
 }
 
-function ScheduleTab({ tournament, matches, courts, referees, schedule, setScheduleBulk, updateMatch, participantCount }: ScheduleTabProps) {
+function ScheduleTab({ tournament, matches, courts, referees, schedule, setScheduleBulk, updateMatch, updateMatchesBulk, updateScheduleSlot, participantCount }: ScheduleTabProps) {
   const { t } = useTranslation();
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);

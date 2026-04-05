@@ -1482,9 +1482,17 @@ export async function executeTool(
         const isTeamType = tourData.type === "team" || tourData.type === "randomTeamLeague";
         const teamSettings = tourData.teamMatchSettings as { winScore?: number; setsToWin?: number } | undefined;
         const gameConfig = tourData.gameConfig as { winScore?: number; setsToWin?: number } | undefined;
-        // 팀전: teamMatchSettings 우선, 개인전: gameConfig 우선
-        const winScore = Math.max(4, (input.winScore as number) || (isTeamType ? teamSettings?.winScore : gameConfig?.winScore) || (isTeamType ? 31 : 11));
-        const setsToWin = Math.max(1, (input.setsToWin as number) || (isTeamType ? teamSettings?.setsToWin : gameConfig?.setsToWin) || (isTeamType ? 1 : 2));
+        const finalsConfig = tourData.finalsConfig as { scoringRules?: { winScore?: number; setsToWin?: number }; roundScoringOverride?: { fromRound?: number; scoringRules?: { winScore?: number; setsToWin?: number } } } | undefined;
+        // 예선 기본값
+        const baseWinScore = Math.max(4, (input.winScore as number) || (isTeamType ? teamSettings?.winScore : gameConfig?.winScore) || (isTeamType ? 31 : 11));
+        const baseSetsToWin = Math.max(1, (input.setsToWin as number) || (isTeamType ? teamSettings?.setsToWin : gameConfig?.setsToWin) || (isTeamType ? 1 : 2));
+        // 본선 세트 수 (finalsConfig가 있으면 사용)
+        const finalsWinScore = finalsConfig?.scoringRules?.winScore || baseWinScore;
+        const finalsSetsToWin = finalsConfig?.scoringRules?.setsToWin || baseSetsToWin;
+        // 라운드 오버라이드
+        const overrideFromRound = finalsConfig?.roundScoringOverride?.fromRound || 0;
+        const overrideSetsToWin = finalsConfig?.roundScoringOverride?.scoringRules?.setsToWin || finalsSetsToWin;
+        const overrideWinScore = finalsConfig?.roundScoringOverride?.scoringRules?.winScore || finalsWinScore;
 
         const matchesSnap = await db.ref(`matches/${tid}`).once("value");
         if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
@@ -1520,12 +1528,26 @@ export async function executeTool(
         }
 
         for (const [mid, match] of matchList) {
+          const matchStageId = (match.stageId as string) || "";
+          const isFinals = matchStageId.includes("finals") || matchStageId.includes("ranking") || matchStageId.includes("3rd") || matchStageId.includes("class");
+          // 본선 경기면 본선 세트 수 사용, 라운드 오버라이드 확인
+          const bracketRoundStr = (match.bracketRound as string) || "";
+          const bracketRoundMatch = bracketRoundStr.match(/(\d+)/);
+          const bracketRoundNum = bracketRoundMatch ? parseInt(bracketRoundMatch[1]) : (bracketRoundStr === "결승" ? 2 : 0);
+          let matchWinScore = isFinals ? finalsWinScore : baseWinScore;
+          let matchSetsToWin = isFinals ? finalsSetsToWin : baseSetsToWin;
+          // 라운드 오버라이드: bracketRound가 fromRound 이하면 오버라이드 적용 (16강=16, 8강=8, 4강=4, 결승=2)
+          if (isFinals && overrideFromRound > 0 && bracketRoundNum > 0 && bracketRoundNum <= overrideFromRound) {
+            matchSetsToWin = overrideSetsToWin;
+            matchWinScore = overrideWinScore;
+          }
+
           const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
           let p1Wins = 0;
           let p2Wins = 0;
 
-          while (p1Wins < setsToWin && p2Wins < setsToWin) {
-            const [s1, s2] = simulateSet(winScore);
+          while (p1Wins < matchSetsToWin && p2Wins < matchSetsToWin) {
+            const [s1, s2] = simulateSet(matchWinScore);
             const setWinner = s1 > s2
               ? (match.player1Id || match.team1Id) as string
               : (match.player2Id || match.team2Id) as string;
@@ -1979,17 +2001,28 @@ export async function executeTool(
 
         if (advanced.length < 2) return JSON.stringify({ error: `진출자 ${advanced.length}명. 최소 2명 필요.` });
 
-        // 교차 시드 배치 (A조1 vs H조2, B조1 vs G조2, ...)
+        // 진출자를 2의 거듭제곱으로 맞추기 (BYE 없이 정확한 브라켓)
+        // finalsStartRound가 설정되어 있으면 그걸 사용, 아니면 가장 가까운 2의 거듭제곱
+        const configStartRound = (finalsConfig2?.startingRound as number) || 0;
+        const nearestPow2 = Math.pow(2, Math.ceil(Math.log2(advanced.length)));
+        const bracketSize = configStartRound > 0 ? configStartRound : nearestPow2;
+
+        // 교차 시드 배치 (A조1 vs G조2, B조1 vs F조2, ...)
         const top = advanced.filter(p => p.rank === 1);
         const sec = advanced.filter(p => p.rank === 2);
+        const wildcards = advanced.filter(p => p.rank > 2);
+        // 시드 순서: 1위들 → 2위들 → 와일드카드
+        const seeded = [...top, ...sec, ...wildcards];
+
         const r1: Array<[typeof advanced[0], typeof advanced[0]]> = [];
-        for (let i = 0; i < top.length; i++) {
-          const opp = sec[top.length - 1 - i];
-          if (opp) r1.push([top[i], opp]);
+        const halfBracket = Math.floor(bracketSize / 2);
+        for (let i = 0; i < halfBracket; i++) {
+          const p1 = seeded[i];
+          const p2 = seeded[bracketSize - 1 - i];
+          if (p1 && p2) {
+            r1.push([p1, p2]);
+          }
         }
-        const used = new Set(r1.flatMap(([a, b]) => [a.id, b.id]));
-        const left = advanced.filter(p => !used.has(p.id));
-        for (let i = 0; i < left.length - 1; i += 2) r1.push([left[i], left[i + 1]]);
 
         // 전체 브라켓 생성 (모든 라운드)
         const now2 = Date.now();
@@ -2805,11 +2838,14 @@ export async function executeTool(
 
           if (!hasFinals) {
             const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
+            const fc = tourData.finalsConfig as Record<string, unknown> | undefined;
             const genR = await executeTool("generate_finals", {
               tournamentId: tid,
-              advancePerGroup: ((tourData.finalsConfig as Record<string, unknown>)?.advancePerGroup as number) || 2,
-              includeThirdPlace: true,
-              includeFifthToEighth: rc?.fifthToEighth !== false,
+              advancePerGroup: (fc?.advancePerGroup as number) || 2,
+              wildcardCount: (fc?.wildcardCount as number) || 0,
+              includeThirdPlace: rc?.thirdPlace !== false,
+              includeFifthToEighth: rc?.fifthToEighth === true,
+              includeClassification: rc?.classificationGroups === true,
             });
             const genP = JSON.parse(genR);
             if (genP.success) {
