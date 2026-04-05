@@ -115,22 +115,24 @@ export default function PracticeScoring() {
     warningClearRef.current = setTimeout(() => setTimerWarningText(''), 3000);
   }, []);
 
-  // 30초/15초 안내 (타임아웃) - TimerModal 내부 표시 + TTS
+  // 타임아웃 알림: 개인전 15초만, 팀전 30초+15초
   useEffect(() => {
     if (!timeoutTimer.isRunning || !match.activeTimeout) {
       timerWarningsRef.current.delete('timeout_30');
       timerWarningsRef.current.delete('timeout_15');
       return;
     }
-    if (timeoutTimer.seconds <= 30 && !timerWarningsRef.current.has('timeout_30')) {
-      timerWarningsRef.current.add('timeout_30');
-      showWarning(`30${t('common.time.seconds')}`);
+    if (matchType === 'team') {
+      if (timeoutTimer.seconds <= 30 && !timerWarningsRef.current.has('timeout_30')) {
+        timerWarningsRef.current.add('timeout_30');
+        showWarning(`30${t('common.time.seconds')}`);
+      }
     }
     if (timeoutTimer.seconds <= 15 && !timerWarningsRef.current.has('timeout_15')) {
       timerWarningsRef.current.add('timeout_15');
       showWarning(t('referee.scoring.fifteenSecondsLeft'));
     }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout, showWarning]);
+  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match.activeTimeout, matchType, showWarning]);
 
   // 15초 안내 (사이드 체인지)
   useEffect(() => {
