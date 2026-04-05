@@ -2064,8 +2064,8 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
         );
       })()}
 
-      {/* 조 편성 (조별 예선이 있을 때) */}
-      {tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
+      {/* 조 편성 (조별 예선이 있을 때, 완료 시 숨김) */}
+      {!isCompleted && tournament.qualifyingConfig?.groupCount && tournament.qualifyingConfig.groupCount > 1 && tournamentPlayers.length > 0 && (
         <div className="card space-y-4 mb-4">
           <h3 className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.bracketTab.groupAssignmentTitle')}</h3>
           {isManualMode ? (
