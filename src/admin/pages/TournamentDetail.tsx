@@ -1488,6 +1488,7 @@ interface BracketTabProps {
 
 function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesBulk, updateMatch, addMatch, deleteMatch, updateTournament, referees, courts, isTeamType }: BracketTabProps) {
   const { t } = useTranslation();
+  const isCompleted = tournament.status === 'completed';
   const [generating, setGenerating] = useState(false);
   const [groupAssignment, setGroupAssignment] = useState<StageGroup[]>([]);
   const [groupEditWarning, setGroupEditWarning] = useState(false);
@@ -2716,7 +2717,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {match.status === 'pending' && (
+                  {match.status === 'pending' && !isCompleted && (
                     <button
                       className="text-xs text-blue-400 hover:text-blue-300 border border-blue-600 rounded px-2 py-1"
                       onClick={() => openEditModal(match)}
@@ -2725,7 +2726,7 @@ function BracketTab({ tournament, matches, tournamentPlayers, teams, setMatchesB
                       {t('admin.tournamentDetail.bracketTab.editMatchButton')}
                     </button>
                   )}
-                  {match.status === 'pending' && (
+                  {match.status === 'pending' && !isCompleted && (
                     <button
                       className="text-red-500 hover:text-red-400 font-bold text-lg leading-none px-1"
                       onClick={() => handleDeleteMatch(match.id)}
