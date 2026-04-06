@@ -1910,9 +1910,11 @@ export async function executeTool(
           if (Object.keys(statusBulk).length > 0) await db.ref().update(statusBulk);
 
           // 예선 완료 시 결승 자동 생성 + 시뮬레이션 (풀리그는 결승 없음)
+          // skipAutoGenerate가 true이면 건너뜀 (run_full_simulation에서 직접 처리)
+          const skipAutoGen = (input.skipAutoGenerate as boolean) || false;
           const tourFormat = tourData.format as string || "";
           const isFullLeagueFormat = tourFormat === "full_league" || tourData.formatType === "round_robin";
-          if (!isFullLeagueFormat) {
+          if (!isFullLeagueFormat && !skipAutoGen) {
             const tourStagesTyped = tourData.stages as Array<{ id: string; type?: string }> | undefined;
             const qualifyingStage = tourStagesTyped?.find(s => s.type === "qualifying");
             if (qualifyingStage) {
@@ -1939,7 +1941,7 @@ export async function executeTool(
                   if (genParsed.success) {
                     results.push({ match: "결승 자동 생성", score: "", winner: `${genParsed.matchCount}경기 생성` });
                     // 결승 경기 시뮬레이션
-                    const simResult = await executeTool("simulate_matches", { tournamentId: tid });
+                    const simResult = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
                     const simParsed = JSON.parse(simResult);
                     if (simParsed.success) {
                       results.push({ match: "결승 시뮬레이션", score: "", winner: `${simParsed.count}경기 완료` });
@@ -3076,10 +3078,10 @@ export async function executeTool(
         const simTourFormat = tourData.format as string || "";
         const simIsFullLeague = simTourFormat === "full_league" || tourData.formatType === "round_robin";
 
-        // 1. 리그/예선 시뮬레이션
-        const simResult = await executeTool("simulate_matches", { tournamentId: tid });
+        // 1. 리그/예선 시뮬레이션 (결승 자동 생성 비활성화 — run_full_simulation이 직접 처리)
+        const simResult = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
         const simParsed = JSON.parse(simResult);
-        if (!simParsed.success) return JSON.stringify({ error: `${simIsFullLeague ? "리그" : "예선"} 시뮬레이션 실패: ${simParsed.error}` });
+        if (!simParsed.success && simParsed.count !== 0) return JSON.stringify({ error: `${simIsFullLeague ? "리그" : "예선"} 시뮬레이션 실패: ${simParsed.error}` });
         allSteps.push(`${simIsFullLeague ? "리그" : "예선"} ${simParsed.count}경기 완료`);
 
         // 2. 결승 생성 (풀리그는 결승 없이 리그전만 진행)
@@ -3105,7 +3107,7 @@ export async function executeTool(
               // 반복 시뮬레이션: BYE 전파 + 각 라운드 승자 전파 후 다음 라운드 처리
               let consecutiveZero = 0;
               for (let round = 0; round < 10; round++) {
-                const finSim = await executeTool("simulate_matches", { tournamentId: tid });
+                const finSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
                 const finP = JSON.parse(finSim);
                 if (finP.success && finP.count > 0) {
                   allSteps.push(`본선 라운드${round + 1}: ${finP.count}경기 완료`);
@@ -3123,7 +3125,7 @@ export async function executeTool(
             // 이미 결승이 있으면 미완료 경기 반복 시뮬레이션
             let consecutiveZero2 = 0;
             for (let round = 0; round < 10; round++) {
-              const finSim = await executeTool("simulate_matches", { tournamentId: tid });
+              const finSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
               const finP = JSON.parse(finSim);
               if (finP.success && finP.count > 0) {
                 allSteps.push(`추가 라운드${round + 1}: ${finP.count}경기 완료`);
@@ -3222,7 +3224,7 @@ export async function executeTool(
                 allSteps.push(`5-8위 결정전 ${rmc}경기 생성`);
                 // 시뮬레이션 (준결승 → 5/6위, 7/8위)
                 for (let r = 0; r < 3; r++) {
-                  const rs = await executeTool("simulate_matches", { tournamentId: tid });
+                  const rs = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
                   const rp = JSON.parse(rs);
                   if (rp.success && rp.count > 0) {
                     allSteps.push(`5-8위 라운드${r + 1}: ${rp.count}경기 완료`);
@@ -3305,14 +3307,14 @@ export async function executeTool(
               }
               await db.ref().update(r16Bulk);
               allSteps.push(`9-16위 순위 결정전 ${r16mc}경기 생성`);
-              const r16Sim = await executeTool("simulate_matches", { tournamentId: tid });
+              const r16Sim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
               const r16P = JSON.parse(r16Sim);
               if (r16P.success && r16P.count > 0) allSteps.push(`9-16위: ${r16P.count}경기 완료`);
             }
 
             // 남은 미완료 경기 시뮬레이션 (5/6위, 7/8위 등)
             for (let extra = 0; extra < 3; extra++) {
-              const extraSim = await executeTool("simulate_matches", { tournamentId: tid });
+              const extraSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
               const extraP = JSON.parse(extraSim);
               if (extraP.success && extraP.count > 0) {
                 allSteps.push(`추가 순위결정: ${extraP.count}경기 완료`);

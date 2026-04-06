@@ -164,7 +164,7 @@ export const chatbot = onRequest(
       const isCreateRequest = /대회.*(생성|만들|시작)|생성.*대회|시뮬레이션|경기.*진행/.test(lastUserMsg);
       // AI가 회피 응답("제약", "수동", "불가" 등)을 했는지 감지
       const aiReplyText = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("");
-      const isEvasiveReply = /제약|수동으로|불가능|어렵습니다|지원하지|제한|한계|현재 가능한 방식|시스템 제약/.test(aiReplyText);
+      const isEvasiveReply = /제약|수동으로|불가능|어렵습니다|지원하지|제한|한계|현재 가능한 방식|시스템 제약|옵션 [A-Z]|해결 방안|복잡한|직접 구현|진행할까요|승인해주|확인 사항|확인 필요|다음 단계/.test(aiReplyText);
       if (response.stop_reason === "end_turn" && (isCreateRequest || isEvasiveReply) && actions.length === 0 && loopCount === 0) {
         // 강제 재시도: "도구를 호출하세요" 메시지를 추가하여 다시 시도
         anthropicMessages.push({ role: "assistant", content: response.content });
