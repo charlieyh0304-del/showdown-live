@@ -590,7 +590,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "run_full_simulation",
-    description: "전체 시뮬레이션. tournamentId만 전달하면 자동 처리. 풀리그는 리그전만, 조별리그는 예선→결승까지 진행. 결과에 순위, 본선 결과, 팀 로스터 포함.",
+    description: "전체 시뮬레이션 (완전 자동). tournamentId만 전달하면 예선→본선 16강~결승→3/4위전→5~8위 결정전(8강 패자)→9~16위 순위결정전(16강 패자 라운드로빈)→17~24위, 25~32위 하위순위결정전까지 모든 경기를 자동 생성+시뮬레이션+순위 계산. 수동 추가 불필요. 결과에 전체 순위(1위~최하위), 본선 결과, 조별 순위 포함.",
     input_schema: {
       type: "object" as const,
       properties: {

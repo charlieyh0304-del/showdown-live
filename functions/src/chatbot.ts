@@ -164,10 +164,14 @@ export const chatbot = onRequest(
       const isCreateRequest = /대회.*(생성|만들|시작)|생성.*대회|시뮬레이션|경기.*진행|선수.*참가|조별.*리그/.test(lastUserMsg);
       const EVASIVE_PATTERN = /제약|수동|불가능|어렵|지원하지|한계|시스템.*제약|옵션|해결.*방안|복잡|직접.*구현|진행할까|승인|확인.*사항|확인.*필요|다음.*단계|수동.*구성|표준.*토너먼트/;
 
+      // 실제 생성/시뮬레이션 도구가 호출되었는지 확인 (조회 도구는 제외)
+      const WRITE_TOOLS = new Set(["create_individual_tournament", "create_team_league", "run_full_simulation", "setup_full_tournament"]);
+      const hasWriteAction = actions.some(a => WRITE_TOOLS.has(a.tool));
+
       for (let retryAttempt = 0; retryAttempt < 3; retryAttempt++) {
         const curReplyText = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("");
         const isEvasiveReply = EVASIVE_PATTERN.test(curReplyText);
-        if (response.stop_reason !== "end_turn" || actions.length > 0 || (!isCreateRequest && !isEvasiveReply)) break;
+        if (response.stop_reason !== "end_turn" || hasWriteAction || (!isCreateRequest && !isEvasiveReply)) break;
 
         console.log(`[chatbot] Evasive reply detected (attempt ${retryAttempt + 1}), forcing tool call`);
         anthropicMessages.push({ role: "assistant", content: response.content });
