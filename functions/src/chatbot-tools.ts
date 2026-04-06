@@ -2326,19 +2326,9 @@ export async function executeTool(
                 remaining = remaining.slice(tierSize);
                 tierStart = tierEnd + 1;
               }
-            } else if (includeFifthToEighth2) {
-              // 5-8위는 bracketSize>=8이면 브라켓 패자로 처리됨
-              // 그룹 탈락자는 advCount+1부터 tierSize 단위로 분류
-              let remaining = [...rankableEliminated];
-              let tierStart = advCount + 1;
-              while (remaining.length >= 2) {
-                const tierMembers = remaining.slice(0, tierSize);
-                const tierEnd = tierStart + tierMembers.length - 1;
-                tiers.push({ label: `${tierStart}~${tierEnd}위 순위 결정전`, members: tierMembers });
-                remaining = remaining.slice(tierSize);
-                tierStart = tierEnd + 1;
-              }
             } else if (includeClassification2) {
+              // classificationGroups:true일 때만 그룹 탈락자 순위결정전 생성
+              // (fifthToEighth만 true이면 5-8위는 run_full_simulation에서 처리)
               let remaining = [...rankableEliminated];
               let tierStart = advCount + 1;
               while (remaining.length >= 2) {
