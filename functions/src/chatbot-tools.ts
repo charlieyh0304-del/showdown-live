@@ -3320,6 +3320,120 @@ export async function executeTool(
                 allSteps.push(`추가 순위결정: ${extraP.count}경기 완료`);
               } else break;
             }
+
+            // ===== Phase 2f: 17위~ 그룹 탈락자 순위결정전 직접 생성 =====
+            // generate_finals의 classification 매치에 의존하지 않고 직접 생성
+            const rankCfg = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
+            const doClassification = rankCfg?.classificationGroups || rankCfg?.enabled;
+            if (doClassification) {
+              // 조별 순위에서 본선 미진출자(탈락자) 수집
+              const qualSnap2 = await db.ref(`matches/${tid}`).once("value");
+              if (qualSnap2.exists()) {
+                const allQualM = Object.entries(qualSnap2.val() as Record<string, Record<string, unknown>>);
+
+                // 예선 경기에서 조별 순위 계산
+                const gRankStats = new Map<string, Array<{ id: string; name: string; wins: number; sd: number; pd: number }>>();
+                for (const [, qm] of allQualM) {
+                  if (qm.status !== "completed") continue;
+                  const qSid = (qm.stageId as string) || "";
+                  if (qSid.includes("finals") || qSid.includes("ranking") || qSid.includes("class") || qSid.includes("3rd") || qSid.includes("5to8")) continue;
+                  const qGid = (qm.groupId as string) || "";
+                  if (!qGid) continue;
+                  if (!gRankStats.has(qGid)) gRankStats.set(qGid, []);
+                  const gArr = gRankStats.get(qGid)!;
+                  const qp1 = (qm.player1Id || qm.team1Id) as string;
+                  const qp2 = (qm.player2Id || qm.team2Id) as string;
+                  const qn1 = (qm.player1Name || qm.team1Name) as string;
+                  const qn2 = (qm.player2Name || qm.team2Name) as string;
+                  let e1 = gArr.find(e => e.id === qp1);
+                  let e2 = gArr.find(e => e.id === qp2);
+                  if (!e1) { e1 = { id: qp1, name: qn1, wins: 0, sd: 0, pd: 0 }; gArr.push(e1); }
+                  if (!e2) { e2 = { id: qp2, name: qn2, wins: 0, sd: 0, pd: 0 }; gArr.push(e2); }
+                  if (qm.winnerId === qp1) e1.wins++; else if (qm.winnerId === qp2) e2.wins++;
+                  for (const qs of ((qm.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
+                    if (qs.player1Score > qs.player2Score) { e1.sd++; e2.sd--; } else if (qs.player2Score > qs.player1Score) { e2.sd++; e1.sd--; }
+                    e1.pd += qs.player1Score - qs.player2Score; e2.pd += qs.player2Score - qs.player1Score;
+                  }
+                }
+
+                // 본선 진출자 ID 수집
+                const advancedIds2 = new Set<string>();
+                for (const [, fm] of allQualM) {
+                  const fSid = (fm.stageId as string) || "";
+                  if (!fSid.includes("finals") || fSid.includes("class") || fSid.includes("3rd") || fSid.includes("5to8")) continue;
+                  const fp1 = (fm.player1Id || fm.team1Id) as string;
+                  const fp2 = (fm.player2Id || fm.team2Id) as string;
+                  if (fp1 && fp1 !== "" && fp1 !== "BYE") advancedIds2.add(fp1);
+                  if (fp2 && fp2 !== "" && fp2 !== "BYE") advancedIds2.add(fp2);
+                }
+
+                // 그룹 탈락자 수집 (성적순 정렬)
+                const groupEliminated: Array<{ id: string; name: string; wins: number; sd: number; pd: number }> = [];
+                for (const [, gArr] of [...gRankStats.entries()].sort()) {
+                  const sorted = [...gArr].sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd);
+                  for (const p of sorted) {
+                    if (!advancedIds2.has(p.id)) groupEliminated.push(p);
+                  }
+                }
+
+                // 이미 classification 매치가 있는지 확인
+                const existingClass = allQualM.some(([, cm]) =>
+                  ((cm.stageId as string) || "").includes("class") && !((cm.stageId as string) || "").includes("5to8") && !((cm.stageId as string) || "").includes("9to16")
+                );
+
+                if (groupEliminated.length >= 2 && !existingClass) {
+                  const classGroupSize = (rankCfg?.classificationGroupSize as number) || 8;
+                  const classTierSize = Math.max(4, classGroupSize);
+                  const advCount2 = advancedIds2.size;
+                  const classStageId = (tourData.stages as Array<{ id: string; type: string }>)?.find(s => s.type === "finals")?.id || "finals";
+
+                  let remaining2 = [...groupEliminated];
+                  let tierStart2 = advCount2 + 1;
+                  let tierIdx = 0;
+                  const classBulk: Record<string, unknown> = {};
+                  let classMc = 0;
+
+                  while (remaining2.length >= 2) {
+                    const tierMembers = remaining2.slice(0, classTierSize);
+                    const tierEnd2 = tierStart2 + tierMembers.length - 1;
+                    const tierLabel2 = `${tierStart2}~${tierEnd2}위 순위 결정전`;
+
+                    // 라운드로빈 C(n,2)
+                    let tierMatchCount = 0;
+                    for (let ti = 0; ti < tierMembers.length; ti++) {
+                      for (let tj = ti + 1; tj < tierMembers.length; tj++) {
+                        const cmKey = db.ref(`matches/${tid}`).push().key!;
+                        classBulk[`matches/${tid}/${cmKey}`] = {
+                          tournamentId: tid, type: matchType3, status: "pending",
+                          round: tierMatchCount + 1, stageId: `${classStageId}_class_${tierIdx}`,
+                          bracketRound: tierLabel2, roundLabel: tierLabel2,
+                          player1Id: tierMembers[ti].id, player2Id: tierMembers[tj].id,
+                          player1Name: tierMembers[ti].name, player2Name: tierMembers[tj].name,
+                          ...(isTeam ? { team1Id: tierMembers[ti].id, team2Id: tierMembers[tj].id, team1Name: tierMembers[ti].name, team2Name: tierMembers[tj].name } : {}),
+                          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+                          currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+                          winnerId: null, createdAt: now3 + 500 + classMc,
+                        };
+                        classMc++; tierMatchCount++;
+                      }
+                    }
+
+                    remaining2 = remaining2.slice(classTierSize);
+                    tierStart2 = tierEnd2 + 1;
+                    tierIdx++;
+                  }
+
+                  if (classMc > 0) {
+                    await db.ref().update(classBulk);
+                    allSteps.push(`${advCount2 + 1}위~ 순위결정전 ${classMc}경기 생성`);
+                    // 시뮬레이션
+                    const classSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
+                    const classP = JSON.parse(classSim);
+                    if (classP.success && classP.count > 0) allSteps.push(`하위 순위결정전: ${classP.count}경기 완료`);
+                  }
+                }
+              }
+            }
           }
         }
 

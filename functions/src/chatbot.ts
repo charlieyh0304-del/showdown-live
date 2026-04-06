@@ -202,7 +202,14 @@ export const chatbot = onRequest(
       const textBlocks = response.content.filter(
         (b): b is Anthropic.TextBlock => b.type === "text",
       );
-      const reply = textBlocks.map((b) => b.text).join("\n") || "작업 완료.";
+      let reply = textBlocks.map((b) => b.text).join("\n") || "작업 완료.";
+
+      // 후처리: 도구 호출은 성공했으나 AI가 "시스템 한계" 등 회피 텍스트를 포함한 경우 제거
+      if (hasWriteAction && EVASIVE_PATTERN.test(reply)) {
+        reply = reply.split("\n")
+          .filter(line => !EVASIVE_PATTERN.test(line))
+          .join("\n").trim() || "작업 완료.";
+      }
 
       res.json({ reply, actions });
     } catch (err: unknown) {
