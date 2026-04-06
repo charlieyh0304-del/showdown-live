@@ -1586,21 +1586,6 @@ export async function executeTool(
         const bulk: Record<string, unknown> = {};
         const results: Array<{ match: string; score: string; winner: string }> = [];
 
-        // 포인트 단위 세트 시뮬레이션: winScore 도달 + 2점 차이로 종료 (듀스 정확 반영)
-        function simulateSet(ws: number): [number, number] {
-          const safeWs = Math.max(4, ws);
-          let s1 = 0, s2 = 0;
-          while (true) {
-            // IBSA: 골(+2, 70%) 또는 파울(+1, 30%)
-            const pts = Math.random() < 0.7 ? 2 : 1;
-            if (Math.random() > 0.5) s1 += pts; else s2 += pts;
-            // 세트 종료: winScore 이상 + 2점 차이
-            if ((s1 >= safeWs || s2 >= safeWs) && Math.abs(s1 - s2) >= 2) {
-              return [s1, s2];
-            }
-          }
-        }
-
         for (const [mid, match] of matchList) {
           const matchStageId = (match.stageId as string) || "";
           const isFinals = matchStageId.includes("finals") || matchStageId.includes("ranking") || matchStageId.includes("3rd") || matchStageId.includes("class");
@@ -1616,27 +1601,10 @@ export async function executeTool(
             matchWinScore = overrideWinScore;
           }
 
+          // 세트를 사전 생성하지 않음 — scoreHistory에서 포인트 단위로 직접 진행
           const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
-          let p1Wins = 0;
-          let p2Wins = 0;
-
-          while (p1Wins < matchSetsToWin && p2Wins < matchSetsToWin) {
-            const [s1, s2] = simulateSet(matchWinScore);
-            const setWinner = s1 > s2
-              ? (match.player1Id || match.team1Id) as string
-              : (match.player2Id || match.team2Id) as string;
-            sets.push({ player1Score: s1, player2Score: s2, winnerId: setWinner });
-            if (s1 > s2) p1Wins++;
-            else p2Wins++;
-          }
-
-          const winnerName = p1Wins > p2Wins
-            ? (match.player1Name || match.team1Name || "P1") as string
-            : (match.player2Name || match.team2Name || "P2") as string;
-
-          // 서브 기준 점수 표시 (coinToss 후 계산되므로 여기서는 player1 기준, coinToss 후 재계산)
-          const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
-          results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
+          const p1Id3 = (match.player1Id || match.team1Id) as string;
+          const p2Id3 = (match.player2Id || match.team2Id) as string;
 
           // scoreHistory 생성 — 득점 과정 시뮬레이션
           const p1n = (isTeamType ? (match.team1Name || match.player1Name) : (match.player1Name || match.team1Name) || "P1") as string;
@@ -1710,8 +1678,10 @@ export async function executeTool(
             return `${teamName} ${serveNum}번째 서브`;
           };
 
-          for (let si = 0; si < sets.length; si++) {
-            const s = sets[si];
+          // 세트를 사전 생성하지 않고 포인트 단위로 직접 진행
+          let p1SetWins = 0, p2SetWins = 0;
+          let si = 0;
+          while (p1SetWins < matchSetsToWin && p2SetWins < matchSetsToWin) {
             let sc1 = 0, sc2 = 0;
             let sideChanged = false;
             let timeoutUsed1 = false, timeoutUsed2 = false;
@@ -1725,15 +1695,13 @@ export async function executeTool(
               history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: getServerLabel(), serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
             }
 
-            // 결정세트 판정: 양 선수 세트 승수가 동점일 때만 결정세트
-            let p1WinsBefore = 0, p2WinsBefore = 0;
-            for (let k = 0; k < si; k++) {
-              if (sets[k].player1Score > sets[k].player2Score) p1WinsBefore++; else p2WinsBefore++;
-            }
-            const isDecidingSet = !isTeamMatch && p1WinsBefore === matchSetsToWin - 1 && p2WinsBefore === matchSetsToWin - 1;
+            // 결정세트: 양측 세트 승수가 matchSetsToWin-1로 동점일 때만
+            const isDecidingSet = !isTeamMatch && p1SetWins === matchSetsToWin - 1 && p2SetWins === matchSetsToWin - 1;
             const doSideChange = isTeamMatch || isDecidingSet;
 
-            while (sc1 < s.player1Score || sc2 < s.player2Score) {
+            while (true) {
+              // 세트 종료 조건: winScore 이상 + 2점 차이
+              if ((sc1 >= matchWinScore || sc2 >= matchWinScore) && Math.abs(sc1 - sc2) >= 2) break;
               t += 10000 + Math.floor(Math.random() * 20000);
 
               // 사이드 체인지: 팀전=매 세트 16점, 개인전=결정세트만 6점 (득점 후 체크)
@@ -1779,13 +1747,7 @@ export async function executeTool(
                 // 파울: +1 상대에게
                 if (p1Turn) { sc1 += 1; } else { sc2 += 1; }
               }
-              // 세트 종료 조건 체크: winScore 이상 + 2점 차이
-              if ((sc1 >= matchWinScore || sc2 >= matchWinScore) && Math.abs(sc1 - sc2) >= 2) {
-                // 실제 세트 점수 업데이트 (simulateSet 결과 대신 실시간 점수 사용)
-                s.player1Score = sc1;
-                s.player2Score = sc2;
-                s.winnerId = sc1 > sc2 ? ((match.player1Id || match.team1Id) as string) : ((match.player2Id || match.team2Id) as string);
-              }
+              // (세트 종료는 루프 상단에서 체크)
               const actualPts = p1Turn ? (sc1 - prevSc1) : (sc2 - prevSc2);
               // 골: scorer=득점자, actionPlayer=득점자
               // 파울: scorer=점수받는자(p1Turn), actionPlayer=상대(파울한자)
@@ -1797,11 +1759,6 @@ export async function executeTool(
                 history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorerName, actionPlayer: scorerName, actionType: "goal", actionLabel: `${scorerName} 골 득점`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
               } else {
                 history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorerName, actionPlayer: foulerName, actionType: "foul", actionLabel: `${foulerName} foul`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
-              }
-
-              // 세트 종료 체크 — winScore 이상 + 2점 차이면 즉시 종료
-              if ((sc1 >= matchWinScore || sc2 >= matchWinScore) && Math.abs(sc1 - sc2) >= 2) {
-                break;
               }
 
               // 5. 서브 카운트 증가 + 서버 교대 + 팀전 선수 교체
@@ -1827,17 +1784,21 @@ export async function executeTool(
               }
               if (history.length > 120) break;
             }
+
+            // 세트 종료 → 결과 저장
+            const setWinnerId = sc1 > sc2 ? p1Id3 : p2Id3;
+            sets.push({ player1Score: sc1, player2Score: sc2, winnerId: setWinnerId });
+            if (sc1 > sc2) p1SetWins++; else p2SetWins++;
+            si++;
           }
 
-          // scoreHistory에서 세트 점수가 실시간 업데이트되었으므로 승자 재계산
-          let finalP1Wins = 0, finalP2Wins = 0;
-          for (const st of sets) {
-            if (st.player1Score > st.player2Score) finalP1Wins++;
-            else finalP2Wins++;
-          }
-          const finalWinnerId = finalP1Wins > finalP2Wins
-            ? (match.player1Id || match.team1Id) as string
-            : (match.player2Id || match.team2Id) as string;
+          // 승자 결정
+          const finalWinnerId = p1SetWins > p2SetWins ? p1Id3 : p2Id3;
+          const winnerName = p1SetWins > p2SetWins
+            ? (match.player1Name || match.team1Name || "P1") as string
+            : (match.player2Name || match.team2Name || "P2") as string;
+          const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
+          results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
           bulk[`matches/${tid}/${mid}/sets`] = sets;
           bulk[`matches/${tid}/${mid}/currentSet`] = sets.length - 1;
