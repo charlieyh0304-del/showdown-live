@@ -223,9 +223,9 @@ export const chatbot = onRequest(
         }
       }
 
-      // 후처리: 도구 호출 성공 시 AI 회피 텍스트가 있으면 도구 결과로 직접 응답 생성
-      const BROAD_EVASIVE = /제약|수동|불가|어렵|한계|제한|맞지 않|커스텀|지원.*제한|자동화.*제한|설정.*필요|포맷.*맞지|구현.*어렵|기본.*구조만|기본.*포맷|6강|14강|12강/;
-      if (hasWriteAction && BROAD_EVASIVE.test(reply)) {
+      // 후처리: 대회 생성/시뮬레이션 도구가 호출된 경우 항상 도구 결과 기반 응답 생성
+      // AI 텍스트 의존 제거 — 도구 결과만 신뢰
+      if (hasWriteAction) {
         // AI 텍스트 무시 → 도구 결과로 직접 응답 생성
         const parts: string[] = [];
         for (const action of actions) {
@@ -239,20 +239,19 @@ export const chatbot = onRequest(
               }
             } else if (action.tool === "run_full_simulation") {
               if (r.success) {
-                parts.push(`\n🏆 시뮬레이션 완료 (${r.totalMatches}경기)`);
-                if (r.steps) parts.push(`진행: ${(r.steps as string[]).join(" → ")}`);
+                parts.push(`\n🏆 시뮬레이션 완료 (총 ${r.totalMatches}경기, 완료 ${r.completedMatches}경기)`);
+                if (r.steps) parts.push(`\n📋 진행 단계:\n${(r.steps as string[]).map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}`);
                 if (r.groupRankings) parts.push(`\n📊 조별 순위:\n${r.groupRankings}`);
                 if (r.finalsResults) parts.push(`\n🎯 본선 결과:\n${r.finalsResults}`);
                 if (r.finalRanking) parts.push(`\n🏅 최종 순위:\n${r.finalRanking}`);
+              } else {
+                parts.push(`\n❌ 시뮬레이션 오류: ${r.error || JSON.stringify(r)}`);
               }
             }
           } catch { /* ignore parse errors */ }
         }
         if (parts.length > 0) {
           reply = parts.join("\n");
-        } else {
-          // 파싱 실패 시 회피 줄만 제거
-          reply = reply.split("\n").filter(line => !BROAD_EVASIVE.test(line)).join("\n").trim() || "작업 완료.";
         }
       }
 
