@@ -204,11 +204,37 @@ export const chatbot = onRequest(
       );
       let reply = textBlocks.map((b) => b.text).join("\n") || "작업 완료.";
 
-      // 후처리: 도구 호출은 성공했으나 AI가 "시스템 한계" 등 회피 텍스트를 포함한 경우 제거
-      if (hasWriteAction && EVASIVE_PATTERN.test(reply)) {
-        reply = reply.split("\n")
-          .filter(line => !EVASIVE_PATTERN.test(line))
-          .join("\n").trim() || "작업 완료.";
+      // 후처리: 도구 호출 성공 시 AI 회피 텍스트가 있으면 도구 결과로 직접 응답 생성
+      const BROAD_EVASIVE = /제약|수동|불가|어렵|한계|제한|맞지 않|커스텀|지원.*제한|자동화.*제한|설정.*필요|포맷.*맞지|구현.*어렵|기본.*구조만|기본.*포맷/;
+      if (hasWriteAction && BROAD_EVASIVE.test(reply)) {
+        // AI 텍스트 무시 → 도구 결과로 직접 응답 생성
+        const parts: string[] = [];
+        for (const action of actions) {
+          try {
+            const r = JSON.parse(action.result);
+            if (action.tool === "create_individual_tournament" || action.tool === "create_team_league") {
+              if (r.success) {
+                parts.push(`✅ 대회 생성 완료\n대회 ID: ${r.tournamentId}\n총 ${r.matchCount}경기 (${r.groupCount}개 조)`);
+                if (r.groupAssignment) parts.push(`\n조 배치:\n${r.groupAssignment}`);
+                if (r.scheduleDetail) parts.push(`\n스케줄:\n${(r.scheduleDetail as string).split("\n").slice(0, 10).join("\n")}${(r.scheduleDetail as string).split("\n").length > 10 ? "\n..." : ""}`);
+              }
+            } else if (action.tool === "run_full_simulation") {
+              if (r.success) {
+                parts.push(`\n🏆 시뮬레이션 완료 (${r.totalMatches}경기)`);
+                if (r.steps) parts.push(`진행: ${(r.steps as string[]).join(" → ")}`);
+                if (r.groupRankings) parts.push(`\n📊 조별 순위:\n${r.groupRankings}`);
+                if (r.finalsResults) parts.push(`\n🎯 본선 결과:\n${r.finalsResults}`);
+                if (r.finalRanking) parts.push(`\n🏅 최종 순위:\n${r.finalRanking}`);
+              }
+            }
+          } catch { /* ignore parse errors */ }
+        }
+        if (parts.length > 0) {
+          reply = parts.join("\n");
+        } else {
+          // 파싱 실패 시 회피 줄만 제거
+          reply = reply.split("\n").filter(line => !BROAD_EVASIVE.test(line)).join("\n").trim() || "작업 완료.";
+        }
       }
 
       res.json({ reply, actions });
