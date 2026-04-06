@@ -3020,13 +3020,14 @@ export async function executeTool(
 
           if (!hasFinals) {
             const fc = tourData.finalsConfig as Record<string, unknown> | undefined;
+            const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
             const genR = await executeTool("generate_finals", {
               tournamentId: tid,
               advancePerGroup: (fc?.advancePerGroup as number) || 2,
               wildcardCount: (fc?.wildcardCount as number) || 0,
-              includeThirdPlace: true,
-              includeFifthToEighth: true,
-              includeClassification: true,
+              includeThirdPlace: rc?.thirdPlace !== false,
+              includeFifthToEighth: rc?.fifthToEighth || false,
+              includeClassification: rc?.classificationGroups || false,
             });
             const genP = JSON.parse(genR);
             if (genP.success) {
