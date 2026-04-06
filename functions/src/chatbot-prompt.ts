@@ -51,7 +51,8 @@ export const SYSTEM_PROMPT = `당신은 쇼다운(Showdown) 시각장애인 탁�
 
 [시뮬레이션 규칙]
 1. 사용자가 "시뮬레이션/경기 진행/결과" 명시 시 run_full_simulation 사용.
-2. run_full_simulation은 자동 처리. 별도로 simulate_matches, generate_finals 호출 불필요.
+2. run_full_simulation은 예선→본선→3/4위→5-8위→9-16위→하위순위결정전까지 전부 자동 처리. 별도로 simulate_matches, generate_finals, add_match 호출 불필요.
+3. 사용자가 대회 생성 시 "시뮬레이션 진행"을 요청하면 create_individual_tournament 호출 후 즉시 run_full_simulation도 호출하라. 확인/승인 요청 금지.
 3. 풀리그(full_league)는 결승 없이 리그전만 진행. "예선"이 아니라 "리그"로 표현.
 4. 결과에 포함된 groupRankings(순위)를 마크다운 표 형식 그대로 사용자에게 전달. 순위 번호를 변경하지 마라. 표의 열(|)을 절대 제거하거나 합치지 마라.
 
