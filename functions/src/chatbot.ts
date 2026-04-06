@@ -159,18 +159,22 @@ export const chatbot = onRequest(
         response = await callClaude(anthropicMessages, currentModel);
       }
 
-      // AI가 도구를 호출하지 않고 텍스트만 반환했는데 대회 생성/시뮬레이션 요청인 경우 재시도
+      // AI가 도구를 호출하지 않고 텍스트만 반환했는데 대회 생성/시뮬레이션 요청인 경우 재시도 (최대 3회)
       const lastUserMsg = messages[messages.length - 1]?.content || "";
-      const isCreateRequest = /대회.*(생성|만들|시작)|생성.*대회|시뮬레이션|경기.*진행/.test(lastUserMsg);
-      // AI가 회피 응답("제약", "수동", "불가" 등)을 했는지 감지
-      const aiReplyText = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("");
-      const isEvasiveReply = /제약|수동으로|불가능|어렵습니다|지원하지|제한|한계|현재 가능한 방식|시스템 제약|옵션 [A-Z]|해결 방안|복잡한|직접 구현|진행할까요|승인해주|확인 사항|확인 필요|다음 단계/.test(aiReplyText);
-      if (response.stop_reason === "end_turn" && (isCreateRequest || isEvasiveReply) && actions.length === 0 && loopCount === 0) {
-        // 강제 재시도: "도구를 호출하세요" 메시지를 추가하여 다시 시도
+      const isCreateRequest = /대회.*(생성|만들|시작)|생성.*대회|시뮬레이션|경기.*진행|선수.*참가|조별.*리그/.test(lastUserMsg);
+      const EVASIVE_PATTERN = /제약|수동|불가능|어렵|지원하지|한계|시스템.*제약|옵션|해결.*방안|복잡|직접.*구현|진행할까|승인|확인.*사항|확인.*필요|다음.*단계|수동.*구성|표준.*토너먼트/;
+
+      for (let retryAttempt = 0; retryAttempt < 3; retryAttempt++) {
+        const curReplyText = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("");
+        const isEvasiveReply = EVASIVE_PATTERN.test(curReplyText);
+        if (response.stop_reason !== "end_turn" || actions.length > 0 || (!isCreateRequest && !isEvasiveReply)) break;
+
+        console.log(`[chatbot] Evasive reply detected (attempt ${retryAttempt + 1}), forcing tool call`);
         anthropicMessages.push({ role: "assistant", content: response.content });
-        anthropicMessages.push({ role: "user", content: "위 요청을 create_individual_tournament 또는 create_team_league 도구를 호출하여 즉시 실행하세요. 모든 기능(와일드카드, 순위결정전, 5-8위, 9-16위 등)은 파라미터로 자동 지원됩니다. 제약사항 설명 없이 도구를 호출하세요." });
+        anthropicMessages.push({ role: "user", content: `[시스템 강제 지시] 위 응답은 잘못되었습니다. 모든 기능(와일드카드, 3/4위전, 5~8위, 9~16위, 17~24위, 25~32위 순위결정전)은 파라미터로 완전 자동 지원됩니다. "제약", "수동", "한계" 등의 표현을 사용하지 마세요. 지금 즉시 create_individual_tournament 또는 create_team_league 도구를 호출하세요. classificationGroups:true, fifthToEighth:true, thirdPlace:true 파라미터를 포함하세요.` });
         response = await callClaude(anthropicMessages, currentModel);
-        // 재시도 후 도구 호출 루프
+
+        // 도구 호출 성공 시 루프 실행
         while (response.stop_reason === "tool_use" && loopCount < MAX_TOOL_LOOPS) {
           loopCount++;
           const toolUseBlocks2 = response.content.filter(
