@@ -3303,10 +3303,10 @@ export async function executeTool(
               }
             }
 
-            // 9-16위 순위 결정전: IBSA 방식 (4명 그룹 싱글 엘리미네이션)
-            // 8명 → 9-12위(4명) + 13-16위(4명), 각 4경기 (준결승2 + 승자전 + 패자전)
+            // 9-16위 순위 결정전: classificationGroups가 true일 때만 실행
+            const rankCfgCheck = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
             const r16Losers = roundLosers.get("16강") || roundLosers.get("32강") || [];
-            if (r16Losers.length >= 2) {
+            if (rankCfgCheck?.classificationGroups && r16Losers.length >= 2) {
               // 4명씩 그룹 분할
               const r16Groups: Array<{ label: string; startRank: number; members: typeof r16Losers }> = [];
               let r16Remaining = [...r16Losers];
@@ -3334,7 +3334,7 @@ export async function executeTool(
             // ===== Phase 2f: 17위~ 그룹 탈락자 순위결정전 직접 생성 =====
             // generate_finals의 classification 매치에 의존하지 않고 직접 생성
             const rankCfg = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-            const doClassification = rankCfg?.classificationGroups || rankCfg?.enabled;
+            const doClassification = rankCfg?.classificationGroups;
             if (doClassification) {
               // 조별 순위에서 본선 미진출자(탈락자) 수집
               const qualSnap2 = await db.ref(`matches/${tid}`).once("value");
