@@ -579,6 +579,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
         classificationGroups: { type: "boolean", description: "하위 순위 결정전 (기본 false)" },
         classificationGroupSize: { type: "number", description: "하위 순위 그룹 크기 (기본 4)" },
         rankingUpTo: { type: "number", description: "순위 결정전 범위. N위까지만 순위 산출 (예: 6이면 6위까지만). 0이면 제한 없음." },
+        rankingSetsToWin: { type: "number", description: "순위 결정전 세트 수 (3세트=2, 5세트=3). 미지정 시 예선과 동일" },
+        rankingWinScore: { type: "number", description: "순위 결정전 승리 점수. 미지정 시 예선과 동일" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수명 목록" },
         tiebreakerRules: { type: "array", items: { type: "string", enum: ["head_to_head", "set_difference", "point_difference", "points_for"] }, description: "타이브레이커 우선순위 (기본 ['set_difference','point_difference'])" },
         // 라운드별 세트 오버라이드
@@ -1076,6 +1078,8 @@ export async function executeTool(
               classificationGroups,
               classificationGroupSize,
               ...(rankingUpToInput > 0 ? { rankingUpTo: rankingUpToInput } : {}),
+              ...((input.rankingSetsToWin as number) ? { rankingSetsToWin: input.rankingSetsToWin as number } : {}),
+              ...((input.rankingWinScore as number) ? { rankingWinScore: input.rankingWinScore as number } : {}),
             },
           }),
           stages: isFullLeague
@@ -1592,13 +1596,17 @@ export async function executeTool(
           // 본선 브라켓 경기 vs 순위결정전 구분
           const isMainBracket = matchStageId.includes("finals") && !matchStageId.includes("class") && !matchStageId.includes("5to8") && !matchStageId.includes("9to16") && !matchStageId.includes("3rd");
           // 순위결정전은 예선 설정(3세트) 사용
-          // 본선 브라켓만 본선 세트 수 적용, 순위결정전은 예선 세트 수(3세트)
+          // 순위결정전 세트 수: rankingMatchConfig.rankingSetsToWin (기본=예선 세트 수)
+          const rankingConfig = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
+          const rankingSetsToWin = (rankingConfig?.rankingSetsToWin as number) || baseSetsToWin;
+          const rankingWinScore = (rankingConfig?.rankingWinScore as number) || baseWinScore;
+          // 본선 브라켓: 본선 세트 수 + 오버라이드, 순위결정전: 커스텀 또는 예선 세트 수
           const bracketRoundStr = (match.bracketRound as string) || "";
           const bracketRoundMatch = bracketRoundStr.match(/(\d+)/);
           const bracketRoundNum = bracketRoundMatch ? parseInt(bracketRoundMatch[1]) : (bracketRoundStr === "결승" ? 2 : 0);
-          let matchWinScore = isMainBracket ? finalsWinScore : baseWinScore;
-          let matchSetsToWin = isMainBracket ? finalsSetsToWin : baseSetsToWin;
-          // 라운드 오버라이드: 본선 브라켓에만 적용 (순위결정전 제외)
+          let matchWinScore = isMainBracket ? finalsWinScore : (matchStageId.includes("class") || matchStageId.includes("5to8") || matchStageId.includes("9to16") || matchStageId.includes("3rd") ? rankingWinScore : baseWinScore);
+          let matchSetsToWin = isMainBracket ? finalsSetsToWin : (matchStageId.includes("class") || matchStageId.includes("5to8") || matchStageId.includes("9to16") || matchStageId.includes("3rd") ? rankingSetsToWin : baseSetsToWin);
+          // 라운드 오버라이드: 본선 브라켓에만 적용
           if (isMainBracket && overrideFromRound > 0 && bracketRoundNum > 0 && bracketRoundNum <= overrideFromRound) {
             matchSetsToWin = overrideSetsToWin;
             matchWinScore = overrideWinScore;
@@ -2860,6 +2868,7 @@ export async function executeTool(
           classificationGroups: input.classificationGroups,
           classificationGroupSize: input.classificationGroupSize,
           rankingUpTo: input.rankingUpTo,
+          rankingSetsToWin: input.rankingSetsToWin, rankingWinScore: input.rankingWinScore,
           teamSize: input.teamSize, maxReserves: input.maxReserves,
           genderRatio: input.genderRatio,
           rotationEnabled: input.rotationEnabled, rotationInterval: input.rotationInterval,
@@ -2942,6 +2951,7 @@ export async function executeTool(
           classificationGroups: input.classificationGroups,
           classificationGroupSize: input.classificationGroupSize,
           rankingUpTo: input.rankingUpTo,
+          rankingSetsToWin: input.rankingSetsToWin, rankingWinScore: input.rankingWinScore,
           minLead: input.minLead, deuceEnabled: input.deuceEnabled,
           seeds: input.seeds, tiebreakerRules: input.tiebreakerRules,
           wildcardCount: input.wildcardCount,
