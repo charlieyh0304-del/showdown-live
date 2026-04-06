@@ -1531,7 +1531,57 @@ export async function executeTool(
           return p1 && p2 && p1 !== "" && p2 !== "";
         });
 
-        if (matchList.length === 0) return JSON.stringify({ error: "시뮬레이션할 경기가 없습니다. (선수가 배정된 pending 경기 없음)" });
+        if (matchList.length === 0) {
+          // 시뮬레이션할 경기가 없어도 BYE 경기 승자 전파 시도
+          const byeSnap = await db.ref(`matches/${tid}`).once("value");
+          if (byeSnap.exists()) {
+            const allByeM = byeSnap.val() as Record<string, Record<string, unknown>>;
+            const advanceBulk: Record<string, unknown> = {};
+            let advanceCount = 0;
+            for (const [nextId, nextMatch] of Object.entries(allByeM)) {
+              if (nextMatch.status !== "pending") continue;
+              const src1 = nextMatch.sourceMatch1 as string | undefined;
+              const src2 = nextMatch.sourceMatch2 as string | undefined;
+              if (!src1 && !src2) continue;
+              const isLoser = nextMatch.sourceType === "loser";
+              let changed = false;
+              if (src1 && allByeM[src1]?.status === "completed" && (!nextMatch.player1Id || nextMatch.player1Id === "")) {
+                const srcM = allByeM[src1];
+                const wId = srcM.winnerId as string;
+                const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
+                const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
+                const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+                const useId = isLoser ? lId : wId;
+                const useName = isLoser ? lName : wName;
+                advanceBulk[`matches/${tid}/${nextId}/player1Id`] = useId;
+                advanceBulk[`matches/${tid}/${nextId}/player1Name`] = useName;
+                advanceBulk[`matches/${tid}/${nextId}/team1Id`] = useId;
+                advanceBulk[`matches/${tid}/${nextId}/team1Name`] = useName;
+                changed = true;
+              }
+              if (src2 && allByeM[src2]?.status === "completed" && (!nextMatch.player2Id || nextMatch.player2Id === "")) {
+                const srcM = allByeM[src2];
+                const wId = srcM.winnerId as string;
+                const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
+                const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
+                const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+                const useId = isLoser ? lId : wId;
+                const useName = isLoser ? lName : wName;
+                advanceBulk[`matches/${tid}/${nextId}/player2Id`] = useId;
+                advanceBulk[`matches/${tid}/${nextId}/player2Name`] = useName;
+                advanceBulk[`matches/${tid}/${nextId}/team2Id`] = useId;
+                advanceBulk[`matches/${tid}/${nextId}/team2Name`] = useName;
+                changed = true;
+              }
+              if (changed) advanceCount++;
+            }
+            if (Object.keys(advanceBulk).length > 0) {
+              await db.ref().update(advanceBulk);
+              return JSON.stringify({ success: true, count: 0, message: `BYE 승자 ${advanceCount}건 전파 완료` });
+            }
+          }
+          return JSON.stringify({ success: true, count: 0, message: "시뮬레이션할 경기 없음" });
+        }
 
         const bulk: Record<string, unknown> = {};
         const results: Array<{ match: string; score: string; winner: string }> = [];
@@ -2044,81 +2094,147 @@ export async function executeTool(
         // 브라켓 크기: 항상 진출자 수에서 가장 가까운 2의 거듭제곱
         const nearestPow2 = Math.pow(2, Math.ceil(Math.log2(Math.max(2, advanced.length))));
         const bracketSize = nearestPow2;
+        const isTeamTour2 = tour2.type === "team" || tour2.type === "randomTeamLeague";
 
-        // 교차 시드 배치 (A조1 vs G조2, B조1 vs F조2, ...)
+        // 교차 시드 배치 (같은 조 1라운드 대결 방지)
         const top = advanced.filter(p => p.rank === 1);
         const sec = advanced.filter(p => p.rank === 2);
-        const wildcards = advanced.filter(p => p.rank > 2);
-        // 시드 순서: 1위들 → 2위들 → 와일드카드
-        const seeded = [...top, ...sec, ...wildcards];
+        const wcPlayers = advanced.filter(p => p.rank > 2);
+        // 2위 역순 배치 (A1 vs G2, B1 vs F2 형태를 위해)
+        const secReversed = [...sec].reverse();
+        // 시드 순서: 1위들(정순) → 2위들(역순) → 와일드카드
+        const seeded = [...top, ...secReversed, ...wcPlayers];
 
-        const r1: Array<[typeof advanced[0], typeof advanced[0]]> = [];
+        // 같은 조 대결 방지: fold-pairing 후 같은 조면 인접 슬롯과 스왑
         const halfBracket = Math.floor(bracketSize / 2);
+        const pairIndices: [number, number][] = [];
         for (let i = 0; i < halfBracket; i++) {
-          const p1 = seeded[i];
-          const p2 = seeded[bracketSize - 1 - i];
-          if (p1 && p2) {
-            r1.push([p1, p2]);
+          pairIndices.push([i, bracketSize - 1 - i]);
+        }
+        // 같은 조 충돌 검사 및 스왑
+        for (let i = 0; i < pairIndices.length; i++) {
+          const [idx1, idx2] = pairIndices[i];
+          const p1 = idx1 < seeded.length ? seeded[idx1] : null;
+          const p2 = idx2 < seeded.length ? seeded[idx2] : null;
+          if (p1 && p2 && p1.gid === p2.gid) {
+            // 같은 조 충돌 → 다음 페어의 p2와 스왑 시도
+            for (let j = i + 1; j < pairIndices.length; j++) {
+              const [, swapIdx2] = pairIndices[j];
+              const swapP2 = swapIdx2 < seeded.length ? seeded[swapIdx2] : null;
+              if (swapP2 && swapP2.gid !== p1.gid) {
+                const origP2Gid = p2.gid;
+                const swapTarget1 = pairIndices[j][0] < seeded.length ? seeded[pairIndices[j][0]] : null;
+                if (!swapTarget1 || swapTarget1.gid !== origP2Gid) {
+                  // 스왑 실행
+                  [seeded[idx2], seeded[swapIdx2]] = [seeded[swapIdx2], seeded[idx2]];
+                  break;
+                }
+              }
+            }
           }
         }
 
-        // 전체 브라켓 생성 (모든 라운드)
+        // 전체 브라켓 생성 (BYE 포함, 모든 라운드)
         const now2 = Date.now();
         const bulk2: Record<string, unknown> = {};
         let mc = 0;
         const summary: string[] = [];
 
-        const ROUND_NAMES: Record<number, string> = { 16: "16강", 8: "8강", 4: "4강", 2: "결승" };
+        const ROUND_NAMES: Record<number, string> = { 32: "32강", 16: "16강", 8: "8강", 4: "4강", 2: "결승" };
         const getRoundName = (n: number) => ROUND_NAMES[n] || `${n}강`;
 
         // 라운드별 matchKey 추적 (승자 연결용)
         const roundMatchKeys: string[][] = [];
 
-        // 1라운드: 실제 선수 배치
+        // 1라운드: 모든 브라켓 슬롯 생성 (BYE 포함)
         const r1Keys: string[] = [];
-        summary.push(`\n[ ${getRoundName(r1.length * 2)} ] ${r1.length}경기`);
-        for (let i = 0; i < r1.length; i++) {
-          const [p1, p2] = r1[i];
+        const firstRoundName = getRoundName(bracketSize);
+        let r1RealCount = 0;
+        const r1Summaries: string[] = [];
+        for (let i = 0; i < halfBracket; i++) {
+          const p1 = i < seeded.length ? seeded[i] : null;
+          const p2 = (bracketSize - 1 - i) < seeded.length ? seeded[bracketSize - 1 - i] : null;
           const mKey = db.ref(`matches/${tid}`).push().key!;
-          bulk2[`matches/${tid}/${mKey}`] = {
-            tournamentId: tid, type: tour2.type || "individual", status: "pending",
-            round: 1, bracketPosition: i, bracketRound: getRoundName(r1.length * 2), roundLabel: getRoundName(r1.length * 2),
-            stageId: finalsStageId2,
-            player1Id: p1.id, player2Id: p2.id,
-            player1Name: p1.name, player2Name: p2.name,
-            ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: p1.id, team2Id: p2.id, team1Name: p1.name, team2Name: p2.name } : {}),
-            sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-            currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
-            winnerId: null, createdAt: now2 + mc,
-          };
-          summary.push(`  ${i + 1}. ${p1.name}(${p1.gid}${p1.rank}위) vs ${p2.name}(${p2.gid}${p2.rank}위)`);
+
+          if (p1 && p2) {
+            // 실제 경기
+            bulk2[`matches/${tid}/${mKey}`] = {
+              tournamentId: tid, type: tour2.type || "individual", status: "pending",
+              round: 1, bracketPosition: i, bracketRound: firstRoundName, roundLabel: firstRoundName,
+              stageId: finalsStageId2,
+              player1Id: p1.id, player2Id: p2.id,
+              player1Name: p1.name, player2Name: p2.name,
+              ...(isTeamTour2 ? { team1Id: p1.id, team2Id: p2.id, team1Name: p1.name, team2Name: p2.name } : {}),
+              sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
+              currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
+              winnerId: null, createdAt: now2 + mc,
+            };
+            r1Summaries.push(`  ${r1RealCount + 1}. ${p1.name}(${p1.gid}${p1.rank}위) vs ${p2.name}(${p2.gid}${p2.rank}위)`);
+            r1RealCount++;
+          } else if (p1) {
+            // BYE: p1 자동 진출 (completed 경기로 생성)
+            bulk2[`matches/${tid}/${mKey}`] = {
+              tournamentId: tid, type: tour2.type || "individual", status: "completed",
+              round: 1, bracketPosition: i, bracketRound: firstRoundName, roundLabel: firstRoundName,
+              stageId: finalsStageId2, isBye: true,
+              player1Id: p1.id, player2Id: "BYE",
+              player1Name: p1.name, player2Name: "부전승",
+              ...(isTeamTour2 ? { team1Id: p1.id, team2Id: "BYE", team1Name: p1.name, team2Name: "부전승" } : {}),
+              sets: [], winnerId: p1.id, createdAt: now2 + mc,
+            };
+            r1Summaries.push(`  (부전승) ${p1.name}(${p1.gid}${p1.rank}위)`);
+          } else if (p2) {
+            // BYE: p2 자동 진출
+            bulk2[`matches/${tid}/${mKey}`] = {
+              tournamentId: tid, type: tour2.type || "individual", status: "completed",
+              round: 1, bracketPosition: i, bracketRound: firstRoundName, roundLabel: firstRoundName,
+              stageId: finalsStageId2, isBye: true,
+              player1Id: "BYE", player2Id: p2.id,
+              player1Name: "부전승", player2Name: p2.name,
+              ...(isTeamTour2 ? { team1Id: "BYE", team2Id: p2.id, team1Name: "부전승", team2Name: p2.name } : {}),
+              sets: [], winnerId: p2.id, createdAt: now2 + mc,
+            };
+            r1Summaries.push(`  (부전승) ${p2.name}(${p2.gid}${p2.rank}위)`);
+          } else {
+            // 양쪽 모두 없음 (일어나면 안 되지만 안전장치)
+            bulk2[`matches/${tid}/${mKey}`] = {
+              tournamentId: tid, type: tour2.type || "individual", status: "completed",
+              round: 1, bracketPosition: i, bracketRound: firstRoundName, roundLabel: firstRoundName,
+              stageId: finalsStageId2, isBye: true,
+              player1Id: "BYE", player2Id: "BYE",
+              player1Name: "부전승", player2Name: "부전승",
+              sets: [], winnerId: null, createdAt: now2 + mc,
+            };
+          }
           r1Keys.push(mKey);
           mc++;
         }
+        const byeCount = halfBracket - r1RealCount;
+        summary.push(`\n[ ${firstRoundName} ] ${r1RealCount}경기${byeCount > 0 ? ` (부전승 ${byeCount})` : ""}`);
+        summary.push(...r1Summaries);
         roundMatchKeys.push(r1Keys);
 
-        // 후속 라운드: 빈 슬롯 생성 (8강→4강→결승)
-        let prevCount = r1.length;
+        // 후속 라운드: bracketSize 기반으로 정확한 라운드 수 생성
+        let remainingSlots = halfBracket; // 1라운드 매치 수 (= bracketSize/2)
         let roundNum = 2;
-        while (prevCount > 1) {
-          const nextCount = Math.floor(prevCount / 2);
-          const rName = getRoundName(nextCount * 2 > 2 ? nextCount * 2 : 2);
+        while (remainingSlots > 1) {
+          const nextSlots = Math.floor(remainingSlots / 2);
+          const rName = getRoundName(remainingSlots); // remainingSlots = 이 라운드의 참가자 수
           const rKeys: string[] = [];
-          summary.push(`\n[ ${rName} ] ${nextCount}경기`);
-          for (let i = 0; i < nextCount; i++) {
+          const prevRName = getRoundName(remainingSlots * 2);
+          summary.push(`\n[ ${rName} ] ${nextSlots}경기`);
+          for (let i = 0; i < nextSlots; i++) {
             const mKey = db.ref(`matches/${tid}`).push().key!;
-            const prevRName = getRoundName(prevCount * 2 > 2 ? prevCount * 2 : prevCount);
             bulk2[`matches/${tid}/${mKey}`] = {
               tournamentId: tid, type: tour2.type || "individual", status: "pending",
               round: roundNum, bracketPosition: i, bracketRound: rName, roundLabel: rName,
               stageId: finalsStageId2,
               player1Id: "", player2Id: "",
               player1Name: `${prevRName} 승자${i * 2 + 1}`, player2Name: `${prevRName} 승자${i * 2 + 2}`,
-              ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: `${prevRName} 승자${i * 2 + 1}`, team2Name: `${prevRName} 승자${i * 2 + 2}` } : {}),
+              ...(isTeamTour2 ? { team1Id: "", team2Id: "", team1Name: `${prevRName} 승자${i * 2 + 1}`, team2Name: `${prevRName} 승자${i * 2 + 2}` } : {}),
               sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
               currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
               winnerId: null, createdAt: now2 + mc,
-              // 이전 라운드 매치 참조 (승자 자동 배치용)
               sourceMatch1: roundMatchKeys[roundMatchKeys.length - 1][i * 2],
               sourceMatch2: roundMatchKeys[roundMatchKeys.length - 1][i * 2 + 1],
             };
@@ -2127,19 +2243,19 @@ export async function executeTool(
             mc++;
           }
           roundMatchKeys.push(rKeys);
-          prevCount = nextCount;
+          remainingSlots = nextSlots;
           roundNum++;
         }
 
-        // 3/4위 결정전
-        if (includeThirdPlace2 && r1.length >= 4) {
+        // 3/4위 결정전 (bracketSize >= 4이면 4강이 존재하므로 가능)
+        if (includeThirdPlace2 && bracketSize >= 4) {
           const sfKeys = roundMatchKeys[roundMatchKeys.length - 2]; // 4강 키
           const mKey = db.ref(`matches/${tid}`).push().key!;
           bulk2[`matches/${tid}/${mKey}`] = {
             tournamentId: tid, type: tour2.type || "individual", status: "pending",
             round: roundNum, bracketRound: "3/4위", roundLabel: "3/4위 결정전", stageId: `${finalsStageId2}_3rd`,
             player1Id: "", player2Id: "", player1Name: "4강 패자1", player2Name: "4강 패자2",
-            ...(tour2.type === "team" || tour2.type === "randomTeamLeague" ? { team1Id: "", team2Id: "", team1Name: "4강 패자1", team2Name: "4강 패자2" } : {}),
+            ...(isTeamTour2 ? { team1Id: "", team2Id: "", team1Name: "4강 패자1", team2Name: "4강 패자2" } : {}),
             sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
             currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
             winnerId: null, createdAt: now2 + mc,
@@ -2153,7 +2269,6 @@ export async function executeTool(
         // rankingUpTo > 0이면 해당 순위까지만 순위 결정전 진행
         const doRanking = rankingUpTo > 0 || includeFifthToEighth2 || includeClassification2;
         if (doRanking && eliminated.length >= 2) {
-          const isTeamTour2 = tour2.type === "team" || tour2.type === "randomTeamLeague";
           const elimTeamData = isTeamTour2
             ? await db.ref(`teams/${tid}`).once("value").then(s => s.exists() ? s.val() as Record<string, { memberIds?: string[]; memberNames?: string[]; coachName?: string }> : {})
             : {};
@@ -2888,24 +3003,35 @@ export async function executeTool(
             const genP = JSON.parse(genR);
             if (genP.success) {
               allSteps.push(`본선 ${genP.matchCount}경기 생성`);
-              // 반복 시뮬레이션: 4강→결승 등 sourceMatch 전파 후 새로 채워진 경기까지 처리
-              for (let round = 0; round < 5; round++) {
+              // 반복 시뮬레이션: BYE 전파 + 각 라운드 승자 전파 후 다음 라운드 처리
+              let consecutiveZero = 0;
+              for (let round = 0; round < 10; round++) {
                 const finSim = await executeTool("simulate_matches", { tournamentId: tid });
                 const finP = JSON.parse(finSim);
                 if (finP.success && finP.count > 0) {
                   allSteps.push(`본선 라운드${round + 1}: ${finP.count}경기 완료`);
+                  consecutiveZero = 0;
+                } else if (finP.success) {
+                  // BYE 전파만 수행됨 (count=0) → 한 번 더 시도
+                  consecutiveZero++;
+                  if (consecutiveZero >= 2) break; // 연속 2회 0이면 종료
                 } else {
-                  break; // 더 이상 시뮬레이션할 경기 없음
+                  break;
                 }
               }
             }
           } else {
             // 이미 결승이 있으면 미완료 경기 반복 시뮬레이션
-            for (let round = 0; round < 5; round++) {
+            let consecutiveZero2 = 0;
+            for (let round = 0; round < 10; round++) {
               const finSim = await executeTool("simulate_matches", { tournamentId: tid });
               const finP = JSON.parse(finSim);
               if (finP.success && finP.count > 0) {
                 allSteps.push(`추가 라운드${round + 1}: ${finP.count}경기 완료`);
+                consecutiveZero2 = 0;
+              } else if (finP.success) {
+                consecutiveZero2++;
+                if (consecutiveZero2 >= 2) break;
               } else {
                 break;
               }
@@ -2957,9 +3083,9 @@ export async function executeTool(
           return `${header}:\n${tableHeader}\n${separator}\n${rows}`;
         }).join("\n\n");
 
-        // 5. 본선 + 순위결정전 결과
+        // 5. 본선 + 순위결정전 결과 (BYE 제외)
         const finalsResults = finalM
-          .filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8|class/))
+          .filter(([, m]) => m.status === "completed" && !m.isBye && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8|class/))
           .map(([, m]) => {
             const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
             const winner = m.winnerId === (m.team1Id || m.player1Id) ? n1 : n2;
@@ -2990,8 +3116,10 @@ export async function executeTool(
 
         // 7. 최종 전체 순위 산출 (본선 결과 + 순위결정전 결과 기반)
         const finalRanking: string[] = [];
+        // BYE 경기 제외 (부전승은 순위 계산에서 제외)
+        const nonByeMatches = finalM.filter(([, m]) => !m.isBye);
         // 결승 경기에서 순위 추출
-        const finalsMatchList = finalM.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|3rd/));
+        const finalsMatchList = nonByeMatches.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|3rd/));
         // 결승전 → 1위, 2위
         const finalMatch = finalsMatchList.find(([, m]) => (m.bracketRound as string) === "결승");
         if (finalMatch) {
@@ -3010,26 +3138,44 @@ export async function executeTool(
           finalRanking.push(`3위: ${w}`);
           finalRanking.push(`4위: ${l}`);
         }
-        // 순위결정전 결과 (5-8위, 9-16위 등)
-        const classMatches = finalM.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").includes("class"));
+        // 순위결정전 결과 (5-8위, 9-16위 등) — 절대 순위 번호로 표시
+        const classMatches = nonByeMatches.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").includes("class"));
         if (classMatches.length > 0) {
           // 티어별로 그룹핑
-          const tierMap = new Map<string, Array<{ name: string; wins: number }>>();
+          const tierMap = new Map<string, Array<{ name: string; wins: number; losses: number; sd: number; pd: number }>>();
           for (const [, cm] of classMatches) {
             const label = (cm.roundLabel || cm.bracketRound || "순위결정전") as string;
             if (!tierMap.has(label)) tierMap.set(label, []);
             const tier = tierMap.get(label)!;
             const n1 = (cm.player1Name || cm.team1Name) as string;
             const n2 = (cm.player2Name || cm.team2Name) as string;
+            const id1 = (cm.player1Id || cm.team1Id) as string;
             let e1 = tier.find(e => e.name === n1);
             let e2 = tier.find(e => e.name === n2);
-            if (!e1) { e1 = { name: n1, wins: 0 }; tier.push(e1); }
-            if (!e2) { e2 = { name: n2, wins: 0 }; tier.push(e2); }
-            if (cm.winnerId === (cm.player1Id || cm.team1Id)) e1.wins++; else e2.wins++;
+            if (!e1) { e1 = { name: n1, wins: 0, losses: 0, sd: 0, pd: 0 }; tier.push(e1); }
+            if (!e2) { e2 = { name: n2, wins: 0, losses: 0, sd: 0, pd: 0 }; tier.push(e2); }
+            if (cm.winnerId === id1) { e1.wins++; e2.losses++; } else { e2.wins++; e1.losses++; }
+            for (const s of ((cm.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
+              if (s.player1Score > s.player2Score) { e1.sd++; e2.sd--; } else if (s.player2Score > s.player1Score) { e2.sd++; e1.sd--; }
+              e1.pd += s.player1Score - s.player2Score; e2.pd += s.player2Score - s.player1Score;
+            }
           }
-          for (const [label, entries] of tierMap) {
-            entries.sort((a, b) => b.wins - a.wins);
-            finalRanking.push(`[${label}] ${entries.map((e, i) => `${i + 1}.${e.name}(${e.wins}승)`).join(", ")}`);
+          // 순위결정전 라벨에서 시작 순위 추출하여 절대 순위 부여
+          const tierEntries = [...tierMap.entries()].sort((a, b) => {
+            const aStart = parseInt(a[0].match(/(\d+)/)?.[1] || "999");
+            const bStart = parseInt(b[0].match(/(\d+)/)?.[1] || "999");
+            return aStart - bStart;
+          });
+          for (const [label, entries] of tierEntries) {
+            entries.sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd);
+            const startRank = parseInt(label.match(/(\d+)/)?.[1] || "0");
+            if (startRank > 0) {
+              entries.forEach((e, i) => {
+                finalRanking.push(`${startRank + i}위: ${e.name} (${e.wins}승 ${e.losses}패)`);
+              });
+            } else {
+              finalRanking.push(`[${label}] ${entries.map((e, i) => `${i + 1}.${e.name}(${e.wins}승)`).join(", ")}`);
+            }
           }
         }
 
