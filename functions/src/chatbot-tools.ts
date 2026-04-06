@@ -3084,15 +3084,15 @@ export async function executeTool(
         if (!simParsed.success && simParsed.count !== 0) return JSON.stringify({ error: `${simIsFullLeague ? "리그" : "예선"} 시뮬레이션 실패: ${simParsed.error}` });
         allSteps.push(`${simIsFullLeague ? "리그" : "예선"} ${simParsed.count}경기 완료`);
 
-        // 2. 결승 생성 (풀리그는 결승 없이 리그전만 진행)
+        // 2. 결승 생성 + 시뮬레이션 (풀리그 제외)
         if (!simIsFullLeague) {
+          // 결승이 없으면 생성
           const mSnap = await db.ref(`matches/${tid}`).once("value");
           const allM = mSnap.exists() ? Object.values(mSnap.val() as Record<string, Record<string, unknown>>) : [];
           const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
 
           if (!hasFinals) {
             const fc = tourData.finalsConfig as Record<string, unknown> | undefined;
-            // 시뮬레이션은 전체 순위 산출: 3/4위, 5-8위, 하위순위 전부 기본 true
             const genR = await executeTool("generate_finals", {
               tournamentId: tid,
               advancePerGroup: (fc?.advancePerGroup as number) || 2,
@@ -3103,39 +3103,28 @@ export async function executeTool(
             });
             const genP = JSON.parse(genR);
             if (genP.success) {
-              allSteps.push(`본선 ${genP.matchCount}경기 생성`);
-              // 반복 시뮬레이션: BYE 전파 + 각 라운드 승자 전파 후 다음 라운드 처리
-              let consecutiveZero = 0;
-              for (let round = 0; round < 10; round++) {
-                const finSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
-                const finP = JSON.parse(finSim);
-                if (finP.success && finP.count > 0) {
-                  allSteps.push(`본선 라운드${round + 1}: ${finP.count}경기 완료`);
-                  consecutiveZero = 0;
-                } else if (finP.success) {
-                  // BYE 전파만 수행됨 (count=0) → 한 번 더 시도
-                  consecutiveZero++;
-                  if (consecutiveZero >= 2) break; // 연속 2회 0이면 종료
-                } else {
-                  break;
-                }
-              }
+              allSteps.push(`본선 ${genP.matchCount}경기 생성 (${genP.structure || ""})`);
+            } else {
+              allSteps.push(`본선 생성 오류: ${genP.error || "unknown"}`);
             }
           } else {
-            // 이미 결승이 있으면 미완료 경기 반복 시뮬레이션
-            let consecutiveZero2 = 0;
-            for (let round = 0; round < 10; round++) {
-              const finSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
-              const finP = JSON.parse(finSim);
-              if (finP.success && finP.count > 0) {
-                allSteps.push(`추가 라운드${round + 1}: ${finP.count}경기 완료`);
-                consecutiveZero2 = 0;
-              } else if (finP.success) {
-                consecutiveZero2++;
-                if (consecutiveZero2 >= 2) break;
-              } else {
-                break;
-              }
+            allSteps.push("본선 이미 존재");
+          }
+
+          // 본선 + 분류 경기 반복 시뮬레이션 (hasFinals 여부와 무관하게 항상 실행)
+          let consecutiveZero = 0;
+          for (let round = 0; round < 12; round++) {
+            const finSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true });
+            const finP = JSON.parse(finSim);
+            if (finP.success && finP.count > 0) {
+              allSteps.push(`라운드${round + 1}: ${finP.count}경기 완료`);
+              consecutiveZero = 0;
+            } else if (finP.success) {
+              consecutiveZero++;
+              if (consecutiveZero >= 2) break;
+            } else {
+              consecutiveZero++;
+              if (consecutiveZero >= 2) break;
             }
           }
         }
