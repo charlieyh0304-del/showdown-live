@@ -207,7 +207,7 @@ export const chatbot = onRequest(
       // 자동 시뮬레이션: 대회 생성 후 run_full_simulation이 호출되지 않았고 사용자가 시뮬레이션을 요청한 경우 강제 실행
       const hasCreate = actions.some(a => a.tool === "create_individual_tournament" || a.tool === "create_team_league");
       const hasSim = actions.some(a => a.tool === "run_full_simulation");
-      const userWantsSim = /시뮬레이션|경기.*진행|대회.*완료|결과|순위.*계산/.test(lastUserMsg);
+      const userWantsSim = /시뮬레이션.*진행|시뮬레이션.*해|시뮬레이션.*실행|시뮬레시연|전체.*순위.*계산/.test(lastUserMsg);
       if (hasCreate && !hasSim && userWantsSim) {
         // 대회 생성은 했지만 시뮬레이션을 안 했음 → 강제 실행
         const createAction = actions.find(a => a.tool === "create_individual_tournament" || a.tool === "create_team_league");
