@@ -1589,15 +1589,17 @@ export async function executeTool(
 
         for (const [mid, match] of matchList) {
           const matchStageId = (match.stageId as string) || "";
-          const isFinals = matchStageId.includes("finals") || matchStageId.includes("ranking") || matchStageId.includes("3rd") || matchStageId.includes("class");
-          // 본선 경기면 본선 세트 수 사용, 라운드 오버라이드 확인
+          // 본선 브라켓 경기 vs 순위결정전 구분
+          const isMainBracket = matchStageId.includes("finals") && !matchStageId.includes("class") && !matchStageId.includes("5to8") && !matchStageId.includes("9to16") && !matchStageId.includes("3rd");
+          // 순위결정전은 예선 설정(3세트) 사용
+          // 본선 브라켓만 본선 세트 수 적용, 순위결정전은 예선 세트 수(3세트)
           const bracketRoundStr = (match.bracketRound as string) || "";
           const bracketRoundMatch = bracketRoundStr.match(/(\d+)/);
           const bracketRoundNum = bracketRoundMatch ? parseInt(bracketRoundMatch[1]) : (bracketRoundStr === "결승" ? 2 : 0);
-          let matchWinScore = isFinals ? finalsWinScore : baseWinScore;
-          let matchSetsToWin = isFinals ? finalsSetsToWin : baseSetsToWin;
-          // 라운드 오버라이드: bracketRound가 fromRound 이하면 오버라이드 적용 (16강=16, 8강=8, 4강=4, 결승=2)
-          if (isFinals && overrideFromRound > 0 && bracketRoundNum > 0 && bracketRoundNum <= overrideFromRound) {
+          let matchWinScore = isMainBracket ? finalsWinScore : baseWinScore;
+          let matchSetsToWin = isMainBracket ? finalsSetsToWin : baseSetsToWin;
+          // 라운드 오버라이드: 본선 브라켓에만 적용 (순위결정전 제외)
+          if (isMainBracket && overrideFromRound > 0 && bracketRoundNum > 0 && bracketRoundNum <= overrideFromRound) {
             matchSetsToWin = overrideSetsToWin;
             matchWinScore = overrideWinScore;
           }
