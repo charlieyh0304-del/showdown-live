@@ -3416,70 +3416,39 @@ export async function executeTool(
           }
         }
 
-        // 7. 최종 전체 순위 산출 (본선 결과 + 순위결정전 결과 기반)
+        // 7. 최종 전체 순위 산출 (프론트엔드 calculateIndividualRanking과 동일: 전체 경기 포함)
         const finalRanking: string[] = [];
-        // BYE 경기 제외 (부전승은 순위 계산에서 제외)
-        const nonByeMatches = finalM.filter(([, m]) => !m.isBye);
-        // 결승 경기에서 순위 추출
-        const finalsMatchList = nonByeMatches.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").match(/finals|3rd/));
-        // 결승전 → 1위, 2위
-        const finalMatch = finalsMatchList.find(([, m]) => (m.bracketRound as string) === "결승");
-        if (finalMatch) {
-          const [, fm] = finalMatch;
-          const w = fm.winnerId === (fm.player1Id || fm.team1Id) ? (fm.player1Name || fm.team1Name) : (fm.player2Name || fm.team2Name);
-          const l = fm.winnerId === (fm.player1Id || fm.team1Id) ? (fm.player2Name || fm.team2Name) : (fm.player1Name || fm.team1Name);
-          finalRanking.push(`1위: ${w} (우승)`);
-          finalRanking.push(`2위: ${l} (준우승)`);
-        }
-        // 3/4위
-        const thirdMatch = finalsMatchList.find(([, m]) => ((m.stageId as string) || "").includes("3rd") || (m.bracketRound as string) === "3/4위");
-        if (thirdMatch) {
-          const [, tm] = thirdMatch;
-          const w = tm.winnerId === (tm.player1Id || tm.team1Id) ? (tm.player1Name || tm.team1Name) : (tm.player2Name || tm.team2Name);
-          const l = tm.winnerId === (tm.player1Id || tm.team1Id) ? (tm.player2Name || tm.team2Name) : (tm.player1Name || tm.team1Name);
-          finalRanking.push(`3위: ${w}`);
-          finalRanking.push(`4위: ${l}`);
-        }
-        // 순위결정전 결과 (5-8위, 9-16위 등) — 절대 순위 번호로 표시
-        const classMatches = nonByeMatches.filter(([, m]) => m.status === "completed" && ((m.stageId as string) || "").includes("class"));
-        if (classMatches.length > 0) {
-          // 티어별로 그룹핑
-          const tierMap = new Map<string, Array<{ name: string; wins: number; losses: number; sd: number; pd: number }>>();
-          for (const [, cm] of classMatches) {
-            const label = (cm.roundLabel || cm.bracketRound || "순위결정전") as string;
-            if (!tierMap.has(label)) tierMap.set(label, []);
-            const tier = tierMap.get(label)!;
-            const n1 = (cm.player1Name || cm.team1Name) as string;
-            const n2 = (cm.player2Name || cm.team2Name) as string;
-            const id1 = (cm.player1Id || cm.team1Id) as string;
-            let e1 = tier.find(e => e.name === n1);
-            let e2 = tier.find(e => e.name === n2);
-            if (!e1) { e1 = { name: n1, wins: 0, losses: 0, sd: 0, pd: 0 }; tier.push(e1); }
-            if (!e2) { e2 = { name: n2, wins: 0, losses: 0, sd: 0, pd: 0 }; tier.push(e2); }
-            if (cm.winnerId === id1) { e1.wins++; e2.losses++; } else { e2.wins++; e1.losses++; }
-            for (const s of ((cm.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
-              if (s.player1Score > s.player2Score) { e1.sd++; e2.sd--; } else if (s.player2Score > s.player1Score) { e2.sd++; e1.sd--; }
-              e1.pd += s.player1Score - s.player2Score; e2.pd += s.player2Score - s.player1Score;
-            }
-          }
-          // 순위결정전 라벨에서 시작 순위 추출하여 절대 순위 부여
-          const tierEntries = [...tierMap.entries()].sort((a, b) => {
-            const aStart = parseInt(a[0].match(/(\d+)/)?.[1] || "999");
-            const bStart = parseInt(b[0].match(/(\d+)/)?.[1] || "999");
-            return aStart - bStart;
-          });
-          for (const [label, entries] of tierEntries) {
-            entries.sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd);
-            const startRank = parseInt(label.match(/(\d+)/)?.[1] || "0");
-            if (startRank > 0) {
-              entries.forEach((e, i) => {
-                finalRanking.push(`${startRank + i}위: ${e.name} (${e.wins}승 ${e.losses}패)`);
-              });
-            } else {
-              finalRanking.push(`[${label}] ${entries.map((e, i) => `${i + 1}.${e.name}(${e.wins}승)`).join(", ")}`);
-            }
+        // BYE 경기 제외, 모든 완료된 경기로 통합 순위 계산 (프론트엔드와 동일)
+        const nonByeCompleted = finalM.filter(([, m]) => m.status === "completed" && !m.isBye);
+        const allPlayerStats = new Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>();
+        for (const [, m] of nonByeCompleted) {
+          const id1 = (m.player1Id || m.team1Id) as string;
+          const id2 = (m.player2Id || m.team2Id) as string;
+          const n1 = (m.player1Name || m.team1Name) as string;
+          const n2 = (m.player2Name || m.team2Name) as string;
+          if (!id1 || !id2 || id1 === "BYE" || id2 === "BYE") continue;
+          if (!allPlayerStats.has(id1)) allPlayerStats.set(id1, { name: n1, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
+          if (!allPlayerStats.has(id2)) allPlayerStats.set(id2, { name: n2, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
+          const s1 = allPlayerStats.get(id1)!, s2 = allPlayerStats.get(id2)!;
+          if (m.winnerId === id1) { s1.wins++; s2.losses++; }
+          else if (m.winnerId === id2) { s2.wins++; s1.losses++; }
+          for (const s of ((m.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
+            if (s.player1Score > s.player2Score) { s1.setsWon++; s2.setsLost++; }
+            else if (s.player2Score > s.player1Score) { s2.setsWon++; s1.setsLost++; }
+            s1.pf += s.player1Score; s1.pa += s.player2Score;
+            s2.pf += s.player2Score; s2.pa += s.player1Score;
           }
         }
+        // 승수→세트득실→점수득실 순으로 정렬 (프론트엔드와 동일)
+        const sortedPlayers = [...allPlayerStats.values()].sort((a, b) => {
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          const aSD = a.setsWon - a.setsLost, bSD = b.setsWon - b.setsLost;
+          if (bSD !== aSD) return bSD - aSD;
+          return (b.pf - b.pa) - (a.pf - a.pa);
+        });
+        sortedPlayers.forEach((p, i) => {
+          finalRanking.push(`${i + 1}위: ${p.name} (${p.wins}승 ${p.losses}패, 세트 ${p.setsWon}-${p.setsLost})`);
+        });
 
         return JSON.stringify({
           success: true, steps: allSteps, groupRankings, finalsResults, teamRoster,
