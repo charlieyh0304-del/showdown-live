@@ -204,8 +204,27 @@ export const chatbot = onRequest(
       );
       let reply = textBlocks.map((b) => b.text).join("\n") || "작업 완료.";
 
+      // 자동 시뮬레이션: 대회 생성 후 run_full_simulation이 호출되지 않았고 사용자가 시뮬레이션을 요청한 경우 강제 실행
+      const hasCreate = actions.some(a => a.tool === "create_individual_tournament" || a.tool === "create_team_league");
+      const hasSim = actions.some(a => a.tool === "run_full_simulation");
+      const userWantsSim = /시뮬레이션|경기.*진행|대회.*완료|결과|순위.*계산/.test(lastUserMsg);
+      if (hasCreate && !hasSim && userWantsSim) {
+        // 대회 생성은 했지만 시뮬레이션을 안 했음 → 강제 실행
+        const createAction = actions.find(a => a.tool === "create_individual_tournament" || a.tool === "create_team_league");
+        if (createAction) {
+          try {
+            const createResult = JSON.parse(createAction.result);
+            if (createResult.success && createResult.tournamentId) {
+              console.log(`[chatbot] Auto-running simulation for tournament ${createResult.tournamentId}`);
+              const simResult = await executeTool("run_full_simulation", { tournamentId: createResult.tournamentId });
+              actions.push({ tool: "run_full_simulation", input: { tournamentId: createResult.tournamentId }, result: simResult });
+            }
+          } catch (e2) { console.error("[chatbot] Auto-sim error:", e2); }
+        }
+      }
+
       // 후처리: 도구 호출 성공 시 AI 회피 텍스트가 있으면 도구 결과로 직접 응답 생성
-      const BROAD_EVASIVE = /제약|수동|불가|어렵|한계|제한|맞지 않|커스텀|지원.*제한|자동화.*제한|설정.*필요|포맷.*맞지|구현.*어렵|기본.*구조만|기본.*포맷/;
+      const BROAD_EVASIVE = /제약|수동|불가|어렵|한계|제한|맞지 않|커스텀|지원.*제한|자동화.*제한|설정.*필요|포맷.*맞지|구현.*어렵|기본.*구조만|기본.*포맷|6강|14강|12강/;
       if (hasWriteAction && BROAD_EVASIVE.test(reply)) {
         // AI 텍스트 무시 → 도구 결과로 직접 응답 생성
         const parts: string[] = [];
