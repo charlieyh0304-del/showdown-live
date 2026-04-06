@@ -3511,9 +3511,17 @@ export async function executeTool(
           if (bSD !== aSD) return bSD - aSD;
           return (b.pf - b.pa) - (a.pf - a.pa);
         });
-        sortedPlayers.forEach((p, i) => {
+        // 순위 표시 범위: 대회 설정에 따라 제한
+        const rkCfg = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
+        let maxRankDisplay = 4; // 기본: 결승까지 (1-4위)
+        if (rkCfg?.fifthToEighth) maxRankDisplay = 8;
+        if (rkCfg?.classificationGroups) maxRankDisplay = sortedPlayers.length; // 전체
+        if (rkCfg?.rankingUpTo) maxRankDisplay = rkCfg.rankingUpTo as number;
+        const displayCount = Math.min(maxRankDisplay, sortedPlayers.length);
+        for (let i = 0; i < displayCount; i++) {
+          const p = sortedPlayers[i];
           finalRanking.push(`${i + 1}위: ${p.name} (${p.wins}승 ${p.losses}패, 세트 ${p.setsWon}-${p.setsLost})`);
-        });
+        }
 
         return JSON.stringify({
           success: true, steps: allSteps, groupRankings, finalsResults, teamRoster,
