@@ -548,10 +548,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
         name: { type: "string", description: "대회 이름" },
         date: { type: "string", description: "시작일 YYYY-MM-DD" },
         endDate: { type: "string", description: "종료일 (선택)" },
-        scheduleDates: { type: "array", items: { type: "string" }, description: "경기 진행 날짜 목록 (여러 주에 걸쳐 진행 시). 예: ['2026-04-05','2026-04-12']" },
+        scheduleDates: { type: "array", items: { type: "string" }, description: "경기 진행 날짜 목록 YYYY-MM-DD (여러 주에 걸쳐 진행 시). 예: ['2026-04-05','2026-04-12']. 미지정 시 date부터 연속 날짜" },
         players: { type: "array", items: { type: "object", properties: { name: { type: "string" }, gender: { type: "string" }, club: { type: "string" }, class: { type: "string" } }, required: ["name"] }, description: "선수 목록" },
-        format: { type: "string", enum: ["full_league", "group_knockout"], description: "대회 방식. 풀리그=full_league, 조별리그+결승=group_knockout (기본 group_knockout)" },
-        groupCount: { type: "number", description: "조 수 (풀리그는 1, 조별리그 기본 4)" },
+        format: { type: "string", enum: ["full_league", "group_knockout"], description: "대회 방식. 풀리그(전원 라운드로빈)=full_league, 조별리그+토너먼트=group_knockout (기본 group_knockout)" },
+        groupCount: { type: "number", description: "조 수. 풀리그(full_league)면 무시됨. 조별리그 기본 4" },
         advancePerGroup: { type: "number", description: "조당 본선 진출 수 (기본 2)" },
         wildcardCount: { type: "number", description: "와일드카드 수. 전체 조에서 성적 우수 차순위 N명 추가 진출 (예: 8조×2명+와일드카드1=17명)" },
         courts: { type: "array", items: { type: "string" }, description: "경기장 이름 목록" },
@@ -2397,7 +2397,9 @@ export async function executeTool(
         const interval = (input.intervalMinutes as number) || 30;
         const playerRest = (input.playerRestMinutes as number) || 60;
         const scheduleDate = (input.scheduleDate as string) || new Date().toISOString().split("T")[0];
+        const inputScheduleDates = (input.scheduleDates as string[]) || [];
         const nextDayStart = (input.nextDayStartTime as string) || startTime;
+
         const breakStartStr = input.breakStart as string | undefined;
         const breakEndStr = input.breakEnd as string | undefined;
         const stageFilter = input.stageFilter as string | undefined;
@@ -2421,7 +2423,9 @@ export async function executeTool(
         // 대회의 scheduleDates 확인
         const schedTourSnap = await db.ref(`tournaments/${tid}`).once("value");
         const schedTourData = schedTourSnap.exists() ? schedTourSnap.val() as Record<string, unknown> : {};
-        const scheduleDates: string[] = Array.isArray(schedTourData.scheduleDates) ? schedTourData.scheduleDates as string[] : [];
+        const scheduleDates: string[] = Array.isArray(schedTourData.scheduleDates)
+          ? schedTourData.scheduleDates as string[]
+          : inputScheduleDates;
 
         // scheduleDates가 있으면 다음 날짜를 scheduleDates에서 가져옴
         const getNextScheduleDate = (currentDate: string): string => {
@@ -2894,6 +2898,7 @@ export async function executeTool(
           intervalMinutes: matchDur, playerRestMinutes: matchDur + teamRest,
           ...(input.breakStart ? { breakStart: input.breakStart } : {}),
           ...(input.breakEnd ? { breakEnd: input.breakEnd } : {}),
+          ...(input.scheduleDates ? { scheduleDates: input.scheduleDates } : {}),
         });
         const schedParsed = JSON.parse(schedResult);
         if (schedParsed.success) steps.push(`스케줄: ${schedParsed.summary}`);
@@ -2966,6 +2971,7 @@ export async function executeTool(
           intervalMinutes: matchDur, playerRestMinutes: matchDur + pRest,
           ...(input.breakStart ? { breakStart: input.breakStart } : {}),
           ...(input.breakEnd ? { breakEnd: input.breakEnd } : {}),
+          ...(input.scheduleDates ? { scheduleDates: input.scheduleDates } : {}),
         });
         const itSchedP = JSON.parse(itSched);
         if (itSchedP.success) steps.push(`스케줄: ${itSchedP.summary}`);

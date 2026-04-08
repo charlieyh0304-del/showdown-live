@@ -4458,6 +4458,31 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   const { t } = useTranslation();
   const [copySuccess, setCopySuccess] = useState(false);
   const completedMatches = matches.filter(m => m.status === 'completed');
+
+  // 본선/순위결정전에 참가한 인원만 최종 순위로 인정 (예: 5-8위전까지만 → 9위 이하 숨김)
+  // 본선/순위결정전이 없으면(풀리그 등) 전체 표시
+  const finalsParticipantIds = (() => {
+    const ids = new Set<string>();
+    for (const m of matches) {
+      const isFinals = (m.stageId?.includes('finals') || m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전'));
+      if (!isFinals) continue;
+      const a = m.player1Id || m.team1Id;
+      const b = m.player2Id || m.team2Id;
+      if (a) ids.add(a);
+      if (b) ids.add(b);
+    }
+    return ids;
+  })();
+  const hasFinalsStage = finalsParticipantIds.size > 0;
+  // 본선 진출자만 순위 산출(1..k), 미진출자는 rank=0(미산출)으로 두고 뒤에 배치
+  const assignRanks = <T extends { rank: number }>(arr: T[], idOf: (r: T) => string): T[] => {
+    if (!hasFinalsStage) return arr;
+    const ranked = arr.filter(r => finalsParticipantIds.has(idOf(r)));
+    const unranked = arr.filter(r => !finalsParticipantIds.has(idOf(r)));
+    ranked.forEach((r, i) => { r.rank = i + 1; });
+    unranked.forEach(r => { r.rank = 0; });
+    return [...ranked, ...unranked];
+  };
   const totalPoints = completedMatches.reduce((sum, m) => {
     return sum + (m.sets || []).reduce((s, set) => s + set.player1Score + set.player2Score, 0);
   }, 0);
@@ -4482,14 +4507,14 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
     lines.push('');
 
     if (isTeamType) {
-      const teamRankings = calculateTeamRanking(matches);
+      const teamRankings = assignRanks(calculateTeamRanking(matches), r => r.teamId);
       teamRankings.forEach(r => {
-        lines.push(`${r.rank}: ${r.teamName || r.teamId} (${r.wins}W ${r.losses}L, ${formatDiff(r.pointsFor - r.pointsAgainst)})`);
+        lines.push(`${r.rank > 0 ? r.rank : '—'}: ${r.teamName || r.teamId} (${r.wins}W ${r.losses}L, ${formatDiff(r.pointsFor - r.pointsAgainst)})`);
       });
     } else {
-      const indivRankings = calculateIndividualRanking(matches);
+      const indivRankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
       indivRankings.forEach(r => {
-        lines.push(`${r.rank}: ${r.playerName || r.playerId} (${r.wins}W ${r.losses}L)`);
+        lines.push(`${r.rank > 0 ? r.rank : '—'}: ${r.playerName || r.playerId} (${r.wins}W ${r.losses}L)`);
       });
     }
 
@@ -4536,7 +4561,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   );
 
   if (isTeamType) {
-    const rankings = calculateTeamRanking(matches);
+    const rankings = assignRanks(calculateTeamRanking(matches), r => r.teamId);
     return (
       <div className="space-y-6">
         {exportButtons}
@@ -4572,8 +4597,8 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
               </thead>
               <tbody>
                 {rankings.map(r => (
-                  <tr key={r.teamId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
-                    <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
+                  <tr key={r.teamId} className={r.rank > 0 && r.rank <= 3 ? 'bg-gray-800' : ''}>
+                    <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank > 0 ? r.rank : '—'}</td>
                     <td className="border border-gray-600 p-3 font-semibold">{r.teamName}</td>
                     <td className="border border-gray-600 p-3 text-center">{r.played}</td>
                     <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
@@ -4614,7 +4639,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
     );
   }
 
-  const rankings = calculateIndividualRanking(matches);
+  const rankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
   return (
     <div className="space-y-6">
       {exportButtons}
@@ -4652,8 +4677,8 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
             </thead>
             <tbody>
               {rankings.map(r => (
-                <tr key={r.playerId} className={r.rank <= 3 ? 'bg-gray-800' : ''}>
-                  <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank}</td>
+                <tr key={r.playerId} className={r.rank > 0 && r.rank <= 3 ? 'bg-gray-800' : ''}>
+                  <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank > 0 ? r.rank : '—'}</td>
                   <td className="border border-gray-600 p-3 font-semibold">{r.playerName}</td>
                   <td className="border border-gray-600 p-3 text-center">{r.played}</td>
                   <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
