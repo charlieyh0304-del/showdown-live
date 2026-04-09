@@ -7,6 +7,7 @@ admin.initializeApp();
 const db = admin.database();
 
 export { chatbot } from "./chatbot";
+export { verifyAdminPin, verifyRefereePin } from "./handlers/auth";
 
 setGlobalOptions({ region: "us-central1" });
 
