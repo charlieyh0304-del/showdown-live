@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ref, onValue, set, remove, push } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { hashPin, verifyPin } from '@shared/utils/crypto';
+import { hashPinWithSalt, generateSalt, verifyPin } from '@shared/utils/crypto';
 import { useAuth } from '@shared/hooks/useAuth';
 import { formatDate } from '@shared/utils/locale';
 import type { Admin } from '@shared/types';
@@ -132,7 +132,7 @@ export default function AdminSettings() {
         setChangePinError(t('admin.settings.currentPinIncorrect'));
         return;
       }
-      const hashed = await hashPin(newPin);
+      const hashed = await hashPinWithSalt(newPin, generateSalt());
       await set(ref(database, `admins/${session.adminId}/pin`), hashed);
     } else {
       // 레거시 단일 관리자
@@ -144,7 +144,7 @@ export default function AdminSettings() {
           return;
         }
       }
-      const hashed = await hashPin(newPin);
+      const hashed = await hashPinWithSalt(newPin, generateSalt());
       await set(ref(database, 'config/adminPin'), hashed);
     }
 
@@ -174,7 +174,7 @@ export default function AdminSettings() {
       return;
     }
 
-    const hashed = await hashPin(newAdminPin);
+    const hashed = await hashPinWithSalt(newAdminPin, generateSalt());
     const newAdmin: Omit<Admin, 'id'> = {
       name: newAdminName.trim(),
       pin: hashed,

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useReferees } from '@shared/hooks/useFirebase';
-import { hashPin } from '@shared/utils/crypto';
+import { hashPinWithSalt, generateSalt } from '@shared/utils/crypto';
 import { useFocusTrap } from '@referee/hooks/useFocusTrap';
 import type { Referee } from '@shared/types';
 
@@ -78,7 +78,7 @@ export default function RefereeManagement() {
     setSaving(true);
     setError('');
     try {
-      const hashedPin = form.pin ? await hashPin(form.pin) : undefined;
+      const hashedPin = form.pin ? await hashPinWithSalt(form.pin, generateSalt()) : undefined;
       if (modalMode === 'edit' && editId) {
         const updateData: Partial<Referee> = {
           name: form.name.trim(),
