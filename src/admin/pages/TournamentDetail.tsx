@@ -4639,7 +4639,17 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
     );
   }
 
-  const rankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
+  const allRankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
+  // 대회 설정에 따라 표시 범위 제한
+  const rankCfg = tournament.rankingMatchConfig as { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } | undefined;
+  let maxRank = allRankings.length; // 기본: 전체
+  if (rankCfg) {
+    if (rankCfg.classificationGroups) maxRank = allRankings.length;
+    else if (rankCfg.fifthToEighth) maxRank = 8;
+    else if (rankCfg.thirdPlace) maxRank = 4;
+    if (rankCfg.rankingUpTo && rankCfg.rankingUpTo > 0) maxRank = rankCfg.rankingUpTo;
+  }
+  const rankings = allRankings.slice(0, maxRank);
   return (
     <div className="space-y-6">
       {exportButtons}

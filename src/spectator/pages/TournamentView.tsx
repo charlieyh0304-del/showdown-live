@@ -403,7 +403,7 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
         )}
         {viewTab === 'standings' && (
           <>
-            <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} />
+            <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} tournament={tournament} />
             {hasGroupStage && (
               <div style={{ marginTop: '1.5rem' }}>
                 <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} />
@@ -1935,12 +1935,14 @@ function RankingTab({
   isFavorite,
   onSelectPlayer,
   stageFilter,
+  tournament,
 }: {
   matches: Match[];
   tournamentType: string;
   isFavorite: (id: string) => boolean;
   onSelectPlayer: (name: string) => void;
   stageFilter: 'all' | 'qualifying' | 'finals' | 'ranking';
+  tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
 }) {
   if (stageFilter === 'qualifying') {
     return (
@@ -1965,7 +1967,7 @@ function RankingTab({
   return (
     <div>
       <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
-      <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} />
+      <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} tournament={tournament} />
     </div>
   );
 }
@@ -2008,13 +2010,25 @@ function IndividualRankingTable({
   matches,
   isFavorite,
   onSelectPlayer,
+  tournament,
 }: {
   matches: Match[];
   isFavorite: (id: string) => boolean;
   onSelectPlayer: (name: string) => void;
+  tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
 }) {
   const { t } = useTranslation();
-  const rankings: PlayerRanking[] = useMemo(() => calculateIndividualRanking(matches), [matches]);
+  const rankings: PlayerRanking[] = useMemo(() => {
+    const all = calculateIndividualRanking(matches);
+    const rkCfg = tournament?.rankingMatchConfig;
+    if (!rkCfg) return all;
+    let maxRank = all.length;
+    if (rkCfg.classificationGroups) maxRank = all.length;
+    else if (rkCfg.fifthToEighth) maxRank = 8;
+    else if (rkCfg.thirdPlace) maxRank = 4;
+    if (rkCfg.rankingUpTo && rkCfg.rankingUpTo > 0) maxRank = rkCfg.rankingUpTo;
+    return all.slice(0, maxRank);
+  }, [matches, tournament]);
 
   if (rankings.length === 0) {
     return (
