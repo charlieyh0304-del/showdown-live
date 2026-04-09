@@ -280,7 +280,9 @@ export const chatbot = onRequest(
               if (r.success) {
                 parts.push(`\n🏆 시뮬레이션 완료 (총 ${r.totalMatches}경기, 완료 ${r.completedMatches}경기)`);
                 if (r.steps) parts.push(`\n📋 진행 단계:\n${(r.steps as string[]).map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}`);
-                if (r.groupRankings) parts.push(`\n📊 조별 순위:\n${r.groupRankings}`);
+                // 최종 순위(finalRanking)는 대회 설정(rankingUpTo 등)을 이미 반영함.
+                // finalRanking이 있으면 groupRankings(조별 전체 목록)는 생략 → 사용자가 "N위까지만" 요청한 의도를 존중.
+                if (!r.finalRanking && r.groupRankings) parts.push(`\n📊 조별 순위:\n${r.groupRankings}`);
                 if (r.finalsResults) parts.push(`\n🎯 본선 결과:\n${r.finalsResults}`);
                 if (r.finalRanking) parts.push(`\n🏅 최종 순위:\n${r.finalRanking}`);
               } else {
