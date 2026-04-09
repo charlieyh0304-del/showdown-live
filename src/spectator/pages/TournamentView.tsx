@@ -1944,17 +1944,10 @@ function RankingTab({
   stageFilter: 'all' | 'qualifying' | 'finals' | 'ranking';
   tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
 }) {
-  // [DEBUG] 어떤 경로든 보이는 빨간 배너
-  const rkCfgDbg = tournament?.rankingMatchConfig;
-  const dbgBanner = (
-    <div style={{ background: '#dc2626', color: 'white', padding: '8px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
-      [DEBUG v4] stage={stageFilter}, type={tournamentType}, cfg={rkCfgDbg ? `cls=${String(rkCfgDbg.classificationGroups)},5to8=${String(rkCfgDbg.fifthToEighth)},3rd=${String(rkCfgDbg.thirdPlace)},upTo=${rkCfgDbg.rankingUpTo || 0}` : 'undefined'}
-    </div>
-  );
   if (stageFilter === 'qualifying') {
     return (
       <div>
-        {dbgBanner}
+
         <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
         <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} isTeam={tournamentType === 'team' || tournamentType === 'randomTeamLeague'} />
       </div>
@@ -1966,7 +1959,7 @@ function RankingTab({
   if (isTeam) {
     return (
       <div>
-        {dbgBanner}
+
         <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
         <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} />
       </div>
@@ -1975,7 +1968,7 @@ function RankingTab({
 
   return (
     <div>
-      {dbgBanner}
+
       <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
       <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} tournament={tournament} />
     </div>
@@ -2029,16 +2022,33 @@ function IndividualRankingTable({
 }) {
   const { t } = useTranslation();
   const allRankingsRaw: PlayerRanking[] = useMemo(() => calculateIndividualRanking(matches), [matches]);
+  // 본선/순위결정전 참가자만 추출
+  const finalsParticipantIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of matches) {
+      const isFinals = (m.stageId?.includes('finals') || m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전'));
+      if (!isFinals) continue;
+      const a = m.player1Id || m.team1Id;
+      const b = m.player2Id || m.team2Id;
+      if (a) ids.add(a);
+      if (b) ids.add(b);
+    }
+    return ids;
+  }, [matches]);
+  const hasFinalsStage = finalsParticipantIds.size > 0;
+  // 본선 참가자만 1~N위 (본선 없으면 전체)
+  const rankedOnly = hasFinalsStage
+    ? allRankingsRaw.filter(r => finalsParticipantIds.has(r.playerId)).map((r, i) => ({ ...r, rank: i + 1 }))
+    : allRankingsRaw;
   const rkCfg = tournament?.rankingMatchConfig;
-  let maxRankSpec = allRankingsRaw.length;
+  let maxRankSpec = rankedOnly.length;
   if (rkCfg) {
     if (rkCfg.rankingUpTo && rkCfg.rankingUpTo > 0) maxRankSpec = rkCfg.rankingUpTo;
-    else if (rkCfg.classificationGroups) maxRankSpec = allRankingsRaw.length;
+    else if (rkCfg.classificationGroups) maxRankSpec = rankedOnly.length;
     else if (rkCfg.fifthToEighth) maxRankSpec = 8;
     else if (rkCfg.thirdPlace) maxRankSpec = 4;
   }
-  const rankings: PlayerRanking[] = allRankingsRaw.slice(0, maxRankSpec);
-  const debugLine = `[DEBUG] 순위 범위: 1~${maxRankSpec}위 (전체 ${allRankingsRaw.length}명) · 설정: ${rkCfg ? `cls=${String(rkCfg.classificationGroups)}, 5to8=${String(rkCfg.fifthToEighth)}, 3rd=${String(rkCfg.thirdPlace)}, upTo=${rkCfg.rankingUpTo || 0}` : '미설정'}`;
+  const rankings: PlayerRanking[] = rankedOnly.slice(0, maxRankSpec);
 
   if (rankings.length === 0) {
     return (
@@ -2050,9 +2060,6 @@ function IndividualRankingTable({
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <div style={{ fontSize: '0.75rem', color: '#fbbf24', textAlign: 'center', marginBottom: '0.5rem', padding: '0.25rem', backgroundColor: '#1f2937' }}>
-        {debugLine}
-      </div>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <caption className="sr-only">{t('spectator.tournament.tabs.ranking')}</caption>
         <thead>

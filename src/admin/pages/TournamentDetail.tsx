@@ -4459,13 +4459,6 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   const [copySuccess, setCopySuccess] = useState(false);
   const completedMatches = matches.filter(m => m.status === 'completed');
 
-  // [DEBUG] 빨간 배너 - 모든 경로에 표시
-  const rkCfgDbg = tournament.rankingMatchConfig as { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } | undefined;
-  const dbgBanner = (
-    <div style={{ background: '#dc2626', color: 'white', padding: '8px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }}>
-      [DEBUG v4 admin] isTeam={String(isTeamType)}, cfg={rkCfgDbg ? `cls=${String(rkCfgDbg.classificationGroups)},5to8=${String(rkCfgDbg.fifthToEighth)},3rd=${String(rkCfgDbg.thirdPlace)},upTo=${rkCfgDbg.rankingUpTo || 0}` : 'undefined'}
-    </div>
-  );
 
   // 본선/순위결정전에 참가한 인원만 최종 순위로 인정 (예: 5-8위전까지만 → 9위 이하 숨김)
   // 본선/순위결정전이 없으면(풀리그 등) 전체 표시
@@ -4572,7 +4565,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
     const rankings = assignRanks(calculateTeamRanking(matches), r => r.teamId);
     return (
       <div className="space-y-6">
-        {dbgBanner}
+
         {exportButtons}
 
         {/* Summary stats */}
@@ -4649,25 +4642,26 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   }
 
   const allRankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
-  // 대회 설정에 따라 표시 범위 제한
+  // 1차: rank=0 (본선/순위결정전 미참가자) 제외 → 본선 진출자만
+  // 2차: 대회 설정에 따라 추가 제한
+  const rankedOnly = hasFinalsStage ? allRankings.filter(r => r.rank > 0) : allRankings;
   const rankCfg = tournament.rankingMatchConfig as { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } | undefined;
-  let maxRank = allRankings.length; // 기본: 전체
+  let maxRank = rankedOnly.length; // 기본: 본선 참가자 전체
   if (rankCfg) {
-    // rankingUpTo가 명시적으로 설정되면 우선
     if (rankCfg.rankingUpTo && rankCfg.rankingUpTo > 0) {
       maxRank = rankCfg.rankingUpTo;
     } else if (rankCfg.classificationGroups) {
-      maxRank = allRankings.length; // 전체
+      maxRank = rankedOnly.length;
     } else if (rankCfg.fifthToEighth) {
       maxRank = 8;
     } else if (rankCfg.thirdPlace) {
       maxRank = 4;
     }
   }
-  const rankings = allRankings.slice(0, maxRank);
+  const rankings = rankedOnly.slice(0, maxRank);
   return (
     <div className="space-y-6">
-      {dbgBanner}
+
       {exportButtons}
 
       {/* Summary stats */}
@@ -4684,10 +4678,6 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
 
       <div className="card overflow-x-auto">
         <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.individualRankingTitle')}</h2>
-        <div className="text-xs text-gray-500 text-center mb-2">
-          순위 범위: 1~{maxRank}위 (전체 {allRankings.length}명 중)
-          {rankCfg && ` · 설정: ${rankCfg.classificationGroups ? '전체' : rankCfg.fifthToEighth ? '8위까지' : rankCfg.thirdPlace ? '4위까지' : '미설정'}`}
-        </div>
         {rankings.length === 0 ? (
           <p className="text-gray-400 text-center">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
         ) : (

@@ -139,7 +139,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   */
   {
     name: "update_tournament",
-    description: "대회 정보 수정. 변경할 필드만 전달.",
+    description: "대회 정보 수정. 변경할 필드만 전달. 순위 표시 범위(rankingUpTo) 변경, 3/4위/5-8위/하위순위결정전 활성화 변경 등 가능.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -147,6 +147,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
         name: { type: "string" },
         date: { type: "string" },
         status: { type: "string", enum: ["draft", "registration", "in_progress", "paused", "completed"] },
+        rankingUpTo: { type: "number", description: "순위 표시 범위 (N위까지만 표시). 예: 8 → 1~8위만" },
+        thirdPlace: { type: "boolean", description: "3/4위 결정전 활성화" },
+        fifthToEighth: { type: "boolean", description: "5~8위 결정전 활성화" },
+        classificationGroups: { type: "boolean", description: "9위 이하 하위 순위결정전 활성화" },
       },
       required: ["tournamentId"],
     },
@@ -1173,7 +1177,18 @@ export async function executeTool(
           qualifyingConfig: isFullLeague
             ? { format: "round_robin", scoringRules: { winScore: qualWinScore, setsToWin: qualSetsToWin, maxSets: qualSetsToWin * 2 - 1, minLead, deuceEnabled } }
             : { format: "group_round_robin", groupCount, scoringRules: { winScore: qualWinScore, setsToWin: qualSetsToWin, maxSets: qualSetsToWin * 2 - 1, minLead, deuceEnabled } },
-          ...(isFullLeague ? {} : {
+          // 풀리그도 rankingMatchConfig 저장 (rankingUpTo 등 제한 가능)
+          ...(isFullLeague ? {
+            rankingMatchConfig: {
+              enabled: rankingUpToInput > 0,
+              thirdPlace: false,
+              fifthToEighth: false,
+              fifthToEighthFormat: "simple",
+              classificationGroups: false,
+              classificationGroupSize: 4,
+              ...(rankingUpToInput > 0 ? { rankingUpTo: rankingUpToInput } : {}),
+            },
+          } : {
             finalsConfig: {
               format: finalsFormat,
               advanceCount: totalAdvance,
@@ -1374,9 +1389,27 @@ export async function executeTool(
       }
 
       case "update_tournament": {
-        const { tournamentId, ...fields } = input;
+        const { tournamentId, rankingUpTo, thirdPlace, fifthToEighth, classificationGroups, ...fields } = input;
         const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
         delete updates.tournamentId;
+
+        // rankingMatchConfig 부분 업데이트
+        if (rankingUpTo !== undefined || thirdPlace !== undefined || fifthToEighth !== undefined || classificationGroups !== undefined) {
+          const curSnap = await db.ref(`tournaments/${tournamentId}`).once("value");
+          const curData = curSnap.exists() ? curSnap.val() as Record<string, unknown> : {};
+          const curCfg = (curData.rankingMatchConfig as Record<string, unknown>) || {
+            enabled: false, thirdPlace: false, fifthToEighth: false,
+            fifthToEighthFormat: "simple", classificationGroups: false, classificationGroupSize: 4,
+          };
+          const newCfg = { ...curCfg };
+          if (thirdPlace !== undefined) newCfg.thirdPlace = thirdPlace as boolean;
+          if (fifthToEighth !== undefined) newCfg.fifthToEighth = fifthToEighth as boolean;
+          if (classificationGroups !== undefined) newCfg.classificationGroups = classificationGroups as boolean;
+          if (rankingUpTo !== undefined) newCfg.rankingUpTo = rankingUpTo as number;
+          newCfg.enabled = !!(newCfg.thirdPlace || newCfg.fifthToEighth || newCfg.classificationGroups || (newCfg.rankingUpTo as number) > 0);
+          updates.rankingMatchConfig = newCfg;
+        }
+
         await db.ref(`tournaments/${tournamentId}`).update(updates);
         return JSON.stringify({ success: true, message: "대회 정보 수정 완료" });
       }
