@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import { useChatbot, type ChatRole, type ChatMessage, type ChatAction } from '../hooks/useChatbot';
+
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: ['br', 'hr', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'code', 'pre', 'p', 'span', 'div', 'h2', 'h3', 'h4'],
+  ALLOWED_ATTR: ['class'],
+};
 
 const TOOL_LABELS: Record<string, string> = {
   list_tournaments: '대회 조회', get_tournament: '대회 상세', list_players: '선수 조회',
@@ -85,7 +91,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         <div className={`rounded-xl px-3 py-2 text-sm ${isUser ? 'bg-cyan-800 text-white rounded-tr-sm whitespace-pre-wrap' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tl-sm'}`}>
           {isUser
             ? msg.content
-            : <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.content) }} />
+            : <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(simpleMarkdown(msg.content), SANITIZE_CONFIG) }} />
           }
         </div>
         {!isUser && msg.actions && <ActionBadges actions={msg.actions} />}
