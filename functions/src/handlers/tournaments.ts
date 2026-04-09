@@ -3,6 +3,52 @@
  */
 import { db, hashPinSHA256, hashPinPBKDF2 } from "../db-helpers";
 
+// ===== PIN brute force 방어: RTDB 기반 rate limiter =====
+const RL_WINDOW_MS = 10 * 60 * 1000;   // 10분 윈도우
+const RL_MAX_FAILS = 5;                 // 윈도우 내 최대 실패
+const RL_LOCKOUT_MS = 15 * 60 * 1000;   // 잠금 15분
+
+interface RateLimitState {
+  failures: number;
+  firstFailAt: number;
+  lockedUntil: number;
+}
+
+/** 잠겨있으면 남은 ms 반환, 아니면 0 */
+async function checkRateLimit(tid: string): Promise<number> {
+  const snap = await db.ref(`auth/rateLimits/${tid}`).once("value");
+  if (!snap.exists()) return 0;
+  const state = snap.val() as RateLimitState;
+  const now = Date.now();
+  if (state.lockedUntil && state.lockedUntil > now) {
+    return state.lockedUntil - now;
+  }
+  // 잠금 만료 → lazy 정리
+  if (state.lockedUntil && state.lockedUntil <= now) {
+    await db.ref(`auth/rateLimits/${tid}`).remove();
+  }
+  return 0;
+}
+
+async function recordFailure(tid: string): Promise<void> {
+  const ref = db.ref(`auth/rateLimits/${tid}`);
+  const snap = await ref.once("value");
+  const now = Date.now();
+  const prev = snap.exists() ? (snap.val() as RateLimitState) : null;
+  // 윈도우가 만료됐으면 카운터 리셋
+  if (!prev || now - prev.firstFailAt > RL_WINDOW_MS) {
+    await ref.set({ failures: 1, firstFailAt: now, lockedUntil: 0 });
+    return;
+  }
+  const failures = prev.failures + 1;
+  const lockedUntil = failures >= RL_MAX_FAILS ? now + RL_LOCKOUT_MS : 0;
+  await ref.set({ failures, firstFailAt: prev.firstFailAt, lockedUntil });
+}
+
+async function clearRateLimit(tid: string): Promise<void> {
+  await db.ref(`auth/rateLimits/${tid}`).remove();
+}
+
 export async function createTournament(input: Record<string, unknown>): Promise<string> {
   const now = Date.now();
   if (input.name) {
@@ -65,6 +111,13 @@ export async function deleteTournament(tid: string, pin: string): Promise<string
   const tourCheck = await db.ref(`tournaments/${tid}`).once("value");
   if (!tourCheck.exists()) return JSON.stringify({ error: "대회를 찾을 수 없습니다." });
 
+  // Brute force 방어: 잠금 상태 먼저 확인
+  const lockedFor = await checkRateLimit(tid);
+  if (lockedFor > 0) {
+    const minutes = Math.ceil(lockedFor / 60000);
+    return JSON.stringify({ error: `PIN 시도가 너무 많습니다. ${minutes}분 후 다시 시도하세요.` });
+  }
+
   // PIN 검증
   const adminsSnap = await db.ref("admins").once("value");
   const configSnap = await db.ref("config/adminPin").once("value");
@@ -93,8 +146,11 @@ export async function deleteTournament(tid: string, pin: string): Promise<string
   }
 
   if (!pinValid) {
+    await recordFailure(tid);
     return JSON.stringify({ error: "관리자 PIN이 올바르지 않습니다." });
   }
+  // 성공 → 카운터 정리
+  await clearRateLimit(tid);
 
   const tourSnap = await db.ref(`tournaments/${tid}/name`).once("value");
   const tourName = tourSnap.exists() ? tourSnap.val() : tid;

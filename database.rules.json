@@ -95,6 +95,12 @@
       ".read": true,
       ".write": true
     },
+    "auth": {
+      "rateLimits": {
+        ".read": false,
+        ".write": false
+      }
+    },
     "$other": {
       ".read": false,
       ".write": false
