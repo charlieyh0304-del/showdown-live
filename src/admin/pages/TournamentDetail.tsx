@@ -4644,10 +4644,16 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   const rankCfg = tournament.rankingMatchConfig as { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } | undefined;
   let maxRank = allRankings.length; // 기본: 전체
   if (rankCfg) {
-    if (rankCfg.classificationGroups) maxRank = allRankings.length;
-    else if (rankCfg.fifthToEighth) maxRank = 8;
-    else if (rankCfg.thirdPlace) maxRank = 4;
-    if (rankCfg.rankingUpTo && rankCfg.rankingUpTo > 0) maxRank = rankCfg.rankingUpTo;
+    // rankingUpTo가 명시적으로 설정되면 우선
+    if (rankCfg.rankingUpTo && rankCfg.rankingUpTo > 0) {
+      maxRank = rankCfg.rankingUpTo;
+    } else if (rankCfg.classificationGroups) {
+      maxRank = allRankings.length; // 전체
+    } else if (rankCfg.fifthToEighth) {
+      maxRank = 8;
+    } else if (rankCfg.thirdPlace) {
+      maxRank = 4;
+    }
   }
   const rankings = allRankings.slice(0, maxRank);
   return (
@@ -4668,6 +4674,10 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
 
       <div className="card overflow-x-auto">
         <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.individualRankingTitle')}</h2>
+        <div className="text-xs text-gray-500 text-center mb-2">
+          순위 범위: 1~{maxRank}위 (전체 {allRankings.length}명 중)
+          {rankCfg && ` · 설정: ${rankCfg.classificationGroups ? '전체' : rankCfg.fifthToEighth ? '8위까지' : rankCfg.thirdPlace ? '4위까지' : '미설정'}`}
+        </div>
         {rankings.length === 0 ? (
           <p className="text-gray-400 text-center">{t('admin.tournamentDetail.rankingTab.noCompletedMatches')}</p>
         ) : (
