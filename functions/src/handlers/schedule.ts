@@ -1,13 +1,12 @@
 /**
  * 스케줄 관련 핸들러: generate_round_robin, shift_schedule, move_matches_to_court
  */
-import { db, addDays, asString, asNumber, asBoolean } from "../db-helpers";
+import { db, asString, asNumber, asBoolean } from "../db-helpers";
 import {
   parseTimeToMinutes,
-  formatMinutesToTime,
   shiftTime as shiftTimePure,
-  skipBreak as skipBreakPure,
 } from "../lib/schedule-time";
+import { allocateSchedule, type ScheduleMatch, type ScheduleCourt } from "../lib/schedule-allocation";
 
 export async function generateRoundRobin(input: Record<string, unknown>): Promise<string> {
   const tid = asString(input.tournamentId);
@@ -177,7 +176,6 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   const onlyUnassigned = asBoolean(input.onlyUnassigned);
 
   const toMin = parseTimeToMinutes;
-  const fmtMin = formatMinutesToTime;
 
   const dayStart = toMin(startTime);
   const dayEnd = toMin(endTime);
@@ -196,14 +194,6 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   const scheduleDates: string[] = Array.isArray(schedTourData.scheduleDates)
     ? schedTourData.scheduleDates as string[]
     : inputScheduleDates;
-
-  const getNextScheduleDate = (currentDate: string): string => {
-    if (scheduleDates.length > 0) {
-      const next = scheduleDates.find(d => d > currentDate);
-      return next || addDays(currentDate, 1);
-    }
-    return addDays(currentDate, 1);
-  };
 
   let effectiveStartDate = scheduleDate;
   if (scheduleDates.length > 0) {
@@ -233,103 +223,33 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
 
   if (matchList.length === 0) return JSON.stringify({ error: "배정할 경기가 없습니다." });
 
-  const courtList = Object.entries(courtsSnap.val()).map(([id, v]) => ({ id, ...(v as { name: string }) }));
-  const courtSlots = courtList.map((c) => ({ courtId: c.id, courtName: c.name, date: effectiveStartDate, time: dayStart }));
+  const courts: ScheduleCourt[] = Object.entries(courtsSnap.val())
+    .map(([id, v]) => ({ id, name: (v as { name: string }).name }));
 
-  const playerLastEnd = new Map<string, { date: string; time: number }>();
+  const allocMatches: ScheduleMatch[] = matchList.map(m => ({
+    id: m.id,
+    player1Id: m.player1Id,
+    player2Id: m.player2Id,
+    team1Id: m.team1Id,
+    team2Id: m.team2Id,
+    player1Name: m.player1Name,
+    player2Name: m.player2Name,
+    team1Name: m.team1Name,
+    team2Name: m.team2Name,
+    status: m.status,
+  }));
 
-  const getPlayerIds = (m: Record<string, unknown>): string[] => {
-    const ids: string[] = [];
-    if (m.player1Id) ids.push(asString(m.player1Id));
-    if (m.player2Id) ids.push(asString(m.player2Id));
-    if (m.team1Id) ids.push(asString(m.team1Id));
-    if (m.team2Id) ids.push(asString(m.team2Id));
-    return ids;
-  };
-
-  const skipBreak = (time: number): number => skipBreakPure(time, breakStart, breakEnd);
-
-  const slots: Record<string, unknown>[] = [];
-  let skippedCount = 0;
-
-  for (const match of matchList) {
-    const playerIds = getPlayerIds(match);
-    let bestCourtIdx = -1;
-    let bestDate = scheduleDate;
-    let bestTime = Infinity;
-
-    for (let ci = 0; ci < courtSlots.length; ci++) {
-      const court = courtSlots[ci];
-      let candidateDate = court.date;
-      let candidateTime = skipBreak(court.time);
-
-      for (const pid of playerIds) {
-        const last = playerLastEnd.get(pid);
-        if (last) {
-          if (last.date === candidateDate && last.time > candidateTime) {
-            candidateTime = skipBreak(last.time);
-          } else if (last.date > candidateDate) {
-            candidateDate = last.date;
-            candidateTime = skipBreak(Math.max(nextDayStartMin, last.time));
-          }
-        }
-      }
-
-      candidateTime = skipBreak(candidateTime);
-
-      if (candidateTime >= dayEnd) {
-        candidateDate = getNextScheduleDate(candidateDate);
-        candidateTime = nextDayStartMin;
-        candidateTime = skipBreak(candidateTime);
-      }
-
-      const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
-      const bestTotal = new Date(bestDate).getTime() + bestTime;
-      if (bestCourtIdx === -1 || candidateTotal < bestTotal) {
-        bestCourtIdx = ci;
-        bestDate = candidateDate;
-        bestTime = candidateTime;
-      }
-    }
-
-    if (bestCourtIdx === -1) { skippedCount++; continue; }
-
-    if (bestTime >= dayEnd) {
-      bestDate = getNextScheduleDate(bestDate);
-      bestTime = skipBreak(nextDayStartMin);
-    }
-
-    const court = courtSlots[bestCourtIdx];
-    const timeStr = fmtMin(bestTime);
-    const label = `${match.player1Name || match.team1Name || ""} vs ${match.player2Name || match.team2Name || ""}`;
-
-    slots.push({
-      matchId: match.id,
-      courtId: court.courtId,
-      courtName: court.courtName,
-      scheduledTime: timeStr,
-      scheduledDate: bestDate,
-      label,
-      status: match.status || "pending",
-    });
-
-    const courtEndTime = bestTime + interval;
-    if (courtEndTime >= dayEnd) {
-      court.date = getNextScheduleDate(bestDate);
-      court.time = nextDayStartMin;
-    } else {
-      court.date = bestDate;
-      court.time = courtEndTime;
-    }
-
-    const playerEndTime = bestTime + playerRest;
-    const playerEnd = playerEndTime >= dayEnd
-      ? { date: getNextScheduleDate(bestDate), time: nextDayStartMin }
-      : { date: bestDate, time: playerEndTime };
-    for (const pid of playerIds) {
-      playerLastEnd.set(pid, playerEnd);
-    }
-  }
+  const { slots, skippedCount } = allocateSchedule(allocMatches, courts, {
+    dayStart,
+    dayEnd,
+    nextDayStartMin,
+    breakStart,
+    breakEnd,
+    interval,
+    playerRest,
+    scheduleDates,
+    effectiveStartDate,
+  });
 
   const scheduleBulk: Record<string, unknown> = {};
   for (const slot of slots) {
