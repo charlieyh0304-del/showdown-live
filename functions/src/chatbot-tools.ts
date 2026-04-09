@@ -1,6 +1,18 @@
 import type { Tool } from "@anthropic-ai/sdk/resources/messages";
-import { db, hashPinSHA256, hashPinPBKDF2, addDays } from "./db-helpers";
+import { db, addDays } from "./db-helpers";
 import { getTournamentRankings } from "./handlers/rankings";
+import {
+  listTournaments, getTournament, listPlayers, listMatches,
+  listCourts, listReferees, getSchedule, listTeams,
+} from "./handlers/reads";
+import {
+  addCourt, deleteCourt, updateCourt,
+  addReferee, deleteReferee, updateReferee, bulkAssignReferees,
+  updatePlayer, addTeam, deleteTeam, resetSchedule,
+} from "./handlers/crud";
+import { createTournament, updateTournament, deleteTournament } from "./handlers/tournaments";
+import { addMatch, updateMatch, deleteMatch } from "./handlers/matches";
+import { addPlayersBulk, deletePlayer } from "./handlers/players";
 
 // ===== Tool Definitions for Claude =====
 
@@ -622,97 +634,26 @@ export async function executeTool(
     switch (name) {
       // --- Read ---
       case "list_tournaments": {
-        const snap = await db.ref("tournaments").once("value");
-        if (!snap.exists()) return JSON.stringify([]);
-        const list = Object.entries(snap.val()).map(([id, v]) => {
-          const t = v as Record<string, unknown>;
-          return { id, name: t.name, date: t.date, status: t.status, type: t.type, formatType: t.formatType };
-        });
-        return JSON.stringify(list);
+        return await listTournaments();
       }
 
-      case "get_tournament": {
-        const snap = await db.ref(`tournaments/${input.tournamentId}`).once("value");
-        if (!snap.exists()) return JSON.stringify({ error: "대회를 찾을 수 없습니다." });
-        return JSON.stringify({ id: input.tournamentId, ...snap.val() });
-      }
+      case "get_tournament":
+        return await getTournament(input.tournamentId as string);
 
-      case "list_players": {
-        const path = input.tournamentId ? `tournamentPlayers/${input.tournamentId}` : "players";
-        const snap = await db.ref(path).once("value");
-        if (!snap.exists()) return JSON.stringify([]);
-        const list = Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as object) }));
-        return JSON.stringify(list.slice(0, 100)); // limit
-      }
+      case "list_players":
+        return await listPlayers(input.tournamentId as string | undefined);
 
-      case "list_matches": {
-        const snap = await db.ref(`matches/${input.tournamentId}`).once("value");
-        if (!snap.exists()) return JSON.stringify({ matches: [], summary: "경기 없음" });
-        type ME = Record<string, unknown> & { id: string };
-        const rawList: ME[] = Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as Record<string, unknown>) }));
-        let filtered = rawList;
-        if (input.status) filtered = filtered.filter(m => m.status === input.status);
+      case "list_matches":
+        return await listMatches(input.tournamentId as string, input.status as string | undefined);
 
-        // 요약 통계
-        const total = rawList.length;
-        const pending = rawList.filter(m => m.status === "pending").length;
-        const completed = rawList.filter(m => m.status === "completed").length;
-        const inProgress = rawList.filter(m => m.status === "in_progress").length;
+      case "list_courts":
+        return await listCourts();
 
-        // 경기별 핵심 정보 (조별/본선 구분)
-        const compact = filtered.map(m => {
-          const sets = (m.sets || []) as Array<{ player1Score: number; player2Score: number }>;
-          const score = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
-          const winner = m.winnerId ? (m.winnerId === (m.player1Id || m.team1Id) ? (m.player1Name || m.team1Name) : (m.player2Name || m.team2Name)) : null;
-          return {
-            id: m.id, status: m.status,
-            p1: m.player1Name || m.team1Name || "", p2: m.player2Name || m.team2Name || "",
-            score, winner: winner || "",
-            groupId: m.groupId, stageId: m.stageId,
-            bracketRound: m.bracketRound, roundLabel: m.roundLabel,
-          };
-        });
-
-        // 조별/본선/순위결정전으로 그룹핑
-        const groups: Record<string, typeof compact> = {};
-        const finals: typeof compact = [];
-        const classification: typeof compact = [];
-        for (const m of compact) {
-          const sid = (m.stageId as string) || "";
-          if (sid.includes("finals") || sid.includes("3rd")) {
-            finals.push(m);
-          } else if (sid.includes("class") || sid.includes("ranking")) {
-            classification.push(m);
-          } else if (m.groupId) {
-            if (!groups[m.groupId as string]) groups[m.groupId as string] = [];
-            groups[m.groupId as string].push(m);
-          } else {
-            finals.push(m);
-          }
-        }
-
-        return JSON.stringify({
-          summary: `전체 ${total}경기 (완료 ${completed}, 진행 ${inProgress}, 대기 ${pending})`,
-          groups, finals, classification,
-        });
-      }
-
-      case "list_courts": {
-        const snap = await db.ref("courts").once("value");
-        if (!snap.exists()) return JSON.stringify([]);
-        return JSON.stringify(Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as object) })));
-      }
-
-      case "list_referees": {
-        const snap = await db.ref("referees").once("value");
-        if (!snap.exists()) return JSON.stringify([]);
-        return JSON.stringify(Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as object) })));
-      }
+      case "list_referees":
+        return await listReferees();
 
       case "get_schedule": {
-        const snap = await db.ref(`schedule/${input.tournamentId}`).once("value");
-        if (!snap.exists()) return JSON.stringify([]);
-        return JSON.stringify(Object.entries(snap.val()).map(([id, v]) => ({ id, ...(v as object) })));
+        return await getSchedule(input.tournamentId as string);
       }
 
       case "get_tournament_rankings": {
@@ -724,38 +665,8 @@ export async function executeTool(
       }
 
       // --- Write: Tournament ---
-      case "create_tournament": {
-        const now = Date.now();
-        // 동일 이름 대회 중복 방지
-        if (input.name) {
-          const ctExisting = await db.ref("tournaments").once("value");
-          if (ctExisting.exists()) {
-            for (const [eid, ev] of Object.entries(ctExisting.val() as Record<string, { name?: string }>)) {
-              if (ev.name === input.name) {
-                return JSON.stringify({ error: `"${input.name}" 대회가 이미 존재합니다 (ID: ${eid}). 삭제 후 다시 생성하거나 다른 이름을 사용하세요.` });
-              }
-            }
-          }
-        }
-        const newRef = db.ref("tournaments").push();
-        const data = {
-          name: input.name || "새 대회",
-          date: input.date || new Date().toISOString().split("T")[0],
-          ...(input.endDate ? { endDate: input.endDate } : {}),
-          type: input.type || "individual",
-          format: "full_league",
-          formatType: input.formatType || "round_robin",
-          status: "draft",
-          gameConfig: {
-            winScore: input.winScore || 11,
-            setsToWin: input.setsToWin || 3,
-          },
-          createdAt: now,
-          updatedAt: now,
-        };
-        await newRef.set(data);
-        return JSON.stringify({ success: true, tournamentId: newRef.key, message: `대회 "${data.name}" 생성 완료` });
-      }
+      case "create_tournament":
+        return await createTournament(input);
 
       case "setup_random_team_league": {
         // 코드 레벨 가드: 사전 구성 팀 정보가 넘어오면 잘못된 도구 선택 → 에러로 리다이렉트
@@ -1270,174 +1181,31 @@ export async function executeTool(
         });
       }
 
-      case "update_tournament": {
-        const { tournamentId, rankingUpTo, thirdPlace, fifthToEighth, classificationGroups, ...fields } = input;
-        const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
-        delete updates.tournamentId;
+      case "update_tournament":
+        return await updateTournament(input);
 
-        // rankingMatchConfig 부분 업데이트
-        if (rankingUpTo !== undefined || thirdPlace !== undefined || fifthToEighth !== undefined || classificationGroups !== undefined) {
-          const curSnap = await db.ref(`tournaments/${tournamentId}`).once("value");
-          const curData = curSnap.exists() ? curSnap.val() as Record<string, unknown> : {};
-          const curCfg = (curData.rankingMatchConfig as Record<string, unknown>) || {
-            enabled: false, thirdPlace: false, fifthToEighth: false,
-            fifthToEighthFormat: "simple", classificationGroups: false, classificationGroupSize: 4,
-          };
-          const newCfg = { ...curCfg };
-          if (thirdPlace !== undefined) newCfg.thirdPlace = thirdPlace as boolean;
-          if (fifthToEighth !== undefined) newCfg.fifthToEighth = fifthToEighth as boolean;
-          if (classificationGroups !== undefined) newCfg.classificationGroups = classificationGroups as boolean;
-          if (rankingUpTo !== undefined) newCfg.rankingUpTo = rankingUpTo as number;
-          newCfg.enabled = !!(newCfg.thirdPlace || newCfg.fifthToEighth || newCfg.classificationGroups || (newCfg.rankingUpTo as number) > 0);
-          updates.rankingMatchConfig = newCfg;
-        }
-
-        await db.ref(`tournaments/${tournamentId}`).update(updates);
-        return JSON.stringify({ success: true, message: "대회 정보 수정 완료" });
-      }
-
-      case "delete_tournament": {
-        const tid = input.tournamentId as string;
-        const pin = input.adminPin as string;
-
-        // 대회 존재 확인
-        const tourCheck = await db.ref(`tournaments/${tid}`).once("value");
-        if (!tourCheck.exists()) return JSON.stringify({ error: "대회를 찾을 수 없습니다." });
-
-        // PIN 검증: admins/ 또는 config/adminPin에서 해시 조회
-        const adminsSnap = await db.ref("admins").once("value");
-        const configSnap = await db.ref("config/adminPin").once("value");
-        let pinValid = false;
-
-        if (adminsSnap.exists()) {
-          for (const child of Object.values(adminsSnap.val() as Record<string, { pinHash: string }>)) {
-            if (child.pinHash) {
-              if (child.pinHash.includes(":")) {
-                // PBKDF2: salt:hash
-                const parts = child.pinHash.split(":");
-                if (parts.length !== 2) continue;
-                const [salt, storedHash] = parts;
-                const derived = await hashPinPBKDF2(pin, salt);
-                if (derived === `${salt}:${storedHash}`) { pinValid = true; break; }
-              } else {
-                // SHA-256 레거시
-                const hash = await hashPinSHA256(pin);
-                if (hash === child.pinHash) { pinValid = true; break; }
-              }
-            }
-          }
-        }
-        if (!pinValid && configSnap.exists()) {
-          const storedHash = configSnap.val() as string;
-          const hash = await hashPinSHA256(pin);
-          if (hash === storedHash) pinValid = true;
-        }
-
-        if (!pinValid) {
-          return JSON.stringify({ error: "관리자 PIN이 올바르지 않습니다." });
-        }
-
-        // 대회 이름 조회
-        const tourSnap = await db.ref(`tournaments/${tid}/name`).once("value");
-        const tourName = tourSnap.exists() ? tourSnap.val() : tid;
-
-        // 관련 데이터 모두 삭제
-        const deletePaths: Record<string, null> = {
-          [`tournaments/${tid}`]: null,
-          [`matches/${tid}`]: null,
-          [`tournamentPlayers/${tid}`]: null,
-          [`schedule/${tid}`]: null,
-          [`teams/${tid}`]: null,
-        };
-        await db.ref().update(deletePaths);
-
-        return JSON.stringify({ success: true, message: `대회 "${tourName}" 및 관련 데이터(경기, 선수, 스케줄, 팀) 삭제 완료` });
-      }
+      case "delete_tournament":
+        return await deleteTournament(input.tournamentId as string, input.adminPin as string);
 
       // --- Write: Players ---
-      case "add_players_bulk": {
-        const players = input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>;
-        const basePath = input.tournamentId ? `tournamentPlayers/${input.tournamentId}` : "players";
-        const now = Date.now();
-        const bulk: Record<string, unknown> = {};
-        const ids: string[] = [];
-        for (const p of players) {
-          const key = db.ref(basePath).push().key!;
-          bulk[`${basePath}/${key}`] = { name: p.name, club: p.club || "", class: p.class || "", gender: p.gender || "", createdAt: now };
-          ids.push(key);
-        }
-        await db.ref().update(bulk);
-        return JSON.stringify({ success: true, count: players.length, ids, message: `${players.length}명 추가 완료` });
-      }
+      case "add_players_bulk":
+        return await addPlayersBulk(
+          input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>,
+          input.tournamentId as string | undefined,
+        );
 
-      case "delete_player": {
-        const path = input.tournamentId ? `tournamentPlayers/${input.tournamentId}/${input.playerId}` : `players/${input.playerId}`;
-        await db.ref(path).remove();
-        return JSON.stringify({ success: true, message: "선수 삭제 완료" });
-      }
+      case "delete_player":
+        return await deletePlayer(input.playerId as string, input.tournamentId as string | undefined);
 
       // --- Write: Matches ---
-      case "add_match": {
-        // 입력 검증
-        if (!input.tournamentId || typeof input.tournamentId !== "string") {
-          return JSON.stringify({ error: "tournamentId가 필요합니다." });
-        }
-        const tCheckSnap = await db.ref(`tournaments/${input.tournamentId}`).once("value");
-        if (!tCheckSnap.exists()) {
-          return JSON.stringify({ error: "해당 대회를 찾을 수 없습니다." });
-        }
-        const hasP1 = input.player1Id || input.team1Id;
-        const hasP2 = input.player2Id || input.team2Id;
-        if (!hasP1 || !hasP2) {
-          return JSON.stringify({ error: "player1Id/player2Id (또는 team1Id/team2Id)가 모두 필요합니다." });
-        }
-        const now = Date.now();
-        const newRef = db.ref(`matches/${input.tournamentId}`).push();
-        await newRef.set({
-          tournamentId: input.tournamentId,
-          type: input.matchType || "individual",
-          status: "pending",
-          round: input.round || 1,
-          player1Id: input.player1Id || input.team1Id || "",
-          player2Id: input.player2Id || input.team2Id || "",
-          player1Name: input.player1Name || input.team1Name || "",
-          player2Name: input.player2Name || input.team2Name || "",
-          ...((input.matchType === "team" || input.team1Id) ? {
-            team1Id: input.team1Id || input.player1Id, team2Id: input.team2Id || input.player2Id,
-            team1Name: input.team1Name || input.player1Name, team2Name: input.team2Name || input.player2Name,
-          } : {}),
-          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-          currentSet: 0,
-          player1Timeouts: 0,
-          player2Timeouts: 0,
-          winnerId: null,
-          createdAt: now,
-          ...(input.groupId ? { groupId: input.groupId } : {}),
-          ...(input.stageId ? { stageId: input.stageId } : {}),
-        });
-        return JSON.stringify({ success: true, matchId: newRef.key, message: `${input.player1Name} vs ${input.player2Name} 경기 추가` });
-      }
+      case "add_match":
+        return await addMatch(input);
 
-      case "update_match": {
-        const { tournamentId, matchId, ...fields } = input;
-        if (!tournamentId || !matchId) {
-          return JSON.stringify({ error: "tournamentId와 matchId가 필요합니다." });
-        }
-        const matchCheckSnap = await db.ref(`matches/${tournamentId}/${matchId}`).once("value");
-        if (!matchCheckSnap.exists()) {
-          return JSON.stringify({ error: "해당 경기를 찾을 수 없습니다." });
-        }
-        const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
-        delete updates.tournamentId;
-        delete updates.matchId;
-        await db.ref(`matches/${tournamentId}/${matchId}`).update(updates);
-        return JSON.stringify({ success: true, message: "경기 수정 완료" });
-      }
+      case "update_match":
+        return await updateMatch(input);
 
-      case "delete_match": {
-        await db.ref(`matches/${input.tournamentId}/${input.matchId}`).remove();
-        return JSON.stringify({ success: true, message: "경기 삭제 완료" });
-      }
+      case "delete_match":
+        return await deleteMatch(input.tournamentId as string, input.matchId as string);
 
       case "generate_round_robin": {
         const tid = input.tournamentId as string;
@@ -2811,129 +2579,53 @@ export async function executeTool(
       }
 
       // --- Write: Courts & Referees ---
-      case "add_court": {
-        // 기존 코트 중복 확인
-        const existingCourts = await db.ref("courts").once("value");
-        if (existingCourts.exists()) {
-          for (const [cid, cv] of Object.entries(existingCourts.val() as Record<string, { name: string }>)) {
-            if (cv.name === input.name) {
-              return JSON.stringify({ success: true, courtId: cid, message: `코트 "${input.name}"은(는) 이미 등록되어 있습니다. (기존 ID: ${cid})`, existing: true });
-            }
-          }
-        }
-        const newRef = db.ref("courts").push();
-        await newRef.set({ name: input.name, location: input.location || "", assignedReferees: [], createdAt: Date.now() });
-        return JSON.stringify({ success: true, courtId: newRef.key, message: `코트 "${input.name}" 추가 완료` });
-      }
+      case "add_court":
+        return await addCourt(input.name as string, input.location as string | undefined);
 
-      case "add_referee": {
-        // 기존 심판 중복 확인
-        const existingRefs = await db.ref("referees").once("value");
-        if (existingRefs.exists()) {
-          for (const [rid, rv] of Object.entries(existingRefs.val() as Record<string, { name: string }>)) {
-            if (rv.name === input.name) {
-              return JSON.stringify({ success: true, refereeId: rid, message: `심판 "${input.name}"은(는) 이미 등록되어 있습니다. (기존 ID: ${rid})`, existing: true });
-            }
-          }
-        }
-        const newRef = db.ref("referees").push();
-        await newRef.set({ name: input.name, role: input.role || "main", createdAt: Date.now() });
-        return JSON.stringify({ success: true, refereeId: newRef.key, message: `심판 "${input.name}" 추가 완료` });
-      }
+      case "add_referee":
+        return await addReferee(input.name as string, input.role as string | undefined);
 
-      case "delete_referee": {
-        await db.ref(`referees/${input.refereeId}`).remove();
-        return JSON.stringify({ success: true, message: "심판 삭제 완료" });
-      }
+      case "delete_referee":
+        return await deleteReferee(input.refereeId as string);
 
       case "update_referee": {
         const { refereeId: rid, ...rFields } = input;
-        await db.ref(`referees/${rid}`).update(rFields);
-        return JSON.stringify({ success: true, message: "심판 정보 수정 완료" });
+        return await updateReferee(rid as string, rFields);
       }
 
-      case "delete_court": {
-        await db.ref(`courts/${input.courtId}`).remove();
-        return JSON.stringify({ success: true, message: "코트 삭제 완료" });
-      }
+      case "delete_court":
+        return await deleteCourt(input.courtId as string);
 
       case "update_court": {
         const { courtId: cid, ...cFields } = input;
-        await db.ref(`courts/${cid}`).update(cFields);
-        return JSON.stringify({ success: true, message: "코트 정보 수정 완료" });
+        return await updateCourt(cid as string, cFields);
       }
 
       case "update_player": {
         const { playerId: pid, tournamentId: ptid, ...pFields } = input;
-        const pPath = ptid ? `tournamentPlayers/${ptid}/${pid}` : `players/${pid}`;
-        await db.ref(pPath).update(pFields);
-        return JSON.stringify({ success: true, message: "선수 정보 수정 완료" });
+        return await updatePlayer(pid as string, ptid as string | undefined, pFields);
       }
 
-      case "bulk_assign_referees": {
-        const btid = input.tournamentId as string;
-        const mSnap = await db.ref(`matches/${btid}`).once("value");
-        const rSnap = await db.ref("referees").once("value");
-        if (!mSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
-        if (!rSnap.exists()) return JSON.stringify({ error: "심판이 없습니다." });
+      case "bulk_assign_referees":
+        return await bulkAssignReferees(input.tournamentId as string);
 
-        const refList = Object.entries(rSnap.val() as Record<string, { name: string }>);
-        const bulkR: Record<string, unknown> = {};
-        let rIdx = 0;
-        let cnt = 0;
-        for (const [mid, mv] of Object.entries(mSnap.val() as Record<string, Record<string, unknown>>)) {
-          if (mv.refereeId || mv.status === "completed") continue;
-          const [refId, refData] = refList[rIdx % refList.length];
-          bulkR[`matches/${btid}/${mid}/refereeId`] = refId;
-          bulkR[`matches/${btid}/${mid}/refereeName`] = refData.name;
-          rIdx++;
-          cnt++;
-        }
-        if (cnt > 0) await db.ref().update(bulkR);
-        return JSON.stringify({ success: true, count: cnt, message: `${cnt}경기에 심판 자동 배정 완료` });
-      }
+      case "reset_schedule":
+        return await resetSchedule(input.tournamentId as string);
 
-      case "reset_schedule": {
-        const rstid = input.tournamentId as string;
-        const rstSnap = await db.ref(`matches/${rstid}`).once("value");
-        if (rstSnap.exists()) {
-          const rstBulk: Record<string, unknown> = {};
-          for (const mid of Object.keys(rstSnap.val() as Record<string, unknown>)) {
-            rstBulk[`matches/${rstid}/${mid}/scheduledTime`] = null;
-            rstBulk[`matches/${rstid}/${mid}/scheduledDate`] = null;
-            rstBulk[`matches/${rstid}/${mid}/courtId`] = null;
-            rstBulk[`matches/${rstid}/${mid}/courtName`] = null;
-          }
-          await db.ref().update(rstBulk);
-        }
-        await db.ref(`schedule/${rstid}`).remove();
-        return JSON.stringify({ success: true, message: "스케줄 초기화 완료" });
-      }
+      case "add_team":
+        return await addTeam(
+          input.tournamentId as string,
+          input.name as string,
+          (input.memberIds as string[]) || [],
+          (input.memberNames as string[]) || [],
+          input.coachName as string | undefined,
+        );
 
-      case "add_team": {
-        const ttid = input.tournamentId as string;
-        const tRef = db.ref(`teams/${ttid}`).push();
-        const teamPayload: Record<string, unknown> = {
-          name: input.name,
-          memberIds: input.memberIds || [],
-          memberNames: input.memberNames || [],
-          createdAt: Date.now(),
-        };
-        if (input.coachName) teamPayload.coachName = input.coachName;
-        await tRef.set(teamPayload);
-        return JSON.stringify({ success: true, teamId: tRef.key, message: `팀 "${input.name}" 추가 완료${input.coachName ? ` (코치: ${input.coachName})` : ""}` });
-      }
+      case "delete_team":
+        return await deleteTeam(input.tournamentId as string, input.teamId as string);
 
-      case "delete_team": {
-        await db.ref(`teams/${input.tournamentId}/${input.teamId}`).remove();
-        return JSON.stringify({ success: true, message: "팀 삭제 완료" });
-      }
-
-      case "list_teams": {
-        const tSnap = await db.ref(`teams/${input.tournamentId}`).once("value");
-        if (!tSnap.exists()) return JSON.stringify([]);
-        return JSON.stringify(Object.entries(tSnap.val()).map(([id, v]) => ({ id, ...(v as object) })));
-      }
+      case "list_teams":
+        return await listTeams(input.tournamentId as string);
 
       // ===== 워크플로우 핸들러 =====
 
