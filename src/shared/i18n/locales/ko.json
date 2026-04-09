@@ -596,7 +596,10 @@
         "finalsSets": "본선 기본 세트 수: {{maxSets}}세트 ({{setsToWin}}세트 선승)",
         "roundScoringOverride": "후반 라운드에서 세트 수 변경",
         "overrideStart": "시작",
-        "overrideSets": "변경 세트 수: {{maxSets}}세트 ({{setsToWin}}세트 선승)"
+        "overrideSets": "변경 세트 수: {{maxSets}}세트 ({{setsToWin}}세트 선승)",
+        "timeLimitMinutes": "경기 시간 제한: {{minutes}}분 (0=무제한)",
+        "timeLimitAriaLabel": "경기 시간 제한 (분)",
+        "timeLimitHint": "시간 만료 시 골든골 모드: 다음 득점자가 즉시 승리"
       },
 
       "rankingMatch": {

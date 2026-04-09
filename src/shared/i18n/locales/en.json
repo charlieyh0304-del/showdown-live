@@ -596,7 +596,10 @@
         "finalsSets": "Finals default sets: {{maxSets}} sets (best of {{setsToWin}})",
         "roundScoringOverride": "Change set count in later rounds",
         "overrideStart": "Start",
-        "overrideSets": "Modified sets: {{maxSets}} sets (best of {{setsToWin}})"
+        "overrideSets": "Modified sets: {{maxSets}} sets (best of {{setsToWin}})",
+        "timeLimitMinutes": "Match time limit: {{minutes}} min (0 = unlimited)",
+        "timeLimitAriaLabel": "Match time limit (minutes)",
+        "timeLimitHint": "Golden goal on expiry: next scorer wins immediately"
       },
 
       "rankingMatch": {

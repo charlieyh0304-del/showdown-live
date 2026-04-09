@@ -955,6 +955,25 @@ export default function TournamentCreate() {
                   ariaLabel={t('admin.tournamentCreate.matchRules.qualifyingSets', { maxSets: state.qualifyingScoringRules.maxSets, setsToWin: state.qualifyingScoringRules.setsToWin })}
                 />
 
+                {/* Time limit (golden goal) */}
+                <div>
+                  <NumberStepper
+                    label={t('admin.tournamentCreate.matchRules.timeLimitMinutes', { minutes: Math.round((state.qualifyingScoringRules.timeLimitSeconds ?? 0) / 60) })}
+                    value={Math.round((state.qualifyingScoringRules.timeLimitSeconds ?? 0) / 60)}
+                    min={0}
+                    max={30}
+                    onChange={v => {
+                      const seconds = v > 0 ? v * 60 : 0;
+                      dispatch({ type: 'SET_FIELD', field: 'qualifyingScoringRules', value: { ...state.qualifyingScoringRules, timeLimitSeconds: seconds } });
+                      if (state.sameRulesAsQualifying) {
+                        dispatch({ type: 'SET_FIELD', field: 'finalsScoringRules', value: { ...state.finalsScoringRules, timeLimitSeconds: seconds } });
+                      }
+                    }}
+                    ariaLabel={t('admin.tournamentCreate.matchRules.timeLimitAriaLabel')}
+                  />
+                  <p className="text-gray-400 text-xs text-center mt-1">{t('admin.tournamentCreate.matchRules.timeLimitHint')}</p>
+                </div>
+
                 {state.hasFinalsStage && (
                   <>
                     <NumberStepper

@@ -26,7 +26,9 @@ interface WizardStep4FinalsProps {
     type?: string;
     teamSize?: number;
     // round scoring
-    finalsScoringRules: { winScore: number; setsToWin: number; maxSets: number; minLead: number; deuceEnabled: boolean };
+    finalsScoringRules: { winScore: number; setsToWin: number; maxSets: number; minLead: number; deuceEnabled: boolean; timeLimitSeconds?: number };
+    qualifyingScoringRules?: { winScore: number; setsToWin: number; maxSets: number; minLead: number; deuceEnabled: boolean; timeLimitSeconds?: number };
+    sameRulesAsQualifying?: boolean;
     hasRoundScoringOverride?: boolean;
     roundOverrideFromRound?: number;
     roundOverrideSetsToWin?: number;
@@ -582,6 +584,31 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
               }}
               ariaLabel={t('admin.tournamentCreate.matchRules.finalsSets', { maxSets, setsToWin })}
             />
+
+            {/* Time limit (golden goal) */}
+            <div className="mt-6">
+              <NumberStepper
+                label={t('admin.tournamentCreate.matchRules.timeLimitMinutes', { minutes: Math.round((state.finalsScoringRules.timeLimitSeconds ?? 0) / 60) })}
+                value={Math.round((state.finalsScoringRules.timeLimitSeconds ?? 0) / 60)}
+                min={0}
+                max={30}
+                onChange={(v) => {
+                  const seconds = v > 0 ? v * 60 : 0;
+                  setField('finalsScoringRules', {
+                    ...state.finalsScoringRules,
+                    timeLimitSeconds: seconds,
+                  });
+                  if (state.sameRulesAsQualifying && state.qualifyingScoringRules) {
+                    setField('qualifyingScoringRules', {
+                      ...state.qualifyingScoringRules,
+                      timeLimitSeconds: seconds,
+                    });
+                  }
+                }}
+                ariaLabel={t('admin.tournamentCreate.matchRules.timeLimitAriaLabel')}
+              />
+              <p className="text-gray-400 text-xs text-center mt-1">{t('admin.tournamentCreate.matchRules.timeLimitHint')}</p>
+            </div>
 
             {/* Round override toggle */}
             {availableRounds.length > 0 && (
