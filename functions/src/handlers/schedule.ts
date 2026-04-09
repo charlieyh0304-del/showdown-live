@@ -164,6 +164,229 @@ export async function shiftSchedule(input: Record<string, unknown>): Promise<str
   return JSON.stringify({ success: true, count, message: `${count}경기 ${shift > 0 ? `${shift}분 뒤로` : `${-shift}분 앞으로`} 이동` });
 }
 
+export async function generateSchedule(input: Record<string, unknown>): Promise<string> {
+  const tid = input.tournamentId as string;
+  const startTime = (input.startTime as string) || "09:00";
+  const endTime = (input.endTime as string) || "19:00";
+  const interval = (input.intervalMinutes as number) || 30;
+  const playerRest = (input.playerRestMinutes as number) || 60;
+  const scheduleDate = (input.scheduleDate as string) || new Date().toISOString().split("T")[0];
+  const inputScheduleDates = (input.scheduleDates as string[]) || [];
+  const nextDayStart = (input.nextDayStartTime as string) || startTime;
+
+  const breakStartStr = input.breakStart as string | undefined;
+  const breakEndStr = input.breakEnd as string | undefined;
+  const stageFilter = input.stageFilter as string | undefined;
+  const onlyUnassigned = (input.onlyUnassigned as boolean) || false;
+
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+  const dayStart = toMin(startTime);
+  const dayEnd = toMin(endTime);
+  const nextDayStartMin = toMin(nextDayStart);
+  const breakStart = breakStartStr ? toMin(breakStartStr) : -1;
+  const breakEnd = breakEndStr ? toMin(breakEndStr) : -1;
+  if (breakStart >= 0 && breakEnd >= 0 && breakStart >= breakEnd) {
+    return JSON.stringify({ error: `휴식 시작(${breakStartStr})이 종료(${breakEndStr})보다 같거나 늦습니다.` });
+  }
+  if (dayStart >= dayEnd) {
+    return JSON.stringify({ error: `시작 시간(${startTime})이 종료 시간(${endTime})보다 같거나 늦습니다.` });
+  }
+
+  const schedTourSnap = await db.ref(`tournaments/${tid}`).once("value");
+  const schedTourData = schedTourSnap.exists() ? schedTourSnap.val() as Record<string, unknown> : {};
+  const scheduleDates: string[] = Array.isArray(schedTourData.scheduleDates)
+    ? schedTourData.scheduleDates as string[]
+    : inputScheduleDates;
+
+  const getNextScheduleDate = (currentDate: string): string => {
+    if (scheduleDates.length > 0) {
+      const next = scheduleDates.find(d => d > currentDate);
+      return next || addDays(currentDate, 1);
+    }
+    return addDays(currentDate, 1);
+  };
+
+  let effectiveStartDate = scheduleDate;
+  if (scheduleDates.length > 0) {
+    const validDate = scheduleDates.find(d => d >= scheduleDate);
+    if (validDate) effectiveStartDate = validDate;
+  }
+
+  const matchesSnap = await db.ref(`matches/${tid}`).once("value");
+  if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
+  const courtsSnap = await db.ref("courts").once("value");
+  if (!courtsSnap.exists()) return JSON.stringify({ error: "코트가 없습니다." });
+
+  type MatchEntry = Record<string, unknown> & { id: string };
+  let matchList: MatchEntry[] = Object.entries(matchesSnap.val())
+    .map(([id, v]) => ({ id, ...(v as Record<string, unknown>) }));
+
+  if (onlyUnassigned) {
+    matchList = matchList.filter((m) =>
+      (m.status === "pending" || m.status === "in_progress") && !m.scheduledDate);
+  } else {
+    matchList = matchList.filter((m) => m.status === "pending" || m.status === "in_progress");
+  }
+
+  if (stageFilter) {
+    matchList = matchList.filter((m) => m.stageId === stageFilter);
+  }
+
+  if (matchList.length === 0) return JSON.stringify({ error: "배정할 경기가 없습니다." });
+
+  const courtList = Object.entries(courtsSnap.val()).map(([id, v]) => ({ id, ...(v as { name: string }) }));
+  const courtSlots = courtList.map((c) => ({ courtId: c.id, courtName: c.name, date: effectiveStartDate, time: dayStart }));
+
+  const playerLastEnd = new Map<string, { date: string; time: number }>();
+
+  const getPlayerIds = (m: Record<string, unknown>): string[] => {
+    const ids: string[] = [];
+    if (m.player1Id) ids.push(m.player1Id as string);
+    if (m.player2Id) ids.push(m.player2Id as string);
+    if (m.team1Id) ids.push(m.team1Id as string);
+    if (m.team2Id) ids.push(m.team2Id as string);
+    return ids;
+  };
+
+  const skipBreak = (time: number): number => {
+    if (breakStart >= 0 && breakEnd >= 0 && time >= breakStart && time < breakEnd) {
+      return breakEnd;
+    }
+    return time;
+  };
+
+  const slots: Record<string, unknown>[] = [];
+  let skippedCount = 0;
+
+  for (const match of matchList) {
+    const playerIds = getPlayerIds(match);
+    let bestCourtIdx = -1;
+    let bestDate = scheduleDate;
+    let bestTime = Infinity;
+
+    for (let ci = 0; ci < courtSlots.length; ci++) {
+      const court = courtSlots[ci];
+      let candidateDate = court.date;
+      let candidateTime = skipBreak(court.time);
+
+      for (const pid of playerIds) {
+        const last = playerLastEnd.get(pid);
+        if (last) {
+          if (last.date === candidateDate && last.time > candidateTime) {
+            candidateTime = skipBreak(last.time);
+          } else if (last.date > candidateDate) {
+            candidateDate = last.date;
+            candidateTime = skipBreak(Math.max(nextDayStartMin, last.time));
+          }
+        }
+      }
+
+      candidateTime = skipBreak(candidateTime);
+
+      if (candidateTime >= dayEnd) {
+        candidateDate = getNextScheduleDate(candidateDate);
+        candidateTime = nextDayStartMin;
+        candidateTime = skipBreak(candidateTime);
+      }
+
+      const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
+      const bestTotal = new Date(bestDate).getTime() + bestTime;
+      if (bestCourtIdx === -1 || candidateTotal < bestTotal) {
+        bestCourtIdx = ci;
+        bestDate = candidateDate;
+        bestTime = candidateTime;
+      }
+    }
+
+    if (bestCourtIdx === -1) { skippedCount++; continue; }
+
+    if (bestTime >= dayEnd) {
+      bestDate = getNextScheduleDate(bestDate);
+      bestTime = skipBreak(nextDayStartMin);
+    }
+
+    const court = courtSlots[bestCourtIdx];
+    const timeStr = fmtMin(bestTime);
+    const label = `${match.player1Name || match.team1Name || ""} vs ${match.player2Name || match.team2Name || ""}`;
+
+    slots.push({
+      matchId: match.id,
+      courtId: court.courtId,
+      courtName: court.courtName,
+      scheduledTime: timeStr,
+      scheduledDate: bestDate,
+      label,
+      status: match.status || "pending",
+    });
+
+    const courtEndTime = bestTime + interval;
+    if (courtEndTime >= dayEnd) {
+      court.date = getNextScheduleDate(bestDate);
+      court.time = nextDayStartMin;
+    } else {
+      court.date = bestDate;
+      court.time = courtEndTime;
+    }
+
+    const playerEndTime = bestTime + playerRest;
+    const playerEnd = playerEndTime >= dayEnd
+      ? { date: getNextScheduleDate(bestDate), time: nextDayStartMin }
+      : { date: bestDate, time: playerEndTime };
+    for (const pid of playerIds) {
+      playerLastEnd.set(pid, playerEnd);
+    }
+  }
+
+  const scheduleBulk: Record<string, unknown> = {};
+  for (const slot of slots) {
+    const mid = slot.matchId as string;
+    scheduleBulk[`matches/${tid}/${mid}/scheduledTime`] = slot.scheduledTime;
+    scheduleBulk[`matches/${tid}/${mid}/scheduledDate`] = slot.scheduledDate;
+    scheduleBulk[`matches/${tid}/${mid}/courtId`] = slot.courtId;
+    scheduleBulk[`matches/${tid}/${mid}/courtName`] = slot.courtName;
+  }
+
+  if (!onlyUnassigned) {
+    scheduleBulk[`schedule/${tid}`] = null;
+  }
+  await db.ref().update(scheduleBulk);
+
+  const slotBulk: Record<string, unknown> = {};
+  if (onlyUnassigned) {
+    const existingSnap = await db.ref(`schedule/${tid}`).once("value");
+    if (existingSnap.exists()) {
+      existingSnap.forEach((child) => { slotBulk[`schedule/${tid}/${child.key}`] = child.val(); });
+    }
+  }
+  for (const slot of slots) {
+    const key = db.ref(`schedule/${tid}`).push().key!;
+    slotBulk[`schedule/${tid}/${key}`] = slot;
+  }
+  await db.ref().update(slotBulk);
+
+  const dates = [...new Set(slots.map((s) => s.scheduledDate as string))].sort();
+  const summary = dates.map((d) => {
+    const daySlots = slots.filter((s) => s.scheduledDate === d);
+    const times = daySlots.map((s) => s.scheduledTime as string).sort();
+    return `${d}: ${daySlots.length}경기 (${times[0]}~${times[times.length - 1]})`;
+  }).join(", ");
+
+  const scheduleDetail = slots.map(s => `${s.scheduledDate} ${s.scheduledTime} [${s.courtName}] ${s.label}`).join("\n");
+
+  return JSON.stringify({
+    success: true,
+    count: slots.length,
+    skipped: skippedCount,
+    dates: dates.length,
+    summary,
+    scheduleDetail,
+    settings: { interval, playerRest, breakTime: breakStartStr ? `${breakStartStr}-${breakEndStr}` : "없음", endTime },
+    message: `${slots.length}경기 스케줄 생성 완료 (${dates.length}일, 팀 휴식 ${playerRest}분, 경기 간격 ${interval}분${breakStartStr ? `, 점심 ${breakStartStr}-${breakEndStr}` : ""})`,
+  });
+}
+
 export async function moveMatchesToCourt(input: Record<string, unknown>): Promise<string> {
   const tid = input.tournamentId as string;
   const fromCourtId = input.fromCourtId as string;
