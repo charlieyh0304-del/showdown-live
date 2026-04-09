@@ -2,6 +2,13 @@
  * 본선 브라켓 + 순위결정전 생성 핸들러 (generate_finals)
  */
 import { db } from "../db-helpers";
+import {
+  seedBracket,
+  applyAvoidSameGroup,
+  computeBracketSize,
+  getRoundName,
+  type SeedEntry,
+} from "../lib/bracket-seeding";
 
 export async function generateFinals(input: Record<string, unknown>): Promise<string> {
   const tid = input.tournamentId as string;
@@ -100,57 +107,18 @@ export async function generateFinals(input: Record<string, unknown>): Promise<st
 
   if (advanced.length < 2) return JSON.stringify({ error: `진출자 ${advanced.length}명. 최소 2명 필요.` });
 
-  // 브라켓 크기: 항상 진출자 수에서 가장 가까운 2의 거듭제곱
-  const nearestPow2 = Math.pow(2, Math.ceil(Math.log2(Math.max(2, advanced.length))));
-  const bracketSize = nearestPow2;
-  const isTeamTour2 = tour2.type === "team" || tour2.type === "randomTeamLeague";
-
-  // 교차 시드 배치 (같은 조 1라운드 대결 방지)
-  const top = advanced.filter(p => p.rank === 1);
-  const sec = advanced.filter(p => p.rank === 2);
-  const wcPlayers = advanced.filter(p => p.rank > 2);
-  // 2위 역순 배치 (A1 vs G2, B1 vs F2 형태를 위해)
-  const secReversed = [...sec].reverse();
-  // 시드 순서: 1위들(정순) → 2위들(역순) → 와일드카드
-  const seeded = [...top, ...secReversed, ...wcPlayers];
-
-  // 같은 조 대결 방지: fold-pairing 후 같은 조면 인접 슬롯과 스왑
+  // 브라켓 크기 + 시드 배치 + 같은 조 회피 — lib/bracket-seeding 위임
+  const bracketSize = computeBracketSize(advanced.length);
   const halfBracket = Math.floor(bracketSize / 2);
-  const pairIndices: [number, number][] = [];
-  for (let i = 0; i < halfBracket; i++) {
-    pairIndices.push([i, bracketSize - 1 - i]);
-  }
-  // 같은 조 충돌 검사 및 스왑
-  for (let i = 0; i < pairIndices.length; i++) {
-    const [idx1, idx2] = pairIndices[i];
-    const p1 = idx1 < seeded.length ? seeded[idx1] : null;
-    const p2 = idx2 < seeded.length ? seeded[idx2] : null;
-    if (p1 && p2 && p1.gid === p2.gid) {
-      // 같은 조 충돌 → 다음 페어의 p2와 스왑 시도
-      for (let j = i + 1; j < pairIndices.length; j++) {
-        const [, swapIdx2] = pairIndices[j];
-        const swapP2 = swapIdx2 < seeded.length ? seeded[swapIdx2] : null;
-        if (swapP2 && swapP2.gid !== p1.gid) {
-          const origP2Gid = p2.gid;
-          const swapTarget1 = pairIndices[j][0] < seeded.length ? seeded[pairIndices[j][0]] : null;
-          if (!swapTarget1 || swapTarget1.gid !== origP2Gid) {
-            // 스왑 실행
-            [seeded[idx2], seeded[swapIdx2]] = [seeded[swapIdx2], seeded[idx2]];
-            break;
-          }
-        }
-      }
-    }
-  }
+  const isTeamTour2 = tour2.type === "team" || tour2.type === "randomTeamLeague";
+  const seeded: SeedEntry[] = seedBracket(advanced);
+  applyAvoidSameGroup(seeded, bracketSize);
 
   // 전체 브라켓 생성 (BYE 포함, 모든 라운드)
   const now2 = Date.now();
   const bulk2: Record<string, unknown> = {};
   let mc = 0;
   const summary: string[] = [];
-
-  const ROUND_NAMES: Record<number, string> = { 32: "32강", 16: "16강", 8: "8강", 4: "4강", 2: "결승" };
-  const getRoundName = (n: number) => ROUND_NAMES[n] || `${n}강`;
 
   // 라운드별 matchKey 추적 (승자 연결용)
   const roundMatchKeys: string[][] = [];
