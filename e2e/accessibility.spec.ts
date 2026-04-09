@@ -19,7 +19,7 @@ test.describe('Accessibility baseline (WCAG 2.1 AA)', () => {
     await page.waitForSelector('text=쇼다운', { timeout: 10000 });
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
-    expect.soft(
+    expect(
       a11y.violations,
       `Mode selector violations:\n${JSON.stringify(a11y.violations, null, 2)}`,
     ).toEqual([]);
@@ -29,7 +29,7 @@ test.describe('Accessibility baseline (WCAG 2.1 AA)', () => {
     await navigateToReferee(page);
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
-    expect.soft(
+    expect(
       a11y.violations,
       `Referee login violations:\n${JSON.stringify(a11y.violations, null, 2)}`,
     ).toEqual([]);
@@ -39,7 +39,7 @@ test.describe('Accessibility baseline (WCAG 2.1 AA)', () => {
     await navigateToSpectator(page);
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
-    expect.soft(
+    expect(
       a11y.violations,
       `Spectator home violations:\n${JSON.stringify(a11y.violations, null, 2)}`,
     ).toEqual([]);

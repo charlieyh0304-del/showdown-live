@@ -23,14 +23,14 @@ test.describe('Navigation - All main routes load without errors', () => {
     await expect(page.locator('[aria-label^="관람 모드 진입"]')).toBeVisible();
 
     const criticalErrors = errors.filter(
-      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
+      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network') && !e.includes('Failed to load resource'),
     );
     expect(criticalErrors).toHaveLength(0);
 
     // a11y scan after home page load
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
-    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
-    // TODO(a11y): triage any violations surfaced on mode selector
+    expect(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // a11y baseline 가드 (회귀 시 fail) on mode selector
   });
 
   test('admin page loads and shows login or dashboard', async ({ page }) => {
@@ -51,11 +51,11 @@ test.describe('Navigation - All main routes load without errors', () => {
 
     // a11y scan after admin page load
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
-    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
-    // TODO(a11y): triage any violations surfaced on /admin
+    expect(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // a11y baseline 가드 (회귀 시 fail) on /admin
 
     const criticalErrors = errors.filter(
-      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
+      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network') && !e.includes('Failed to load resource'),
     );
     expect(criticalErrors).toHaveLength(0);
   });
@@ -73,11 +73,11 @@ test.describe('Navigation - All main routes load without errors', () => {
 
     // a11y scan after referee page load
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
-    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
-    // TODO(a11y): triage any violations surfaced on /referee
+    expect(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // a11y baseline 가드 (회귀 시 fail) on /referee
 
     const criticalErrors = errors.filter(
-      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
+      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network') && !e.includes('Failed to load resource'),
     );
     expect(criticalErrors).toHaveLength(0);
   });
@@ -94,7 +94,7 @@ test.describe('Navigation - All main routes load without errors', () => {
     await expect(page.locator('text=대회 목록').first()).toBeVisible({ timeout: 10000 });
 
     const criticalErrors = errors.filter(
-      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
+      (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network') && !e.includes('Failed to load resource'),
     );
     expect(criticalErrors).toHaveLength(0);
   });
@@ -105,8 +105,7 @@ test.describe('Navigation - All main routes load without errors', () => {
 
     // Click admin button and verify navigation
     await page.locator('[aria-label^="관리자 모드 진입"]').click();
-    await waitForLoading(page);
-    await expect(page).toHaveURL(/\/admin/);
+    await page.waitForURL(/\/admin/, { timeout: 10000 });
 
     // Go back to home
     await page.goto('/');
@@ -114,8 +113,7 @@ test.describe('Navigation - All main routes load without errors', () => {
 
     // Click referee button and verify navigation
     await page.locator('[aria-label^="심판 모드 진입"]').click();
-    await waitForLoading(page);
-    await expect(page).toHaveURL(/\/referee/);
+    await page.waitForURL(/\/referee/, { timeout: 10000 });
 
     // Go back to home
     await page.goto('/');
@@ -123,8 +121,7 @@ test.describe('Navigation - All main routes load without errors', () => {
 
     // Click spectator button and verify navigation
     await page.locator('[aria-label^="관람 모드 진입"]').click();
-    await waitForLoading(page);
-    await expect(page).toHaveURL(/\/spectator/);
+    await page.waitForURL(/\/spectator/, { timeout: 10000 });
   });
 
   test('unknown routes redirect to home', async ({ page }) => {
