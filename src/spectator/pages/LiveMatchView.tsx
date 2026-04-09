@@ -14,8 +14,11 @@ export default function LiveMatchView() {
   const { match, loading: mLoading } = useMatch(tournamentId || null, matchId || null);
   const { tournament, loading: tLoading } = useTournament(tournamentId || null);
   const [announcement, setAnnouncement] = useState('');
+  const [urgentAnnouncement, setUrgentAnnouncement] = useState('');
   const [historyOrder, setHistoryOrder] = useState<'newest' | 'oldest'>('oldest');
   const prevScoreRef = useRef('');
+  const prevSetWinsRef = useRef('');
+  const prevStatusAnnounceRef = useRef('');
   const prevHistoryLenRef = useRef(0);
   const prevStatusRef = useRef('');
   const prevActiveTimeoutRef = useRef<boolean>(false);
@@ -50,7 +53,32 @@ export default function LiveMatchView() {
       setAnnouncement(t('spectator.liveMatch.scoreAriaLabel', { p1, p1Score: currentSetData.player1Score, p2, p2Score: currentSetData.player2Score }));
     }
     prevScoreRef.current = scoreStr;
-  }, [match]);
+
+    // Set wins change → assertive (e.g., "1세트 종료, 홍길동 11 대 김철수 8")
+    const setsArr = Array.isArray(match.sets) ? match.sets : [];
+    const completedSets = setsArr.filter(s => s && (s as { winnerId?: string | null }).winnerId);
+    const setWinsStr = completedSets.map(s => `${s.player1Score}-${s.player2Score}`).join('|');
+    if (prevSetWinsRef.current && prevSetWinsRef.current !== setWinsStr && completedSets.length > 0) {
+      const last = completedSets[completedSets.length - 1];
+      const p1 = match.type === 'team' ? (match.team1Name || t('referee.home.team1Default')) : (match.player1Name || t('referee.home.player1Default'));
+      const p2 = match.type === 'team' ? (match.team2Name || t('referee.home.team2Default')) : (match.player2Name || t('referee.home.player2Default'));
+      setUrgentAnnouncement(`${completedSets.length}세트 종료, ${p1} ${last.player1Score} 대 ${p2} ${last.player2Score}`);
+    }
+    prevSetWinsRef.current = setWinsStr;
+
+    // Match status transitions → assertive (start / end)
+    const status = match.status ?? '';
+    if (prevStatusAnnounceRef.current && prevStatusAnnounceRef.current !== status) {
+      const p1 = match.type === 'team' ? (match.team1Name || t('referee.home.team1Default')) : (match.player1Name || t('referee.home.player1Default'));
+      const p2 = match.type === 'team' ? (match.team2Name || t('referee.home.team2Default')) : (match.player2Name || t('referee.home.player2Default'));
+      if (status === 'in_progress' && prevStatusAnnounceRef.current === 'pending') {
+        setUrgentAnnouncement(`경기 시작, ${p1} 대 ${p2}`);
+      } else if (status === 'completed') {
+        setUrgentAnnouncement(`경기 종료, ${p1} 대 ${p2}`);
+      }
+    }
+    prevStatusAnnounceRef.current = status;
+  }, [match, t]);
 
   // Whistle sounds based on match events (via Firebase real-time)
   useEffect(() => {
@@ -121,7 +149,8 @@ export default function LiveMatchView() {
 
   return (
     <div>
-      <div aria-live="assertive" aria-atomic="true" className="sr-only">{announcement}</div>
+      <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
+      <div aria-live="assertive" aria-atomic="true" className="sr-only" role="alert">{urgentAnnouncement}</div>
 
       <button className="btn" onClick={() => navigate(`/spectator/tournament/${tournamentId}`)}
         style={{ background: 'none', color: 'var(--color-secondary)', padding: '0.5rem 0', marginBottom: '1rem', fontSize: '1rem', display: 'block', margin: '0 auto 1rem auto' }}>
