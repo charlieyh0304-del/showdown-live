@@ -30,7 +30,10 @@
       "Bash(firebase functions:log --only onMatchChange)",
       "Bash(grep -n \"team1SubUsed\\\\|team2SubUsed\\\\|substitution\" src/shared/types/*.ts src/shared/types/*.tsx)",
       "Bash(xargs grep:*)",
-      "Read(//c/Users/USER/showdown-live/**)"
+      "Read(//c/Users/USER/showdown-live/**)",
+      "Bash(npm test:*)",
+      "Read(//c/Users/USER/**)",
+      "Bash(npx vitest:*)"
     ]
   }
 }

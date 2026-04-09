@@ -8,17 +8,43 @@ import { db, asString, asNumber, asBoolean } from "../db-helpers";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
+type MatchData = Record<string, unknown>;
+type TeamObj = { memberNames?: string[]; coachName?: string };
+
+/** team1/team2 중첩 객체 안전 접근 */
+function getTeamObj(match: MatchData, side: 1 | 2): TeamObj | undefined {
+  return match[`team${side}`] as TeamObj | undefined;
+}
+function getMembers(match: MatchData, side: 1 | 2): string[] {
+  return getTeamObj(match, side)?.memberNames || [];
+}
+function getCoach(match: MatchData, side: 1 | 2): string {
+  return getTeamObj(match, side)?.coachName || asString(match[`player${side}Coach`]);
+}
+/** player{side}Id || team{side}Id (둘 중 비어있지 않은 쪽) */
+function getSideId(match: MatchData, side: 1 | 2): string {
+  return asString(match[`player${side}Id`]) || asString(match[`team${side}Id`]);
+}
+/** 표시용 이름: 팀전이면 team→player 순, 개인전이면 player→team 순 */
+function getSideName(match: MatchData, side: 1 | 2, isTeam: boolean): string {
+  const playerName = asString(match[`player${side}Name`]);
+  const teamName = asString(match[`team${side}Name`]);
+  const fallback = `P${side}`;
+  if (isTeam) return teamName || playerName || fallback;
+  return playerName || teamName || fallback;
+}
+
 /**
  * 완료된 매치에서 승자/패자 id와 name을 추출.
  * BYE 승자 자동 전파 로직에서 사용.
  */
-function extractWinnerLoser(srcM: Record<string, unknown>): {
+function extractWinnerLoser(srcM: MatchData): {
   wId: string; wName: string; lId: string; lName: string;
 } {
   const wId = asString(srcM.winnerId);
-  const p1Id = asString(srcM.player1Id) || asString(srcM.team1Id);
+  const p1Id = getSideId(srcM, 1);
   const p1Name = asString(srcM.player1Name) || asString(srcM.team1Name);
-  const p2Id = asString(srcM.player2Id) || asString(srcM.team2Id);
+  const p2Id = getSideId(srcM, 2);
   const p2Name = asString(srcM.player2Name) || asString(srcM.team2Name);
   if (wId === p1Id) return { wId, wName: p1Name, lId: p2Id, lName: p2Name };
   return { wId, wName: p2Name, lId: p1Id, lName: p1Name };
@@ -62,9 +88,9 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
 
   // 선수가 없는 경기(빈 슬롯) 제외
   matchList = matchList.filter(([, m]) => {
-    const p1 = (m.player1Id || m.team1Id) as string;
-    const p2 = (m.player2Id || m.team2Id) as string;
-    return p1 && p2 && p1 !== "" && p2 !== "";
+    const p1 = getSideId(m, 1);
+    const p2 = getSideId(m, 2);
+    return p1 && p2;
   });
 
   if (matchList.length === 0) {
@@ -136,8 +162,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     }
 
     const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
-    const p1Id3 = (match.player1Id || match.team1Id) as string;
-    const p2Id3 = (match.player2Id || match.team2Id) as string;
+    const p1Id3 = getSideId(match, 1);
+    const p2Id3 = getSideId(match, 2);
 
     // lightweight 모드: 간단한 scoreHistory + 세트 점수 빠르게 생성
     // 득점 이벤트만 기록 (서브/타임아웃 등은 스킵)
@@ -238,8 +264,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     // 일반 모드: scoreHistory 포함 포인트 단위 진행
 
     // scoreHistory 생성 — 득점 과정 시뮬레이션
-    const p1n = (isTeamType ? (match.team1Name || match.player1Name) : (match.player1Name || match.team1Name) || "P1") as string;
-    const p2n = (isTeamType ? (match.team2Name || match.player2Name) : (match.player2Name || match.team2Name) || "P2") as string;
+    const p1n = getSideName(match, 1, isTeamType);
+    const p2n = getSideName(match, 2, isTeamType);
     // p1id/p2id는 winnerId에서 이미 사용
     const history: Array<Record<string, unknown>> = [];
     // 경기 예정 시간 기반으로 히스토리 시간 생성 (KST)
@@ -264,10 +290,10 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
 
     // 팀전: 라인업 기록 (코인토스 전 — 코인토스 승자가 상대 라인업을 듣고 선택)
     if (isTeamMatch) {
-      const t1m = ((match.team1 as Record<string, unknown>)?.memberNames as string[]) || [];
-      const t2m = ((match.team2 as Record<string, unknown>)?.memberNames as string[]) || [];
-      const c1 = (match.team1 as Record<string, unknown>)?.coachName as string || (match.player1Coach as string) || "";
-      const c2 = (match.team2 as Record<string, unknown>)?.coachName as string || (match.player2Coach as string) || "";
+      const t1m = getMembers(match, 1);
+      const t2m = getMembers(match, 2);
+      const c1 = getCoach(match, 1);
+      const c2 = getCoach(match, 2);
       const maxActive = 3;
       const fmtLineup = (members: string[]) => {
         const active = members.slice(0, maxActive).map((n, i) => `${i + 1}.${n}`).join(", ");
@@ -295,8 +321,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     let serveNum = 1;
 
     // 팀전: 팀원 이름 순환 (memberNames 배열 사용)
-    const team1Members = (match.team1 as Record<string, unknown>)?.memberNames as string[] | undefined;
-    const team2Members = (match.team2 as Record<string, unknown>)?.memberNames as string[] | undefined;
+    const team1Members = getTeamObj(match, 1)?.memberNames;
+    const team2Members = getTeamObj(match, 2)?.memberNames;
     let p1MemberIdx = 0; // player1(team1) 쪽 현재 서브하는 팀원 인덱스
     let p2MemberIdx = 0; // player2(team2) 쪽 현재 서브하는 팀원 인덱스
 
@@ -447,8 +473,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     // 승자 결정
     const finalWinnerId = p1SetWins > p2SetWins ? p1Id3 : p2Id3;
     const winnerName = p1SetWins > p2SetWins
-      ? (match.player1Name || match.team1Name || "P1") as string
-      : (match.player2Name || match.team2Name || "P2") as string;
+      ? getSideName(match, 1, false)
+      : getSideName(match, 2, false);
     const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
     results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
