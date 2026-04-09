@@ -4,16 +4,16 @@
  * - 일반 모드: 코인토스/서브/타임아웃/사이드체인지 등 포인트 단위 진행
  * - 예선 완료 시 결승 자동 생성/시뮬레이션 지원 (executeTool 콜백)
  */
-import { db } from "../db-helpers";
+import { db, asString, asNumber, asBoolean } from "../db-helpers";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
 export async function simulateMatches(input: Record<string, unknown>, executeTool: ExecuteTool): Promise<string> {
-  const tid = input.tournamentId as string;
+  const tid = asString(input.tournamentId);
   const now = Date.now();
-  const stageId = input.stageId as string | undefined;
-  const groupId = input.groupId as string | undefined;
-  const lightweight = (input.lightweight as boolean) || false; // scoreHistory 스킵
+  const stageId = input.stageId ? asString(input.stageId) : undefined;
+  const groupId = input.groupId ? asString(input.groupId) : undefined;
+  const lightweight = asBoolean(input.lightweight); // scoreHistory 스킵
 
   // 대회 설정에서 세트 수/점수 자동 로드
   const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
@@ -24,10 +24,10 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
   const finalsConfig = tourData.finalsConfig as { scoringRules?: { winScore?: number; setsToWin?: number }; roundScoringOverride?: { fromRound?: number; scoringRules?: { winScore?: number; setsToWin?: number } } } | undefined;
   // 시간 제한(골든골) — tourData.scoringRules.timeLimitSeconds
   const tourScoringRules = tourData.scoringRules as { timeLimitSeconds?: number } | undefined;
-  const timeLimitSeconds = Math.max(0, (input.timeLimitSeconds as number) || tourScoringRules?.timeLimitSeconds || 0);
+  const timeLimitSeconds = Math.max(0, asNumber(input.timeLimitSeconds, tourScoringRules?.timeLimitSeconds || 0));
   // 예선 기본값
-  const baseWinScore = Math.max(4, (input.winScore as number) || (isTeamType ? teamSettings?.winScore : gameConfig?.winScore) || (isTeamType ? 31 : 11));
-  const baseSetsToWin = Math.max(1, (input.setsToWin as number) || (isTeamType ? teamSettings?.setsToWin : gameConfig?.setsToWin) || (isTeamType ? 1 : 2));
+  const baseWinScore = Math.max(4, asNumber(input.winScore, (isTeamType ? teamSettings?.winScore : gameConfig?.winScore) || (isTeamType ? 31 : 11)));
+  const baseSetsToWin = Math.max(1, asNumber(input.setsToWin, (isTeamType ? teamSettings?.setsToWin : gameConfig?.setsToWin) || (isTeamType ? 1 : 2)));
   // 본선 세트 수 (finalsConfig가 있으면 사용)
   const finalsWinScore = finalsConfig?.scoringRules?.winScore || baseWinScore;
   const finalsSetsToWin = finalsConfig?.scoringRules?.setsToWin || baseSetsToWin;
@@ -107,16 +107,16 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
   const results: Array<{ match: string; score: string; winner: string }> = [];
 
   for (const [mid, match] of matchList) {
-    const matchStageId = (match.stageId as string) || "";
+    const matchStageId = asString(match.stageId);
     // 본선 브라켓 경기 vs 순위결정전 구분
     const isMainBracket = matchStageId.includes("finals") && !matchStageId.includes("class") && !matchStageId.includes("5to8") && !matchStageId.includes("9to16") && !matchStageId.includes("3rd");
     // 순위결정전은 예선 설정(3세트) 사용
     // 순위결정전 세트 수: rankingMatchConfig.rankingSetsToWin (기본=예선 세트 수)
     const rankingConfig = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-    const rankingSetsToWin = (rankingConfig?.rankingSetsToWin as number) || baseSetsToWin;
-    const rankingWinScore = (rankingConfig?.rankingWinScore as number) || baseWinScore;
+    const rankingSetsToWin = asNumber(rankingConfig?.rankingSetsToWin, baseSetsToWin);
+    const rankingWinScore = asNumber(rankingConfig?.rankingWinScore, baseWinScore);
     // 본선 브라켓: 본선 세트 수 + 오버라이드, 순위결정전: 커스텀 또는 예선 세트 수
-    const bracketRoundStr = (match.bracketRound as string) || "";
+    const bracketRoundStr = asString(match.bracketRound);
     const bracketRoundMatch = bracketRoundStr.match(/(\d+)/);
     const bracketRoundNum = bracketRoundMatch ? parseInt(bracketRoundMatch[1]) : (bracketRoundStr === "결승" ? 2 : 0);
     let matchWinScore = isMainBracket ? finalsWinScore : (matchStageId.includes("class") || matchStageId.includes("5to8") || matchStageId.includes("9to16") || matchStageId.includes("3rd") ? rankingWinScore : baseWinScore);
@@ -134,8 +134,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     // lightweight 모드: 간단한 scoreHistory + 세트 점수 빠르게 생성
     // 득점 이벤트만 기록 (서브/타임아웃 등은 스킵)
     if (lightweight) {
-      const lwP1n = (match.player1Name || match.team1Name || "P1") as string;
-      const lwP2n = (match.player2Name || match.team2Name || "P2") as string;
+      const lwP1n = asString(match.player1Name) || asString(match.team1Name) || "P1";
+      const lwP2n = asString(match.player2Name) || asString(match.team2Name) || "P2";
       const lwHistory: Array<Record<string, unknown>> = [];
       let lwTime = Date.now();
       const lwFmt = (ms: number) => {
@@ -235,8 +235,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     // p1id/p2id는 winnerId에서 이미 사용
     const history: Array<Record<string, unknown>> = [];
     // 경기 예정 시간 기반으로 히스토리 시간 생성 (KST)
-    const schedDate = (match.scheduledDate as string) || new Date().toISOString().split("T")[0];
-    const schedTime = (match.scheduledTime as string) || "09:00";
+    const schedDate = asString(match.scheduledDate, new Date().toISOString().split("T")[0]);
+    const schedTime = asString(match.scheduledTime, "09:00");
     const [sh, sm] = schedTime.split(":").map(Number);
     let t = new Date(`${schedDate}T${String(sh).padStart(2, "0")}:${String(sm).padStart(2, "0")}:00+09:00`).getTime();
     const fmt = (ms: number) => {
@@ -558,8 +558,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
 
     // 예선 완료 시 결승 자동 생성 + 시뮬레이션 (풀리그는 결승 없음)
     // skipAutoGenerate가 true이면 건너뜀 (run_full_simulation에서 직접 처리)
-    const skipAutoGen = (input.skipAutoGenerate as boolean) || false;
-    const tourFormat = tourData.format as string || "";
+    const skipAutoGen = asBoolean(input.skipAutoGenerate);
+    const tourFormat = asString(tourData.format);
     const isFullLeagueFormat = tourFormat === "full_league" || tourData.formatType === "round_robin";
     if (!isFullLeagueFormat && !skipAutoGen) {
       const tourStagesTyped = tourData.stages as Array<{ id: string; type?: string }> | undefined;
@@ -570,7 +570,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
         if (qualAllDone) {
           // 결승이 아직 없는 경우에만 자동 생성
           const finalsExist = allMatches.some(m => {
-            const sid = m.stageId as string | undefined;
+            const sid = m.stageId ? asString(m.stageId) : undefined;
             return sid && sid.includes("finals");
           });
           if (!finalsExist) {
@@ -578,8 +578,8 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             const simFc = tourData.finalsConfig as Record<string, unknown> | undefined;
             const genResult = await executeTool("generate_finals", {
               tournamentId: tid,
-              advancePerGroup: (simFc?.advancePerGroup as number) || 2,
-              wildcardCount: (simFc?.wildcardCount as number) || 0,
+              advancePerGroup: asNumber(simFc?.advancePerGroup, 2),
+              wildcardCount: asNumber(simFc?.wildcardCount, 0),
               includeThirdPlace: true,
               includeFifthToEighth: true,
               includeClassification: true,
