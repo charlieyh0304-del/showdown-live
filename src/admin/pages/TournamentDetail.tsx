@@ -13,7 +13,7 @@ import {
 } from '@shared/hooks/useFirebase';
 import { push, set, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig, getSetScoresByServer } from '@shared/utils/scoring';
+import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
 import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
 import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';

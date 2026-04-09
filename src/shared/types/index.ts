@@ -97,6 +97,10 @@ export interface FinalsStageConfig {
   advanceCount: number;
   startingRound: number;
   seedMethod: 'ranking' | 'manual' | 'custom';
+  advancePerGroup?: number;          // 조당 진출자 수 (백엔드 setup-full에서 사용)
+  wildcardCount?: number;            // 와일드카드 슬롯 수
+  avoidSameGroup?: boolean;          // 1라운드에서 같은 조 대결 회피
+  bracketArrangement?: 'cross_group' | 'custom' | string; // 시드 배치 방식
   scoringRules?: ScoringRules;
   matchRules?: MatchRules;
   roundScoringOverride?: RoundScoringOverride;

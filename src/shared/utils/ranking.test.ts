@@ -22,6 +22,7 @@ function makeMatch(
     tournamentId: 't1',
     type: 'individual',
     status: 'completed',
+    round: 1,
     player1Id: p1Id,
     player2Id: p2Id,
     player1Name: p1Name,
@@ -44,6 +45,7 @@ describe('calculateIndividualRanking', () => {
   it('미완료 경기 제외', () => {
     const m: Match = {
       id: 'm1', tournamentId: 't1', type: 'individual', status: 'pending',
+      round: 1,
       player1Id: 'a', player2Id: 'b', player1Name: 'A', player2Name: 'B',
       sets: [], currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
       createdAt: Date.now(), updatedAt: Date.now(),
