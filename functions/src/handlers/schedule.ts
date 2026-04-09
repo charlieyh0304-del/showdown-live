@@ -2,6 +2,12 @@
  * 스케줄 관련 핸들러: generate_round_robin, shift_schedule, move_matches_to_court
  */
 import { db, addDays, asString, asNumber, asBoolean } from "../db-helpers";
+import {
+  parseTimeToMinutes,
+  formatMinutesToTime,
+  shiftTime as shiftTimePure,
+  skipBreak as skipBreakPure,
+} from "../lib/schedule-time";
 
 export async function generateRoundRobin(input: Record<string, unknown>): Promise<string> {
   const tid = asString(input.tournamentId);
@@ -121,16 +127,7 @@ export async function shiftSchedule(input: Record<string, unknown>): Promise<str
   const matchesSnap = await db.ref(`matches/${tid}`).once("value");
   if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
 
-  function shiftTime(time: string, date: string | undefined, shiftMin: number): { time: string; date: string | undefined; dateShift: number } {
-    const [h2, m2] = time.split(":").map(Number);
-    let totalMin = h2 * 60 + m2 + shiftMin;
-    let ds = 0;
-    while (totalMin < 0) { totalMin += 24 * 60; ds--; }
-    while (totalMin >= 24 * 60) { totalMin -= 24 * 60; ds++; }
-    const newTime2 = `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
-    const newDate2 = ds !== 0 && date ? addDays(date, ds) : date;
-    return { time: newTime2, date: newDate2, dateShift: ds };
-  }
+  const shiftTime = shiftTimePure;
 
   const shiftBulk: Record<string, unknown> = {};
   let count = 0;
@@ -179,8 +176,8 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   const stageFilter = input.stageFilter as string | undefined;
   const onlyUnassigned = asBoolean(input.onlyUnassigned);
 
-  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-  const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const toMin = parseTimeToMinutes;
+  const fmtMin = formatMinutesToTime;
 
   const dayStart = toMin(startTime);
   const dayEnd = toMin(endTime);
@@ -250,12 +247,7 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
     return ids;
   };
 
-  const skipBreak = (time: number): number => {
-    if (breakStart >= 0 && breakEnd >= 0 && time >= breakStart && time < breakEnd) {
-      return breakEnd;
-    }
-    return time;
-  };
+  const skipBreak = (time: number): number => skipBreakPure(time, breakStart, breakEnd);
 
   const slots: Record<string, unknown>[] = [];
   let skippedCount = 0;
