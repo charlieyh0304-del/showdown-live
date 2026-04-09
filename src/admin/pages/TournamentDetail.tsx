@@ -4459,6 +4459,14 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   const [copySuccess, setCopySuccess] = useState(false);
   const completedMatches = matches.filter(m => m.status === 'completed');
 
+  // [DEBUG] 빨간 배너 - 모든 경로에 표시
+  const rkCfgDbg = tournament.rankingMatchConfig as { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } | undefined;
+  const dbgBanner = (
+    <div style={{ background: '#dc2626', color: 'white', padding: '8px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }}>
+      [DEBUG v4 admin] isTeam={String(isTeamType)}, cfg={rkCfgDbg ? `cls=${String(rkCfgDbg.classificationGroups)},5to8=${String(rkCfgDbg.fifthToEighth)},3rd=${String(rkCfgDbg.thirdPlace)},upTo=${rkCfgDbg.rankingUpTo || 0}` : 'undefined'}
+    </div>
+  );
+
   // 본선/순위결정전에 참가한 인원만 최종 순위로 인정 (예: 5-8위전까지만 → 9위 이하 숨김)
   // 본선/순위결정전이 없으면(풀리그 등) 전체 표시
   const finalsParticipantIds = (() => {
@@ -4564,6 +4572,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
     const rankings = assignRanks(calculateTeamRanking(matches), r => r.teamId);
     return (
       <div className="space-y-6">
+        {dbgBanner}
         {exportButtons}
 
         {/* Summary stats */}
@@ -4658,6 +4667,7 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
   const rankings = allRankings.slice(0, maxRank);
   return (
     <div className="space-y-6">
+      {dbgBanner}
       {exportButtons}
 
       {/* Summary stats */}

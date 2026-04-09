@@ -1944,9 +1944,17 @@ function RankingTab({
   stageFilter: 'all' | 'qualifying' | 'finals' | 'ranking';
   tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
 }) {
+  // [DEBUG] 어떤 경로든 보이는 빨간 배너
+  const rkCfgDbg = tournament?.rankingMatchConfig;
+  const dbgBanner = (
+    <div style={{ background: '#dc2626', color: 'white', padding: '8px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+      [DEBUG v4] stage={stageFilter}, type={tournamentType}, cfg={rkCfgDbg ? `cls=${String(rkCfgDbg.classificationGroups)},5to8=${String(rkCfgDbg.fifthToEighth)},3rd=${String(rkCfgDbg.thirdPlace)},upTo=${rkCfgDbg.rankingUpTo || 0}` : 'undefined'}
+    </div>
+  );
   if (stageFilter === 'qualifying') {
     return (
       <div>
+        {dbgBanner}
         <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
         <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} isTeam={tournamentType === 'team' || tournamentType === 'randomTeamLeague'} />
       </div>
@@ -1958,6 +1966,7 @@ function RankingTab({
   if (isTeam) {
     return (
       <div>
+        {dbgBanner}
         <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
         <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} />
       </div>
@@ -1966,6 +1975,7 @@ function RankingTab({
 
   return (
     <div>
+      {dbgBanner}
       <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
       <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} tournament={tournament} />
     </div>
