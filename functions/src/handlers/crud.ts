@@ -84,6 +84,11 @@ export async function updatePlayer(pid: string, ptid: string | undefined, fields
 
 // ===== Teams =====
 export async function addTeam(ttid: string, name: string, memberIds: string[], memberNames: string[], coachName?: string): Promise<string> {
+  const ids = memberIds || [];
+  const names = memberNames || [];
+  if (ids.length === 0 && names.length === 0) {
+    return JSON.stringify({ error: "팀에 최소 1명의 선수가 있어야 합니다." });
+  }
   const tRef = db.ref(`teams/${ttid}`).push();
   const teamPayload: Record<string, unknown> = {
     name,

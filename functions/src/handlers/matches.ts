@@ -11,6 +11,16 @@ export async function addMatch(input: Record<string, unknown>): Promise<string> 
   if (!tCheckSnap.exists()) {
     return JSON.stringify({ error: "해당 대회를 찾을 수 없습니다." });
   }
+  // Fix 3: Orphaned match prevention — verify stageId exists in tournament.stages[]
+  if (input.stageId && typeof input.stageId === "string") {
+    const tData = tCheckSnap.val() as { stages?: Array<{ id: string }> } | null;
+    const stages = tData?.stages;
+    const stageList = Array.isArray(stages) ? stages : (stages ? Object.values(stages) : []);
+    const found = (stageList as Array<{ id: string }>).some((s) => s && s.id === input.stageId);
+    if (!found) {
+      return JSON.stringify({ error: `해당 스테이지(${input.stageId})가 대회에 존재하지 않습니다.` });
+    }
+  }
   const hasP1 = input.player1Id || input.team1Id;
   const hasP2 = input.player2Id || input.team2Id;
   if (!hasP1 || !hasP2) {
@@ -51,6 +61,17 @@ export async function updateMatch(input: Record<string, unknown>): Promise<strin
   const matchCheckSnap = await db.ref(`matches/${tournamentId}/${matchId}`).once("value");
   if (!matchCheckSnap.exists()) {
     return JSON.stringify({ error: "해당 경기를 찾을 수 없습니다." });
+  }
+  // Fix 2: winnerId validation — must match one of the participants (empty/null OK)
+  if ("winnerId" in fields) {
+    const w = fields.winnerId;
+    if (w !== null && w !== "" && typeof w === "string") {
+      const m = matchCheckSnap.val() as Record<string, unknown>;
+      const valid = [m.player1Id, m.player2Id, m.team1Id, m.team2Id].filter(Boolean);
+      if (!valid.includes(w)) {
+        return JSON.stringify({ error: "승자 ID가 경기 참가자와 일치하지 않습니다." });
+      }
+    }
   }
   const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
   delete updates.tournamentId;

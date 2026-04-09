@@ -1,10 +1,27 @@
 import type { Match, PlayerRanking, TeamRanking, TiebreakerRule, SetScore } from '../types';
 import { checkSetWinner } from './scoring';
 
-function applyTiebreaker(rule: TiebreakerRule, a: PlayerRanking, b: PlayerRanking): number {
+function applyTiebreaker(rule: TiebreakerRule, a: PlayerRanking, b: PlayerRanking, matches?: Match[]): number {
   switch (rule) {
     case 'set_difference': return (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost);
     case 'point_difference': return (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst);
+    case 'points_for': return b.pointsFor - a.pointsFor;
+    case 'head_to_head': {
+      if (!matches) return 0;
+      // Find direct completed match(es) between a and b
+      let aWins = 0, bWins = 0;
+      for (const m of matches) {
+        if (m.status !== 'completed') continue;
+        const pair =
+          (m.player1Id === a.playerId && m.player2Id === b.playerId) ||
+          (m.player1Id === b.playerId && m.player2Id === a.playerId);
+        if (!pair) continue;
+        if (m.winnerId === a.playerId) aWins++;
+        else if (m.winnerId === b.playerId) bWins++;
+      }
+      if (aWins === bWins) return 0; // didn't play, drew, or split — fall through
+      return bWins - aWins;
+    }
     default: return 0;
   }
 }
@@ -55,7 +72,7 @@ export function calculateIndividualRanking(
   const rankings = Array.from(map.values()).sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
     for (const rule of rules) {
-      const diff = applyTiebreaker(rule, a, b);
+      const diff = applyTiebreaker(rule, a, b, matches);
       if (diff !== 0) return diff;
     }
     return 0;
