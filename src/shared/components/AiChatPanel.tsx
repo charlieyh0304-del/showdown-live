@@ -344,9 +344,8 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
       </button>
       <button
         onClick={openChat}
-        accessKey="k"
-        aria-label={`${config.title} 텍스트 입력으로 열기. 단축키: Ctrl+Option+K`}
-        aria-keyshortcuts="Control+Option+K"
+        aria-label={`${config.title} 텍스트 입력으로 열기. 단축키: Ctrl+K`}
+        aria-keyshortcuts="Control+K"
       >
         AI 어시스턴트 열기
       </button>
