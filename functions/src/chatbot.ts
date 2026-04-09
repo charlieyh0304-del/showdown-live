@@ -1,5 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
+import * as logger from "firebase-functions/logger";
+import * as crypto from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool } from "./chatbot-tools";
 import { SYSTEM_PROMPT } from "./chatbot-prompt";
@@ -43,6 +45,9 @@ export const chatbot = onRequest(
     secrets: [anthropicApiKey],
   },
   async (req, res) => {
+    // 멀티스텝 워크플로우 추적용 request ID
+    const reqId = crypto.randomUUID().slice(0, 8);
+
     // Manual CORS allowlist (timeout/crash 시 백업용)
     const reqOrigin = req.headers.origin;
     if (typeof reqOrigin === "string" && ALLOWED_ORIGINS.includes(reqOrigin)) {
@@ -65,6 +70,13 @@ export const chatbot = onRequest(
       contextInfo?: string;
     };
     const role = userRole || "admin";
+
+    logger.info("Chatbot request received", {
+      reqId,
+      role,
+      messageCount: messages?.length || 0,
+      hasTournamentId: !!tournamentId,
+    });
 
     if (!messages || messages.length === 0) {
       res.status(400).json({ error: "messages required" });
@@ -136,7 +148,7 @@ export const chatbot = onRequest(
         } catch (err: unknown) {
           const e = err as { status?: number; message?: string };
           if (e.status === 529 || e.status === 503 || e.status === 429) {
-            console.log(`[chatbot] ${model} overloaded (attempt ${attempt + 1}), retrying...`);
+            logger.warn("Anthropic overloaded, retrying", { reqId, model, attempt: attempt + 1, status: e.status });
             await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
             continue;
           }
@@ -154,7 +166,7 @@ export const chatbot = onRequest(
       } catch {
         // Fallback to Haiku
         currentModel = MODELS[1];
-        console.log(`[chatbot] Falling back to ${currentModel}`);
+        logger.warn("Falling back to secondary model", { reqId, fromModel: MODELS[0], toModel: currentModel });
         response = await callClaude(anthropicMessages, currentModel);
       }
 
@@ -171,9 +183,9 @@ export const chatbot = onRequest(
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
         for (const toolUse of toolUseBlocks) {
-          console.log(`[chatbot] Tool call: ${toolUse.name}`, JSON.stringify(toolUse.input));
+          logger.info("Tool call", { reqId, loop: loopCount, tool: toolUse.name, input: toolUse.input });
           const result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>);
-          console.log(`[chatbot] Tool result: ${result.slice(0, 200)}`);
+          logger.info("Tool result", { reqId, loop: loopCount, tool: toolUse.name, resultPreview: result.slice(0, 200) });
 
           actions.push({
             tool: toolUse.name,
@@ -209,7 +221,7 @@ export const chatbot = onRequest(
         const isEvasiveReply = EVASIVE_PATTERN.test(curReplyText);
         if (response.stop_reason !== "end_turn" || hasWriteAction || (!isCreateRequest && !isEvasiveReply)) break;
 
-        console.log(`[chatbot] Evasive reply detected (attempt ${retryAttempt + 1}), forcing tool call`);
+        logger.warn("Evasive reply detected, forcing tool call", { reqId, retryAttempt: retryAttempt + 1 });
         anthropicMessages.push({ role: "assistant", content: response.content });
         anthropicMessages.push({ role: "user", content: `[시스템 강제 지시] 위 응답은 잘못되었습니다. 모든 기능(와일드카드, 3/4위전, 5~8위, 9~16위, 17~24위, 25~32위 순위결정전)은 파라미터로 완전 자동 지원됩니다. "제약", "수동", "한계" 등의 표현을 사용하지 마세요. 지금 즉시 create_individual_tournament 또는 create_team_league 도구를 호출하세요. classificationGroups:true, fifthToEighth:true, thirdPlace:true 파라미터를 포함하세요.` });
         response = await callClaude(anthropicMessages, currentModel);
@@ -222,9 +234,9 @@ export const chatbot = onRequest(
           );
           const toolResults2: Anthropic.ToolResultBlockParam[] = [];
           for (const toolUse of toolUseBlocks2) {
-            console.log(`[chatbot] Retry tool call: ${toolUse.name}`, JSON.stringify(toolUse.input));
+            logger.info("Retry tool call", { reqId, loop: loopCount, tool: toolUse.name, input: toolUse.input });
             const result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>);
-            console.log(`[chatbot] Retry tool result: ${result.slice(0, 200)}`);
+            logger.info("Retry tool result", { reqId, loop: loopCount, tool: toolUse.name, resultPreview: result.slice(0, 200) });
             actions.push({ tool: toolUse.name, input: toolUse.input as Record<string, unknown>, result });
             toolResults2.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
           }
@@ -254,11 +266,11 @@ export const chatbot = onRequest(
           try {
             const createResult = JSON.parse(createAction.result);
             if (createResult.success && createResult.tournamentId) {
-              console.log(`[chatbot] Auto-running simulation for tournament ${createResult.tournamentId}`);
+              logger.info("Auto-running simulation", { reqId, tournamentId: createResult.tournamentId });
               const simResult = await executeTool("run_full_simulation", { tournamentId: createResult.tournamentId });
               actions.push({ tool: "run_full_simulation", input: { tournamentId: createResult.tournamentId }, result: simResult });
             }
-          } catch (e2) { console.error("[chatbot] Auto-sim error:", e2); }
+          } catch (e2) { logger.error("Auto-sim error", { reqId, error: e2 instanceof Error ? e2.message : String(e2) }); }
         }
       }
 
@@ -296,11 +308,17 @@ export const chatbot = onRequest(
         }
       }
 
+      logger.info("Chatbot request completed", {
+        reqId,
+        actionCount: actions.length,
+        loopCount,
+        replyLength: reply.length,
+      });
       res.json({ reply, actions });
     } catch (err: unknown) {
       const e = err as { message?: string; status?: number };
-      console.error("[chatbot] Error:", e.message);
-      res.status(500).json({ error: e.message || "AI 요청 실패" });
+      logger.error("Chatbot request failed", { reqId, error: e.message, status: e.status });
+      res.status(500).json({ error: e.message || "AI 요청 실패", reqId });
     }
   },
 );
