@@ -1,10 +1,18 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { navigateToSpectator, waitForLoading } from './helpers';
+
+const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Spectator View', () => {
   test('spectator home shows tournament list heading', async ({ page }) => {
     await navigateToSpectator(page);
     await expect(page.locator('text=대회 목록').first()).toBeVisible();
+
+    // a11y scan on spectator home (primary blind-user landing)
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage spectator home violations
   });
 
   test('spectator home has filter tabs for in-progress and completed', async ({ page }) => {
@@ -105,6 +113,11 @@ test.describe('Spectator View', () => {
 
     // Should show ranking table
     await expect(page.locator('table').first()).toBeVisible({ timeout: 10000 });
+
+    // a11y scan on ranking table (table semantics critical for SR)
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage ranking table violations
   });
 
   test('spectator page is accessible (has proper aria labels)', async ({ page }) => {

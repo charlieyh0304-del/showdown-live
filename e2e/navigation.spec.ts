@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { navigateToAdmin, waitForLoading } from './helpers';
+
+const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Navigation - All main routes load without errors', () => {
   test('home page (mode selector) loads and shows all three mode buttons', async ({ page }) => {
@@ -23,6 +26,11 @@ test.describe('Navigation - All main routes load without errors', () => {
       (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
     );
     expect(criticalErrors).toHaveLength(0);
+
+    // a11y scan after home page load
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage any violations surfaced on mode selector
   });
 
   test('admin page loads and shows login or dashboard', async ({ page }) => {
@@ -41,6 +49,11 @@ test.describe('Navigation - All main routes load without errors', () => {
 
     await expect(loginHeading.or(pinSetupHeading).or(dashboard)).toBeVisible({ timeout: 10000 });
 
+    // a11y scan after admin page load
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage any violations surfaced on /admin
+
     const criticalErrors = errors.filter(
       (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
     );
@@ -57,6 +70,11 @@ test.describe('Navigation - All main routes load without errors', () => {
     await waitForLoading(page);
 
     await expect(page.locator('h1', { hasText: '심판 모드' })).toBeVisible({ timeout: 10000 });
+
+    // a11y scan after referee page load
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage any violations surfaced on /referee
 
     const criticalErrors = errors.filter(
       (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),

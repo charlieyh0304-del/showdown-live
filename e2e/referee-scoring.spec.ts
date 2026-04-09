@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { navigateToReferee, waitForLoading } from './helpers';
+
+const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Referee Scoring Flow', () => {
   test('referee login page shows tournament selection', async ({ page }) => {
@@ -13,6 +16,11 @@ test.describe('Referee Scoring Flow', () => {
 
     // Should have a "모드 선택으로" back button
     await expect(page.locator('text=모드 선택으로')).toBeVisible();
+
+    // a11y scan after referee login loads
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage referee login violations
   });
 
   test('referee login page shows practice mode button', async ({ page }) => {
@@ -105,6 +113,11 @@ test.describe('Referee Scoring Flow', () => {
     // PIN input should be visible (aria-label based)
     const pinInput = page.locator('[aria-label="4자리 PIN 입력"]');
     await expect(pinInput).toBeVisible();
+
+    // a11y scan on PIN entry screen (focus management critical for blind users)
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage PIN entry violations
 
     // Login button should exist
     const loginButton = page.locator('[aria-label="로그인"]');

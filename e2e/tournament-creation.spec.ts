@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { navigateToAdmin, waitForLoading } from './helpers';
+
+const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Tournament Creation Flow', () => {
   test('can navigate to tournament creation wizard', async ({ page }) => {
@@ -20,6 +23,11 @@ test.describe('Tournament Creation Flow', () => {
     await waitForLoading(page);
 
     await expect(page.locator('h1', { hasText: '새 대회 만들기' })).toBeVisible();
+
+    // a11y scan on wizard step 1 (form-heavy page, label associations critical)
+    const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+    expect.soft(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toEqual([]);
+    // TODO(a11y): triage tournament wizard step 1 violations
   });
 
   test('wizard step 1: fill in basic tournament info', async ({ page }) => {
