@@ -23,6 +23,12 @@ export interface ScoringRules {
   deuceEnabled: boolean;
   deuceCap?: number;
   maxScore?: number;
+  /**
+   * 시간 제한 (초). 설정 시 경기/세트 시작 후 이 시간이 지나면 골든골 모드 진입.
+   * 골든골 모드: 어느 한 선수가 다음 골을 넣으면 즉시 승자.
+   * (파울/규칙 위반은 점수에 반영되지 않음)
+   */
+  timeLimitSeconds?: number;
 }
 
 // ===== 경기 규칙 =====
@@ -382,6 +388,9 @@ export interface Match {
   // 워밍업
   warmupUsed?: boolean;
   warmupStartTime?: number | null;  // 워밍업 시작 시각 (null = Firebase에서 삭제)
+  // 시간 제한 + 골든골
+  matchStartedAt?: number;          // 경기 실제 시작 시각 (timeLimit 카운트다운 기준)
+  goldenGoalActive?: boolean;       // 시간 만료 후 골든골 모드 활성화 여부
   // 사이드체인지 타이머 동기화
   sideChangeStartTime?: number | null;    // 사이드체인지 시작 시각 (null = Firebase에서 삭제)
   // 선수 교체 사용 여부

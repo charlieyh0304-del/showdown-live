@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { checkSetWinner, DEFAULT_GAME_CONFIG, TEAM_GAME_CONFIG } from './scoring';
+import {
+  checkSetWinner,
+  DEFAULT_GAME_CONFIG,
+  TEAM_GAME_CONFIG,
+  isGoldenGoalActive,
+  applyGoldenGoalEvent,
+} from './scoring';
 
 describe('checkSetWinner', () => {
   describe('개인전 (11점, 2점차)', () => {
@@ -95,5 +101,90 @@ describe('상수 검증', () => {
     expect(TEAM_GAME_CONFIG.POINTS_TO_WIN).toBe(31);
     expect(TEAM_GAME_CONFIG.SETS_TO_WIN).toBe(1);
     expect(TEAM_GAME_CONFIG.MAX_SETS).toBe(1);
+  });
+});
+
+describe('isGoldenGoalActive', () => {
+  const start = 1_000_000_000_000; // 임의 기준 시각
+
+  it('matchStartedAt 없음 → false', () => {
+    expect(isGoldenGoalActive(undefined, start + 60_000, 30)).toBe(false);
+    expect(isGoldenGoalActive(null, start + 60_000, 30)).toBe(false);
+  });
+
+  it('timeLimitSeconds 없음 → false (시간 제한 없는 경기)', () => {
+    expect(isGoldenGoalActive(start, start + 60_000, undefined)).toBe(false);
+    expect(isGoldenGoalActive(start, start + 60_000, null)).toBe(false);
+    expect(isGoldenGoalActive(start, start + 60_000, 0)).toBe(false);
+  });
+
+  it('시간 미달 → false', () => {
+    expect(isGoldenGoalActive(start, start + 29_999, 30)).toBe(false);
+  });
+
+  it('시간 정확히 도달 → true', () => {
+    expect(isGoldenGoalActive(start, start + 30_000, 30)).toBe(true);
+  });
+
+  it('시간 초과 → true', () => {
+    expect(isGoldenGoalActive(start, start + 60_000, 30)).toBe(true);
+  });
+
+  it('음수 timeLimit → false (방어)', () => {
+    expect(isGoldenGoalActive(start, start + 60_000, -10)).toBe(false);
+  });
+});
+
+describe('applyGoldenGoalEvent', () => {
+  const scores = { player1: 7, player2: 9 };
+
+  describe('파울 (foul)', () => {
+    it('파울은 점수 변경 없음, winner null', () => {
+      const result = applyGoldenGoalEvent('foul', 1, scores);
+      expect(result.winner).toBe(null);
+      expect(result.newScores).toEqual({ player1: 7, player2: 9 });
+    });
+
+    it('파울 결과는 원본 scores와 다른 객체 (mutate 방지)', () => {
+      const result = applyGoldenGoalEvent('foul', 2, scores);
+      expect(result.newScores).not.toBe(scores);
+      // 원본 불변
+      expect(scores).toEqual({ player1: 7, player2: 9 });
+    });
+  });
+
+  describe('골 (goal)', () => {
+    it('player1 골 → player1 +2 + 즉시 승자', () => {
+      const result = applyGoldenGoalEvent('goal', 1, scores);
+      expect(result.winner).toBe(1);
+      expect(result.newScores).toEqual({ player1: 9, player2: 9 });
+    });
+
+    it('player2 골 → player2 +2 + 즉시 승자', () => {
+      const result = applyGoldenGoalEvent('goal', 2, scores);
+      expect(result.winner).toBe(2);
+      expect(result.newScores).toEqual({ player1: 7, player2: 11 });
+    });
+
+    it('점수 동률 상태에서도 골 넣은 사람이 승', () => {
+      const tied = { player1: 10, player2: 10 };
+      const result = applyGoldenGoalEvent('goal', 1, tied);
+      expect(result.winner).toBe(1);
+      expect(result.newScores).toEqual({ player1: 12, player2: 10 });
+    });
+
+    it('진행 중 점수 차이 무관 — 골 넣은 사람이 승', () => {
+      // 0점인 선수가 골 → 그 선수 승
+      const lopsided = { player1: 0, player2: 30 };
+      const result = applyGoldenGoalEvent('goal', 1, lopsided);
+      expect(result.winner).toBe(1);
+      expect(result.newScores).toEqual({ player1: 2, player2: 30 });
+    });
+
+    it('원본 scores mutate 안 함', () => {
+      const original = { player1: 5, player2: 5 };
+      applyGoldenGoalEvent('goal', 1, original);
+      expect(original).toEqual({ player1: 5, player2: 5 });
+    });
   });
 });

@@ -120,6 +120,48 @@ export function advanceServe(
   return { currentServe, serveCount: nextCount };
 }
 
+// ===== 골든골 (시간 제한 경기) =====
+//
+// 시간 제한이 설정된 경기에서 시간이 만료되면 골든골 모드 진입.
+// 모드 진입 후 다음 GOAL을 넣은 선수가 즉시 승자.
+// 파울/규칙 위반은 점수에 반영되지 않음 (단, 이벤트 자체는 history에 기록 가능).
+
+/**
+ * 골든골 활성 여부 판단.
+ * matchStartedAt이나 timeLimitSeconds가 없으면 항상 false (시간 제한 없는 경기).
+ */
+export function isGoldenGoalActive(
+  matchStartedAt: number | undefined | null,
+  now: number,
+  timeLimitSeconds: number | undefined | null,
+): boolean {
+  if (!matchStartedAt || !timeLimitSeconds || timeLimitSeconds <= 0) return false;
+  return (now - matchStartedAt) >= timeLimitSeconds * 1000;
+}
+
+/**
+ * 골든골 모드에서 점수 이벤트 처리.
+ * - 'goal': 득점 선수에게 +2 적용 후 즉시 승자 반환
+ * - 'foul': 점수 변경 없음, winner null (이벤트는 호출자가 history에 기록)
+ *
+ * 일반 모드(골든골 비활성)에서는 호출하지 말 것 — 평소 점수 로직 사용.
+ */
+export function applyGoldenGoalEvent(
+  event: 'goal' | 'foul',
+  scorer: 1 | 2,
+  currentScores: { player1: number; player2: number },
+): { newScores: { player1: number; player2: number }; winner: 1 | 2 | null } {
+  if (event === 'foul') {
+    return { newScores: { ...currentScores }, winner: null };
+  }
+  // goal: +2 to scorer, 즉시 승자
+  const newScores = {
+    player1: currentScores.player1 + (scorer === 1 ? 2 : 0),
+    player2: currentScores.player2 + (scorer === 2 ? 2 : 0),
+  };
+  return { newScores, winner: scorer };
+}
+
 // Undo 시 서브 되돌리기
 export function revertServe(
   currentServe: 'player1' | 'player2',
