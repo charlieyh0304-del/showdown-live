@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ref, get } from 'firebase/database';
-import { database } from '../config/firebase';
-import { verifyPin } from '../utils/crypto';
-import type { AuthSession, Referee, Admin } from '../types';
+import { signInWithCustomToken } from 'firebase/auth';
+import { database, auth } from '../config/firebase';
+import type { AuthSession } from '../types';
 
 const AUTH_KEY = 'showdown_auth';
 const LOGIN_TIMEOUT_MS = 15000;
+
+// 서버 사이드 PIN 검증 엔드포인트 (functions/src/handlers/auth.ts)
+const VERIFY_ADMIN_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/verifyAdminPin';
+const VERIFY_REFEREE_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/verifyRefereePin';
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -14,6 +18,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       setTimeout(() => reject(new Error('NETWORK_TIMEOUT')), ms)
     ),
   ]);
+}
+
+async function postJson(url: string, body: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  let data: Record<string, unknown> = {};
+  try { data = await res.json(); } catch { /* non-JSON */ }
+  return { ok: res.ok, status: res.status, data };
 }
 
 export function useAuth() {
@@ -35,66 +50,58 @@ export function useAuth() {
     }
   }, []);
 
-  // 관리자 인증 (다중 관리자 지원 + 레거시 단일 PIN 호환)
+  // 관리자 인증 — 서버 엔드포인트로 PIN 검증 + Custom Token으로 Firebase Auth 로그인
   const loginAdmin = useCallback(async (pin: string): Promise<boolean> => {
     return withTimeout(async function doLogin() {
-      // 1차: admins/ 컬렉션에서 확인
-      const adminsSnap = await get(ref(database, 'admins'));
-      if (adminsSnap.exists()) {
-        const admins = adminsSnap.val() as Record<string, Admin>;
-        for (const [id, admin] of Object.entries(admins)) {
-          const valid = await verifyPin(pin, admin.pin);
-          if (valid) {
-            saveSession({
-              mode: 'admin',
-              adminId: id,
-              adminName: admin.name,
-              authenticatedAt: Date.now(),
-            });
-            return true;
-          }
-        }
+      const { ok, data } = await postJson(VERIFY_ADMIN_URL, { pin });
+      if (!ok) return false;
+      const customToken = data.customToken as string | undefined;
+      const adminId = data.adminId as string | undefined;
+      if (!customToken || !adminId) return false;
+      try {
+        await signInWithCustomToken(auth, customToken);
+      } catch {
+        return false;
       }
-
-      // 2차: 레거시 config/adminPin에서 확인 (기존 호환)
-      const configSnap = await get(ref(database, 'config/adminPin'));
-      if (configSnap.exists()) {
-        const hashedPin = configSnap.val() as string;
-        const valid = await verifyPin(pin, hashedPin);
-        if (valid) {
-          saveSession({
-            mode: 'admin',
-            adminName: '관리자',
-            authenticatedAt: Date.now(),
-          });
-          return true;
-        }
+      // 관리자 이름은 admins/{id}/name 에서 읽기 (서버는 id만 반환)
+      let adminName = '관리자';
+      if (adminId !== 'legacy') {
+        try {
+          const nameSnap = await get(ref(database, `admins/${adminId}/name`));
+          if (nameSnap.exists()) adminName = String(nameSnap.val());
+        } catch { /* ignore */ }
       }
-
-      return false;
+      saveSession({
+        mode: 'admin',
+        adminId: adminId === 'legacy' ? undefined : adminId,
+        adminName,
+        authenticatedAt: Date.now(),
+      });
+      return true;
     }(), LOGIN_TIMEOUT_MS);
   }, [saveSession]);
 
-  // 심판 인증
+  // 심판 인증 — 서버 엔드포인트로 PIN 검증 + Custom Token 로그인
   const loginReferee = useCallback(async (refereeId: string, pin: string, tournamentId?: string): Promise<boolean> => {
     return withTimeout(async function doLogin() {
-      const refereeRef = ref(database, `referees/${refereeId}`);
-      const snapshot = await get(refereeRef);
-      const referee = snapshot.val() as Referee | null;
-      if (!referee?.pin) {
+      const { ok, data } = await postJson(VERIFY_REFEREE_URL, { refereeId, pin });
+      if (!ok) return false;
+      const customToken = data.customToken as string | undefined;
+      if (!customToken) return false;
+      try {
+        await signInWithCustomToken(auth, customToken);
+      } catch {
         return false;
       }
-      const valid = await verifyPin(pin, referee.pin);
-      if (valid) {
-        saveSession({
-          mode: 'referee',
-          refereeId,
-          refereeName: referee.name,
-          tournamentId,
-          authenticatedAt: Date.now(),
-        });
-      }
-      return valid;
+      const refereeName = (data.refereeName as string | null | undefined) ?? refereeId;
+      saveSession({
+        mode: 'referee',
+        refereeId,
+        refereeName,
+        tournamentId,
+        authenticatedAt: Date.now(),
+      });
+      return true;
     }(), LOGIN_TIMEOUT_MS);
   }, [saveSession]);
 
