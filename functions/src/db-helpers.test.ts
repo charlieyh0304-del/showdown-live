@@ -86,12 +86,14 @@ describe('getStageCategory', () => {
   it('detects qualifying', () => {
     expect(getStageCategory({ stageId: 'stage_qualifying_x' })).toBe('qualifying');
   });
-  it('returns qualifying for empty input (empty bracketRound matches)', () => {
-    // Contract: empty stageId + empty bracketRound ('' === '') → qualifying
-    expect(getStageCategory({})).toBe('qualifying');
+  it('returns unknown for empty input (no stageId, no bracketRound)', () => {
+    expect(getStageCategory({})).toBe('unknown');
   });
   it('returns unknown when stageId is unrecognized and bracketRound is set', () => {
     expect(getStageCategory({ stageId: 'stage_weird', bracketRound: 'R1' })).toBe('unknown');
+  });
+  it('returns qualifying when stageId is unrecognized but bracketRound is empty', () => {
+    expect(getStageCategory({ stageId: 'stage_weird' })).toBe('qualifying');
   });
 });
 

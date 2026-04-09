@@ -67,7 +67,11 @@ export function getStageCategory(m: { stageId?: unknown; bracketRound?: unknown 
   const br = asString(m.bracketRound);
   if (sid.includes("class") || sid.includes("5to8") || sid.includes("9to16") || sid.includes("3rd")) return "ranking";
   if (sid.includes("finals")) return "finals";
-  if (sid.includes("qualifying") || br === "") return "qualifying";
+  if (sid.includes("qualifying")) return "qualifying";
+  // stageId가 없고 bracketRound도 없는 객체는 "예선 매치"로 보지 않음 → unknown
+  if (sid === "" && br === "") return "unknown";
+  // bracketRound가 비어있으면 (그리고 stageId는 있는데 알려진 패턴 아님) qualifying으로 추정
+  if (br === "") return "qualifying";
   return "unknown";
 }
 
