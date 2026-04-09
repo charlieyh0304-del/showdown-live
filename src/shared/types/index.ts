@@ -289,7 +289,9 @@ export type ScoreActionType =
   | 'warmup_start'      // 워밍업 시작
   | 'match_start'       // 경기 시작
   | 'player_rotation'   // 선수 교체/로테이션
-  | 'side_change';      // 사이드 체인지
+  | 'side_change'       // 사이드 체인지
+  | 'serve'             // 서브 진행 (메타)
+  | 'lineup';           // 팀 라인업 공개
 
 export interface ScoreAction {
   type: ScoreActionType;

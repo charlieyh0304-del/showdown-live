@@ -235,13 +235,21 @@ function ScoreHistorySection({
   const META_ACTION_TYPES = new Set([
     'pause', 'resume', 'timeout', 'timeout_player', 'timeout_medical', 'timeout_referee',
     'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start',
-    'match_start', 'player_rotation'
+    'match_start', 'player_rotation', 'serve', 'lineup'
   ]);
   // Keep scoring entries AND meaningful meta events, filter out noise
   const meaningfulHistory = useMemo(() => {
+    let prevServerSide: string | undefined;
     return history.filter(h => {
       if (h.set === 0) return false;
       if (h.actionType === 'match_start' && h.scoreAfter?.player1 === 0 && h.scoreAfter?.player2 === 0) return false;
+      // Collapse serve spam: only keep first serve (serveNumber===1) or when server side changes
+      if (h.actionType === 'serve') {
+        const side = h.serverSide ?? '';
+        const keep = h.serveNumber === 1 || side !== prevServerSide;
+        prevServerSide = side;
+        return keep;
+      }
       return h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning;
     });
   }, [history]);
@@ -351,7 +359,7 @@ function HistoryBySet({ history, sets, order }: {
             </div>
             {entries.map((h, i) => {
               const isMeta = h.points === 0 || h.penaltyWarning === true;
-              const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '🔄' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
+              const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' ? '⏱️' : h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType === 'player_rotation' ? '🔄' : h.actionType === 'side_change' ? '↔️' : h.actionType === 'serve' ? '🏓' : h.actionType === 'lineup' ? '📋' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
               const timeStr = parseTimeStr(h.time);
 
               if (isMeta) {
@@ -370,8 +378,10 @@ function HistoryBySet({ history, sets, order }: {
                   : h.actionType === 'match_start' ? (h.actionLabel || t('common.matchHistory.matchStart'))
                   : h.actionType === 'player_rotation' ? t('common.matchHistory.playerRotation')
                   : h.actionType === 'side_change' ? t('common.matchHistory.sideChange')
+                  : h.actionType === 'serve' ? `${h.server || h.actionLabel || '?'} 서브${h.serveNumber ? ` (${h.serveNumber}번째)` : ''}`
+                  : h.actionType === 'lineup' ? (h.actionLabel || '라인업')
                   : (actionLabel || h.actionType || '');
-                const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
+                const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss', 'serve', 'lineup'].includes(h.actionType) || h.penaltyWarning === true;
                 return (
                   <div key={`${setNum}-${i}`} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', color: '#d1d5db', borderBottom: '1px solid #1f2937', backgroundColor: '#0d1117' }}>
                     <div>{timeStr} {icon} {desc}</div>
