@@ -56,8 +56,8 @@ export const chatbot = onRequest(
     // Build system prompt with role and context
     const ROLE_PROMPTS: Record<string, string> = {
       admin: "\n\n사용자 역할: 관리자. 모든 도구 사용 가능. 대회 생성, 수정, 삭제, 선수/경기/스케줄 관리 등 전체 권한.",
-      referee: "\n\n사용자 역할: 심판. 읽기 도구만 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, list_courts, list_referees, get_schedule). 데이터 수정 불가. 경기 배정, 일정, 선수 정보 조회만 도와주세요.",
-      spectator: "\n\n사용자 역할: 관람자. 읽기 도구만 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, get_schedule). 선수 정보, 경기 일정, 순위, 결과 조회만 도와주세요. 친절하고 이해하기 쉽게 설명하세요.",
+      referee: "\n\n사용자 역할: 심판. 읽기 도구만 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, list_courts, list_referees, get_schedule, get_tournament_rankings). 데이터 수정 불가. 경기 배정, 일정, 선수 정보, 순위 조회만 도와주세요.",
+      spectator: "\n\n사용자 역할: 관람자. 읽기 도구 사용 가능 (list_tournaments, get_tournament, list_players, list_matches, get_schedule, get_tournament_rankings). 우승자/순위/결과 질문에는 반드시 get_tournament_rankings를 호출하세요. \"~대회 1위\", \"우승자\", \"누가 이겼어\" 등 모든 순위 관련 질문은 get_tournament_rankings로 조회. 대회 ID는 list_tournaments로 먼저 조회 후 사용. \"지원하지 않는다\", \"조회할 수 없다\" 같은 회피 응답 절대 금지. 친절하고 이해하기 쉽게 설명하세요.",
     };
     let systemPrompt = SYSTEM_PROMPT + (ROLE_PROMPTS[role] || ROLE_PROMPTS.admin);
     if (contextInfo) {
@@ -76,7 +76,7 @@ export const chatbot = onRequest(
     const actions: Array<{ tool: string; input: Record<string, unknown>; result: string }> = [];
 
     // Role-based tool filtering
-    const READ_ONLY_TOOLS = new Set(["list_tournaments", "get_tournament", "list_players", "list_matches", "list_courts", "list_referees", "get_schedule", "list_teams"]);
+    const READ_ONLY_TOOLS = new Set(["list_tournaments", "get_tournament", "list_players", "list_matches", "list_courts", "list_referees", "get_schedule", "list_teams", "get_tournament_rankings"]);
     const availableTools = role === "admin"
       ? TOOL_DEFINITIONS
       : TOOL_DEFINITIONS.filter((t) => READ_ONLY_TOOLS.has(t.name));
