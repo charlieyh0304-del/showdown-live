@@ -39,7 +39,7 @@ test.describe('Referee Scoring Flow', () => {
     await waitForLoading(page);
 
     // Should return to mode selector
-    await expect(page.locator('text=쇼다운')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: '쇼다운' })).toBeVisible({ timeout: 10000 });
   });
 
   test('tournament selection step shows tournament list or empty state', async ({ page }) => {

@@ -15,12 +15,12 @@ test.describe('Navigation - All main routes load without errors', () => {
     await waitForLoading(page);
 
     // Verify mode selector heading
-    await expect(page.locator('text=쇼다운')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '쇼다운' })).toBeVisible();
 
     // Verify all three mode buttons exist (by aria-label)
-    await expect(page.locator('[aria-label="관리자 모드 진입"]')).toBeVisible();
-    await expect(page.locator('[aria-label="심판 모드 진입"]')).toBeVisible();
-    await expect(page.locator('[aria-label="관람 모드 진입"]')).toBeVisible();
+    await expect(page.locator('[aria-label^="관리자 모드 진입"]')).toBeVisible();
+    await expect(page.locator('[aria-label^="심판 모드 진입"]')).toBeVisible();
+    await expect(page.locator('[aria-label^="관람 모드 진입"]')).toBeVisible();
 
     const criticalErrors = errors.filter(
       (e) => !e.includes('Firebase') && !e.includes('firestore') && !e.includes('network'),
@@ -104,7 +104,7 @@ test.describe('Navigation - All main routes load without errors', () => {
     await waitForLoading(page);
 
     // Click admin button and verify navigation
-    await page.locator('[aria-label="관리자 모드 진입"]').click();
+    await page.locator('[aria-label^="관리자 모드 진입"]').click();
     await waitForLoading(page);
     await expect(page).toHaveURL(/\/admin/);
 
@@ -113,7 +113,7 @@ test.describe('Navigation - All main routes load without errors', () => {
     await waitForLoading(page);
 
     // Click referee button and verify navigation
-    await page.locator('[aria-label="심판 모드 진입"]').click();
+    await page.locator('[aria-label^="심판 모드 진입"]').click();
     await waitForLoading(page);
     await expect(page).toHaveURL(/\/referee/);
 
@@ -122,7 +122,7 @@ test.describe('Navigation - All main routes load without errors', () => {
     await waitForLoading(page);
 
     // Click spectator button and verify navigation
-    await page.locator('[aria-label="관람 모드 진입"]').click();
+    await page.locator('[aria-label^="관람 모드 진입"]').click();
     await waitForLoading(page);
     await expect(page).toHaveURL(/\/spectator/);
   });
@@ -131,6 +131,6 @@ test.describe('Navigation - All main routes load without errors', () => {
     await page.goto('/nonexistent-page');
     await waitForLoading(page);
 
-    await expect(page.locator('text=쇼다운')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: '쇼다운' })).toBeVisible({ timeout: 10000 });
   });
 });
