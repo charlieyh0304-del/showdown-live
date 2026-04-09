@@ -486,6 +486,9 @@ export default function TournamentCreate() {
             advanceCount: state.advanceCount,
             startingRound: state.finalsStartRound,
             seedMethod: state.tournamentMode === 'manual' ? 'manual' : (state.bracketArrangement === 'custom' ? 'custom' : state.seedMethod),
+            advancePerGroup: state.advancePerGroup,
+            avoidSameGroup: true,
+            bracketArrangement: state.bracketArrangement,
             scoringRules: state.sameRulesAsQualifying ? state.qualifyingScoringRules : state.finalsScoringRules,
             ...(state.hasRoundScoringOverride && state.roundOverrideFromRound ? {
               roundScoringOverride: {
@@ -502,12 +505,12 @@ export default function TournamentCreate() {
             } : {}),
           },
         } : {}),
-        ...((state.rankingMatch.enabled || state.rankingUpTo > 0) ? {
-          rankingMatchConfig: {
-            ...state.rankingMatch,
-            ...(state.rankingUpTo > 0 ? { rankingUpTo: state.rankingUpTo } : {}),
-          },
-        } : {}),
+        // rankingMatchConfig 항상 저장 (일관성)
+        rankingMatchConfig: {
+          ...state.rankingMatch,
+          enabled: state.rankingMatch.enabled || state.rankingUpTo > 0,
+          ...(state.rankingUpTo > 0 ? { rankingUpTo: state.rankingUpTo } : {}),
+        },
       });
 
       if (id) navigate(`/admin/tournament/${id}`);

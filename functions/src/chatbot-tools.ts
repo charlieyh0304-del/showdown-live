@@ -1770,32 +1770,77 @@ export async function executeTool(
           const p1Id3 = (match.player1Id || match.team1Id) as string;
           const p2Id3 = (match.player2Id || match.team2Id) as string;
 
-          // lightweight 모드: scoreHistory 없이 세트 점수만 빠르게 생성
+          // lightweight 모드: 간단한 scoreHistory + 세트 점수 빠르게 생성
+          // 득점 이벤트만 기록 (서브/타임아웃 등은 스킵)
           if (lightweight) {
+            const lwP1n = (match.player1Name || match.team1Name || "P1") as string;
+            const lwP2n = (match.player2Name || match.team2Name || "P2") as string;
+            const lwHistory: Array<Record<string, unknown>> = [];
+            let lwTime = Date.now();
+            const lwFmt = (ms: number) => {
+              const d = new Date(ms);
+              const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+              return `${String(kst.getUTCHours()).padStart(2, "0")}:${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+            };
+            // 매치 시작 이벤트
+            lwHistory.push({
+              time: lwFmt(lwTime), set: 1, scoringPlayer: "", actionPlayer: "",
+              actionType: "match_start", actionLabel: "경기 시작", points: 0,
+              server: "", serveNumber: 0, serverSide: "",
+            });
+
             let lw1 = 0, lw2 = 0;
+            let lwSi = 0;
             while (lw1 < matchSetsToWin && lw2 < matchSetsToWin) {
               let s1 = 0, s2 = 0;
+              if (lwSi > 0) {
+                lwTime += 30000;
+                lwHistory.push({
+                  time: lwFmt(lwTime), set: lwSi + 1, scoringPlayer: "", actionPlayer: "",
+                  actionType: "side_change", actionLabel: `세트${lwSi + 1} 시작`, points: 0,
+                  server: "", serveNumber: 0,
+                  scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: "",
+                });
+              }
               while (true) {
-                const pts = Math.random() < 0.7 ? 2 : 1;
-                if (Math.random() > 0.5) s1 += pts; else s2 += pts;
+                const isGoal = Math.random() < 0.7;
+                const pts = isGoal ? 2 : 1;
+                const p1Scores = Math.random() > 0.5;
+                const prev1 = s1, prev2 = s2;
+                if (p1Scores) s1 += pts; else s2 += pts;
+                lwTime += 15000 + Math.floor(Math.random() * 10000);
+                const scorer = p1Scores ? lwP1n : lwP2n;
+                const fouler = p1Scores ? lwP2n : lwP1n;
+                lwHistory.push({
+                  time: lwFmt(lwTime), set: lwSi + 1,
+                  scoringPlayer: scorer,
+                  actionPlayer: isGoal ? scorer : fouler,
+                  actionType: isGoal ? "goal" : "foul",
+                  actionLabel: isGoal ? `${scorer} 골 득점` : `${fouler} foul`,
+                  points: pts,
+                  server: "", serveNumber: 0,
+                  scoreBefore: { player1: prev1, player2: prev2 },
+                  scoreAfter: { player1: s1, player2: s2 },
+                  serverSide: "",
+                });
                 if ((s1 >= matchWinScore || s2 >= matchWinScore) && Math.abs(s1 - s2) >= 2) break;
               }
               const sw = s1 > s2 ? p1Id3 : p2Id3;
               sets.push({ player1Score: s1, player2Score: s2, winnerId: sw });
               if (s1 > s2) lw1++; else lw2++;
+              lwSi++;
             }
             const lwWinner = lw1 > lw2 ? p1Id3 : p2Id3;
-            const lwWinnerName = lw1 > lw2
-              ? (match.player1Name || match.team1Name || "P1") as string
-              : (match.player2Name || match.team2Name || "P2") as string;
+            const lwWinnerName = lw1 > lw2 ? lwP1n : lwP2n;
             const lwScore = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
             results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: lwScore, winner: lwWinnerName });
             bulk[`matches/${tid}/${mid}/sets`] = sets;
             bulk[`matches/${tid}/${mid}/currentSet`] = sets.length - 1;
             bulk[`matches/${tid}/${mid}/status`] = "completed";
             bulk[`matches/${tid}/${mid}/winnerId`] = lwWinner;
+            bulk[`matches/${tid}/${mid}/scoreHistory`] = lwHistory.reverse(); // newest first (앱 형식과 동일)
             bulk[`matches/${tid}/${mid}/updatedAt`] = now;
-            continue; // 다음 경기로 (scoreHistory 스킵)
+            continue; // 다음 경기로 (간단 scoreHistory 포함)
           }
 
           // 일반 모드: scoreHistory 포함 포인트 단위 진행
