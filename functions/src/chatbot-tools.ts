@@ -1496,6 +1496,19 @@ export async function executeTool(
 
       // --- Write: Matches ---
       case "add_match": {
+        // 입력 검증
+        if (!input.tournamentId || typeof input.tournamentId !== "string") {
+          return JSON.stringify({ error: "tournamentId가 필요합니다." });
+        }
+        const tCheckSnap = await db.ref(`tournaments/${input.tournamentId}`).once("value");
+        if (!tCheckSnap.exists()) {
+          return JSON.stringify({ error: "해당 대회를 찾을 수 없습니다." });
+        }
+        const hasP1 = input.player1Id || input.team1Id;
+        const hasP2 = input.player2Id || input.team2Id;
+        if (!hasP1 || !hasP2) {
+          return JSON.stringify({ error: "player1Id/player2Id (또는 team1Id/team2Id)가 모두 필요합니다." });
+        }
         const now = Date.now();
         const newRef = db.ref(`matches/${input.tournamentId}`).push();
         await newRef.set({
@@ -1525,6 +1538,13 @@ export async function executeTool(
 
       case "update_match": {
         const { tournamentId, matchId, ...fields } = input;
+        if (!tournamentId || !matchId) {
+          return JSON.stringify({ error: "tournamentId와 matchId가 필요합니다." });
+        }
+        const matchCheckSnap = await db.ref(`matches/${tournamentId}/${matchId}`).once("value");
+        if (!matchCheckSnap.exists()) {
+          return JSON.stringify({ error: "해당 경기를 찾을 수 없습니다." });
+        }
         const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
         delete updates.tournamentId;
         delete updates.matchId;

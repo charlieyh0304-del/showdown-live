@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useTournament, useMatches, useFavorites, useSchedule, useReferees, useTournamentReferees } from '@shared/hooks/useFirebase';
 import { countSetWins, getSetScoresByServer } from '@shared/utils/scoring';
 import { parseTimeDisplay } from '@shared/utils/locale';
-import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
+import { calculateIndividualRanking, calculateTeamRanking, calculateGroupRanking } from '@shared/utils/ranking';
 import { requestNotificationPermission } from '@shared/utils/notifications';
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import type { Match, PlayerRanking, TeamRanking, Referee } from '@shared/types';
@@ -1393,53 +1393,20 @@ function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = fal
 
 function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const { t } = useTranslation();
+  // 단일 소스: shared/utils/ranking.ts의 calculateGroupRanking 사용
   const rankings = useMemo(() => {
-    const stats = new Map<string, {
-      name: string; played: number; wins: number; losses: number;
-      setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number;
-    }>();
-
-    matches.filter(m => m.status === 'completed').forEach(m => {
-      const p1Id = m.player1Id || m.team1Id || '';
-      const p2Id = m.player2Id || m.team2Id || '';
-      const p1Name = m.player1Name || m.team1Name || '';
-      const p2Name = m.player2Name || m.team2Name || '';
-
-      if (!p1Id || !p2Id) return;
-
-      if (!stats.has(p1Id)) stats.set(p1Id, { name: p1Name, played: 0, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-      if (!stats.has(p2Id)) stats.set(p2Id, { name: p2Name, played: 0, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-
-      const s1 = stats.get(p1Id)!;
-      const s2 = stats.get(p2Id)!;
-      s1.played++; s2.played++;
-
-      if (m.winnerId === p1Id) { s1.wins++; s2.losses++; }
-      else if (m.winnerId === p2Id) { s2.wins++; s1.losses++; }
-
-      (Array.isArray(m.sets) ? m.sets : []).forEach(set => {
-        if (set.player1Score > set.player2Score) { s1.setsWon++; s2.setsLost++; }
-        else if (set.player2Score > set.player1Score) { s2.setsWon++; s1.setsLost++; }
-        s1.pointsFor += set.player1Score; s1.pointsAgainst += set.player2Score;
-        s2.pointsFor += set.player2Score; s2.pointsAgainst += set.player1Score;
-      });
-    });
-
-    // Add participants from pending matches who haven't completed any
-    matches.forEach(m => {
-      const p1Id = m.player1Id || m.team1Id || '';
-      const p2Id = m.player2Id || m.team2Id || '';
-      const p1Name = m.player1Name || m.team1Name || '';
-      const p2Name = m.player2Name || m.team2Name || '';
-      if (p1Id && !stats.has(p1Id)) stats.set(p1Id, { name: p1Name, played: 0, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-      if (p2Id && !stats.has(p2Id)) stats.set(p2Id, { name: p2Name, played: 0, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-    });
-
-    return Array.from(stats.values()).sort((a, b) =>
-      b.wins - a.wins ||
-      (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) ||
-      (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst)
-    );
+    const r = calculateGroupRanking(matches);
+    // GroupRankingTable이 사용하는 형태로 어댑팅 (name 필드)
+    return r.map(p => ({
+      name: p.playerName || '',
+      played: p.played,
+      wins: p.wins,
+      losses: p.losses,
+      setsWon: p.setsWon,
+      setsLost: p.setsLost,
+      pointsFor: p.pointsFor,
+      pointsAgainst: p.pointsAgainst,
+    }));
   }, [matches]);
 
   if (rankings.length === 0) return null;

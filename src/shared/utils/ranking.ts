@@ -65,6 +65,52 @@ export function calculateIndividualRanking(
   return rankings;
 }
 
+/**
+ * 그룹/조별 순위 계산
+ * - 완료된 경기만 포함 (calculateIndividualRanking과 동일)
+ * - 추가: pending 경기에 등장하는 선수도 포함 (zero-stat 행)
+ *   조 편성만 되고 아직 경기 안 한 선수도 표에 표시되어야 하기 때문
+ */
+export function calculateGroupRanking(
+  matches: Match[],
+  tiebreakers?: TiebreakerRule[],
+): PlayerRanking[] {
+  const rankings = calculateIndividualRanking(matches, tiebreakers);
+  const seen = new Set(rankings.map(r => r.playerId));
+
+  // pending 경기 참가자 추가 (zero-stat)
+  for (const m of matches) {
+    if (m.player1Id && !seen.has(m.player1Id)) {
+      rankings.push({
+        playerId: m.player1Id, playerName: m.player1Name || '',
+        played: 0, wins: 0, losses: 0,
+        setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0,
+        rank: 0,
+      });
+      seen.add(m.player1Id);
+    }
+    if (m.player2Id && !seen.has(m.player2Id)) {
+      rankings.push({
+        playerId: m.player2Id, playerName: m.player2Name || '',
+        played: 0, wins: 0, losses: 0,
+        setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0,
+        rank: 0,
+      });
+      seen.add(m.player2Id);
+    }
+  }
+
+  // 재정렬 + 순위 부여
+  rankings.sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    const aSD = a.setsWon - a.setsLost, bSD = b.setsWon - b.setsLost;
+    if (bSD !== aSD) return bSD - aSD;
+    return (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst);
+  });
+  rankings.forEach((r, i) => { r.rank = i + 1; });
+  return rankings;
+}
+
 // 팀전 순위 산출 (31점 단일 세트 기준)
 export function calculateTeamRanking(matches: Match[]): TeamRanking[] {
   const map = new Map<string, TeamRanking>();

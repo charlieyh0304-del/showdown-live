@@ -25,13 +25,18 @@ function loadMessages(key: string): ChatMessage[] {
   try {
     const stored = localStorage.getItem(key);
     return stored ? JSON.parse(stored) : [];
-  } catch { return []; }
+  } catch (err) {
+    console.warn('[Chat] 채팅 기록 로드 실패:', err);
+    return [];
+  }
 }
 
 function saveMessages(key: string, msgs: ChatMessage[]) {
   try {
     localStorage.setItem(key, JSON.stringify(msgs.slice(-50))); // 최근 50개만
-  } catch { /* storage full */ }
+  } catch (err) {
+    console.warn('[Chat] 채팅 기록 저장 실패 (저장소 부족 가능):', err);
+  }
 }
 
 export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInfo?: string) {

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useReferees } from '@shared/hooks/useFirebase';
 import { hashPin } from '@shared/utils/crypto';
+import { useFocusTrap } from '@referee/hooks/useFocusTrap';
 import type { Referee } from '@shared/types';
 
 interface RefereeForm {
@@ -22,6 +23,16 @@ export default function RefereeManagement() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const deleteModalFocusTrap = useFocusTrap(!!deleteTarget, () => setDeleteTarget(null));
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+  // 삭제 모달 열릴 때 취소 버튼에 자동 포커스 (안전 기본)
+  useEffect(() => {
+    if (deleteTarget) {
+      const t = setTimeout(() => cancelButtonRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [deleteTarget]);
 
   useEffect(() => {
     if (modalMode) {
@@ -231,16 +242,25 @@ export default function RefereeManagement() {
         <div
           className="modal-backdrop"
           onClick={() => setDeleteTarget(null)}
-          onKeyDown={e => { if (e.key === 'Escape') setDeleteTarget(null); }}
+          role="presentation"
         >
-          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="referee-delete-title">
+          <div
+            ref={deleteModalFocusTrap}
+            className="modal-content"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="referee-delete-title"
+            aria-describedby="referee-delete-desc"
+            tabIndex={-1}
+          >
             <h2 id="referee-delete-title" className="text-2xl font-bold text-red-500 mb-4 text-center">{t('admin.referees.deleteReferee')}</h2>
-            <p className="text-lg mb-6 text-center">{t('admin.referees.deleteConfirmMessage', { name: deleteTarget.name })}</p>
+            <p id="referee-delete-desc" className="text-lg mb-6 text-center">{t('admin.referees.deleteConfirmMessage', { name: deleteTarget.name })}</p>
             <div className="flex gap-4">
               <button className="btn btn-danger flex-1" onClick={handleDelete} aria-label={t('common.delete')}>
                 {t('common.delete')}
               </button>
-              <button className="btn btn-secondary flex-1" onClick={() => setDeleteTarget(null)} aria-label={t('common.cancel')}>
+              <button ref={cancelButtonRef} className="btn btn-secondary flex-1" onClick={() => setDeleteTarget(null)} aria-label={t('common.cancel')}>
                 {t('common.cancel')}
               </button>
             </div>

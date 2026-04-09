@@ -247,6 +247,8 @@ export default function AdminSettings() {
                 onChange={e => setCurrentPin(e.target.value)}
                 placeholder={t('admin.settings.currentPinPlaceholder')}
                 autoComplete="current-password"
+                aria-invalid={!!changePinError}
+                aria-describedby={changePinError ? 'change-pin-error' : undefined}
               />
             </div>
             <div>
@@ -259,6 +261,8 @@ export default function AdminSettings() {
                 onChange={e => setNewPin(e.target.value)}
                 placeholder={t('admin.settings.newPinPlaceholder')}
                 autoComplete="new-password"
+                aria-invalid={!!changePinError}
+                aria-describedby={changePinError ? 'change-pin-error' : undefined}
               />
             </div>
             <div>
@@ -271,9 +275,11 @@ export default function AdminSettings() {
                 onChange={e => setConfirmPin(e.target.value)}
                 placeholder={t('admin.settings.confirmNewPinPlaceholder')}
                 autoComplete="new-password"
+                aria-invalid={!!changePinError}
+                aria-describedby={changePinError ? 'change-pin-error' : undefined}
               />
             </div>
-            {changePinError && <p className="text-red-500 text-sm" role="alert">{changePinError}</p>}
+            {changePinError && <p id="change-pin-error" className="text-red-500 text-sm" role="alert">{changePinError}</p>}
             <button type="submit" className="btn btn-primary w-full">{t('admin.settings.changePasswordButton')}</button>
           </form>
         )}

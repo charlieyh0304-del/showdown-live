@@ -3,15 +3,21 @@
 
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { NetworkFirst, CacheFirst } from 'workbox-strategies';
+import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim } from 'workbox-core';
 
 // ===== 1. Workbox: 캐싱 =====
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
-self.skipWaiting();
 clientsClaim();
+
+// SKIP_WAITING 메시지 핸들러 (사용자가 업데이트 버튼 클릭 시)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
 
 // HTML (navigation): 항상 네트워크 우선 (최신 JS 해시 참조 보장)
 registerRoute(
@@ -23,12 +29,12 @@ registerRoute(
   })
 );
 
-// JS/CSS: 캐시 우선 (Vite가 해시 파일명 사용하므로 안전)
+// JS/CSS: StaleWhileRevalidate (캐시 즉시 + 백그라운드 업데이트)
 registerRoute(
   /\.(?:js|css)$/,
-  new CacheFirst({
+  new StaleWhileRevalidate({
     cacheName: 'app-code-cache',
-    plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 86400 })],
+    plugins: [new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 })],
   })
 );
 

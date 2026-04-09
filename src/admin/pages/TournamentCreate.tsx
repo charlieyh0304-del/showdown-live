@@ -36,6 +36,7 @@ interface WizardState {
   qualifyingMatchRules: MatchRules;
   advanceCount: number;
   advancePerGroup: number;
+  wildcardCount: number;
   tiebreakerRules: TiebreakerRule[];
   // Step 4 (본선)
   hasFinalsStage: boolean;
@@ -127,6 +128,7 @@ const defaultState: WizardState = {
   qualifyingMatchRules: { ...DEFAULT_MATCH_RULES },
   advanceCount: 8,
   advancePerGroup: 2,
+  wildcardCount: 0,
   tiebreakerRules: ['head_to_head', 'set_difference', 'point_difference', 'points_for'],
   hasFinalsStage: false,
   finalsFormat: 'single_elimination',
@@ -465,6 +467,8 @@ export default function TournamentCreate() {
           },
           teamRules: {
             teamSize: state.teamSize,
+            maxReserves: state.teamRules.maxReserves,
+            genderRatio: state.teamRules.genderRatio,
             rotationEnabled: state.teamRules.rotationEnabled,
             rotationInterval: state.teamRules.rotationInterval,
           },
@@ -487,6 +491,7 @@ export default function TournamentCreate() {
             startingRound: state.finalsStartRound,
             seedMethod: state.tournamentMode === 'manual' ? 'manual' : (state.bracketArrangement === 'custom' ? 'custom' : state.seedMethod),
             advancePerGroup: state.advancePerGroup,
+            ...(state.wildcardCount && state.wildcardCount > 0 ? { wildcardCount: state.wildcardCount } : {}),
             avoidSameGroup: true,
             bracketArrangement: state.bracketArrangement,
             scoringRules: state.sameRulesAsQualifying ? state.qualifyingScoringRules : state.finalsScoringRules,
@@ -560,51 +565,26 @@ export default function TournamentCreate() {
               )}
             </div>
             <div>
-              <label htmlFor="date" className="block mb-2 font-semibold text-lg">{t('admin.tournamentCreate.basicInfo.tournamentPeriod')}</label>
-              <div className="flex gap-2 items-center flex-wrap">
-                {/* 시작일 */}
-                {(() => {
-                  const [y, m, d] = (state.date || '').split('-');
-                  const curYear = new Date().getFullYear();
-                  return (
-                    <div className="flex gap-1 items-center">
-                      <select className="input text-sm" value={y || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: `${e.target.value}-${m || '01'}-${d || '01'}` })} aria-label={t('admin.tournamentCreate.basicInfo.startDate')}>
-                        <option value="">{t('common.date.year')}</option>
-                        {[curYear, curYear + 1].map(yr => <option key={yr} value={yr}>{yr}</option>)}
-                      </select>
-                      <select className="input text-sm" value={m || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: `${y || curYear}-${e.target.value}-${d || '01'}` })}>
-                        <option value="">{t('common.date.month')}</option>
-                        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mo => <option key={mo} value={mo}>{parseInt(mo)}{t('common.date.monthUnit')}</option>)}
-                      </select>
-                      <select className="input text-sm" value={d || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: `${y || curYear}-${m || '01'}-${e.target.value}` })}>
-                        <option value="">{t('common.date.day')}</option>
-                        {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(dy => <option key={dy} value={dy}>{parseInt(dy)}{t('common.date.dayUnit')}</option>)}
-                      </select>
-                    </div>
-                  );
-                })()}
-                <span className="text-gray-400">~</span>
-                {/* 종료일 */}
-                {(() => {
-                  const [y, m, d] = (state.endDate || '').split('-');
-                  const curYear = new Date().getFullYear();
-                  return (
-                    <div className="flex gap-1 items-center">
-                      <select className="input text-sm" value={y || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: `${e.target.value}-${m || '01'}-${d || '01'}` })} aria-label={t('admin.tournamentCreate.basicInfo.endDate')}>
-                        <option value="">{t('common.date.year')}</option>
-                        {[curYear, curYear + 1].map(yr => <option key={yr} value={yr}>{yr}</option>)}
-                      </select>
-                      <select className="input text-sm" value={m || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: `${y || curYear}-${e.target.value}-${d || '01'}` })}>
-                        <option value="">{t('common.date.month')}</option>
-                        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mo => <option key={mo} value={mo}>{parseInt(mo)}{t('common.date.monthUnit')}</option>)}
-                      </select>
-                      <select className="input text-sm" value={d || ''} onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: `${y || curYear}-${m || '01'}-${e.target.value}` })}>
-                        <option value="">{t('common.date.day')}</option>
-                        {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(dy => <option key={dy} value={dy}>{parseInt(dy)}{t('common.date.dayUnit')}</option>)}
-                      </select>
-                    </div>
-                  );
-                })()}
+              <label htmlFor="start-date" className="block mb-2 font-semibold text-lg">{t('admin.tournamentCreate.basicInfo.tournamentPeriod')}</label>
+              <div className="flex gap-3 items-center flex-wrap">
+                <input
+                  id="start-date"
+                  type="date"
+                  className="input text-base"
+                  value={state.date || ''}
+                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })}
+                  aria-label={t('admin.tournamentCreate.basicInfo.startDate')}
+                />
+                <span className="text-gray-400" aria-hidden="true">~</span>
+                <input
+                  id="end-date"
+                  type="date"
+                  className="input text-base"
+                  value={state.endDate || ''}
+                  onChange={e => dispatch({ type: 'SET_FIELD', field: 'endDate', value: e.target.value })}
+                  min={state.date || undefined}
+                  aria-label={t('admin.tournamentCreate.basicInfo.endDate')}
+                />
               </div>
               <p className="text-gray-400 text-xs mt-1">{t('admin.tournamentCreate.basicInfo.oneDayHint')}</p>
             </div>

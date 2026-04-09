@@ -305,7 +305,8 @@ export default function TournamentDetail() {
           }
         }
       } catch (refErr) {
-        console.error('심판 배정 오류 (무시하고 계속):', refErr);
+        console.error('심판 배정 오류:', refErr);
+        setSimProgress('⚠️ 심판 자동 배정 실패 — 경기는 계속 진행됩니다');
       }
 
       setSimProgress(t('admin.tournamentDetail.simulation.updatingStatus'));
@@ -322,7 +323,9 @@ export default function TournamentDetail() {
       // 에러 발생해도 대회 상태는 in_progress로 업데이트 시도
       try {
         await updateTournament({ status: 'in_progress' });
-      } catch { /* ignore */ }
+      } catch (statusErr) {
+        console.error('상태 업데이트 실패:', statusErr);
+      }
     } finally {
       setSimulating(false);
     }
