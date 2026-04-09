@@ -8,6 +8,22 @@ import { db, asString, asNumber, asBoolean } from "../db-helpers";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
+/**
+ * 완료된 매치에서 승자/패자 id와 name을 추출.
+ * BYE 승자 자동 전파 로직에서 사용.
+ */
+function extractWinnerLoser(srcM: Record<string, unknown>): {
+  wId: string; wName: string; lId: string; lName: string;
+} {
+  const wId = asString(srcM.winnerId);
+  const p1Id = asString(srcM.player1Id) || asString(srcM.team1Id);
+  const p1Name = asString(srcM.player1Name) || asString(srcM.team1Name);
+  const p2Id = asString(srcM.player2Id) || asString(srcM.team2Id);
+  const p2Name = asString(srcM.player2Name) || asString(srcM.team2Name);
+  if (wId === p1Id) return { wId, wName: p1Name, lId: p2Id, lName: p2Name };
+  return { wId, wName: p2Name, lId: p1Id, lName: p1Name };
+}
+
 export async function simulateMatches(input: Record<string, unknown>, executeTool: ExecuteTool): Promise<string> {
   const tid = asString(input.tournamentId);
   const now = Date.now();
@@ -60,17 +76,13 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
       let advanceCount = 0;
       for (const [nextId, nextMatch] of Object.entries(allByeM)) {
         if (nextMatch.status !== "pending") continue;
-        const src1 = nextMatch.sourceMatch1 as string | undefined;
-        const src2 = nextMatch.sourceMatch2 as string | undefined;
+        const src1 = asString(nextMatch.sourceMatch1) || undefined;
+        const src2 = asString(nextMatch.sourceMatch2) || undefined;
         if (!src1 && !src2) continue;
         const isLoser = nextMatch.sourceType === "loser";
         let changed = false;
         if (src1 && allByeM[src1]?.status === "completed" && (!nextMatch.player1Id || nextMatch.player1Id === "")) {
-          const srcM = allByeM[src1];
-          const wId = srcM.winnerId as string;
-          const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
-          const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
-          const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+          const { wId, wName, lId, lName } = extractWinnerLoser(allByeM[src1]);
           const useId = isLoser ? lId : wId;
           const useName = isLoser ? lName : wName;
           advanceBulk[`matches/${tid}/${nextId}/player1Id`] = useId;
@@ -80,11 +92,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
           changed = true;
         }
         if (src2 && allByeM[src2]?.status === "completed" && (!nextMatch.player2Id || nextMatch.player2Id === "")) {
-          const srcM = allByeM[src2];
-          const wId = srcM.winnerId as string;
-          const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
-          const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
-          const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+          const { wId, wName, lId, lName } = extractWinnerLoser(allByeM[src2]);
           const useId = isLoser ? lId : wId;
           const useName = isLoser ? lName : wName;
           advanceBulk[`matches/${tid}/${nextId}/player2Id`] = useId;
@@ -480,19 +488,15 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
 
     for (const [nextId, nextMatch] of Object.entries(allM)) {
       if (nextMatch.status !== "pending") continue;
-      const src1 = nextMatch.sourceMatch1 as string | undefined;
-      const src2 = nextMatch.sourceMatch2 as string | undefined;
+      const src1 = asString(nextMatch.sourceMatch1) || undefined;
+      const src2 = asString(nextMatch.sourceMatch2) || undefined;
       if (!src1 && !src2) continue;
 
       const isLoser = nextMatch.sourceType === "loser";
       let changed = false;
 
       if (src1 && allM[src1]?.status === "completed" && (!nextMatch.player1Id || nextMatch.player1Id === "")) {
-        const srcM = allM[src1];
-        const wId = srcM.winnerId as string;
-        const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
-        const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
-        const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+        const { wId, wName, lId, lName } = extractWinnerLoser(allM[src1]);
         const useId = isLoser ? lId : wId;
         const useName = isLoser ? lName : wName;
         advanceBulk[`matches/${tid}/${nextId}/player1Id`] = useId;
@@ -502,11 +506,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
         changed = true;
       }
       if (src2 && allM[src2]?.status === "completed" && (!nextMatch.player2Id || nextMatch.player2Id === "")) {
-        const srcM = allM[src2];
-        const wId = srcM.winnerId as string;
-        const wName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player1Name || srcM.team1Name) : (srcM.player2Name || srcM.team2Name)) as string;
-        const lId = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Id || srcM.team2Id) : (srcM.player1Id || srcM.team1Id)) as string;
-        const lName = (wId === (srcM.player1Id || srcM.team1Id) ? (srcM.player2Name || srcM.team2Name) : (srcM.player1Name || srcM.team1Name)) as string;
+        const { wId, wName, lId, lName } = extractWinnerLoser(allM[src2]);
         const useId = isLoser ? lId : wId;
         const useName = isLoser ? lName : wName;
         advanceBulk[`matches/${tid}/${nextId}/player2Id`] = useId;
