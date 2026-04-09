@@ -245,6 +245,25 @@ export function getEffectiveScoringRules(
 }
 
 /**
+ * match + tournament에서 유효 시간 제한(초)을 추출.
+ * 우선순위: match.appliedScoringRules > stage.scoringRules > tournament.scoringRules
+ * 0/없음 = 시간 제한 없음.
+ */
+export function getEffectiveTimeLimitSeconds(
+  match: Match,
+  tournament: Tournament,
+): number {
+  if (match.appliedScoringRules?.timeLimitSeconds) return match.appliedScoringRules.timeLimitSeconds;
+  if (match.stageId && tournament.stages) {
+    const stages = Array.isArray(tournament.stages) ? tournament.stages : Object.values(tournament.stages) as TournamentStage[];
+    const stage = stages.find((s: TournamentStage) => s.id === match.stageId);
+    if (stage?.scoringRules?.timeLimitSeconds) return stage.scoringRules.timeLimitSeconds;
+  }
+  if (tournament.scoringRules?.timeLimitSeconds) return tournament.scoringRules.timeLimitSeconds;
+  return 0;
+}
+
+/**
  * 각 세트의 첫 서버를 기준으로 점수를 [serverScore, receiverScore] 형태로 반환.
  * IBSA 쇼다운 기록지 규칙: 서브권 있는 선수의 점수를 먼저 표시.
  */

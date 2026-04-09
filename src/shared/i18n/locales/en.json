@@ -953,6 +953,9 @@
       "elapsedTime": "Elapsed Time",
       "classifyFoul": "Classify foul (optional)",
       "fifteenSecondsLeft": "15 seconds remaining",
+      "goldenGoalActivated": "Time expired. Golden goal mode active — next scorer wins.",
+      "goldenGoalBanner": "Golden goal mode — next scorer wins",
+      "goldenGoalOnlyGoal": "Only goals can be scored in golden goal mode",
       "sideChangeFifteenSeconds": "Side change: 15 seconds remaining",
       "warmupFifteenSeconds": "Warm-up: 15 seconds remaining",
       "warmupStart": "Start Warm-up",
@@ -1332,6 +1335,8 @@
       "setScore": "Sets {{p1}} - {{p2}}",
       "teamMatchPoints": "31-point match",
       "scoreAriaLabel": "{{p1}} {{p1Score}} pts vs {{p2}} {{p2Score}} pts",
+      "goldenGoalActivated": "Golden goal mode active. Next scorer wins immediately.",
+      "goldenGoalBanner": "Golden goal mode — next scorer wins",
       "coachLabel": "Coach"
     },
 

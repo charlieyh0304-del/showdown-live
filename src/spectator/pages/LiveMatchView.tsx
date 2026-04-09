@@ -23,6 +23,7 @@ export default function LiveMatchView() {
   const prevStatusRef = useRef('');
   const prevActiveTimeoutRef = useRef<boolean>(false);
   const prevWarmupRef = useRef<boolean>(false);
+  const prevGoldenGoalRef = useRef<boolean>(false);
   const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
 
   const loading = mLoading || tLoading;
@@ -78,6 +79,13 @@ export default function LiveMatchView() {
       }
     }
     prevStatusAnnounceRef.current = status;
+
+    // 골든골 진입 감지 → assertive 음성 안내
+    const isGolden = !!match.goldenGoalActive;
+    if (isGolden && !prevGoldenGoalRef.current) {
+      setUrgentAnnouncement(t('spectator.liveMatch.goldenGoalActivated'));
+    }
+    prevGoldenGoalRef.current = isGolden;
   }, [match, t]);
 
   // Whistle sounds based on match events (via Firebase real-time)
@@ -151,6 +159,12 @@ export default function LiveMatchView() {
     <div>
       <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
       <div aria-live="assertive" aria-atomic="true" className="sr-only" role="alert">{urgentAnnouncement}</div>
+
+      {match.goldenGoalActive && match.status === 'in_progress' && (
+        <div className="card" style={{ background: '#b91c1c', color: 'white', textAlign: 'center', padding: '0.75rem', marginBottom: '0.75rem', fontWeight: 'bold' }} role="status">
+          ⏱️ {t('spectator.liveMatch.goldenGoalBanner')}
+        </div>
+      )}
 
       <button className="btn" onClick={() => navigate(`/spectator/tournament/${tournamentId}`)}
         style={{ background: 'none', color: 'var(--color-secondary)', padding: '0.5rem 0', marginBottom: '1rem', fontSize: '1rem', display: 'block', margin: '0 auto 1rem auto' }}>

@@ -14,7 +14,10 @@ import {
   shouldSideChange,
   createScoreHistoryEntry,
   getMaxServes,
+  getEffectiveTimeLimitSeconds,
+  applyGoldenGoalEvent,
 } from '@shared/utils/scoring';
+import { useGoldenGoalTimer } from '../hooks/useGoldenGoalTimer';
 import { formatTime, speak, preWarmSpeech } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import type { SetScore, ScoreActionType, ScoreHistoryEntry } from '@shared/types';
@@ -137,6 +140,8 @@ export default function IndividualScoring() {
   const gameConfig = match && tournament
     ? getEffectiveScoringRules(match, tournament)
     : getEffectiveGameConfig(tournament?.scoringRules || tournament?.gameConfig);
+  const timeLimitSeconds = match && tournament ? getEffectiveTimeLimitSeconds(match, tournament) : 0;
+  const goldenGoal = useGoldenGoalTimer(match?.matchStartedAt, timeLimitSeconds);
   useNavigationGuard(match?.status === 'in_progress');
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
 
@@ -276,6 +281,24 @@ export default function IndividualScoring() {
     if (match?.player2Coach !== undefined && match.player2Coach !== player2Coach) setPlayer2Coach(match.player2Coach);
   }, [match?.player1Coach, match?.player2Coach]);
 
+  // 골든골 진입 시 1회 안내 + Firebase 플래그 동기화
+  const goldenGoalAnnounced = useRef(false);
+  useEffect(() => {
+    if (!goldenGoal.isActive) {
+      goldenGoalAnnounced.current = false;
+      return;
+    }
+    if (goldenGoalAnnounced.current) return;
+    if (match?.status !== 'in_progress') return;
+    goldenGoalAnnounced.current = true;
+    const msg = t('referee.scoring.goldenGoalActivated');
+    setLastAction(`⏱️ ${msg}`);
+    setAnnouncement(msg);
+    speak(msg);
+    longWhistle();
+    if (!match.goldenGoalActive) updateMatch({ goldenGoalActive: true });
+  }, [goldenGoal.isActive, match?.status, match?.goldenGoalActive]);
+
   // Save/clear active match in localStorage for session recovery
   useEffect(() => {
     if (match?.status === 'in_progress') {
@@ -369,6 +392,7 @@ export default function IndividualScoring() {
       scoreHistory: [...warmupEntries, matchStartEntry, ...coachEntries, coinTossEntry],
       warmupUsed: withWarmup,
       warmupStartTime: withWarmup ? Date.now() : undefined,
+      matchStartedAt: Date.now(),
       coinTossWinner: tossWinner ?? undefined,
       coinTossChoice: firstServe === (tossWinner ?? 'player1') ? 'serve' : 'receive',
       courtChangeByLoser,
@@ -484,6 +508,54 @@ export default function IndividualScoring() {
     if (showSetEndConfirm) return;
     if (showSideChange) return;
     if (showWarmup && warmupTimer.isRunning) return;
+
+    // 골든골 모드: goal만 허용. goal이면 즉시 경기 종료.
+    if (goldenGoal.isActive) {
+      if (actionType !== 'goal') {
+        setLastAction(`⚠️ ${t('referee.scoring.goldenGoalOnlyGoal')}`);
+        setAnnouncement(t('referee.scoring.goldenGoalOnlyGoal'));
+        return;
+      }
+      const scoringPlayerGG = toOpponent ? (actingPlayer === 1 ? 2 : 1) : actingPlayer;
+      const ciGG = match.currentSet;
+      const sets = [...match.sets.map(s => ({ ...s }))];
+      const csGG = { ...sets[ciGG] };
+      const before = { player1: csGG.player1Score, player2: csGG.player2Score };
+      const { newScores } = applyGoldenGoalEvent('goal', scoringPlayerGG, before);
+      csGG.player1Score = newScores.player1;
+      csGG.player2Score = newScores.player2;
+      const winnerId = scoringPlayerGG === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
+      csGG.winnerId = winnerId;
+      sets[ciGG] = csGG;
+      const p1NameGG = match.player1Name ?? t('referee.home.player1Default');
+      const p2NameGG = match.player2Name ?? t('referee.home.player2Default');
+      const winnerName = scoringPlayerGG === 1 ? p1NameGG : p2NameGG;
+      const histEntry = createScoreHistoryEntry({
+        scoringPlayer: winnerName,
+        actionPlayer: actingPlayer === 1 ? p1NameGG : p2NameGG,
+        actionType: 'goal',
+        actionLabel: `${t('referee.scoring.goldenGoalActivated')} - ${label}`,
+        points,
+        set: ciGG + 1,
+        server: (match.currentServe ?? 'player1') === 'player1' ? p1NameGG : p2NameGG,
+        serveNumber: (match.serveCount ?? 0) + 1,
+        scoreBefore: before,
+        scoreAfter: newScores,
+        serverSide: match.currentServe ?? 'player1',
+      });
+      goalWhistle();
+      await updateMatch({
+        sets,
+        status: 'completed',
+        winnerId,
+        scoreHistory: [histEntry, ...(match.scoreHistory ?? [])],
+      });
+      setLastAction(`🏆 ${winnerName} ${t('common.scoreActions.goal')}!`);
+      setAnnouncement(`${winnerName} ${t('common.scoreActions.goal')}`);
+      setTimeout(() => longWhistle(), 500);
+      if (tournamentId) autoBackupToLocal(tournamentId);
+      return;
+    }
 
     startProcessing();
     try {
@@ -1322,10 +1394,24 @@ export default function IndividualScoring() {
       </div>
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
+      {/* 골든골 타이머/배너 */}
+      {goldenGoal.enabled && (
+        goldenGoal.isActive ? (
+          <div className="mx-4 mt-2 px-4 py-3 rounded-lg bg-red-700 text-white font-bold text-center" role="status" aria-live="assertive">
+            ⏱️ {t('referee.scoring.goldenGoalBanner')}
+          </div>
+        ) : (
+          <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-gray-800 text-cyan-300 font-mono text-center text-lg">
+            ⏱ {Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
+          </div>
+        )
+      )}
+
       {/* Scoring area - 4 main buttons (1-tap each) */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {(() => {
           const scoringDisabled = !!match.activeTimeout || showSideChange || pendingSideChange || (showWarmup && warmupTimer.isRunning);
+          const nonGoalDisabled = scoringDisabled || goldenGoal.isActive;
           return (
             <>
               {/* Row 1: 골 +2 */}
@@ -1342,11 +1428,11 @@ export default function IndividualScoring() {
 
               {/* Row 2: 파울 +1 (상대에게) */}
               <div className="grid grid-cols-2 gap-3">
-                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-base py-4 font-bold" disabled={scoringDisabled}
+                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-base py-4 font-bold" disabled={nonGoalDisabled}
                   onClick={() => handleQuickFoul(1)}>
                   🟡 {player1Name} {t('common.scoreActions.foul')}<br/><span className="text-sm font-normal">→ {player2Name} +1</span>
                 </button>
-                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-base py-4 font-bold" disabled={scoringDisabled}
+                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-base py-4 font-bold" disabled={nonGoalDisabled}
                   onClick={() => handleQuickFoul(2)}>
                   🟡 {player2Name} {t('common.scoreActions.foul')}<br/><span className="text-sm font-normal">→ {player1Name} +1</span>
                 </button>
@@ -1355,12 +1441,12 @@ export default function IndividualScoring() {
               {/* Row 2.5: 데드볼 + 서브 미스 */}
               <div className="grid grid-cols-2 gap-2">
                 <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3 font-bold"
-                  disabled={scoringDisabled || match.status !== 'in_progress'}
+                  disabled={nonGoalDisabled || match.status !== 'in_progress'}
                   onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}>
                   🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
                 </button>
                 <button className="btn bg-orange-700 hover:bg-orange-600 text-white py-3 font-bold"
-                  disabled={scoringDisabled || match.status !== 'in_progress'}
+                  disabled={nonGoalDisabled || match.status !== 'in_progress'}
                   onClick={handleServeMiss}>
                   🎾 {t('common.scoreActions.serveMiss', '서브 미스')}
                 </button>

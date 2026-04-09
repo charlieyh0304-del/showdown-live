@@ -953,6 +953,9 @@
       "elapsedTime": "경과 시간",
       "classifyFoul": "파울 분류 (선택)",
       "fifteenSecondsLeft": "15초 남았습니다",
+      "goldenGoalActivated": "시간 만료. 골든골 모드 시작. 다음 득점자가 즉시 승리합니다.",
+      "goldenGoalBanner": "골든골 모드 - 다음 득점자 승리",
+      "goldenGoalOnlyGoal": "골든골 모드에서는 골만 입력할 수 있습니다",
       "sideChangeFifteenSeconds": "사이드 체인지 15초 남았습니다",
       "warmupFifteenSeconds": "워밍업 15초 남았습니다",
       "warmupStart": "워밍업 시작",
@@ -1332,6 +1335,8 @@
       "setScore": "세트 {{p1}} - {{p2}}",
       "teamMatchPoints": "31점 경기",
       "scoreAriaLabel": "{{p1}} {{p1Score}}점 대 {{p2}} {{p2Score}}점",
+      "goldenGoalActivated": "골든골 모드 시작. 다음 득점자가 즉시 승리합니다.",
+      "goldenGoalBanner": "골든골 모드 - 다음 득점자 승리",
       "coachLabel": "코치"
     },
 
