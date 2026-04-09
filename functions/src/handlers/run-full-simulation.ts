@@ -7,6 +7,7 @@ import {
   computeGroupRankings,
   computeFinalRanking,
   computeRankingDisplayCount,
+  splitIntoRankingTiers,
   type MatchLike,
 } from "../lib/rankings-compute";
 
@@ -337,18 +338,8 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
       const rankCfgCheck = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
       const r16Losers = roundLosers.get("16강") || roundLosers.get("32강") || [];
       if (rankCfgCheck?.classificationGroups && r16Losers.length >= 2) {
-        // 4명씩 그룹 분할
-        const r16Groups: Array<{ label: string; startRank: number; members: typeof r16Losers }> = [];
-        let r16Remaining = [...r16Losers];
-        let r16RankStart = 9; // 16강 패자 = 9위~
-        while (r16Remaining.length >= 2) {
-          const grpSize = Math.min(4, r16Remaining.length);
-          const grpMembers = r16Remaining.slice(0, grpSize);
-          const endRank = r16RankStart + grpSize - 1;
-          r16Groups.push({ label: `${r16RankStart}~${endRank}위`, startRank: r16RankStart, members: grpMembers });
-          r16Remaining = r16Remaining.slice(grpSize);
-          r16RankStart = endRank + 1;
-        }
+        // 4명씩 그룹 분할 — 16강 패자 = 9위~
+        const r16Groups = splitIntoRankingTiers(r16Losers, 4, 9);
         await createElimRankingMatches(r16Groups, `${finalsStageId}_class_9to16`, 200);
       }
 
@@ -424,19 +415,8 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
           if (groupEliminated.length >= 2 && !existingClass) {
             const classStageId = (tourData.stages as Array<{ id: string; type: string }>)?.find(s => s.type === "finals")?.id || "finals";
 
-            // 4명씩 그룹 분할 (IBSA 방식)
-            const classGroups: Array<{ label: string; startRank: number; members: Array<{ id: string; name: string }> }> = [];
-            let remaining2 = [...groupEliminated];
-            // 17위부터 (본선 16명 + 5-8위 + 9-16위 = 16)
-            let tierStart2 = 17;
-            while (remaining2.length >= 2) {
-              const grpSize = Math.min(4, remaining2.length);
-              const grpMembers = remaining2.slice(0, grpSize);
-              const endRank = tierStart2 + grpSize - 1;
-              classGroups.push({ label: `${tierStart2}~${endRank}위`, startRank: tierStart2, members: grpMembers });
-              remaining2 = remaining2.slice(grpSize);
-              tierStart2 = endRank + 1;
-            }
+            // 4명씩 그룹 분할 (IBSA 방식) — 17위부터 (본선 16명 + 5-8위 + 9-16위 = 16)
+            const classGroups = splitIntoRankingTiers(groupEliminated, 4, 17);
 
             await createElimRankingMatches(classGroups, `${classStageId}_class`, 500);
           }

@@ -5,8 +5,10 @@ import {
   computeGroupRankings,
   computeFinalRanking,
   computeRankingDisplayCount,
+  splitIntoRankingTiers,
   type MatchLike,
   type PlayerStats,
+  type TierMember,
 } from './rankings-compute';
 
 // 헬퍼: 라운드로빈 단일 세트 매치 생성
@@ -228,5 +230,87 @@ describe('computeRankingDisplayCount', () => {
   });
   it('rankingUpTo가 totalPlayers 초과 시 totalPlayers', () => {
     expect(computeRankingDisplayCount(5, { rankingUpTo: 10 })).toBe(5);
+  });
+});
+
+describe('splitIntoRankingTiers', () => {
+  const make = (n: number): TierMember[] =>
+    Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, name: `Player ${i + 1}` }));
+
+  it('빈 배열 → 빈 결과', () => {
+    expect(splitIntoRankingTiers([], 4, 9)).toEqual([]);
+  });
+
+  it('1명 → 빈 결과 (짝 없음)', () => {
+    expect(splitIntoRankingTiers(make(1), 4, 9)).toEqual([]);
+  });
+
+  it('정확히 4명 → 단일 tier (9~12위)', () => {
+    const tiers = splitIntoRankingTiers(make(4), 4, 9);
+    expect(tiers).toHaveLength(1);
+    expect(tiers[0]).toMatchObject({ label: '9~12위', startRank: 9, endRank: 12 });
+    expect(tiers[0].members).toHaveLength(4);
+  });
+
+  it('8명 → 2 tiers (9~12위, 13~16위)', () => {
+    const tiers = splitIntoRankingTiers(make(8), 4, 9);
+    expect(tiers).toHaveLength(2);
+    expect(tiers[0].label).toBe('9~12위');
+    expect(tiers[1].label).toBe('13~16위');
+  });
+
+  it('9명 → 마지막 1명 버림 (짝 없음)', () => {
+    const tiers = splitIntoRankingTiers(make(9), 4, 9);
+    expect(tiers).toHaveLength(2);
+    expect(tiers[0].members).toHaveLength(4);
+    expect(tiers[1].members).toHaveLength(4);
+  });
+
+  it('10명 → 3 tiers (마지막 2명)', () => {
+    const tiers = splitIntoRankingTiers(make(10), 4, 9);
+    expect(tiers).toHaveLength(3);
+    expect(tiers[0]).toMatchObject({ label: '9~12위', startRank: 9, endRank: 12 });
+    expect(tiers[1]).toMatchObject({ label: '13~16위', startRank: 13, endRank: 16 });
+    expect(tiers[2]).toMatchObject({ label: '17~18위', startRank: 17, endRank: 18 });
+    expect(tiers[2].members).toHaveLength(2);
+  });
+
+  it('17위부터 시작 (IBSA classification)', () => {
+    const tiers = splitIntoRankingTiers(make(8), 4, 17);
+    expect(tiers[0].label).toBe('17~20위');
+    expect(tiers[1].label).toBe('21~24위');
+  });
+
+  it('tierSize=2 (페어 매칭)', () => {
+    const tiers = splitIntoRankingTiers(make(6), 2, 9);
+    expect(tiers).toHaveLength(3);
+    expect(tiers.map(t => t.label)).toEqual(['9~10위', '11~12위', '13~14위']);
+  });
+
+  it('tierSize<2 → 빈 결과 (방어)', () => {
+    expect(splitIntoRankingTiers(make(10), 1, 9)).toEqual([]);
+    expect(splitIntoRankingTiers(make(10), 0, 9)).toEqual([]);
+  });
+
+  it('멤버 객체는 입력 순서 보존', () => {
+    const members = [
+      { id: 'a', name: 'Alice' },
+      { id: 'b', name: 'Bob' },
+      { id: 'c', name: 'Carol' },
+      { id: 'd', name: 'David' },
+    ];
+    const tiers = splitIntoRankingTiers(members, 4, 9);
+    expect(tiers[0].members.map(m => m.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('PlayerStats 같은 확장 타입도 처리 (제네릭)', () => {
+    const stats: Array<{ id: string; name: string; wins: number }> = [
+      { id: 'a', name: 'A', wins: 3 },
+      { id: 'b', name: 'B', wins: 2 },
+      { id: 'c', name: 'C', wins: 1 },
+      { id: 'd', name: 'D', wins: 0 },
+    ];
+    const tiers = splitIntoRankingTiers(stats, 4, 9);
+    expect(tiers[0].members[0].wins).toBe(3); // 추가 필드 보존
   });
 });

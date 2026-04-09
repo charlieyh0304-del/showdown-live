@@ -170,3 +170,59 @@ export function computeRankingDisplayCount(
   if (config.fifthToEighth) return Math.min(8, totalPlayers);
   return Math.min(4, totalPlayers);
 }
+
+// ===== 순위결정전 그룹(tier) 분할 =====
+
+/** tier 구성 항목 — id/name만 있으면 됨 */
+export interface TierMember { id: string; name: string }
+
+/** 분할된 tier */
+export interface RankingTier<T extends TierMember = TierMember> {
+  /** 한국어 라벨 (예: "9~12위") */
+  label: string;
+  /** tier 시작 순위 (예: 9) */
+  startRank: number;
+  /** tier 종료 순위 (예: 12) */
+  endRank: number;
+  /** tier에 포함된 멤버 (입력 배열 순서 그대로) */
+  members: T[];
+}
+
+/**
+ * 정렬된 멤버 배열을 tierSize 단위로 순차 분할.
+ *
+ * 규칙:
+ * - 시작 순위 startRank부터 누적
+ * - 각 tier는 최대 tierSize명, 마지막 tier는 더 적을 수 있음
+ * - 멤버 < 2면 tier 미생성 (1명 vs 1명 결정전이 불가능)
+ *
+ * 예: 9명을 startRank=9, tierSize=4로 분할
+ *  → [9~12위, 13~16위, 17위 (1명 → 제외)]
+ *  → 결과: [9~12위(4명), 13~16위(4명)] (마지막 1명은 짝이 없어 버림)
+ *
+ * IBSA 9-16위 결정전 / 17위~ classification 양쪽에서 사용.
+ */
+export function splitIntoRankingTiers<T extends TierMember>(
+  sortedMembers: ReadonlyArray<T>,
+  tierSize: number,
+  startRank: number,
+): Array<RankingTier<T>> {
+  if (tierSize < 2) return [];
+  const tiers: Array<RankingTier<T>> = [];
+  let remaining = [...sortedMembers];
+  let cursor = startRank;
+  while (remaining.length >= 2) {
+    const grpSize = Math.min(tierSize, remaining.length);
+    const grpMembers = remaining.slice(0, grpSize);
+    const endRank = cursor + grpSize - 1;
+    tiers.push({
+      label: `${cursor}~${endRank}위`,
+      startRank: cursor,
+      endRank,
+      members: grpMembers,
+    });
+    remaining = remaining.slice(grpSize);
+    cursor = endRank + 1;
+  }
+  return tiers;
+}
