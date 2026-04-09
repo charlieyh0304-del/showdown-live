@@ -1,10 +1,10 @@
 /**
  * 스케줄 관련 핸들러: generate_round_robin, shift_schedule, move_matches_to_court
  */
-import { db, addDays } from "../db-helpers";
+import { db, addDays, asString, asNumber, asBoolean } from "../db-helpers";
 
 export async function generateRoundRobin(input: Record<string, unknown>): Promise<string> {
-  const tid = input.tournamentId as string;
+  const tid = asString(input.tournamentId);
 
   // 중복 생성 방지
   const existingMatchSnap = await db.ref(`matches/${tid}`).once("value");
@@ -113,8 +113,8 @@ export async function generateRoundRobin(input: Record<string, unknown>): Promis
 }
 
 export async function shiftSchedule(input: Record<string, unknown>): Promise<string> {
-  const tid = input.tournamentId as string;
-  const shift = input.shiftMinutes as number;
+  const tid = asString(input.tournamentId);
+  const shift = asNumber(input.shiftMinutes);
   const matchIds = input.matchIds as string[] | undefined;
   const courtId = input.courtId as string | undefined;
 
@@ -140,7 +140,7 @@ export async function shiftSchedule(input: Record<string, unknown>): Promise<str
     if (matchIds && matchIds.length > 0 && !matchIds.includes(mid)) continue;
     if (courtId && match.courtId !== courtId) continue;
 
-    const result = shiftTime(match.scheduledTime as string, match.scheduledDate as string | undefined, shift);
+    const result = shiftTime(asString(match.scheduledTime), match.scheduledDate as string | undefined, shift);
     shiftBulk[`matches/${tid}/${mid}/scheduledTime`] = result.time;
     if (result.date) shiftBulk[`matches/${tid}/${mid}/scheduledDate`] = result.date;
     count++;
@@ -150,11 +150,11 @@ export async function shiftSchedule(input: Record<string, unknown>): Promise<str
   if (schedSnap.exists()) {
     for (const [sid, slot] of Object.entries(schedSnap.val() as Record<string, Record<string, unknown>>)) {
       if (!slot.scheduledTime) continue;
-      const matchId = slot.matchId as string;
+      const matchId = asString(slot.matchId);
       if (matchIds && matchIds.length > 0 && !matchIds.includes(matchId)) continue;
       if (courtId && slot.courtId !== courtId) continue;
 
-      const result = shiftTime(slot.scheduledTime as string, slot.scheduledDate as string | undefined, shift);
+      const result = shiftTime(asString(slot.scheduledTime), slot.scheduledDate as string | undefined, shift);
       shiftBulk[`schedule/${tid}/${sid}/scheduledTime`] = result.time;
       if (result.date) shiftBulk[`schedule/${tid}/${sid}/scheduledDate`] = result.date;
     }
@@ -165,19 +165,19 @@ export async function shiftSchedule(input: Record<string, unknown>): Promise<str
 }
 
 export async function generateSchedule(input: Record<string, unknown>): Promise<string> {
-  const tid = input.tournamentId as string;
-  const startTime = (input.startTime as string) || "09:00";
-  const endTime = (input.endTime as string) || "19:00";
-  const interval = (input.intervalMinutes as number) || 30;
-  const playerRest = (input.playerRestMinutes as number) || 60;
-  const scheduleDate = (input.scheduleDate as string) || new Date().toISOString().split("T")[0];
+  const tid = asString(input.tournamentId);
+  const startTime = asString(input.startTime, "09:00");
+  const endTime = asString(input.endTime, "19:00");
+  const interval = asNumber(input.intervalMinutes, 30);
+  const playerRest = asNumber(input.playerRestMinutes, 60);
+  const scheduleDate = asString(input.scheduleDate, new Date().toISOString().split("T")[0]);
   const inputScheduleDates = (input.scheduleDates as string[]) || [];
-  const nextDayStart = (input.nextDayStartTime as string) || startTime;
+  const nextDayStart = asString(input.nextDayStartTime, startTime);
 
   const breakStartStr = input.breakStart as string | undefined;
   const breakEndStr = input.breakEnd as string | undefined;
   const stageFilter = input.stageFilter as string | undefined;
-  const onlyUnassigned = (input.onlyUnassigned as boolean) || false;
+  const onlyUnassigned = asBoolean(input.onlyUnassigned);
 
   const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -243,10 +243,10 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
 
   const getPlayerIds = (m: Record<string, unknown>): string[] => {
     const ids: string[] = [];
-    if (m.player1Id) ids.push(m.player1Id as string);
-    if (m.player2Id) ids.push(m.player2Id as string);
-    if (m.team1Id) ids.push(m.team1Id as string);
-    if (m.team2Id) ids.push(m.team2Id as string);
+    if (m.player1Id) ids.push(asString(m.player1Id));
+    if (m.player2Id) ids.push(asString(m.player2Id));
+    if (m.team1Id) ids.push(asString(m.team1Id));
+    if (m.team2Id) ids.push(asString(m.team2Id));
     return ids;
   };
 
@@ -341,7 +341,7 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
 
   const scheduleBulk: Record<string, unknown> = {};
   for (const slot of slots) {
-    const mid = slot.matchId as string;
+    const mid = asString(slot.matchId);
     scheduleBulk[`matches/${tid}/${mid}/scheduledTime`] = slot.scheduledTime;
     scheduleBulk[`matches/${tid}/${mid}/scheduledDate`] = slot.scheduledDate;
     scheduleBulk[`matches/${tid}/${mid}/courtId`] = slot.courtId;
@@ -366,10 +366,10 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   }
   await db.ref().update(slotBulk);
 
-  const dates = [...new Set(slots.map((s) => s.scheduledDate as string))].sort();
+  const dates = [...new Set(slots.map((s) => asString(s.scheduledDate)))].sort();
   const summary = dates.map((d) => {
     const daySlots = slots.filter((s) => s.scheduledDate === d);
-    const times = daySlots.map((s) => s.scheduledTime as string).sort();
+    const times = daySlots.map((s) => asString(s.scheduledTime)).sort();
     return `${d}: ${daySlots.length}경기 (${times[0]}~${times[times.length - 1]})`;
   }).join(", ");
 
@@ -388,10 +388,10 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
 }
 
 export async function moveMatchesToCourt(input: Record<string, unknown>): Promise<string> {
-  const tid = input.tournamentId as string;
-  const fromCourtId = input.fromCourtId as string;
-  const toCourtId = input.toCourtId as string;
-  const toCourtName = input.toCourtName as string;
+  const tid = asString(input.tournamentId);
+  const fromCourtId = asString(input.fromCourtId);
+  const toCourtId = asString(input.toCourtId);
+  const toCourtName = asString(input.toCourtName);
 
   const matchesSnap = await db.ref(`matches/${tid}`).once("value");
   if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });

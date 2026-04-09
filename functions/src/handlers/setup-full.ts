@@ -1,11 +1,11 @@
 /**
  * 풀 토너먼트 생성 핸들러 (개인전/팀전, 풀리그/조별리그)
  */
-import { db } from "../db-helpers";
+import { db, asString, asNumber, asBoolean } from "../db-helpers";
 
 export async function setupFullTournament(input: Record<string, unknown>): Promise<string> {
   const now = Date.now();
-  const tourType = (input.type as string) || "individual";
+  const tourType = asString(input.type, "individual");
   const isTeamTour = tourType === "team" || tourType === "randomTeamLeague";
   const players = (input.players as Array<{ name: string; club?: string; class?: string; gender?: string }>) || [];
   const inputTeams = (input.teams as Array<{ name: string; memberNames?: string[]; coachName?: string }>) || [];
@@ -14,30 +14,30 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
   if (isTeamTour && inputTeams.length === 0) {
     return JSON.stringify({ error: "type=team이지만 teams 파라미터가 비어있습니다. 사용자가 지정한 팀 구성을 teams: [{name:'팀명', memberNames:['선수1','선수2'], coachName:'코치명'}] 형태로 전달하세요. players가 아닌 teams를 사용해야 합니다." });
   }
-  const groupCount = (input.groupCount as number) || 4;
-  const advancePerGroup = (input.advancePerGroup as number) || 2;
+  const groupCount = asNumber(input.groupCount, 4);
+  const advancePerGroup = asNumber(input.advancePerGroup, 2);
   const seeds = (input.seeds as string[]) || [];
-  const qualWinScore = (input.qualifyingWinScore as number) || (isTeamTour ? 31 : 11);
-  const qualSetsToWin = (input.qualifyingSetsToWin as number) || (isTeamTour ? 1 : 2);
-  const finalsFormat = (input.finalsFormat as string) || "single_elimination";
+  const qualWinScore = asNumber(input.qualifyingWinScore, isTeamTour ? 31 : 11);
+  const qualSetsToWin = asNumber(input.qualifyingSetsToWin, isTeamTour ? 1 : 2);
+  const finalsFormat = asString(input.finalsFormat, "single_elimination");
   const thirdPlace = input.thirdPlace !== false;
-  const fifthToEighth = (input.fifthToEighth as boolean) || false;
-  const classificationGroups = (input.classificationGroups as boolean) || false;
-  const wildcardCountInput = (input.wildcardCount as number) || 0;
-  const rankingUpToInput = (input.rankingUpTo as number) || 0;
+  const fifthToEighth = asBoolean(input.fifthToEighth);
+  const classificationGroups = asBoolean(input.classificationGroups);
+  const wildcardCountInput = asNumber(input.wildcardCount);
+  const rankingUpToInput = asNumber(input.rankingUpTo);
   // 새 파라미터들
   const scheduleDatesInput = (input.scheduleDates as string[]) || [];
-  const teamSize = (input.teamSize as number) || 3;
-  const maxReserves = (input.maxReserves as number) || 1;
+  const teamSize = asNumber(input.teamSize, 3);
+  const maxReserves = asNumber(input.maxReserves, 1);
   const genderRatio = (input.genderRatio as { male: number; female: number }) || { male: 2, female: 1 };
-  const rotationEnabled = (input.rotationEnabled as boolean) || false;
-  const rotationInterval = (input.rotationInterval as number) || 6;
+  const rotationEnabled = asBoolean(input.rotationEnabled);
+  const rotationInterval = asNumber(input.rotationInterval, 6);
   const finalsStartRound = input.finalsStartRound as number | undefined;
   const avoidSameGroup = input.avoidSameGroup !== false;
-  const bracketArrangement = (input.bracketArrangement as string) || "cross_group";
-  const fifthToEighthFormat = (input.fifthToEighthFormat as string) || "simple";
-  const classificationGroupSize = (input.classificationGroupSize as number) || 4;
-  const minLead = (input.minLead as number) || 2;
+  const bracketArrangement = asString(input.bracketArrangement, "cross_group");
+  const fifthToEighthFormat = asString(input.fifthToEighthFormat, "simple");
+  const classificationGroupSize = asNumber(input.classificationGroupSize, 4);
+  const minLead = asNumber(input.minLead, 2);
   const deuceEnabled = input.deuceEnabled !== false;
   const tiebreakerRules = (input.tiebreakerRules as string[]) || [];
   const finalsSetsToWin = input.finalsSetsToWin as number | undefined;
@@ -75,7 +75,7 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
   if (invalidSeeds.length > 0) return JSON.stringify({ error: `시드 선수를 찾을 수 없습니다: ${invalidSeeds.join(", ")}` });
 
   // 날짜 검증
-  const dateStr = (input.date as string) || new Date().toISOString().split("T")[0];
+  const dateStr = asString(input.date, new Date().toISOString().split("T")[0]);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return JSON.stringify({ error: "날짜 형식: YYYY-MM-DD" });
 
   // 1. 대회 생성

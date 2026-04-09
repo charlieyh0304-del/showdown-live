@@ -2,7 +2,7 @@
  * 순위 조회 핸들러 — get_tournament_rankings
  * chatbot-tools.ts에서 분리됨 (모듈화의 첫 단계)
  */
-import { db } from "../db-helpers";
+import { db, asString } from "../db-helpers";
 
 export interface RankingEntry {
   rank: number;
@@ -35,7 +35,7 @@ export async function getTournamentRankings(
   const tSnap = await db.ref(`tournaments/${tid}`).once("value");
   if (!tSnap.exists()) return { error: "대회를 찾을 수 없습니다." };
   const tData = tSnap.val() as Record<string, unknown>;
-  const tName = tData.name as string;
+  const tName = asString(tData.name);
   const isTeamT = tData.type === "team" || tData.type === "randomTeamLeague";
 
   // 모든 완료 경기
@@ -47,14 +47,14 @@ export async function getTournamentRankings(
   const finalsResults: Map<number, { id: string; name: string }> = new Map();
   for (const m of allMatches) {
     if (m.status !== "completed" || m.isBye) continue;
-    const sid = (m.stageId as string) || "";
-    const rl = (m.roundLabel as string) || "";
-    const br = (m.bracketRound as string) || "";
-    const wId = m.winnerId as string;
-    const p1Id = (m.player1Id || m.team1Id) as string;
-    const wName = wId === p1Id ? (m.player1Name || m.team1Name) as string : (m.player2Name || m.team2Name) as string;
-    const lId = wId === p1Id ? (m.player2Id || m.team2Id) as string : p1Id;
-    const lName = wId === p1Id ? (m.player2Name || m.team2Name) as string : (m.player1Name || m.team1Name) as string;
+    const sid = asString(m.stageId);
+    const rl = asString(m.roundLabel);
+    const br = asString(m.bracketRound);
+    const wId = asString(m.winnerId);
+    const p1Id = asString(m.player1Id ?? m.team1Id);
+    const wName = wId === p1Id ? asString(m.player1Name ?? m.team1Name) : asString(m.player2Name ?? m.team2Name);
+    const lId = wId === p1Id ? asString(m.player2Id ?? m.team2Id) : p1Id;
+    const lName = wId === p1Id ? asString(m.player2Name ?? m.team2Name) : asString(m.player1Name ?? m.team1Name);
 
     if ((br === "결승" || rl === "결승") && sid.includes("finals") && !sid.includes("class") && !sid.includes("3rd")) {
       finalsResults.set(1, { id: wId, name: wName });
@@ -70,10 +70,10 @@ export async function getTournamentRankings(
   const stats = new Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>();
   for (const m of allMatches) {
     if (m.status !== "completed" || m.isBye) continue;
-    const id1 = (m.player1Id || m.team1Id) as string;
-    const id2 = (m.player2Id || m.team2Id) as string;
-    const n1 = (m.player1Name || m.team1Name) as string;
-    const n2 = (m.player2Name || m.team2Name) as string;
+    const id1 = asString(m.player1Id ?? m.team1Id);
+    const id2 = asString(m.player2Id ?? m.team2Id);
+    const n1 = asString(m.player1Name ?? m.team1Name);
+    const n2 = asString(m.player2Name ?? m.team2Name);
     if (!id1 || !id2 || id1 === "BYE" || id2 === "BYE") continue;
     if (!stats.has(id1)) stats.set(id1, { name: n1, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
     if (!stats.has(id2)) stats.set(id2, { name: n2, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
