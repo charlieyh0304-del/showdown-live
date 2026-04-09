@@ -17,6 +17,7 @@ interface WizardStep4FinalsProps {
     fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
     classificationGroups: boolean;
     classificationGroupSize: number;
+    rankingUpTo?: number;
     hasGroupStage?: boolean;
     advanceCount?: number;
     advancePerGroup?: number;
@@ -761,6 +762,26 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   />
                 </div>
               )}
+
+              {/* 순위 표시 범위 (N위까지만) */}
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <label className="block text-sm font-semibold mb-2">
+                  순위 표시 범위 (선택)
+                </label>
+                <p className="text-xs text-gray-400 mb-2">
+                  N위까지만 표시 (예: 8 → 1~8위까지). 빈칸이면 본선 진출자 전체
+                </p>
+                <input
+                  type="number"
+                  min={0}
+                  max={128}
+                  value={state.rankingUpTo || ''}
+                  onChange={(e) => setField('rankingUpTo', e.target.value ? parseInt(e.target.value) : 0)}
+                  className="w-32 px-3 py-2 bg-gray-700 rounded border border-gray-600 text-white"
+                  placeholder="전체"
+                  aria-label="순위 표시 범위"
+                />
+              </div>
 
               <h3 className="text-lg font-bold text-cyan-400 mt-4">{t('admin.tournamentCreate.finals.rankingFormatTitle')}</h3>
               <div

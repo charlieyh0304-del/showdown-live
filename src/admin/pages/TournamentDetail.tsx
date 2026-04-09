@@ -4714,34 +4714,6 @@ function RankingTab({ tournament, matches, isTeamType }: RankingTabProps) {
         )}
       </div>
 
-      {/* Completed matches list (most recent first) */}
-      {completedMatchesSorted.length > 0 && (
-        <div className="card">
-          <h2 className="text-xl font-bold mb-4 text-center">{t('admin.tournamentDetail.rankingTab.completedMatchesTitle')}</h2>
-          <div className="space-y-2">
-            {completedMatchesSorted.map(match => {
-              const serverScores = getSetScoresByServer(match);
-              const winnerName = match.winnerId === (match.player1Id || match.team1Id)
-                ? (match.player1Name ?? '?') : (match.player2Name ?? '?');
-              return (
-                <div key={match.id} className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <span className="font-semibold">{match.player1Name ?? '?'} vs {match.player2Name ?? '?'}</span>
-                    <span className="ml-2 text-xs text-green-400">({winnerName} {t('admin.tournamentDetail.rankingTab.winLabel', '승')})</span>
-                  </div>
-                  <div className="flex gap-2">
-                    {serverScores.map((ss, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-sm font-mono" title={`${t('admin.tournamentDetail.rankingTab.serveLabel', '서브')}: ${ss.serverSide === 'player1' ? (match.player1Name ?? 'P1') : (match.player2Name ?? 'P2')}`}>
-                        {ss.serverScore}-{ss.receiverScore}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

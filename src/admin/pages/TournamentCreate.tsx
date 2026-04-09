@@ -502,8 +502,11 @@ export default function TournamentCreate() {
             } : {}),
           },
         } : {}),
-        ...(state.rankingMatch.enabled ? {
-          rankingMatchConfig: state.rankingMatch,
+        ...((state.rankingMatch.enabled || state.rankingUpTo > 0) ? {
+          rankingMatchConfig: {
+            ...state.rankingMatch,
+            ...(state.rankingUpTo > 0 ? { rankingUpTo: state.rankingUpTo } : {}),
+          },
         } : {}),
       });
 
