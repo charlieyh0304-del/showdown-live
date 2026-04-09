@@ -2018,17 +2018,17 @@ function IndividualRankingTable({
   tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
 }) {
   const { t } = useTranslation();
-  const rankings: PlayerRanking[] = useMemo(() => {
-    const all = calculateIndividualRanking(matches);
-    const rkCfg = tournament?.rankingMatchConfig;
-    if (!rkCfg) return all;
-    let maxRank = all.length;
-    if (rkCfg.classificationGroups) maxRank = all.length;
-    else if (rkCfg.fifthToEighth) maxRank = 8;
-    else if (rkCfg.thirdPlace) maxRank = 4;
-    if (rkCfg.rankingUpTo && rkCfg.rankingUpTo > 0) maxRank = rkCfg.rankingUpTo;
-    return all.slice(0, maxRank);
-  }, [matches, tournament]);
+  const allRankingsRaw: PlayerRanking[] = useMemo(() => calculateIndividualRanking(matches), [matches]);
+  const rkCfg = tournament?.rankingMatchConfig;
+  let maxRankSpec = allRankingsRaw.length;
+  if (rkCfg) {
+    if (rkCfg.rankingUpTo && rkCfg.rankingUpTo > 0) maxRankSpec = rkCfg.rankingUpTo;
+    else if (rkCfg.classificationGroups) maxRankSpec = allRankingsRaw.length;
+    else if (rkCfg.fifthToEighth) maxRankSpec = 8;
+    else if (rkCfg.thirdPlace) maxRankSpec = 4;
+  }
+  const rankings: PlayerRanking[] = allRankingsRaw.slice(0, maxRankSpec);
+  const debugLine = `[DEBUG] 순위 범위: 1~${maxRankSpec}위 (전체 ${allRankingsRaw.length}명) · 설정: ${rkCfg ? `cls=${String(rkCfg.classificationGroups)}, 5to8=${String(rkCfg.fifthToEighth)}, 3rd=${String(rkCfg.thirdPlace)}, upTo=${rkCfg.rankingUpTo || 0}` : '미설정'}`;
 
   if (rankings.length === 0) {
     return (
@@ -2040,6 +2040,9 @@ function IndividualRankingTable({
 
   return (
     <div style={{ overflowX: 'auto' }}>
+      <div style={{ fontSize: '0.75rem', color: '#fbbf24', textAlign: 'center', marginBottom: '0.5rem', padding: '0.25rem', backgroundColor: '#1f2937' }}>
+        {debugLine}
+      </div>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <caption className="sr-only">{t('spectator.tournament.tabs.ranking')}</caption>
         <thead>
