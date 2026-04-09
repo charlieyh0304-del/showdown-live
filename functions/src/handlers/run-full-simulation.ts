@@ -3,6 +3,12 @@
  * - 예선 시뮬레이션 → 본선 생성/시뮬 → 5-8위/9-16위/17위~ 순위결정전 → 최종 순위 산출
  */
 import { db } from "../db-helpers";
+import {
+  computeGroupRankings,
+  computeFinalRanking,
+  computeRankingDisplayCount,
+  type MatchLike,
+} from "../lib/rankings-compute";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
@@ -442,43 +448,17 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
   // 3. 대회 완료
   await db.ref(`tournaments/${tid}/status`).set("completed");
 
-  // 4. 조별 순위 계산 (프론트엔드 calculateIndividualRanking과 동일: 승수→세트득실→점수득실)
+  // 4. 조별 순위 계산 — lib/rankings-compute의 순수 함수 위임
   const finalSnap = await db.ref(`matches/${tid}`).once("value");
   const finalM = finalSnap.exists() ? Object.entries(finalSnap.val() as Record<string, Record<string, unknown>>) : [];
-  const gStats = new Map<string, Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>>();
-  for (const [, m] of finalM) {
-    if (m.status !== "completed") continue;
-    // 풀리그: groupId 없는 리그 경기도 포함, 본선/순위결정전은 제외
-    const sid = (m.stageId as string) || "";
-    if (sid.includes("finals") || sid.includes("ranking") || sid.includes("3rd") || sid.includes("5to8")) continue;
-    const gid = (m.groupId as string) || "full_league";
-    if (!gStats.has(gid)) gStats.set(gid, new Map());
-    const st = gStats.get(gid)!;
-    const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
-    const id1 = (m.team1Id || m.player1Id) as string, id2 = (m.team2Id || m.player2Id) as string;
-    if (!st.has(id1)) st.set(id1, { name: n1, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
-    if (!st.has(id2)) st.set(id2, { name: n2, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
-    if (m.winnerId === id1) { st.get(id1)!.wins++; st.get(id2)!.losses++; }
-    else if (m.winnerId === id2) { st.get(id2)!.wins++; st.get(id1)!.losses++; }
-    for (const s of ((m.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
-      if (s.player1Score > s.player2Score) { st.get(id1)!.setsWon++; st.get(id2)!.setsLost++; }
-      else if (s.player2Score > s.player1Score) { st.get(id2)!.setsWon++; st.get(id1)!.setsLost++; }
-      st.get(id1)!.pf += s.player1Score; st.get(id1)!.pa += s.player2Score;
-      st.get(id2)!.pf += s.player2Score; st.get(id2)!.pa += s.player1Score;
-    }
-  }
-  const groupRankings = [...gStats.entries()].sort().map(([gid, stats]) => {
-    const sorted = [...stats.values()].sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      const aSetDiff = a.setsWon - a.setsLost, bSetDiff = b.setsWon - b.setsLost;
-      if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
-      return (b.pf - b.pa) - (a.pf - a.pa);
-    });
+  const matchList: MatchLike[] = finalM.map(([, m]) => m);
+  const groupRankingsMap = computeGroupRankings(matchList);
+  const groupRankings = [...groupRankingsMap.entries()].map(([gid, sorted]) => {
     const header = gid === "full_league" ? "최종 순위" : `${gid} 순위`;
     const tableHeader = "순위 | 이름 | 승 | 패 | 세트(승-패) | 득점-실점";
     const separator = "---|---|---|---|---|---";
     const rows = sorted.map((s, i) =>
-      `${i + 1}위 | ${s.name} | ${s.wins}승 | ${s.losses}패 | ${s.setsWon}-${s.setsLost} | ${s.pf}-${s.pa}`
+      `${i + 1}위 | ${s.name} | ${s.wins}승 | ${s.losses}패 | ${s.setsWon}-${s.setsLost} | ${s.pointsFor}-${s.pointsAgainst}`
     ).join("\n");
     return `${header}:\n${tableHeader}\n${separator}\n${rows}`;
   }).join("\n\n");
@@ -514,43 +494,11 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
     }
   }
 
-  // 7. 최종 전체 순위 산출 (프론트엔드 calculateIndividualRanking과 동일: 전체 경기 포함)
+  // 7. 최종 전체 순위 산출 — lib/rankings-compute의 순수 함수 위임
   const finalRanking: string[] = [];
-  // BYE 경기 제외, 모든 완료된 경기로 통합 순위 계산 (프론트엔드와 동일)
-  const nonByeCompleted = finalM.filter(([, m]) => m.status === "completed" && !m.isBye);
-  const allPlayerStats = new Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>();
-  for (const [, m] of nonByeCompleted) {
-    const id1 = (m.player1Id || m.team1Id) as string;
-    const id2 = (m.player2Id || m.team2Id) as string;
-    const n1 = (m.player1Name || m.team1Name) as string;
-    const n2 = (m.player2Name || m.team2Name) as string;
-    if (!id1 || !id2 || id1 === "BYE" || id2 === "BYE") continue;
-    if (!allPlayerStats.has(id1)) allPlayerStats.set(id1, { name: n1, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
-    if (!allPlayerStats.has(id2)) allPlayerStats.set(id2, { name: n2, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
-    const s1 = allPlayerStats.get(id1)!, s2 = allPlayerStats.get(id2)!;
-    if (m.winnerId === id1) { s1.wins++; s2.losses++; }
-    else if (m.winnerId === id2) { s2.wins++; s1.losses++; }
-    for (const s of ((m.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
-      if (s.player1Score > s.player2Score) { s1.setsWon++; s2.setsLost++; }
-      else if (s.player2Score > s.player1Score) { s2.setsWon++; s1.setsLost++; }
-      s1.pf += s.player1Score; s1.pa += s.player2Score;
-      s2.pf += s.player2Score; s2.pa += s.player1Score;
-    }
-  }
-  // 승수→세트득실→점수득실 순으로 정렬 (프론트엔드와 동일)
-  const sortedPlayers = [...allPlayerStats.values()].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    const aSD = a.setsWon - a.setsLost, bSD = b.setsWon - b.setsLost;
-    if (bSD !== aSD) return bSD - aSD;
-    return (b.pf - b.pa) - (a.pf - a.pa);
-  });
-  // 순위 표시 범위: 대회 설정에 따라 제한
+  const sortedPlayers = computeFinalRanking(matchList);
   const rkCfg = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-  let maxRankDisplay = 4; // 기본: 결승까지 (1-4위)
-  if (rkCfg?.fifthToEighth) maxRankDisplay = 8;
-  if (rkCfg?.classificationGroups) maxRankDisplay = sortedPlayers.length; // 전체
-  if (rkCfg?.rankingUpTo) maxRankDisplay = rkCfg.rankingUpTo as number;
-  const displayCount = Math.min(maxRankDisplay, sortedPlayers.length);
+  const displayCount = computeRankingDisplayCount(sortedPlayers.length, rkCfg);
   for (let i = 0; i < displayCount; i++) {
     const p = sortedPlayers[i];
     finalRanking.push(`${i + 1}위: ${p.name} (${p.wins}승 ${p.losses}패, 세트 ${p.setsWon}-${p.setsLost})`);
