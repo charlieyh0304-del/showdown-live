@@ -12,14 +12,7 @@ import * as admin from "firebase-admin";
 import { db } from "../db-helpers";
 import { verifyPinAgainstStored, findAdminByPin } from "../lib/pin-verify";
 
-// CORS 허용 도메인 (chatbot.ts와 동일 — 와일드카드 금지)
-const ALLOWED_ORIGINS = [
-  "https://showdown-b5cc7.web.app",
-  "https://showdown-b5cc7.firebaseapp.com",
-  "https://charlieyh0304-del.github.io",
-  "http://localhost:5173",
-  "http://localhost:4173",
-];
+import { ALLOWED_ORIGINS } from "../cors";
 
 // ===== Rate limit (brute force 방어) =====
 const RL_WINDOW_MS = 10 * 60 * 1000; // 10분

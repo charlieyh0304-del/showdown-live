@@ -10,14 +10,7 @@ const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 const MAX_TOOL_LOOPS = 15;
 
-// CORS 허용 도메인 (와일드카드 금지)
-const ALLOWED_ORIGINS = [
-  "https://showdown-b5cc7.web.app",
-  "https://showdown-b5cc7.firebaseapp.com",
-  "https://charlieyh0304-del.github.io",
-  "http://localhost:5173",
-  "http://localhost:4173",
-];
+import { ALLOWED_ORIGINS } from "./cors";
 
 // 사용자 제공 문자열을 시스템 프롬프트에 안전하게 삽입하기 위한 sanitizer
 // - 길이 제한
