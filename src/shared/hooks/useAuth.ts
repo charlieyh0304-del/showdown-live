@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ref, get } from 'firebase/database';
-import { signInWithCustomToken } from 'firebase/auth';
+import { signInWithCustomToken, signOut } from 'firebase/auth';
 import { database, auth } from '../config/firebase';
 import type { AuthSession } from '../types';
 
@@ -105,8 +105,11 @@ export function useAuth() {
     }(), LOGIN_TIMEOUT_MS);
   }, [saveSession]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     saveSession(null);
+    try {
+      await signOut(auth);
+    } catch { /* 오프라인 등 실패 시 무시 — 세션은 이미 정리됨 */ }
   }, [saveSession]);
 
   const isAdmin = session?.mode === 'admin';
