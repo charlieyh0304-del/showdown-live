@@ -388,20 +388,19 @@ export const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   */
-  /* INTERNAL - called by workflow tools
   {
     name: "add_referee",
-    description: "심판 추가. 동일 이름 자동 중복 방지(기존 ID 반환). role: main(주심)/assistant(부심).",
+    description: "심판 등록. 동일 이름이 이미 있으면 기존 ID 반환. PIN 입력 시 서버에서 PBKDF2 해싱 후 저장 (심판 로그인용).",
     input_schema: {
       type: "object" as const,
       properties: {
-        name: { type: "string" },
-        role: { type: "string", enum: ["main", "assistant"], description: "main(주심) or assistant(부심)" },
+        name: { type: "string", description: "심판 이름" },
+        role: { type: "string", enum: ["main", "assistant"], description: "main(주심) 또는 assistant(부심), 기본값 main" },
+        pin: { type: "string", description: "심판 로그인 PIN(선택). 입력 시 서버에서 해싱하여 저장." },
       },
       required: ["name"],
     },
   },
-  */
   {
     name: "delete_referee",
     description: "심판 삭제.",
@@ -732,7 +731,7 @@ export async function executeTool(
         return await addCourt(input.name as string, input.location as string | undefined);
 
       case "add_referee":
-        return await addReferee(input.name as string, input.role as string | undefined);
+        return await addReferee(input.name as string, input.role as string | undefined, input.pin as string | undefined);
 
       case "delete_referee":
         return await deleteReferee(input.refereeId as string);

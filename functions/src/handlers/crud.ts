@@ -1,7 +1,7 @@
 /**
  * 단순 CRUD 핸들러 — courts, referees, players, teams
  */
-import { db } from "../db-helpers";
+import { db, hashPinPBKDF2 } from "../db-helpers";
 
 // ===== Courts =====
 export async function addCourt(name: string, location?: string): Promise<string> {
@@ -29,7 +29,7 @@ export async function updateCourt(cid: string, fields: Record<string, unknown>):
 }
 
 // ===== Referees =====
-export async function addReferee(name: string, role?: string): Promise<string> {
+export async function addReferee(name: string, role?: string, pin?: string): Promise<string> {
   const existing = await db.ref("referees").once("value");
   if (existing.exists()) {
     for (const [rid, rv] of Object.entries(existing.val() as Record<string, { name: string }>)) {
@@ -38,9 +38,18 @@ export async function addReferee(name: string, role?: string): Promise<string> {
       }
     }
   }
+  // PIN 입력 시 PBKDF2 (salt:hash 형식) 로 해싱하여 저장. 클라이언트와 동일 포맷.
+  let pinHashed: string | undefined;
+  if (typeof pin === "string" && pin.length > 0) {
+    const crypto = await import("crypto");
+    const salt = crypto.randomBytes(16).toString("hex");
+    pinHashed = await hashPinPBKDF2(pin, salt);
+  }
   const newRef = db.ref("referees").push();
-  await newRef.set({ name, role: role || "main", createdAt: Date.now() });
-  return JSON.stringify({ success: true, refereeId: newRef.key, message: `심판 "${name}" 추가 완료` });
+  const data: Record<string, unknown> = { name, role: role || "main", createdAt: Date.now() };
+  if (pinHashed) data.pin = pinHashed;
+  await newRef.set(data);
+  return JSON.stringify({ success: true, refereeId: newRef.key, message: `심판 "${name}" 추가 완료${pinHashed ? " (PIN 설정됨)" : ""}` });
 }
 
 export async function deleteReferee(rid: string): Promise<string> {
