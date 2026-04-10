@@ -108,6 +108,14 @@ export default function IndividualScoring() {
   const [announcement, setAnnouncement] = useState('');
   const [lastAction, setLastAction] = useState('');
   const [scoreFlash, setScoreFlash] = useState(0);
+
+  /** updateMatch 실패 시 시각 + 음성 알림 (전맹 심판 지원) */
+  const notifyUpdateFailed = useCallback(() => {
+    const msg = t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨');
+    setLastAction(`⚠️ ${msg}`);
+    setAnnouncement(msg);
+    speak(msg);
+  }, [t]);
   const [showHistory, setShowHistory] = useState(false);
   const [showSetEndConfirm, setShowSetEndConfirm] = useState(false);
   const [setEndMessage, setSetEndMessage] = useState('');
@@ -487,7 +495,7 @@ export default function IndividualScoring() {
     };
 
     const okWo = await updateMatch(updateData);
-    if (!okWo) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+    if (!okWo) { notifyUpdateFailed(); return; }
 
     setLastAction(`${t('common.scoreActions.walkover')}: ${winnerName} (${reason})`);
     setAnnouncement(`${loserName} ${reason}. ${winnerName} ${t('common.scoreActions.walkover')}`);
@@ -638,7 +646,7 @@ export default function IndividualScoring() {
         sets, currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
       });
-      if (!ok1) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); setShowSetEndConfirm(false); return; }
+      if (!ok1) { notifyUpdateFailed(); setShowSetEndConfirm(false); return; }
 
       // Show dialog message after 500ms delay (dialog already blocks via showSetEndConfirm)
       setTimeout(() => {
@@ -664,7 +672,7 @@ export default function IndividualScoring() {
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
       });
-      if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+      if (!ok2) { notifyUpdateFailed(); return; }
       setPendingSideChange(true);
       return;
     }
@@ -673,7 +681,7 @@ export default function IndividualScoring() {
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
     });
-    if (!ok3) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+    if (!ok3) { notifyUpdateFailed(); return; }
     if (tournamentId) autoBackupDebounced(tournamentId);
 
     } finally { done(); }
@@ -1283,7 +1291,7 @@ export default function IndividualScoring() {
             const ok = await updateMatch({ sideChangeStartTime: Date.now() });
             if (!ok) {
               // Firebase 실패 시에도 경기 진행 가능하도록 바로 해제
-              setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨'));
+              notifyUpdateFailed();
             }
           }}
           closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}

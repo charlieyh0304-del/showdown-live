@@ -198,6 +198,14 @@ export function useTeamMatchScoring(
     }
   }, [match?.status, tournamentId, matchId]);
 
+  /** updateMatch 실패 시 시각 + 음성 알림 (전맹 심판 지원) */
+  const notifyUpdateFailed = useCallback(() => {
+    const msg = t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨');
+    setLastAction(`⚠️ ${msg}`);
+    setAnnouncement(msg);
+    speak(msg);
+  }, [t]);
+
   const team1Name = match?.team1Name ?? t('referee.home.team1Default');
   const team2Name = match?.team2Name ?? t('referee.home.team2Default');
 
@@ -362,7 +370,7 @@ export function useTeamMatchScoring(
     };
 
     const okWo = await updateMatch(updateData);
-    if (!okWo) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+    if (!okWo) { notifyUpdateFailed(); return; }
 
     setLastAction(`${t('common.scoreActions.walkover')}: ${winnerName} (${reason})`);
     setAnnouncement(`${loserName} ${reason}. ${winnerName} ${t('common.scoreActions.walkover')}`);
@@ -525,7 +533,7 @@ export function useTeamMatchScoring(
         scoreHistory: newHistory,
         ...rotationUpdate,
       });
-      if (!ok1) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+      if (!ok1) { notifyUpdateFailed(); return; }
       setTimeout(() => longWhistle(), 500);
       if (tournamentId) autoBackupToLocal(tournamentId);
       return;
@@ -537,7 +545,7 @@ export function useTeamMatchScoring(
         sideChangeUsed: true, scoreHistory: newHistory,
         ...rotationUpdate,
       });
-      if (!ok2) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+      if (!ok2) { notifyUpdateFailed(); return; }
       setPendingSideChange(true);
       return;
     }
@@ -547,7 +555,7 @@ export function useTeamMatchScoring(
       scoreHistory: newHistory,
       ...rotationUpdate,
     });
-    if (!ok3) { setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨')); return; }
+    if (!ok3) { notifyUpdateFailed(); return; }
     if (tournamentId) autoBackupDebounced(tournamentId);
 
     } finally { done(); }
