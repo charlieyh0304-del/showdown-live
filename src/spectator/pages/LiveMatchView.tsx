@@ -120,7 +120,7 @@ export default function LiveMatchView() {
       longWhistle(); // warmup end
     }
 
-    // Score event whistle (detect new history entries)
+    // Score event whistle + 득점자 음성 안내 (detect new history entries)
     if (prevHistoryLenRef.current > 0 && histLen > prevHistoryLenRef.current) {
       const latest = history[0]; // newest first
       if (latest) {
@@ -129,7 +129,16 @@ export default function LiveMatchView() {
         } else if (latest.points === 1 || latest.penaltyWarning || latest.actionType === 'dead_ball') {
           shortWhistle();
         }
-        // Don't whistle for non-scoring meta events (handled by status/timeout/warmup above)
+
+        // 득점자 정보 포함 음성 안내 (스크린리더용)
+        if (latest.scoringPlayer && latest.points > 0) {
+          const scoreAfter = latest.scoreAfter ?? { player1: 0, player2: 0 };
+          const p1 = match.type === 'team' ? (match.team1Name || '') : (match.player1Name || '');
+          const p2 = match.type === 'team' ? (match.team2Name || '') : (match.player2Name || '');
+          setAnnouncement(`${latest.scoringPlayer} +${latest.points}점. ${p1} ${scoreAfter.player1} 대 ${p2} ${scoreAfter.player2}`);
+        } else if (latest.actionLabel) {
+          setAnnouncement(latest.actionLabel);
+        }
       }
     }
 

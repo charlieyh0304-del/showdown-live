@@ -35,7 +35,7 @@ export default function TeamMatchScoring() {
     setCourtChangeByLoser,
     pendingChoice, setPendingChoice,
     sideChangeTimer, warmupTimer, timeoutTimer,
-    shortWhistle, longWhistle, initAudio,
+    shortWhistle, longWhistle, goalWhistle, initAudio,
     goldenGoal,
     handleStartMatch, handleWarmup, handleWalkover,
     handleIBSAScore, handleUndo, handleChangeServe,
@@ -350,8 +350,18 @@ export default function TeamMatchScoring() {
             🟨 {t('referee.scoring.timeoutTitle.referee')}
           </button>
           <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm" onClick={shortWhistle}
-            aria-label="서브 휘슬" style={{ minHeight: '44px' }}>
-            📣 휘슬
+            aria-label="서브 및 1점 실점 휘슬" style={{ minHeight: '44px' }}>
+            📣 서브/1점
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold" onClick={goalWhistle}
+            aria-label="골 득점 휘슬" style={{ minHeight: '44px' }}>
+            ⚽ 골 휘슬
+          </button>
+          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold" onClick={longWhistle}
+            aria-label="타임아웃 및 경기 종료 휘슬" style={{ minHeight: '44px' }}>
+            📢 종료/타임아웃
           </button>
         </div>
 

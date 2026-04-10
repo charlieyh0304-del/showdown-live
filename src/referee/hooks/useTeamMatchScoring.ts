@@ -940,7 +940,7 @@ export function useTeamMatchScoring(
     pendingChoice, setPendingChoice,
     // timers & audio
     sideChangeTimer, warmupTimer, timeoutTimer,
-    shortWhistle, longWhistle, initAudio,
+    shortWhistle, longWhistle, goalWhistle, initAudio,
     // golden goal
     goldenGoal,
     // handlers
