@@ -41,24 +41,24 @@ describe("pin-verify", () => {
   describe("findAdminByPin", () => {
     it("returns matching admin id", () => {
       const admins = {
-        alice: { pinHash: hashPinSHA256Sync("1111") },
-        bob: { pinHash: hashPinPBKDF2Sync("2222", "saltB") },
+        alice: { pin: hashPinSHA256Sync("1111") },
+        bob: { pin: hashPinPBKDF2Sync("2222", "saltB") },
       };
       expect(findAdminByPin(admins, "1111")).toBe("alice");
       expect(findAdminByPin(admins, "2222")).toBe("bob");
     });
     it("returns null when no match", () => {
-      const admins = { alice: { pinHash: hashPinSHA256Sync("1111") } };
+      const admins = { alice: { pin: hashPinSHA256Sync("1111") } };
       expect(findAdminByPin(admins, "9999")).toBeNull();
     });
     it("handles empty/null admins", () => {
       expect(findAdminByPin(null, "1234")).toBeNull();
       expect(findAdminByPin({}, "1234")).toBeNull();
     });
-    it("skips admin with no pinHash", () => {
+    it("skips admin with no pin", () => {
       const admins = {
         alice: {},
-        bob: { pinHash: hashPinSHA256Sync("2222") },
+        bob: { pin: hashPinSHA256Sync("2222") },
       };
       expect(findAdminByPin(admins, "2222")).toBe("bob");
     });

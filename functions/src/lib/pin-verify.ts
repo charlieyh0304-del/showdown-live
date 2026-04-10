@@ -37,16 +37,17 @@ export function verifyPinAgainstStored(pin: string, stored: string): boolean {
 }
 
 /**
- * admins 컬렉션(각 항목이 { pinHash } 가짐) 안에서 PIN과 일치하는 admin id 반환.
+ * admins 컬렉션(각 항목이 { pin } 해시 가짐) 안에서 PIN과 일치하는 admin id 반환.
+ * 필드명은 `pin` (shared/types/index.ts Admin 타입 기준).
  * 일치 없으면 null.
  */
 export function findAdminByPin(
-  admins: Record<string, { pinHash?: string }> | null | undefined,
+  admins: Record<string, { pin?: string }> | null | undefined,
   pin: string,
 ): string | null {
   if (!admins) return null;
   for (const [id, rec] of Object.entries(admins)) {
-    if (rec?.pinHash && verifyPinAgainstStored(pin, rec.pinHash)) {
+    if (rec?.pin && verifyPinAgainstStored(pin, rec.pin)) {
       return id;
     }
   }

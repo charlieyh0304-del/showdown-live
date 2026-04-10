@@ -106,7 +106,7 @@ export const verifyAdminPin = onRequest(
       // 1) admins 컬렉션 확인 (신규 다중 관리자 구조)
       const adminsSnap = await db.ref("admins").once("value");
       const admins = adminsSnap.exists()
-        ? (adminsSnap.val() as Record<string, { pinHash?: string }>)
+        ? (adminsSnap.val() as Record<string, { pin?: string }>)
         : null;
       let adminId = findAdminByPin(admins, pin);
 
