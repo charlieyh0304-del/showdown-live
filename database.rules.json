@@ -3,7 +3,7 @@
     "config": {
       "adminPin": {
         ".read": "auth != null",
-        ".write": "auth != null && (!data.exists() || newData.exists())",
+        ".write": "(auth != null && !data.exists()) || auth.token.role === 'admin'",
         ".validate": "newData.isString() && newData.val().length >= 10"
       },
       "$other": {
@@ -13,21 +13,21 @@
     "admins": {
       ".read": "auth != null",
       "$adminId": {
-        ".write": "auth != null",
+        ".write": "(auth != null && !root.child('admins').exists() && !root.child('config/adminPin').exists()) || auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name', 'pin']) && newData.child('name').isString() && newData.child('pin').isString() && newData.child('pin').val().length >= 10"
       }
     },
     "tournaments": {
       ".read": true,
       "$tournamentId": {
-        ".write": "auth != null",
+        ".write": "auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name', 'status']) && newData.child('name').isString() && newData.child('status').isString()"
       }
     },
     "matches": {
       ".read": true,
       "$tournamentId": {
-        ".write": "auth != null",
+        ".write": "auth.token.role === 'admin' || auth.token.role === 'referee'",
         "$matchId": {
           ".validate": "newData.hasChildren(['tournamentId', 'status']) && (!data.exists() || !data.child('updatedAt').exists() || !newData.child('updatedAt').exists() || newData.child('updatedAt').val() > data.child('updatedAt').val())",
           "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'in_progress' || newData.val() === 'completed')" },
@@ -39,44 +39,44 @@
     },
     "tournamentPlayers": {
       ".read": true,
-      "$tournamentId": { ".write": "auth != null" }
+      "$tournamentId": { ".write": "auth.token.role === 'admin'" }
     },
     "tournamentReferees": {
       ".read": true,
-      "$tournamentId": { ".write": "auth != null" }
+      "$tournamentId": { ".write": "auth.token.role === 'admin'" }
     },
     "teams": {
       ".read": true,
-      "$tournamentId": { ".write": "auth != null" }
+      "$tournamentId": { ".write": "auth.token.role === 'admin'" }
     },
     "schedule": {
       ".read": true,
-      "$tournamentId": { ".write": "auth != null" }
+      "$tournamentId": { ".write": "auth.token.role === 'admin'" }
     },
     "players": {
       ".read": true,
       "$playerId": {
-        ".write": "auth != null",
+        ".write": "auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
       }
     },
     "referees": {
       ".read": "auth != null",
       "$refereeId": {
-        ".write": "auth != null",
+        ".write": "auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
       }
     },
     "courts": {
       ".read": true,
       "$courtId": {
-        ".write": "auth != null",
+        ".write": "auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
       }
     },
     "notifications": {
       ".read": true,
-      "$tournamentId": { ".write": "auth != null" }
+      "$tournamentId": { ".write": "auth.token.role === 'admin'" }
     },
     "pushSubscriptions": {
       ".read": true,
@@ -97,6 +97,10 @@
     },
     "auth": {
       "rateLimits": {
+        ".read": false,
+        ".write": false
+      },
+      "loginRateLimits": {
         ".read": false,
         ".write": false
       }
