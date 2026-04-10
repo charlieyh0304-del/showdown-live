@@ -110,6 +110,11 @@ export async function addTeam(ttid: string, name: string, memberIds: string[], m
   return JSON.stringify({ success: true, teamId: tRef.key, message: `팀 "${name}" 추가 완료${coachName ? ` (코치: ${coachName})` : ""}` });
 }
 
+export async function updateTeam(tid: string, teamId: string, fields: Record<string, unknown>): Promise<string> {
+  await db.ref(`teams/${tid}/${teamId}`).update(fields);
+  return JSON.stringify({ success: true, message: "팀 정보 수정 완료" });
+}
+
 export async function deleteTeam(tid: string, teamId: string): Promise<string> {
   await db.ref(`teams/${tid}/${teamId}`).remove();
   return JSON.stringify({ success: true, message: "팀 삭제 완료" });

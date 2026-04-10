@@ -7,7 +7,7 @@ import {
 import {
   addCourt, deleteCourt, updateCourt,
   addReferee, deleteReferee, updateReferee, bulkAssignReferees,
-  updatePlayer, addTeam, deleteTeam, resetSchedule,
+  updatePlayer, addTeam, updateTeam, deleteTeam, resetSchedule,
 } from "./handlers/crud";
 import { createTournament, updateTournament, deleteTournament } from "./handlers/tournaments";
 import { addMatch, updateMatch, deleteMatch } from "./handlers/matches";
@@ -374,20 +374,18 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
 
   // --- Write: Courts & Referees ---
-  /* INTERNAL - called by workflow tools
   {
     name: "add_court",
-    description: "코트(경기장) 추가.",
+    description: "코트(경기장) 추가. 동일 이름이 이미 있으면 기존 ID 반환.",
     input_schema: {
       type: "object" as const,
       properties: {
-        name: { type: "string" },
-        location: { type: "string" },
+        name: { type: "string", description: "코트 이름" },
+        location: { type: "string", description: "코트 위치(선택)" },
       },
       required: ["name"],
     },
   },
-  */
   {
     name: "add_referee",
     description: "심판 등록. 동일 이름이 이미 있으면 기존 ID 반환. PIN 입력 시 서버에서 PBKDF2 해싱 후 저장 (심판 로그인용).",
@@ -482,6 +480,22 @@ export const TOOL_DEFINITIONS: Tool[] = [
         coachName: { type: "string", description: "코치 이름 (선택)" },
       },
       required: ["tournamentId", "name"],
+    },
+  },
+  {
+    name: "update_team",
+    description: "팀 정보 수정 (이름, 선수 교체, 코치 변경 등).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tournamentId: { type: "string" },
+        teamId: { type: "string" },
+        name: { type: "string", description: "팀 이름 변경" },
+        memberIds: { type: "array", items: { type: "string" }, description: "선수 ID 목록 변경" },
+        memberNames: { type: "array", items: { type: "string" }, description: "선수 이름 목록 변경" },
+        coachName: { type: "string", description: "코치 이름 변경" },
+      },
+      required: ["tournamentId", "teamId"],
     },
   },
   {
@@ -768,6 +782,11 @@ export async function executeTool(
           (input.memberNames as string[]) || [],
           input.coachName as string | undefined,
         );
+
+      case "update_team": {
+        const { tournamentId: uttid, teamId: utid, ...teamFields } = input;
+        return await updateTeam(uttid as string, utid as string, teamFields);
+      }
 
       case "delete_team":
         return await deleteTeam(input.tournamentId as string, input.teamId as string);
