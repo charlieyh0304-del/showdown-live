@@ -15,16 +15,22 @@ import {
   getMaxServes,
   getEffectiveTimeLimitSeconds,
   applyGoldenGoalEvent,
+  getPenaltyAction,
+  computePenaltyCounts,
 } from '@shared/utils/scoring';
 import { useGoldenGoalTimer } from './useGoldenGoalTimer';
 import { formatTime, speak, preWarmSpeech } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
-import { useCountdownTimer, playWarningBeep } from './useCountdownTimer';
+import { useCountdownTimer } from './useCountdownTimer';
 import { useDoubleClickGuard } from './useDoubleClickGuard';
 import { useFocusTrap } from './useFocusTrap';
 import { useWhistle } from '@shared/hooks/useWhistle';
+import { useTimerAlerts } from './useTimerAlerts';
+import { useTimerSync } from './useTimerSync';
+import { useGoldenGoalAnnouncement } from './useGoldenGoalAnnouncement';
+import { useActiveMatchRecovery } from './useActiveMatchRecovery';
 
 type PenaltyDropdownKey = 'player1' | 'player2' | null;
 
@@ -106,37 +112,13 @@ export function useIndividualScoring(
   const showWarmup = !!(match?.warmupStartTime);
   const showSideChange = !!(match?.sideChangeStartTime) && !sideChangeDismissed;
 
-  // 15초 안내 (타임아웃) - activeTimeout 존재 여부도 체크하여 종료 후 오출력 방지
-  const timeoutAlerted = useRef(false);
-  useEffect(() => {
-    if (!timeoutTimer.isRunning || !match?.activeTimeout) {
-      timeoutAlerted.current = false;
-      return;
-    }
-    if (timeoutTimer.seconds === 15 && !timeoutAlerted.current) {
-      timeoutAlerted.current = true;
-      playWarningBeep();
-      setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
-      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
-    }
-  }, [timeoutTimer.seconds, timeoutTimer.isRunning, match?.activeTimeout]);
-
-  // 15초 안내 (사이드 체인지) - sideChangeStartTime 존재 여부도 체크
-  const sideChangeAlerted = useRef(false);
-  useEffect(() => {
-    if (!sideChangeTimer.isRunning || !match?.sideChangeStartTime) {
-      sideChangeAlerted.current = false;
-      return;
-    }
-    if (sideChangeTimer.seconds === 15 && !sideChangeAlerted.current) {
-      sideChangeAlerted.current = true;
-      playWarningBeep();
-      setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
-      setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
-    }
-  }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, match?.sideChangeStartTime]);
+  // 15초 경고 (타임아웃 + 사이드체인지) — shared hook
+  useTimerAlerts({
+    timeoutTimer, sideChangeTimer,
+    activeTimeout: match?.activeTimeout,
+    sideChangeStartTime: match?.sideChangeStartTime,
+    setLastAction, setAnnouncement,
+  });
 
   // 15초 안내 (워밍업) - warmupStartTime 존재 여부도 체크
   const warmupAlerted = useRef(false);
@@ -166,46 +148,15 @@ export function useIndividualScoring(
     }
   }, [match?.warmupStartTime]);
 
-  // Sync sideChange timer from Firebase
-  useEffect(() => {
-    if (match?.sideChangeStartTime) {
-      // 이미 dismiss한 상태면 Firebase 정리만 시도하고 모달 다시 안 띄움
-      if (sideChangeDismissed) {
-        updateMatch({ sideChangeStartTime: null });
-        return;
-      }
-      const elapsed = Math.floor((Date.now() - match.sideChangeStartTime) / 1000);
-      const remaining = Math.max(0, 60 - elapsed);
-      if (remaining > 0 && !sideChangeTimer.isRunning) sideChangeTimer.start(remaining);
-      else if (remaining <= 0) updateMatch({ sideChangeStartTime: null });
-    } else {
-      sideChangeTimer.stop();
-      setSideChangeDismissed(false); // Firebase 정리 완료 시에만 리셋
-    }
-  }, [match?.sideChangeStartTime, sideChangeDismissed]);
-
-  // Start timeout timer when activeTimeout changes
-  useEffect(() => {
-    if (match?.activeTimeout) {
-      const toType = match.activeTimeout.type ?? 'player';
-      if (toType === 'referee') {
-        timeoutTimer.stop();
-      } else {
-        const duration = toType === 'medical' ? 300 : 60;
-        const elapsed = Math.floor((Date.now() - match.activeTimeout.startTime) / 1000);
-        const remaining = Math.max(0, duration - elapsed);
-        if (remaining > 0 && !timeoutTimer.isRunning) {
-          timeoutTimer.start(remaining);
-        } else if (remaining <= 0) {
-          // 이미 시간 초과 (화면 복귀 시) - 타이머 시작하지 않고 즉시 해제
-          timeoutTimer.stop();
-          updateMatch({ activeTimeout: null });
-        }
-      }
-    } else {
-      timeoutTimer.stop();
-    }
-  }, [match?.activeTimeout]);
+  // 사이드체인지 + 타임아웃 타이머 Firebase 동기화 — shared hook
+  useTimerSync({
+    sideChangeTimer, timeoutTimer,
+    sideChangeStartTime: match?.sideChangeStartTime,
+    sideChangeDismissed,
+    activeTimeout: match?.activeTimeout,
+    updateMatch,
+    setSideChangeDismissed,
+  });
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -224,33 +175,16 @@ export function useIndividualScoring(
     if (match?.player2Coach !== undefined && match.player2Coach !== player2Coach) setPlayer2Coach(match.player2Coach);
   }, [match?.player1Coach, match?.player2Coach]);
 
-  // 골든골 진입 시 1회 안내 + Firebase 플래그 동기화
-  const goldenGoalAnnounced = useRef(false);
-  useEffect(() => {
-    if (!goldenGoal.isActive) {
-      goldenGoalAnnounced.current = false;
-      return;
-    }
-    if (goldenGoalAnnounced.current) return;
-    if (match?.status !== 'in_progress') return;
-    goldenGoalAnnounced.current = true;
-    const msg = t('referee.scoring.goldenGoalActivated');
-    setLastAction(`⏱️ ${msg}`);
-    setAnnouncement(msg);
-    speak(msg);
-    longWhistle();
-    if (!match.goldenGoalActive) updateMatch({ goldenGoalActive: true });
-  }, [goldenGoal.isActive, match?.status, match?.goldenGoalActive]);
+  // 골든골 진입 안내 — shared hook
+  useGoldenGoalAnnouncement({
+    goldenGoalActive: goldenGoal.isActive,
+    matchStatus: match?.status,
+    matchGoldenGoalActive: match?.goldenGoalActive,
+    updateMatch, setLastAction, setAnnouncement, longWhistle,
+  });
 
-  // Save/clear active match in localStorage for session recovery
-  useEffect(() => {
-    if (match?.status === 'in_progress') {
-      localStorage.setItem('showdown_active_match', JSON.stringify({ tournamentId, matchId }));
-    }
-    if (match?.status === 'completed') {
-      localStorage.removeItem('showdown_active_match');
-    }
-  }, [match?.status, tournamentId, matchId]);
+  // 세션 복구용 localStorage — shared hook
+  useActiveMatchRecovery(match?.status, tournamentId, matchId);
 
   const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2', withWarmup = false) => {
     if (!match) return;
@@ -796,16 +730,10 @@ export function useIndividualScoring(
     };
     const label = penaltyLabels[penaltyType];
 
-    // Count ALL entries (warning + deduction) for this player & penalty type
     const totalPenaltyCount = (match.scoreHistory || []).filter(h =>
-      h.actionType === penaltyType &&
-      h.actionPlayer === actorName
+      h.actionType === penaltyType && h.actionPlayer === actorName
     ).length;
-
-    // Determine if this is a warning or point deduction
-    // Cycle: warning(0) → deduction(1) → warning(2) → deduction(3) → ...
-    const hasWarningPhase = penaltyType !== 'penalty_electronic'; // electronic is always immediate
-    const isWarningAction = hasWarningPhase && (totalPenaltyCount % 2 === 0);
+    const { isWarning: isWarningAction, points: penaltyPoints } = getPenaltyAction(penaltyType, totalPenaltyCount);
 
     if (isWarningAction) {
       // Warning only - no points
@@ -837,8 +765,6 @@ export function useIndividualScoring(
       setLastAction(t('common.matchHistory.warning', { player: actorName, action: label }));
       setAnnouncement(t('common.matchHistory.warning', { player: actorName, action: label }));
     } else {
-      // Point deduction - penalty_talking: 1점, others: 2점
-      const penaltyPoints = penaltyType === 'penalty_talking' ? 1 : 2;
       await handleIBSAScore(actingPlayer, penaltyType, penaltyPoints, true, `${actorName} ${label}`);
     }
 
@@ -945,18 +871,14 @@ export function useIndividualScoring(
   const p1TimeoutsUsed = match?.player1Timeouts ?? 0;
   const p2TimeoutsUsed = match?.player2Timeouts ?? 0;
 
-  // W/P/T.O. counts from score history (current set only)
+  // W/P counts from score history (current set only)
   const currentSetHistory = history.filter(h => h.set === currentSetIndex + 1);
-  const p1Warnings = currentSetHistory.filter(h => h.penaltyWarning && h.actionPlayer === player1Name).length;
-  const p2Warnings = currentSetHistory.filter(h => h.penaltyWarning && h.actionPlayer === player2Name).length;
-  const p1Penalties = currentSetHistory.filter(h =>
-    (h.actionType === 'penalty_table_pushing' || h.actionType === 'penalty_electronic' || h.actionType === 'penalty_talking')
-    && !h.penaltyWarning && h.actionPlayer === player1Name
-  ).length;
-  const p2Penalties = currentSetHistory.filter(h =>
-    (h.actionType === 'penalty_table_pushing' || h.actionType === 'penalty_electronic' || h.actionType === 'penalty_talking')
-    && !h.penaltyWarning && h.actionPlayer === player2Name
-  ).length;
+  const p1PenaltyCounts = computePenaltyCounts(currentSetHistory, player1Name);
+  const p2PenaltyCounts = computePenaltyCounts(currentSetHistory, player2Name);
+  const p1Warnings = p1PenaltyCounts.warnings;
+  const p2Warnings = p2PenaltyCounts.warnings;
+  const p1Penalties = p1PenaltyCounts.penalties;
+  const p2Penalties = p2PenaltyCounts.penalties;
 
   const scoringDisabled = !!match?.activeTimeout || showSideChange || pendingSideChange || (showWarmup && warmupTimer.isRunning);
   const nonGoalDisabled = scoringDisabled || goldenGoal.isActive;

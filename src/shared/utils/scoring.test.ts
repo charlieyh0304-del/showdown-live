@@ -5,7 +5,10 @@ import {
   TEAM_GAME_CONFIG,
   isGoldenGoalActive,
   applyGoldenGoalEvent,
+  getPenaltyAction,
+  computePenaltyCounts,
 } from './scoring';
+import type { ScoreHistoryEntry } from '../types';
 
 describe('checkSetWinner', () => {
   describe('개인전 (11점, 2점차)', () => {
@@ -186,5 +189,73 @@ describe('applyGoldenGoalEvent', () => {
       applyGoldenGoalEvent('goal', 1, original);
       expect(original).toEqual({ player1: 5, player2: 5 });
     });
+  });
+});
+
+describe('getPenaltyAction', () => {
+  it('electronic 은 항상 즉시 감점 (2점)', () => {
+    expect(getPenaltyAction('penalty_electronic', 0)).toEqual({ isWarning: false, points: 2 });
+    expect(getPenaltyAction('penalty_electronic', 1)).toEqual({ isWarning: false, points: 2 });
+    expect(getPenaltyAction('penalty_electronic', 5)).toEqual({ isWarning: false, points: 2 });
+  });
+
+  it('table_pushing: 경고 → 감점(2) 사이클', () => {
+    expect(getPenaltyAction('penalty_table_pushing', 0)).toEqual({ isWarning: true, points: 0 });
+    expect(getPenaltyAction('penalty_table_pushing', 1)).toEqual({ isWarning: false, points: 2 });
+    expect(getPenaltyAction('penalty_table_pushing', 2)).toEqual({ isWarning: true, points: 0 });
+    expect(getPenaltyAction('penalty_table_pushing', 3)).toEqual({ isWarning: false, points: 2 });
+  });
+
+  it('talking: 경고 → 감점(1) 사이클', () => {
+    expect(getPenaltyAction('penalty_talking', 0)).toEqual({ isWarning: true, points: 0 });
+    expect(getPenaltyAction('penalty_talking', 1)).toEqual({ isWarning: false, points: 1 });
+    expect(getPenaltyAction('penalty_talking', 2)).toEqual({ isWarning: true, points: 0 });
+  });
+});
+
+describe('computePenaltyCounts', () => {
+  const makeEntry = (actionType: string, actionPlayer: string, penaltyWarning?: boolean): ScoreHistoryEntry => ({
+    time: '00:00',
+    scoringPlayer: '',
+    actionPlayer,
+    actionType: actionType as ScoreHistoryEntry['actionType'],
+    actionLabel: '',
+    points: 0,
+    set: 1,
+    server: '',
+    serveNumber: 1,
+    scoreBefore: { player1: 0, player2: 0 },
+    scoreAfter: { player1: 0, player2: 0 },
+    penaltyWarning,
+  });
+
+  it('빈 히스토리 → 0, 0', () => {
+    expect(computePenaltyCounts([], 'Player A')).toEqual({ warnings: 0, penalties: 0 });
+  });
+
+  it('경고와 감점을 분리', () => {
+    const history = [
+      makeEntry('penalty_table_pushing', 'A', true),
+      makeEntry('penalty_table_pushing', 'A', false),
+      makeEntry('penalty_talking', 'A', true),
+    ];
+    expect(computePenaltyCounts(history, 'A')).toEqual({ warnings: 2, penalties: 1 });
+  });
+
+  it('다른 선수 히스토리 무시', () => {
+    const history = [
+      makeEntry('penalty_table_pushing', 'A', true),
+      makeEntry('penalty_table_pushing', 'B', false),
+    ];
+    expect(computePenaltyCounts(history, 'A')).toEqual({ warnings: 1, penalties: 0 });
+  });
+
+  it('penalty가 아닌 actionType 무시', () => {
+    const history = [
+      makeEntry('goal', 'A', undefined),
+      makeEntry('foul', 'A', undefined),
+      makeEntry('penalty_electronic', 'A', false),
+    ];
+    expect(computePenaltyCounts(history, 'A')).toEqual({ warnings: 0, penalties: 1 });
   });
 });

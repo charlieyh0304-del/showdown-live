@@ -306,3 +306,41 @@ export function getSetScoresByServer(match: Match): Array<{ serverScore: number;
     return { serverScore: s.player2Score, receiverScore: s.player1Score, serverSide: 'player2' as const };
   });
 }
+
+/**
+ * Determine whether a penalty action should be a warning or point deduction.
+ * Cycle: warning(0) → deduction(1) → warning(2) → deduction(3) → ...
+ * Electronic penalties always result in immediate deduction (no warning phase).
+ */
+export function getPenaltyAction(
+  penaltyType: 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking',
+  totalPriorCount: number,
+): { isWarning: boolean; points: number } {
+  if (penaltyType === 'penalty_electronic') {
+    return { isWarning: false, points: 2 };
+  }
+  const isWarning = totalPriorCount % 2 === 0;
+  const points = isWarning ? 0 : (penaltyType === 'penalty_talking' ? 1 : 2);
+  return { isWarning, points };
+}
+
+/**
+ * Count warnings and penalty deductions from score history for a given player/team.
+ */
+export function computePenaltyCounts(
+  history: ScoreHistoryEntry[],
+  playerName: string,
+): { warnings: number; penalties: number } {
+  let warnings = 0;
+  let penalties = 0;
+  for (const h of history) {
+    if (h.actionPlayer !== playerName) continue;
+    const isPenaltyType = h.actionType === 'penalty_table_pushing'
+      || h.actionType === 'penalty_electronic'
+      || h.actionType === 'penalty_talking';
+    if (!isPenaltyType) continue;
+    if (h.penaltyWarning) warnings++;
+    else penalties++;
+  }
+  return { warnings, penalties };
+}
