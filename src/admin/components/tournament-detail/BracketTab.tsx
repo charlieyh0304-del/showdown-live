@@ -205,7 +205,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
           }
         }
         if (skipped > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped, defaultValue: `중복된 대진이 ${skipped}건 발견되었습니다. 대진 생성이 취소되었습니다.` }));
+          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
           setGenerating(false);
           return;
         }
@@ -239,7 +239,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
           }
         }
         if (skipped > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped, defaultValue: `중복된 대진이 ${skipped}건 발견되었습니다. 대진 생성이 취소되었습니다.` }));
+          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
           setGenerating(false);
           return;
         }
@@ -277,7 +277,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
           }
         }
         if (skipped > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped, defaultValue: `중복된 대진이 ${skipped}건 발견되었습니다. 대진 생성이 취소되었습니다.` }));
+          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
           setGenerating(false);
           return;
         }
@@ -294,7 +294,6 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
         alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
           max: maxAllowed, current: matches.length, newCount: newMatches.length, total: totalAfterCreate,
-          defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 ${newMatches.length}경기 = ${totalAfterCreate}경기\n대진 생성이 취소되었습니다.`,
         }));
         setGenerating(false);
         return;
@@ -346,7 +345,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       return p1 && p2 && [p1, p2].sort().join('__') === pairKey;
     });
     if (isDuplicate) {
-      alert(t('admin.tournamentDetail.bracketTab.addMatchDuplicate', { defaultValue: '이미 동일한 대진이 존재합니다. 경기를 추가할 수 없습니다.' }));
+      alert(t('admin.tournamentDetail.bracketTab.addMatchDuplicate'));
       return;
     }
 
@@ -355,7 +354,6 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
     if (maxAllowed > 0 && matches.length + 1 > maxAllowed) {
       alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
         max: maxAllowed, current: matches.length, newCount: 1, total: matches.length + 1,
-        defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 1경기 = ${matches.length + 1}경기\n경기를 추가할 수 없습니다.`,
       }));
       return;
     }
@@ -527,18 +525,18 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
               className="btn btn-primary"
               onClick={async () => {
                 const msg = tournament.status === 'in_progress' || tournament.status === 'paused'
-                  ? t('admin.tournamentDetail.bracketTab.confirmBracketUpdate', '대진표 변경사항을 확정하시겠습니까?')
-                  : t('admin.tournamentDetail.bracketTab.confirmBracket', '대진표를 확정하고 대회를 시작하시겠습니까?');
+                  ? t('admin.tournamentDetail.bracketTab.confirmBracketUpdate')
+                  : t('admin.tournamentDetail.bracketTab.confirmBracket');
                 if (confirm(msg)) {
                   if (tournament.status !== 'in_progress') {
                     await updateTournament({ status: 'in_progress' });
                   }
-                  alert(t('admin.tournamentDetail.bracketTab.bracketConfirmed', '대진표가 확정되었습니다.'));
+                  alert(t('admin.tournamentDetail.bracketTab.bracketConfirmed'));
                 }
               }}
-              aria-label={t('admin.tournamentDetail.bracketTab.confirmBracketAriaLabel', '대진표 확정')}
+              aria-label={t('admin.tournamentDetail.bracketTab.confirmBracketAriaLabel')}
             >
-              {t('admin.tournamentDetail.bracketTab.confirmBracketButton', '대진표 확정')}
+              {t('admin.tournamentDetail.bracketTab.confirmBracketButton')}
             </button>
           )}
         </div>
@@ -570,8 +568,8 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
               {/* 조 선택 (조가 있을 때만) */}
               {hasGroups && (
                 <div className="min-w-32">
-                  <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder', '조 선택')}</label>
-                  <select className="input w-full" value={addGroupId} onChange={e => { setAddGroupId(e.target.value); setAddPlayer1(''); setAddPlayer2(''); }} aria-label={t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder', '조 선택')}>
+                  <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder')}</label>
+                  <select className="input w-full" value={addGroupId} onChange={e => { setAddGroupId(e.target.value); setAddPlayer1(''); setAddPlayer2(''); }} aria-label={t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder')}>
                     <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                     {groupAssignment.map(g => (
                       <option key={g.id} value={g.id}>{g.name} ({(g.playerIds?.length || 0) + (g.teamIds?.length || 0)})</option>
@@ -617,7 +615,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
               <p className="text-red-400 text-sm">{t('admin.tournamentDetail.bracketTab.samePlayerError')}</p>
             )}
             {addPlayer1 && p2Options.length === 0 && (
-              <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.allDuplicate', '모든 대진이 이미 생성되어 있습니다.')}</p>
+              <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.allDuplicate')}</p>
             )}
           </div>
         );
@@ -902,7 +900,6 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                     if (existingFinalsMatches.length > 0) {
                       alert(t('admin.tournamentDetail.bracketTab.finalsDuplicateBlocked', {
                         count: existingFinalsMatches.length,
-                        defaultValue: `이미 본선 대진이 ${existingFinalsMatches.length}건 생성되어 있습니다. 중복 생성이 불가합니다.`,
                       }));
                       return;
                     }

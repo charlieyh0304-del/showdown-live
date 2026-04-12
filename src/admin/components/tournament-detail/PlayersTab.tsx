@@ -362,23 +362,23 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     if (selectedPlayerIds.size === tournamentPlayers.length) setSelectedPlayerIds(new Set());
                     else setSelectedPlayerIds(new Set(tournamentPlayers.map(p => p.id)));
                   }}
-                  aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+                  aria-label={t('common.selectAll')}
                   style={{ width: '20px', height: '20px' }}
                 />
-                <span className="text-sm text-gray-300">{t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedPlayerIds.size}/{tournamentPlayers.length})</span>
+                <span className="text-sm text-gray-300">{t('common.selectAll')} ({selectedPlayerIds.size}/{tournamentPlayers.length})</span>
               </label>
               {selectedPlayerIds.size > 0 && (
                 <button
                   className="btn btn-danger text-sm"
                   style={{ minHeight: '44px' }}
                   onClick={async () => {
-                    if (!confirm(t('admin.tournamentDetail.playersTabInline.bulkDeleteConfirm', { count: selectedPlayerIds.size, defaultValue: `${selectedPlayerIds.size}명을 삭제하시겠습니까?` }))) return;
+                    if (!confirm(t('admin.tournamentDetail.playersTabInline.bulkDeleteConfirm', { count: selectedPlayerIds.size }))) return;
                     for (const id of selectedPlayerIds) await deleteTournamentPlayer(id);
                     setSelectedPlayerIds(new Set());
                   }}
-                  aria-label={t('admin.tournamentDetail.playersTabInline.bulkDelete', { count: selectedPlayerIds.size, defaultValue: `${selectedPlayerIds.size}명 삭제` })}
+                  aria-label={t('admin.tournamentDetail.playersTabInline.bulkDelete', { count: selectedPlayerIds.size })}
                 >
-                  {t('admin.tournamentDetail.playersTabInline.bulkDelete', { count: selectedPlayerIds.size, defaultValue: `${selectedPlayerIds.size}명 삭제` })}
+                  {t('admin.tournamentDetail.playersTabInline.bulkDelete', { count: selectedPlayerIds.size })}
                 </button>
               )}
             </div>
@@ -394,7 +394,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                         if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
                         return next;
                       })}
-                      aria-label={t('common.select', { name: p.name, defaultValue: `${p.name} 선택` })}
+                      aria-label={t('common.select', { name: p.name })}
                       style={{ width: '18px', height: '18px', flexShrink: 0 }}
                     />
                     <span className="font-bold">{p.name}</span>
@@ -929,10 +929,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                       if (selectedGlobalIds.length === globalPlayers.length) setSelectedGlobalIds([]);
                       else setSelectedGlobalIds(globalPlayers.map(p => p.id));
                     }}
-                    aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+                    aria-label={t('common.selectAll')}
                     style={{ width: '20px', height: '20px' }}
                   />
-                  <span className="text-sm text-gray-300">{t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedGlobalIds.length}/{globalPlayers.length})</span>
+                  <span className="text-sm text-gray-300">{t('common.selectAll')} ({selectedGlobalIds.length}/{globalPlayers.length})</span>
                 </label>
                 {globalPlayers.map(p => {
                   const selected = selectedGlobalIds.includes(p.id);

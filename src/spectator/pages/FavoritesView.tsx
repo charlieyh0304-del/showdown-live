@@ -112,11 +112,11 @@ export default function FavoritesView() {
                   if (selectedIds.size === favoritePlayers.length) setSelectedIds(new Set());
                   else setSelectedIds(new Set(favoritePlayers.map(p => p.id)));
                 }}
-                aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+                aria-label={t('common.selectAll')}
                 style={{ width: '20px', height: '20px', accentColor: '#f59e0b' }}
               />
               <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>
-                {t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedIds.size}/{favoritePlayers.length})
+                {t('common.selectAll')} ({selectedIds.size}/{favoritePlayers.length})
               </span>
             </label>
             {selectedIds.size > 0 && (
@@ -124,13 +124,13 @@ export default function FavoritesView() {
                 className="btn btn-danger"
                 style={{ fontSize: '0.875rem', minHeight: '44px' }}
                 onClick={() => {
-                  if (!confirm(t('spectator.favorites.bulkRemoveConfirm', { count: selectedIds.size, defaultValue: `${selectedIds.size}명을 즐겨찾기에서 삭제하시겠습니까?` }))) return;
+                  if (!confirm(t('spectator.favorites.bulkRemoveConfirm', { count: selectedIds.size }))) return;
                   selectedIds.forEach(id => toggleFavorite(id));
                   setSelectedIds(new Set());
                 }}
-                aria-label={t('spectator.favorites.bulkRemove', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+                aria-label={t('spectator.favorites.bulkRemove', { count: selectedIds.size })}
               >
-                {t('spectator.favorites.bulkRemove', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+                {t('spectator.favorites.bulkRemove', { count: selectedIds.size })}
               </button>
             )}
           </div>
@@ -155,7 +155,7 @@ export default function FavoritesView() {
                           if (next.has(player.id)) next.delete(player.id); else next.add(player.id);
                           return next;
                         })}
-                        aria-label={t('common.select', { name: player.name, defaultValue: `${player.name} 선택` })}
+                        aria-label={t('common.select', { name: player.name })}
                         style={{ width: '20px', height: '20px', accentColor: '#f59e0b', flexShrink: 0 }}
                       />
                       <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{player.name}</span>

@@ -232,7 +232,7 @@ function PlayerMatchesByStage({
       {/* Status filter tabs */}
       <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
         {([
-          { key: 'all' as const, label: `${t('common.all', '전체')} ${playerMatches.length}`, color: '#6b7280' },
+          { key: 'all' as const, label: `${t('common.all')} ${playerMatches.length}`, color: '#6b7280' },
           { key: 'in_progress' as const, label: `${t('common.matchStatus.inProgress')} ${inProgressCount}`, color: '#ef4444' },
           { key: 'pending' as const, label: `${t('common.matchStatus.pending')} ${pendingCount}`, color: '#eab308' },
           { key: 'completed' as const, label: `${t('common.matchStatus.completed')} ${completedCount}`, color: '#22c55e' },
@@ -301,7 +301,7 @@ function PlayerMatchesByStage({
 
       {playerMatches.filter(filterMatch).length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-          <p style={{ color: '#6b7280' }}>{t('common.noResults', '해당 경기가 없습니다')}</p>
+          <p style={{ color: '#6b7280' }}>{t('common.noResults')}</p>
         </div>
       )}
     </div>

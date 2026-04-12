@@ -1106,7 +1106,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                               padding: '0.0625rem 0.375rem',
                               borderRadius: '0.25rem',
                               fontVariantNumeric: 'tabular-nums',
-                            }} title={`${t('spectator.tournament.view.serveLabel', '서브')}: ${ss.serverSide === 'player1' ? (m.player1Name || m.team1Name || 'P1') : (m.player2Name || m.team2Name || 'P2')}`}>
+                            }} title={`${t('spectator.tournament.view.serveLabel')}: ${ss.serverSide === 'player1' ? (m.player1Name || m.team1Name || 'P1') : (m.player2Name || m.team2Name || 'P2')}`}>
                               {ss.serverScore}-{ss.receiverScore}
                             </span>
                           ))}
@@ -1226,7 +1226,7 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
                   backgroundColor: '#374151',
                   padding: '0.25rem 0.5rem',
                   borderRadius: '0.25rem',
-                }} title={`${t('spectator.tournament.view.serveLabel', '서브')}: ${ss.serverSide === 'player1' ? (match.player1Name || match.team1Name || 'P1') : (match.player2Name || match.team2Name || 'P2')}`}>
+                }} title={`${t('spectator.tournament.view.serveLabel')}: ${ss.serverSide === 'player1' ? (match.player1Name || match.team1Name || 'P1') : (match.player2Name || match.team2Name || 'P2')}`}>
                   {ss.serverScore}-{ss.receiverScore}
                 </span>
               ))}
@@ -3107,7 +3107,7 @@ function RefereesTab({
                     {/* Status filter tabs */}
                     <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                       {([
-                        { key: 'all' as const, label: `${t('common.all', '전체')} (${refItem.matches.length})`, color: '#6b7280' },
+                        { key: 'all' as const, label: `${t('common.all')} (${refItem.matches.length})`, color: '#6b7280' },
                         { key: 'in_progress' as const, label: `${t('common.matchStatus.inProgress')} (${inProgressMatches.length})`, color: '#ef4444' },
                         { key: 'pending' as const, label: `${t('common.matchStatus.pending')} (${pendingMatches.length})`, color: '#9ca3af' },
                         { key: 'completed' as const, label: `${t('common.matchStatus.completed')} (${completedMatches.length})`, color: '#22c55e' },
@@ -3131,7 +3131,7 @@ function RefereesTab({
                     <div role="list" aria-label={t('spectator.tournament.referees.assignedMatches')}>
                       {filteredMatches.length === 0 ? (
                         <p style={{ color: '#6b7280', fontSize: '0.875rem', textAlign: 'center', padding: '1rem' }}>
-                          {t('common.noResults', '해당 경기가 없습니다')}
+                          {t('common.noResults')}
                         </p>
                       ) : filteredMatches.map(m => {
                         const isIndividual = m.type === 'individual';

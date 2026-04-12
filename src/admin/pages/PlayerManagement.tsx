@@ -127,23 +127,23 @@ export default function PlayerManagement() {
                 if (selectedIds.size === players.length) setSelectedIds(new Set());
                 else setSelectedIds(new Set(players.map(p => p.id)));
               }}
-              aria-label={t('common.selectAll', { defaultValue: '전체 선택' })}
+              aria-label={t('common.selectAll')}
               style={{ width: '20px', height: '20px' }}
             />
-            <span className="text-sm text-gray-300">{t('common.selectAll', { defaultValue: '전체 선택' })} ({selectedIds.size}/{players.length})</span>
+            <span className="text-sm text-gray-300">{t('common.selectAll')} ({selectedIds.size}/{players.length})</span>
           </label>
           {selectedIds.size > 0 && (
             <button
               className="btn btn-danger text-sm"
               style={{ minHeight: '44px' }}
               onClick={async () => {
-                if (!confirm(t('admin.players.bulkDeleteConfirm', { count: selectedIds.size, defaultValue: `${selectedIds.size}명을 삭제하시겠습니까?` }))) return;
+                if (!confirm(t('admin.players.bulkDeleteConfirm', { count: selectedIds.size }))) return;
                 for (const id of selectedIds) await deletePlayer(id);
                 setSelectedIds(new Set());
               }}
-              aria-label={t('admin.players.bulkDelete', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+              aria-label={t('admin.players.bulkDelete', { count: selectedIds.size })}
             >
-              {t('admin.players.bulkDelete', { count: selectedIds.size, defaultValue: `${selectedIds.size}명 삭제` })}
+              {t('admin.players.bulkDelete', { count: selectedIds.size })}
             </button>
           )}
         </div>
@@ -159,7 +159,7 @@ export default function PlayerManagement() {
                     if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
                     return next;
                   })}
-                  aria-label={t('common.select', { name: p.name, defaultValue: `${p.name} 선택` })}
+                  aria-label={t('common.select', { name: p.name })}
                   style={{ width: '20px', height: '20px', flexShrink: 0 }}
                 />
                 <span className="font-bold text-lg">{p.name}</span>

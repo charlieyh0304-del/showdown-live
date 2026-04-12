@@ -173,7 +173,7 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
 
       {/* Bottom tab navigation - context-aware */}
       <nav
-        aria-label={t('spectator.nav.label', '관람 탭 메뉴')}
+        aria-label={t('spectator.nav.label')}
         role="tablist"
         onKeyDown={handleNavKeyDown}
         style={{

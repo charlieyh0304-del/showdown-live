@@ -32,6 +32,7 @@
     "skipToContent": "본문으로 건너뛰기",
     "pageLoading": "페이지 로딩 중...",
     "unknown": "알 수 없음",
+    "languageToggle": "Switch to English",
     "selectAll": "전체 선택",
     "select": "{{name}} 선택",
     "all": "전체",

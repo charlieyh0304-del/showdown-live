@@ -32,6 +32,7 @@
     "showLess": "Show less",
     "pageInfo": "Page {{page}} / {{total}}",
     "creating": "Creating...",
+    "languageToggle": "Switch to 한국어",
     "selectAll": "Select All",
     "select": "Select {{name}}",
     "all": "All",
