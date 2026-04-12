@@ -125,7 +125,7 @@ export default function TeamMatchScoring() {
             setPendingSideChange(false);
             const ok = await updateMatch({ sideChangeStartTime: Date.now() });
             if (!ok) {
-              setLastAction('⚠️ ' + t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨'));
+              setLastAction('⚠️ ' + t('referee.scoring.conflictError'));
             }
           }}
           closeLabel={`⏱️ ${t('referee.scoring.timeoutTitle.player')} ${t('common.start')}`}
@@ -338,7 +338,7 @@ export default function TeamMatchScoring() {
           </button>
           <button className="btn bg-orange-700 hover:bg-orange-600 text-white text-base py-3 font-bold" disabled={nonGoalDisabled || match.status !== 'in_progress'}
             onClick={handleServeMiss}>
-            🎾 {t('common.scoreActions.serveMiss', '서브 미스')}
+            🎾 {t('common.scoreActions.serveMiss')}
           </button>
         </div>
 
@@ -350,18 +350,18 @@ export default function TeamMatchScoring() {
             🟨 {t('referee.scoring.timeoutTitle.referee')}
           </button>
           <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm" onClick={shortWhistle}
-            aria-label="서브 및 1점 실점 휘슬" style={{ minHeight: '44px' }}>
-            📣 서브/1점
+            aria-label={t('referee.scoring.whistleServeAriaLabel')} style={{ minHeight: '44px' }}>
+            📣 {t('referee.scoring.whistleServeButton')}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold" onClick={goalWhistle}
-            aria-label="골 득점 휘슬" style={{ minHeight: '44px' }}>
-            ⚽ 골 휘슬
+            aria-label={t('referee.scoring.whistleGoalAriaLabel')} style={{ minHeight: '44px' }}>
+            ⚽ {t('referee.scoring.whistleGoalButton')}
           </button>
           <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold" onClick={longWhistle}
-            aria-label="타임아웃 및 경기 종료 휘슬" style={{ minHeight: '44px' }}>
-            📢 종료/타임아웃
+            aria-label={t('referee.scoring.whistleEndAriaLabel')} style={{ minHeight: '44px' }}>
+            📢 {t('referee.scoring.whistleEndButton')}
           </button>
         </div>
 
@@ -400,7 +400,7 @@ export default function TeamMatchScoring() {
         {/* 접이식: 벌점 */}
         <div className="border border-gray-700 rounded-lg overflow-hidden">
           <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('penalty')} aria-expanded={expandedSection === 'penalty'}>
-            <span className="text-sm font-bold text-gray-300">🔴 벌점 (테이블푸싱/전자기기/말하기/고글터치)</span>
+            <span className="text-sm font-bold text-gray-300">🔴 {t('referee.scoring.penaltySection')}</span>
             <span className="text-gray-400">{expandedSection === 'penalty' ? '▲' : '▼'}</span>
           </button>
           {expandedSection === 'penalty' && (
@@ -420,19 +420,19 @@ export default function TeamMatchScoring() {
                 ))}
               </div>
               <div className="border-t border-red-800 pt-2">
-                <p className="text-[10px] text-red-400 mb-1">고글 터치 — 즉시 상대 +2점</p>
+                <p className="text-[10px] text-red-400 mb-1">{t('referee.scoring.gogglesTouchHint')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button className="btn bg-red-800 hover:bg-red-700 text-white text-xs py-2 rounded font-bold"
                     disabled={scoringDisabled}
-                    onClick={() => handleIBSAScore(1, 'mask_touch', 2, true, `${team1Name} 고글 터치`)}
-                    aria-label={`${team1Name} 고글 터치 — ${team2Name}에게 2점`} style={{ minHeight: '44px' }}>
-                    🥽 {team1Name} 고글 터치
+                    onClick={() => handleIBSAScore(1, 'mask_touch', 2, true, t('referee.scoring.gogglesTouchButton', { name: team1Name }))}
+                    aria-label={t('referee.scoring.gogglesTouchAriaLabel', { name: team1Name, opponent: team2Name })} style={{ minHeight: '44px' }}>
+                    🥽 {t('referee.scoring.gogglesTouchButton', { name: team1Name })}
                   </button>
                   <button className="btn bg-red-800 hover:bg-red-700 text-white text-xs py-2 rounded font-bold"
                     disabled={scoringDisabled}
-                    onClick={() => handleIBSAScore(2, 'mask_touch', 2, true, `${team2Name} 고글 터치`)}
-                    aria-label={`${team2Name} 고글 터치 — ${team1Name}에게 2점`} style={{ minHeight: '44px' }}>
-                    🥽 {team2Name} 고글 터치
+                    onClick={() => handleIBSAScore(2, 'mask_touch', 2, true, t('referee.scoring.gogglesTouchButton', { name: team2Name }))}
+                    aria-label={t('referee.scoring.gogglesTouchAriaLabel', { name: team2Name, opponent: team1Name })} style={{ minHeight: '44px' }}>
+                    🥽 {t('referee.scoring.gogglesTouchButton', { name: team2Name })}
                   </button>
                 </div>
               </div>

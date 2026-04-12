@@ -45,7 +45,7 @@ export function useIndividualScoring(
 
   /** updateMatch 실패 시 시각 + 음성 알림 (전맹 심판 지원) */
   const notifyUpdateFailed = useCallback(() => {
-    const msg = t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨');
+    const msg = t('referee.scoring.conflictError');
     setLastAction(`⚠️ ${msg}`);
     setAnnouncement(msg);
     speak(msg);
@@ -731,7 +731,7 @@ export function useIndividualScoring(
     const p1 = match.player1Name ?? t('referee.home.player1Default');
     const p2 = match.player2Name ?? t('referee.home.player2Default');
     const sName = servingPlayer === 1 ? p1 : p2;
-    await handleIBSAScore(servingPlayer as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`);
+    await handleIBSAScore(servingPlayer as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss')}`);
   }, [match, handleIBSAScore, t]);
 
   // Dead Ball - player: 1 or 2 (who called dead ball)

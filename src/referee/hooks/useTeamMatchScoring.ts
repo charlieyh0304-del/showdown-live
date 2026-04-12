@@ -200,7 +200,7 @@ export function useTeamMatchScoring(
 
   /** updateMatch 실패 시 시각 + 음성 알림 (전맹 심판 지원) */
   const notifyUpdateFailed = useCallback(() => {
-    const msg = t('referee.scoring.conflictError', '데이터 충돌 - 새로고침됨');
+    const msg = t('referee.scoring.conflictError');
     setLastAction(`⚠️ ${msg}`);
     setAnnouncement(msg);
     speak(msg);
@@ -601,7 +601,7 @@ export function useTeamMatchScoring(
     const t1Name = match.team1Name ?? t('referee.home.team1Default');
     const t2Name = match.team2Name ?? t('referee.home.team2Default');
     const sName = servingTeam === 1 ? t1Name : t2Name;
-    handleIBSAScore(servingTeam as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss', '서브 미스')}`);
+    handleIBSAScore(servingTeam as 1 | 2, 'serve_miss', 1, true, `${sName} ${t('common.scoreActions.serveMiss')}`);
   }, [match, handleIBSAScore, t]);
 
   const handleDeadBall = useCallback(async (team: 1 | 2) => {
