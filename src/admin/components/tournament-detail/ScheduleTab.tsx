@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { calculateMatchCount } from '@shared/utils/tournament';
+import { showWarning, showSuccess } from '@shared/utils/toast';
 import type { Match, MatchStatus, ScheduleSlot, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -226,9 +227,8 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
     // 경기 수 초과 검증
     const maxAllowed = expectedMatchCount.total;
     if (maxAllowed > 0 && matches.length > maxAllowed) {
-      alert(t('admin.tournamentDetail.scheduleTab.matchCountExceeded', {
+      showWarning(t('admin.tournamentDetail.scheduleTab.matchCountExceeded', {
         max: maxAllowed, current: matches.length,
-        defaultValue: `현재 경기 수(${matches.length}경기)가 설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n스케줄 생성이 취소되었습니다.`,
       }));
       return;
     }
@@ -625,7 +625,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                     const newDate = ds !== 0 && m.scheduledDate ? (() => { const d = new Date(m.scheduledDate!); d.setDate(d.getDate() + ds); return d.toISOString().split('T')[0]; })() : m.scheduledDate;
                     await updateMatch(m.id, { scheduledTime: newTime, ...(newDate ? { scheduledDate: newDate } : {}) });
                   }
-                  alert(shiftMinutes > 0
+                  showSuccess(shiftMinutes > 0
                     ? t('admin.tournamentDetail.scheduleTab.shiftCompleteForward', { count: target.length, minutes: shiftMinutes })
                     : t('admin.tournamentDetail.scheduleTab.shiftCompleteBackward', { count: target.length, minutes: -shiftMinutes }));
                 }}
@@ -661,13 +661,13 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
               disabled={!moveFromCourt || !moveToCourt || moveFromCourt === moveToCourt}
               onClick={async () => {
                 const target = matches.filter(m => m.courtId === moveFromCourt);
-                if (target.length === 0) { alert(t('admin.tournamentDetail.scheduleTab.noMatchesToMove')); return; }
+                if (target.length === 0) { showWarning(t('admin.tournamentDetail.scheduleTab.noMatchesToMove')); return; }
                 const toName = courts.find(c => c.id === moveToCourt)?.name || '';
                 if (!confirm(t('admin.tournamentDetail.scheduleTab.courtMoveConfirm', { count: target.length, court: toName }))) return;
                 for (const m of target) {
                   await updateMatch(m.id, { courtId: moveToCourt, courtName: toName });
                 }
-                alert(t('admin.tournamentDetail.scheduleTab.courtMoveComplete', { count: target.length }));
+                showSuccess(t('admin.tournamentDetail.scheduleTab.courtMoveComplete', { count: target.length }));
                 setMoveFromCourt(''); setMoveToCourt('');
               }}
               aria-label={t('admin.tournamentDetail.scheduleTab.courtMoveAriaLabel')}

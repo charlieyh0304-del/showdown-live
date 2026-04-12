@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { push, set, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
+import { showSuccess, showError } from '@shared/utils/toast';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import type { Match, Team, Player, MatchStatus, SetScore, ScoreHistoryEntry, Tournament } from '@shared/types';
 
@@ -239,7 +240,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     }
 
     await updateTournament({ currentStageId: finalsStageId });
-    alert(t('admin.tournamentDetail.statusTab.advanceToFinalsAlert', { count: finalsMatches.length }));
+    showSuccess(t('admin.tournamentDetail.statusTab.advanceToFinalsAlert', { count: finalsMatches.length }));
   };
 
   const openCorrectionModal = (match: Match) => {
@@ -307,11 +308,11 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
         scoreHistory: [...existingHistory, historyEntry],
       });
 
-      alert(t('admin.tournamentDetail.statusTab.scoreCorrected'));
+      showSuccess(t('admin.tournamentDetail.statusTab.scoreCorrected'));
       closeCorrectionModal();
     } catch (err) {
       console.error('점수 수정 오류:', err);
-      alert(t('admin.tournamentDetail.statusTab.scoreCorrectionError'));
+      showError(t('admin.tournamentDetail.statusTab.scoreCorrectionError'));
     } finally {
       setCorrectionSaving(false);
     }
@@ -369,11 +370,11 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
         scoreHistory: [...existingHistory, historyEntry],
       } as Partial<Match>);
 
-      alert(t('admin.tournamentDetail.statusTab.walkoverProcessed'));
+      showSuccess(t('admin.tournamentDetail.statusTab.walkoverProcessed'));
       closeWalkoverModal();
     } catch (err) {
       console.error('부전승 처리 오류:', err);
-      alert(t('admin.tournamentDetail.statusTab.walkoverError'));
+      showError(t('admin.tournamentDetail.statusTab.walkoverError'));
     } finally {
       setWalkoverSaving(false);
     }

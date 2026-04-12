@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Player, Team, SeedEntry, Tournament } from '@shared/types';
+import { showWarning } from '@shared/utils/toast';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -252,7 +253,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
         const requiredFemales = effectiveRatio.female * teamCount;
 
         if (males.length < requiredMales || females.length < requiredFemales) {
-          alert(t('admin.tournamentDetail.playersTabInline.genderShortageAlert', { requiredMale: requiredMales, requiredFemale: requiredFemales, currentMale: males.length, currentFemale: females.length }));
+          showWarning(t('admin.tournamentDetail.playersTabInline.genderShortageAlert', { requiredMale: requiredMales, requiredFemale: requiredFemales, currentMale: males.length, currentFemale: females.length }));
           setGenerating(false);
           return;
         }

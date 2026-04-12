@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
+import { showWarning, showSuccess } from '@shared/utils/toast';
 import { buildGroupAssignment, calculateMatchCount } from '@shared/utils/tournament';
 import type { Match, Team, Player, MatchStatus, StageGroup, Tournament } from '@shared/types';
 
@@ -137,17 +138,17 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
     // Guard: cannot regenerate while matches are in progress
     const hasActiveMatches = matches.some(m => m.status === 'in_progress');
     if (hasActiveMatches) {
-      alert(t('admin.tournamentDetail.bracketTab.cannotEditWhileActive'));
+      showWarning(t('admin.tournamentDetail.bracketTab.cannotEditWhileActive'));
       return;
     }
 
     // Guard: need at least 2 players/teams to generate brackets
     if (isTeamType && teams.length < 2) {
-      alert(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
+      showWarning(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
       return;
     }
     if (!isTeamType && tournamentPlayers.length < 2) {
-      alert(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
+      showWarning(t('admin.tournamentDetail.bracketTab.needMinPlayers', { count: 2 }));
       return;
     }
 
@@ -205,7 +206,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
           }
         }
         if (skipped > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
+          showWarning(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
           setGenerating(false);
           return;
         }
@@ -239,7 +240,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
           }
         }
         if (skipped > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
+          showWarning(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
           setGenerating(false);
           return;
         }
@@ -277,7 +278,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
           }
         }
         if (skipped > 0) {
-          alert(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
+          showWarning(t('admin.tournamentDetail.bracketTab.duplicateBlocked', { skipped }));
           setGenerating(false);
           return;
         }
@@ -292,7 +293,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       const maxAllowed = expectedMatchCount.total;
       const totalAfterCreate = matches.length + newMatches.length;
       if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
-        alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
+        showWarning(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
           max: maxAllowed, current: matches.length, newCount: newMatches.length, total: totalAfterCreate,
         }));
         setGenerating(false);
@@ -331,7 +332,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       return updateMatch(match.id, { refereeId: ref.id, refereeName: ref.name });
     });
     await Promise.all(updates);
-    alert(t('admin.tournamentDetail.bracketTab.bulkRefereeAlert', { count: unassigned.length }));
+    showSuccess(t('admin.tournamentDetail.bracketTab.bulkRefereeAlert', { count: unassigned.length }));
   }, [matches, referees, updateMatch]);
 
   const handleAddMatch = useCallback(async () => {
@@ -345,14 +346,14 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       return p1 && p2 && [p1, p2].sort().join('__') === pairKey;
     });
     if (isDuplicate) {
-      alert(t('admin.tournamentDetail.bracketTab.addMatchDuplicate'));
+      showWarning(t('admin.tournamentDetail.bracketTab.addMatchDuplicate'));
       return;
     }
 
     // 경기 수 초과 검증
     const maxAllowed = expectedMatchCount.total;
     if (maxAllowed > 0 && matches.length + 1 > maxAllowed) {
-      alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
+      showWarning(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
         max: maxAllowed, current: matches.length, newCount: 1, total: matches.length + 1,
       }));
       return;
@@ -531,7 +532,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                   if (tournament.status !== 'in_progress') {
                     await updateTournament({ status: 'in_progress' });
                   }
-                  alert(t('admin.tournamentDetail.bracketTab.bracketConfirmed'));
+                  showSuccess(t('admin.tournamentDetail.bracketTab.bracketConfirmed'));
                 }
               }}
               aria-label={t('admin.tournamentDetail.bracketTab.confirmBracketAriaLabel')}
@@ -889,7 +890,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                     const maxAllowed = expectedMatchCount.total;
                     const totalAfterCreate = matches.length + matchCount;
                     if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
-                      alert(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
+                      showWarning(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
                         max: maxAllowed, current: matches.length, newCount: matchCount, total: totalAfterCreate,
                         defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 ${matchCount}경기 = ${totalAfterCreate}경기\n대진 생성이 취소되었습니다.`,
                       }));
@@ -898,7 +899,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                     // 본선 대진 중복 검증
                     const existingFinalsMatches = matches.filter(m => m.stageId === finalsStage.id);
                     if (existingFinalsMatches.length > 0) {
-                      alert(t('admin.tournamentDetail.bracketTab.finalsDuplicateBlocked', {
+                      showWarning(t('admin.tournamentDetail.bracketTab.finalsDuplicateBlocked', {
                         count: existingFinalsMatches.length,
                       }));
                       return;
@@ -1061,7 +1062,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
             };
             await updateMatch(sortedFinals[i].id, matchData);
           }
-          alert(t('admin.tournamentDetail.bracketTab.finalsArranged'));
+          showSuccess(t('admin.tournamentDetail.bracketTab.finalsArranged'));
         };
 
         const handleSlotChange = async (matchId: string, slot: 'player1' | 'player2', newId: string) => {

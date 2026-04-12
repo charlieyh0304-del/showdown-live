@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { showWarning } from '@shared/utils/toast';
 import {
   useTournament,
   useMatches,
@@ -92,7 +93,7 @@ export default function TournamentDetail() {
       : (hasExistingPlayers ? tournamentPlayers.length : effectiveSimCount);
 
     if (!hasExistingTeams && !hasExistingPlayers && (!effectiveSimCount || effectiveSimCount < 2)) {
-      alert(isTeamType ? t('admin.tournamentDetail.simulation.enterTeamCount') : t('admin.tournamentDetail.simulation.enterPlayerCount'));
+      showWarning(isTeamType ? t('admin.tournamentDetail.simulation.enterTeamCount') : t('admin.tournamentDetail.simulation.enterPlayerCount'));
       return;
     }
 

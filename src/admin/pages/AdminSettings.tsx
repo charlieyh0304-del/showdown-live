@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ref, onValue, set, remove, push } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { hashPinWithSalt, generateSalt, verifyPin } from '@shared/utils/crypto';
+import { showWarning } from '@shared/utils/toast';
 import { useAuth } from '@shared/hooks/useAuth';
 import { formatDate } from '@shared/utils/locale';
 import type { Admin } from '@shared/types';
@@ -193,11 +194,11 @@ export default function AdminSettings() {
   // 관리자 삭제
   const handleDeleteAdmin = useCallback(async (admin: Admin & { id: string }) => {
     if (admins.length <= 1) {
-      alert(t('admin.settings.cannotDeleteLastAdmin'));
+      showWarning(t('admin.settings.cannotDeleteLastAdmin'));
       return;
     }
     if (admin.id === session?.adminId) {
-      alert(t('admin.settings.cannotDeleteSelf'));
+      showWarning(t('admin.settings.cannotDeleteSelf'));
       return;
     }
     if (!window.confirm(t('admin.settings.confirmDeleteAdmin', { name: admin.name }))) return;
