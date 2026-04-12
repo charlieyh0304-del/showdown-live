@@ -51,7 +51,7 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
   const formatDiff = (val: number) => val > 0 ? `+${val}` : `${val}`;
 
   const handleExportCSV = () => {
-    const csv = exportResultsCSV(tournament as Parameters<typeof exportResultsCSV>[0], matches, [], []);
+    const csv = exportResultsCSV(tournament as Parameters<typeof exportResultsCSV>[0], matches, [], [], t);
     const filename = `${tournament.name}_${t('admin.tournamentDetail.tabs.ranking')}_${tournament.date || 'export'}.csv`;
     downloadCSV(csv, filename);
   };
