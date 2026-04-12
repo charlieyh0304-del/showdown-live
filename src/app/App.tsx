@@ -7,6 +7,7 @@ import ConnectionStatus from '@shared/components/ConnectionStatus';
 import LoadingSpinner from '@shared/components/LoadingSpinner';
 import AccessibilityMenu from '@shared/components/AccessibilityMenu';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
+import Toast from '@shared/components/Toast';
 import { useRouteAnnouncer } from '@shared/hooks/useRouteAnnouncer';
 
 const AdminRoutes = lazy(() => import('../admin/AdminRoutes'));
@@ -73,6 +74,7 @@ function AppContent() {
           <AccessibilityMenu />
         </div>
       </div>
+      <Toast />
     </>
   );
 }
