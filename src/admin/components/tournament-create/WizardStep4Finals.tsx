@@ -805,8 +805,8 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   value={state.rankingUpTo || ''}
                   onChange={(e) => setField('rankingUpTo', e.target.value ? parseInt(e.target.value) : 0)}
                   className="w-32 px-3 py-2 bg-gray-700 rounded border border-gray-600 text-white"
-                  placeholder="전체"
-                  aria-label="순위 표시 범위"
+                  placeholder={t('admin.tournamentCreate.finals.rankingUpToPlaceholder')}
+                  aria-label={t('admin.tournamentCreate.finals.rankingUpToAriaLabel')}
                 />
               </div>
 

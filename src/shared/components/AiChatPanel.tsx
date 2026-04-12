@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import DOMPurify from 'dompurify';
 import { useChatbot, type ChatRole, type ChatMessage, type ChatAction } from '../hooks/useChatbot';
 
@@ -107,6 +108,7 @@ interface AiChatPanelProps {
 }
 
 export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps) {
+  const { t } = useTranslation();
   const { id: tournamentId } = useParams<{ id: string }>();
   const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(userRole, tournamentId, contextInfo);
   const [isOpen, setIsOpen] = useState(false);
@@ -335,19 +337,19 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
 
   // 스크린리더 전용 바로가기 (항상 렌더링, 열림/닫힘 무관)
   const srShortcut = (
-    <div className="sr-only" role="region" aria-label="AI 음성 어시스턴트 바로가기">
+    <div className="sr-only" role="region" aria-label={t('common.aiChat.srShortcutRegion')}>
       <button
         onClick={() => { setIsOpen(true); setTimeout(() => startListening(), 300); }}
-        aria-label={`${config.title} 음성 입력 바로 시작. 이 버튼을 누르면 AI 어시스턴트가 열리고 음성 입력이 시작됩니다.`}
+        aria-label={t('common.aiChat.startVoiceAriaLabel', { title: config.title })}
       >
-        음성 AI 시작
+        {t('common.aiChat.startVoiceButton')}
       </button>
       <button
         onClick={openChat}
-        aria-label={`${config.title} 텍스트 입력으로 열기. 단축키: Ctrl+K`}
+        aria-label={t('common.aiChat.openTextAriaLabel', { title: config.title })}
         aria-keyshortcuts="Control+K"
       >
-        AI 어시스턴트 열기
+        {t('common.aiChat.openTextButton')}
       </button>
     </div>
   );
@@ -357,7 +359,7 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
       <>
       {srShortcut}
       <div aria-live="polite" className="sr-only">
-        {config.title} 닫힘.
+        {t('common.aiChat.closed', { title: config.title })}
       </div>
       <button
         onClick={handleClick}
@@ -368,7 +370,7 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110"
         aria-hidden="true"
         tabIndex={-1}
-        title={`${config.title} — 길게 누르면 음성 입력`}
+        title={t('common.aiChat.longPressHint', { title: config.title })}
         style={{ minWidth: '56px', minHeight: '56px' }}
       >
         {config.icon === '🤖' ? '💬' : config.icon}
@@ -391,8 +393,8 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
           <kbd className="hidden sm:inline-block text-[10px] text-gray-500 bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5">Ctrl+K</kbd>
         </div>
         <div className="flex gap-1">
-          <button onClick={clearChat} className="text-gray-400 hover:text-white p-2" aria-label="대화 초기화" style={{ minWidth: '44px', minHeight: '44px' }}>🗑️</button>
-          <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white p-2 text-lg" aria-label="닫기 (Esc)" style={{ minWidth: '44px', minHeight: '44px' }}>✕</button>
+          <button onClick={clearChat} className="text-gray-400 hover:text-white p-2" aria-label={t('common.aiChat.clearChat')} style={{ minWidth: '44px', minHeight: '44px' }}>🗑️</button>
+          <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white p-2 text-lg" aria-label={t('common.aiChat.closeEsc')} style={{ minWidth: '44px', minHeight: '44px' }}>✕</button>
         </div>
       </div>
 
@@ -400,7 +402,7 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {messages.length > 0 && messages[messages.length - 1].role === 'assistant' && !isLoading
           ? messages[messages.length - 1].content.slice(0, 200)
-          : isLoading ? '작업 중...' : ''}
+          : isLoading ? t('common.aiChat.processing') : ''}
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-4" style={{ minHeight: 0 }} role="log" aria-live="off">
@@ -430,16 +432,16 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0.15s' }} />
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0.3s' }} />
                   </div>
-                  <span className="text-xs text-gray-500">작업 중...</span>
+                  <span className="text-xs text-gray-500">{t('common.aiChat.processing')}</span>
                 </div>
                 {elapsedDisplay && (
                   <div className="text-[10px] text-gray-500 mt-1.5 flex items-center gap-1.5">
                     <span className="inline-block w-3 h-3 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-                    {elapsedDisplay} 경과
+                    {t('common.aiChat.elapsed', { time: elapsedDisplay })}
                   </div>
                 )}
-                <button onClick={cancelRequest} className="mt-2 text-xs text-red-400 hover:text-red-300 bg-red-900/30 hover:bg-red-900/50 rounded px-2 py-1" style={{ minHeight: '32px' }} aria-label="요청 취소">
-                  ⛔ 취소
+                <button onClick={cancelRequest} className="mt-2 text-xs text-red-400 hover:text-red-300 bg-red-900/30 hover:bg-red-900/50 rounded px-2 py-1" style={{ minHeight: '32px' }} aria-label={t('common.aiChat.cancelRequest')}>
+                  ⛔ {t('common.aiChat.cancelButton')}
                 </button>
               </div>
             </div>
@@ -453,8 +455,8 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
             <button
               onClick={toggleListening}
               className={`flex-shrink-0 rounded-full w-10 h-10 flex items-center justify-center text-lg transition-colors ${isListening ? 'bg-red-600 animate-pulse text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
-              aria-label={isListening ? '음성 입력 중지' : '음성 입력 시작'}
-              title={isListening ? '음성 입력 중...' : '음성 입력'}
+              aria-label={isListening ? t('common.aiChat.stopVoice') : t('common.aiChat.startVoice')}
+              title={isListening ? t('common.aiChat.voiceInputActive') : t('common.aiChat.voiceInput')}
               disabled={isLoading}
               style={{ minWidth: '44px', minHeight: '44px' }}
             >
@@ -462,24 +464,24 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
             </button>
           )}
           <textarea id="ai-chat-input" ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder={isListening ? '듣고 있습니다...' : '메시지를 입력하세요...'}
+            placeholder={isListening ? t('common.aiChat.listening') : t('common.aiChat.messagePlaceholder')}
             className={`flex-1 bg-gray-800 border rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:ring-1 ${isListening ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500/30'}`}
-            rows={1} disabled={isLoading} aria-label="메시지 입력" style={{ minHeight: '44px', maxHeight: '88px' }}
+            rows={1} disabled={isLoading} aria-label={t('common.aiChat.messageInput')} style={{ minHeight: '44px', maxHeight: '88px' }}
           />
           {isLoading ? (
-            <button onClick={cancelRequest} className="btn btn-danger px-3 text-sm flex-shrink-0" aria-label="취소" style={{ minHeight: '44px' }}>⛔</button>
+            <button onClick={cancelRequest} className="btn btn-danger px-3 text-sm flex-shrink-0" aria-label={t('common.aiChat.cancelButton')} style={{ minHeight: '44px' }}>⛔</button>
           ) : (
-            <button onClick={handleSend} disabled={!input.trim()} className="btn btn-primary px-3 text-sm flex-shrink-0 disabled:opacity-40" aria-label="전송" style={{ minHeight: '44px' }}>전송</button>
+            <button onClick={handleSend} disabled={!input.trim()} className="btn btn-primary px-3 text-sm flex-shrink-0 disabled:opacity-40" aria-label={t('common.aiChat.send')} style={{ minHeight: '44px' }}>{t('common.aiChat.send')}</button>
           )}
         </div>
         <div className="flex justify-end mt-1">
           <button
             onClick={() => { setVoiceEnabled(v => !v); if (voiceEnabled) window.speechSynthesis?.cancel(); }}
             className="text-[10px] text-gray-500 hover:text-gray-300 px-1"
-            aria-label={voiceEnabled ? '음성 응답 끄기' : '음성 응답 켜기'}
+            aria-label={voiceEnabled ? t('common.aiChat.voiceResponseOnAriaLabel') : t('common.aiChat.voiceResponseOffAriaLabel')}
             aria-pressed={voiceEnabled}
           >
-            {voiceEnabled ? '🔊 음성 응답 ON' : '🔇 음성 응답 OFF'}
+            {voiceEnabled ? t('common.aiChat.voiceResponseOn') : t('common.aiChat.voiceResponseOff')}
           </button>
         </div>
       </div>
