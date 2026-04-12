@@ -555,16 +555,16 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
         {/* 점심시간 / 휴식시간 */}
         <div className="flex gap-4 flex-wrap">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">휴식 시작 (예: 점심)</label>
-            <input type="time" className="input" value={breakStart} onChange={e => setBreakStart(e.target.value)} aria-label="휴식 시작 시간" />
+            <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.breakStartLabel')}</label>
+            <input type="time" className="input" value={breakStart} onChange={e => setBreakStart(e.target.value)} aria-label={t('admin.tournamentDetail.scheduleTab.breakStartAriaLabel')} />
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">휴식 종료</label>
-            <input type="time" className="input" value={breakEnd} onChange={e => setBreakEnd(e.target.value)} aria-label="휴식 종료 시간" />
+            <label className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.breakEndLabel')}</label>
+            <input type="time" className="input" value={breakEnd} onChange={e => setBreakEnd(e.target.value)} aria-label={t('admin.tournamentDetail.scheduleTab.breakEndAriaLabel')} />
           </div>
           {breakStart && breakEnd && (
             <div className="flex items-end">
-              <span className="text-xs text-yellow-400 bg-yellow-900/30 rounded px-2 py-1">⏸ {breakStart}~{breakEnd} 경기 없음</span>
+              <span className="text-xs text-yellow-400 bg-yellow-900/30 rounded px-2 py-1">{t('admin.tournamentDetail.scheduleTab.breakPeriod', { start: breakStart, end: breakEnd })}</span>
             </div>
           )}
         </div>
@@ -591,20 +591,20 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
 
       {/* 일괄 이동 / 코트 이동 */}
       <div className="card space-y-4">
-        <h2 className="text-lg font-bold text-center">스케줄 조정</h2>
+        <h2 className="text-lg font-bold text-center">{t('admin.tournamentDetail.scheduleTab.scheduleAdjustTitle')}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* 시간 일괄 이동 */}
           <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
-            <h3 className="text-sm font-bold text-gray-300">⏱ 시간 일괄 이동</h3>
+            <h3 className="text-sm font-bold text-gray-300">{t('admin.tournamentDetail.scheduleTab.timeShiftTitle')}</h3>
             <div className="flex gap-2 items-end">
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">이동 시간 (분)</label>
-                <input type="number" className="input w-full" value={shiftMinutes} onChange={e => setShiftMinutes(Number(e.target.value))} aria-label="이동할 분" />
+                <label className="block text-xs text-gray-400 mb-1">{t('admin.tournamentDetail.scheduleTab.shiftMinutesLabel')}</label>
+                <input type="number" className="input w-full" value={shiftMinutes} onChange={e => setShiftMinutes(Number(e.target.value))} aria-label={t('admin.tournamentDetail.scheduleTab.shiftMinutesAriaLabel')} />
               </div>
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">코트 (전체면 비움)</label>
-                <select className="input w-full" value={shiftCourtId} onChange={e => setShiftCourtId(e.target.value)} aria-label="대상 코트">
-                  <option value="">전체 코트</option>
+                <label className="block text-xs text-gray-400 mb-1">{t('admin.tournamentDetail.scheduleTab.courtFilterLabel')}</label>
+                <select className="input w-full" value={shiftCourtId} onChange={e => setShiftCourtId(e.target.value)} aria-label={t('admin.tournamentDetail.scheduleTab.courtFilterAriaLabel')}>
+                  <option value="">{t('admin.tournamentDetail.scheduleTab.allCourts')}</option>
                   {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
@@ -614,7 +614,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                 onClick={async () => {
                   const target = matches.filter(m => m.scheduledTime && (!shiftCourtId || m.courtId === shiftCourtId));
                   if (target.length === 0) return;
-                  if (!confirm(`${target.length}경기를 ${shiftMinutes}분 이동하시겠습니까?`)) return;
+                  if (!confirm(t('admin.tournamentDetail.scheduleTab.shiftConfirm', { count: target.length, minutes: shiftMinutes }))) return;
                   for (const m of target) {
                     const [h, min] = (m.scheduledTime || '00:00').split(':').map(Number);
                     let total = h * 60 + min + shiftMinutes;
@@ -625,30 +625,34 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                     const newDate = ds !== 0 && m.scheduledDate ? (() => { const d = new Date(m.scheduledDate!); d.setDate(d.getDate() + ds); return d.toISOString().split('T')[0]; })() : m.scheduledDate;
                     await updateMatch(m.id, { scheduledTime: newTime, ...(newDate ? { scheduledDate: newDate } : {}) });
                   }
-                  alert(`${target.length}경기 ${shiftMinutes > 0 ? `${shiftMinutes}분 뒤로` : `${-shiftMinutes}분 앞으로`} 이동 완료`);
+                  alert(shiftMinutes > 0
+                    ? t('admin.tournamentDetail.scheduleTab.shiftCompleteForward', { count: target.length, minutes: shiftMinutes })
+                    : t('admin.tournamentDetail.scheduleTab.shiftCompleteBackward', { count: target.length, minutes: -shiftMinutes }));
                 }}
-                aria-label={`${shiftMinutes}분 이동`}
+                aria-label={t('admin.tournamentDetail.scheduleTab.shiftAriaLabel', { minutes: shiftMinutes })}
               >
-                {shiftMinutes > 0 ? `${shiftMinutes}분 뒤로 →` : `${-shiftMinutes}분 앞으로 ←`}
+                {shiftMinutes > 0
+                  ? t('admin.tournamentDetail.scheduleTab.shiftForward', { minutes: shiftMinutes })
+                  : t('admin.tournamentDetail.scheduleTab.shiftBackward', { minutes: -shiftMinutes })}
               </button>
             </div>
           </div>
 
           {/* 코트 이동 */}
           <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
-            <h3 className="text-sm font-bold text-gray-300">🔄 코트 이동</h3>
+            <h3 className="text-sm font-bold text-gray-300">{t('admin.tournamentDetail.scheduleTab.courtMoveTitle')}</h3>
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">출발 코트</label>
-                <select className="input w-full" value={moveFromCourt} onChange={e => setMoveFromCourt(e.target.value)} aria-label="출발 코트">
-                  <option value="">선택</option>
+                <label className="block text-xs text-gray-400 mb-1">{t('admin.tournamentDetail.scheduleTab.fromCourtLabel')}</label>
+                <select className="input w-full" value={moveFromCourt} onChange={e => setMoveFromCourt(e.target.value)} aria-label={t('admin.tournamentDetail.scheduleTab.fromCourtAriaLabel')}>
+                  <option value="">{t('admin.tournamentDetail.scheduleTab.selectOption')}</option>
                   {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">도착 코트</label>
-                <select className="input w-full" value={moveToCourt} onChange={e => setMoveToCourt(e.target.value)} aria-label="도착 코트">
-                  <option value="">선택</option>
+                <label className="block text-xs text-gray-400 mb-1">{t('admin.tournamentDetail.scheduleTab.toCourtLabel')}</label>
+                <select className="input w-full" value={moveToCourt} onChange={e => setMoveToCourt(e.target.value)} aria-label={t('admin.tournamentDetail.scheduleTab.toCourtAriaLabel')}>
+                  <option value="">{t('admin.tournamentDetail.scheduleTab.selectOption')}</option>
                   {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
@@ -657,18 +661,18 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
               disabled={!moveFromCourt || !moveToCourt || moveFromCourt === moveToCourt}
               onClick={async () => {
                 const target = matches.filter(m => m.courtId === moveFromCourt);
-                if (target.length === 0) { alert('이동할 경기가 없습니다.'); return; }
+                if (target.length === 0) { alert(t('admin.tournamentDetail.scheduleTab.noMatchesToMove')); return; }
                 const toName = courts.find(c => c.id === moveToCourt)?.name || '';
-                if (!confirm(`${target.length}경기를 ${toName}으로 이동하시겠습니까?`)) return;
+                if (!confirm(t('admin.tournamentDetail.scheduleTab.courtMoveConfirm', { count: target.length, court: toName }))) return;
                 for (const m of target) {
                   await updateMatch(m.id, { courtId: moveToCourt, courtName: toName });
                 }
-                alert(`${target.length}경기 코트 이동 완료`);
+                alert(t('admin.tournamentDetail.scheduleTab.courtMoveComplete', { count: target.length }));
                 setMoveFromCourt(''); setMoveToCourt('');
               }}
-              aria-label="코트 이동 실행"
+              aria-label={t('admin.tournamentDetail.scheduleTab.courtMoveAriaLabel')}
             >
-              이동 실행
+              {t('admin.tournamentDetail.scheduleTab.courtMoveButton')}
             </button>
           </div>
         </div>
