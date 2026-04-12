@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { showError } from '@shared/utils/toast';
 
 type CoinTossStep = 'team_order' | 'toss' | 'choice' | 'court_change' | 'warmup_ask';
 type TossWinner = 'team1' | 'team2' | null;
@@ -202,7 +203,7 @@ export default function TeamMatchPendingView({
                 try {
                   await handleStartMatch(tossWinner!, pendingChoice!);
                 } catch (err) {
-                  alert(String(err));
+                  showError(String(err));
                   return;
                 }
                 await updateMatch({ warmupUsed: true });
@@ -219,7 +220,7 @@ export default function TeamMatchPendingView({
                 try {
                   await handleStartMatch(tossWinner!, pendingChoice!);
                 } catch (err) {
-                  alert(String(err));
+                  showError(String(err));
                 }
               }}
               aria-label={t('referee.scoring.matchStartLabel')}

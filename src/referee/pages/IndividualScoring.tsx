@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { countSetWins } from '@shared/utils/scoring';
+import { showError } from '@shared/utils/toast';
 import type { SetScore, ScoreHistoryEntry } from '@shared/types';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useIndividualScoring } from '../hooks/useIndividualScoring';
@@ -255,7 +256,7 @@ export default function IndividualScoring() {
                   try {
                     await handleStartMatch(pendingFirstServe!, true);
                   } catch (err) {
-                    alert(String(err));
+                    showError(String(err));
                   }
                 }}
                 aria-label={t('referee.scoring.warmupStart')}
@@ -268,7 +269,7 @@ export default function IndividualScoring() {
                   try {
                     await handleStartMatch(pendingFirstServe!);
                   } catch (err) {
-                    alert(String(err));
+                    showError(String(err));
                   }
                 }}
                 aria-label={t('referee.scoring.matchStartLabel')}
