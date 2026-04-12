@@ -32,6 +32,10 @@
     "skipToContent": "본문으로 건너뛰기",
     "pageLoading": "페이지 로딩 중...",
     "unknown": "알 수 없음",
+    "selectAll": "전체 선택",
+    "select": "{{name}} 선택",
+    "all": "전체",
+    "noResults": "해당 경기가 없습니다",
 
     "error": {
       "occurred": "오류가 발생했습니다",
@@ -244,6 +248,72 @@
       "directInput": "{{label}} 직접 입력",
       "clickToEdit": "{{label}}: {{value}}, 클릭하여 직접 입력"
     },
+
+    "aiChat": {
+      "srShortcutRegion": "AI 음성 어시스턴트 바로가기",
+      "startVoiceAriaLabel": "{{title}} 음성 입력 바로 시작. 이 버튼을 누르면 AI 어시스턴트가 열리고 음성 입력이 시작됩니다.",
+      "startVoiceButton": "음성 AI 시작",
+      "openTextAriaLabel": "{{title}} 텍스트 입력으로 열기. 단축키: Ctrl+K",
+      "openTextButton": "AI 어시스턴트 열기",
+      "closed": "{{title}} 닫힘.",
+      "longPressHint": "{{title}} — 길게 누르면 음성 입력",
+      "clearChat": "대화 초기화",
+      "closeEsc": "닫기 (Esc)",
+      "processing": "작업 중...",
+      "elapsed": "{{time}} 경과",
+      "cancelRequest": "요청 취소",
+      "cancelButton": "취소",
+      "messageInput": "메시지 입력",
+      "send": "전송",
+      "stopVoice": "음성 입력 중지",
+      "startVoice": "음성 입력 시작",
+      "voiceInputActive": "음성 입력 중...",
+      "voiceInput": "음성 입력",
+      "listening": "듣고 있습니다...",
+      "messagePlaceholder": "메시지를 입력하세요...",
+      "voiceResponseOn": "🔊 음성 응답 ON",
+      "voiceResponseOff": "🔇 음성 응답 OFF",
+      "voiceResponseOnAriaLabel": "음성 응답 끄기",
+      "voiceResponseOffAriaLabel": "음성 응답 켜기"
+    },
+
+    "export": {
+      "tournamentName": "대회명",
+      "date": "날짜",
+      "type": "유형",
+      "teamType": "팀전",
+      "individualType": "개인전",
+      "rankingTable": "순위표",
+      "matchResults": "경기 결과",
+      "teamRankingTitle": "팀 순위표",
+      "individualRankingTitle": "개인 순위표",
+      "rank": "순위",
+      "teamName": "팀명",
+      "playerName": "선수명",
+      "wins": "승",
+      "losses": "패",
+      "pointsFor": "득점",
+      "pointsAgainst": "실점",
+      "pointDiff": "점수차",
+      "setsWon": "세트득",
+      "setsLost": "세트실",
+      "matchNumber": "#",
+      "team1": "팀1",
+      "team2": "팀2",
+      "player1": "선수1",
+      "player2": "선수2",
+      "score": "스코어",
+      "setScore": "세트스코어",
+      "winner": "승자",
+      "walkover": "부전승",
+      "printButton": "인쇄하기",
+      "resultSheet": "결과표",
+      "totalMatches": "전체 {{count}}경기",
+      "completedMatches": "완료 {{count}}경기",
+      "inProgressMatches": "진행중 {{count}}경기",
+      "pendingMatches": "대기 {{count}}경기"
+    },
+
     "routes": {
       "modeSelect": "쇼다운 - 모드 선택",
       "adminDashboard": "관리자 - 대시보드",
@@ -424,7 +494,9 @@
       "deleteConfirmMessage": "{{name}} 선수를 삭제하시겠습니까?",
       "nameRequired": "이름을 입력해주세요.",
       "editAriaLabel": "{{name}} 수정",
-      "deleteAriaLabel": "{{name}} 삭제"
+      "deleteAriaLabel": "{{name}} 삭제",
+      "bulkDeleteConfirm": "{{count}}명을 삭제하시겠습니까?",
+      "bulkDelete": "{{count}}명 삭제"
     },
 
     "referees": {
@@ -669,7 +741,9 @@
         "fifthToEighthSimpleDesc": "5vs8, 6vs7",
         "fifthToEighthFullDesc": "교차 → 순위전",
         "fifthToEighthRoundRobinDesc": "4명 라운드로빈",
-        "classificationGroupSizeAriaLabel": "하위 순위 그룹 크기"
+        "classificationGroupSizeAriaLabel": "하위 순위 그룹 크기",
+        "rankingUpToPlaceholder": "전체",
+        "rankingUpToAriaLabel": "순위 표시 범위"
       },
 
       "ranking": {
@@ -863,13 +937,13 @@
       "header": { "typeIndividual": "개인전", "typeTeam": "팀전", "typeRandomTeamLeague": "랜덤 팀리그전", "scheduleDates": "경기 날짜" },
       "simulationConfirm": { "intro": "시뮬레이션을 실행합니다.\n", "existingTeams": "• 등록된 {{count}}개 팀으로 진행", "existingPlayers": "• 등록된 선수 {{count}}명으로 진행", "virtualPlayers": "• 가상 참가자 {{count}}명 생성", "existingReferees": "• 등록된 심판 {{count}}명 배정", "virtualReferees": "• 가상 심판 3명 생성", "refereeOff": "• 심판 자동 배정: OFF", "courtOn": "• 경기장 자동 배정: ON", "courtOff": "• 경기장 자동 배정: OFF", "dataReset": "• 기존 경기 데이터가 초기화됩니다", "rulesKept": "• 대회 규칙 설정은 유지됩니다", "confirmContinue": "\n계속하시겠습니까?" },
       "koreanInput": { "playerNamePlaceholder": "선수 이름", "genderAriaLabel": "성별", "genderLabel": "성별", "genderMale": "남", "genderFemale": "여", "addPlayerAriaLabel": "선수 추가" },
-      "playersTabInline": { "playerNamePlaceholder": "선수 이름", "playerNameAriaLabel": "선수 이름", "genderAriaLabel": "성별", "genderLabel": "성별", "genderMale": "남", "genderFemale": "여", "addButton": "추가", "addPlayerAriaLabel": "선수 추가", "bulkAddSummary": "여러 명 한번에 등록", "bulkAddPlaceholder": "이름을 줄바꿈으로 구분하여 입력\n홍길동\n김철수\n이영희", "bulkAddAriaLabel": "일괄 등록할 선수 이름 목록", "bulkAddButton": "{{count}}명 일괄 등록", "deletePlayerAriaLabel": "{{name}} 삭제", "teamCompositionTitle": "팀 구성 ({{count}}팀)", "randomTeamGenerate": "랜덤 팀 생성", "generating": "생성 중...", "randomTeamAriaLabel": "랜덤 팀 생성", "addNewTeam": "+ 새 팀 추가", "addNewTeamAriaLabel": "새 팀 추가", "noTeams": "팀이 아직 생성되지 않았습니다.", "teamHeader": "{{name}} ({{count}}명)", "teamHeaderWithCoach": "{{name}} ({{count}}명) / 코치: {{coach}}", "foldButton": "접기", "editButton": "편집", "foldAriaLabel": "{{name}} 접기", "editAriaLabel": "{{name}} 편집", "deleteButton": "삭제", "deleteAriaLabel": "{{name}} 삭제", "removeMemberAriaLabel": "{{name}} 제거", "addMemberPlaceholder": "선수를 추가해주세요.", "addMemberToTeamAriaLabel": "{{team}} 선수 추가", "teamSettingsHint": "팀별 설정 (비워두면 대회 기본값 적용", "teamSettingsHintDefaults": ": 예비 {{reserves}}명, 남 {{male}} / 여 {{female}}", "coachLabel": "코치", "coachPlaceholder": "코치 이름", "coachAriaLabel": "{{team}} 코치", "reserveCountLabel": "예비 선수 수", "reservePlaceholderDefault": "기본값: {{value}}", "reservePlaceholderNone": "미설정", "reserveAriaLabel": "{{team}} 예비 선수 수", "genderRatioLabel": "성별 비율", "maleLabel": "남", "femaleLabel": "여", "genderPlaceholderDefault": "기본: {{value}}", "genderPlaceholderNone": "미설정", "maleAriaLabel": "{{team}} 남자 선수 수", "femaleAriaLabel": "{{team}} 여자 선수 수", "saveSettingsButton": "설정 저장", "saveSettingsAriaLabel": "팀 설정 저장", "genderShortageAlert": "성별 비율에 맞는 선수가 부족합니다.\n필요: 남자 {{requiredMale}}명, 여자 {{requiredFemale}}명\n현재: 남자 {{currentMale}}명, 여자 {{currentFemale}}명", "defaultTeamName": "{{idx}}팀", "deleteTeamConfirm": "이 팀을 삭제하시겠습니까?" },
+      "playersTabInline": { "playerNamePlaceholder": "선수 이름", "playerNameAriaLabel": "선수 이름", "genderAriaLabel": "성별", "genderLabel": "성별", "genderMale": "남", "genderFemale": "여", "addButton": "추가", "addPlayerAriaLabel": "선수 추가", "bulkAddSummary": "여러 명 한번에 등록", "bulkAddPlaceholder": "이름을 줄바꿈으로 구분하여 입력\n홍길동\n김철수\n이영희", "bulkAddAriaLabel": "일괄 등록할 선수 이름 목록", "bulkAddButton": "{{count}}명 일괄 등록", "deletePlayerAriaLabel": "{{name}} 삭제", "teamCompositionTitle": "팀 구성 ({{count}}팀)", "randomTeamGenerate": "랜덤 팀 생성", "generating": "생성 중...", "randomTeamAriaLabel": "랜덤 팀 생성", "addNewTeam": "+ 새 팀 추가", "addNewTeamAriaLabel": "새 팀 추가", "noTeams": "팀이 아직 생성되지 않았습니다.", "teamHeader": "{{name}} ({{count}}명)", "teamHeaderWithCoach": "{{name}} ({{count}}명) / 코치: {{coach}}", "foldButton": "접기", "editButton": "편집", "foldAriaLabel": "{{name}} 접기", "editAriaLabel": "{{name}} 편집", "deleteButton": "삭제", "deleteAriaLabel": "{{name}} 삭제", "removeMemberAriaLabel": "{{name}} 제거", "addMemberPlaceholder": "선수를 추가해주세요.", "addMemberToTeamAriaLabel": "{{team}} 선수 추가", "teamSettingsHint": "팀별 설정 (비워두면 대회 기본값 적용", "teamSettingsHintDefaults": ": 예비 {{reserves}}명, 남 {{male}} / 여 {{female}}", "coachLabel": "코치", "coachPlaceholder": "코치 이름", "coachAriaLabel": "{{team}} 코치", "reserveCountLabel": "예비 선수 수", "reservePlaceholderDefault": "기본값: {{value}}", "reservePlaceholderNone": "미설정", "reserveAriaLabel": "{{team}} 예비 선수 수", "genderRatioLabel": "성별 비율", "maleLabel": "남", "femaleLabel": "여", "genderPlaceholderDefault": "기본: {{value}}", "genderPlaceholderNone": "미설정", "maleAriaLabel": "{{team}} 남자 선수 수", "femaleAriaLabel": "{{team}} 여자 선수 수", "saveSettingsButton": "설정 저장", "saveSettingsAriaLabel": "팀 설정 저장", "genderShortageAlert": "성별 비율에 맞는 선수가 부족합니다.\n필요: 남자 {{requiredMale}}명, 여자 {{requiredFemale}}명\n현재: 남자 {{currentMale}}명, 여자 {{currentFemale}}명", "defaultTeamName": "{{idx}}팀", "deleteTeamConfirm": "이 팀을 삭제하시겠습니까?", "bulkDeleteConfirm": "{{count}}명을 삭제하시겠습니까?", "bulkDelete": "{{count}}명 삭제" },
       "topSeedSection": { "title": "탑시드 지정", "descriptionManual": "시드를 지정하면 시드 수만큼 조가 생성됩니다 (시드 A → A조, 시드 B → B조). 선수를 클릭하여 시드를 지정하세요.", "descriptionAuto": "시드 선수는 해당 조에 배치됩니다 (시드 A → A조, 시드 B → B조). 최대 {{max}}명까지 지정 가능합니다.", "seedRemoveAriaLabel": "{{name}} 시드 {{label}} ({{label}}조 배치, 해제하려면 클릭)", "seedAssignAriaLabel": "{{name}} 시드 지정", "seedRemoveAutoAriaLabel": "{{name}} 시드 {{label}} (해제하려면 클릭)", "seedBadge": "시드 {{label}} → {{label}}조", "seedInfoText": "시드 {{count}}명 → {{count}}조 생성 (조당 약 {{perGroup}}명)", "saveAndCreateGroups": "시드 저장 + {{count}}조 생성", "minSeedRequired": "시드를 2명 이상 지정하세요", "saveAndCreateGroupsAriaLabel": "시드 저장 및 조 생성", "currentGroupCount": "현재 {{count}}개 조 설정됨. 대진표 탭에서 조 편성이 가능합니다.", "seedsFull": "시드가 모두 지정되었습니다 ({{current}}/{{max}}).", "saveSeedsButton": "시드 저장", "saveSeedsAriaLabel": "시드 저장" },
       "finalsSetupInline": { "totalAdvance": "(총 {{count}}명 본선 진출)", "finalsReady": "본선 설정 완료. 대진표 탭에서 예선 대진 생성 → 예선 완료 후 본선 대진을 수동 편성합니다.", "advancePerGroupAriaLabel": "조당 진출 인원" },
       "addTeamModal": { "title": "새 팀 추가", "teamNameLabel": "팀 이름", "coachNameLabel": "코치 이름 (선택)", "coachPlaceholder": "코치 이름", "playerRegistration": "선수 등록", "playerNamePlaceholder": "선수 이름", "playerNameAriaLabel": "선수 이름", "addPlayersPrompt": "선수를 추가해주세요.", "removePlayerAriaLabel": "{{name}} 제거", "createTeamButton": "팀 생성 ({{count}}명)", "createTeamAriaLabel": "팀 생성", "cancelAriaLabel": "취소", "cancelButton": "취소" },
       "globalPlayerModal": { "closeAriaLabel": "닫기", "noGlobalPlayers": "등록된 전역 선수가 없습니다.", "selectedAriaLabel": "{{name}} 선택됨", "unselectedAriaLabel": "{{name}} 선택안됨", "importButton": "{{count}}명 가져오기", "importAriaLabel": "선택한 선수 가져오기", "cancelButton": "취소", "cancelAriaLabel": "취소" },
-      "bracketTab": { "title": "대진표", "autoGenerateAriaLabel": "대진표 자동 생성", "generatingText": "생성 중...", "groupRoundRobinGenerate": "조별 라운드로빈 대진 생성", "autoGenerateText": "대진표 자동 생성", "addMatchButton": "경기 추가", "addMatchAriaLabel": "경기 추가", "addMatchTitle": "경기 추가", "team1Label": "팀 1", "team2Label": "팀 2", "player1Label": "선수 1", "player2Label": "선수 2", "team1SelectAriaLabel": "팀 1 선택", "team2SelectAriaLabel": "팀 2 선택", "player1SelectAriaLabel": "선수 1 선택", "player2SelectAriaLabel": "선수 2 선택", "selectPlaceholder": "선택", "groupIdLabel": "조 ID (선택)", "groupIdPlaceholder": "예: group_1", "groupIdAriaLabel": "조 ID", "addAriaLabel": "추가", "addButton": "추가", "samePlayerError": "같은 선수/팀을 선택할 수 없습니다.", "groupAssignmentTitle": "조 편성", "seedPlacement": "시드 배치 (시드 A→A조, B→B조)", "seedPlacementAriaLabel": "시드 배치 (시드만 해당 조에 배치)", "seedPlacementHint": "시드 선수만 해당 조에 배치됩니다. 나머지 선수는 아래에서 직접 배정하세요.", "autoAssignment": "자동 편성 (Snake Draft)", "autoAssignmentAriaLabel": "자동 편성 (Snake Draft)", "personCount": "{{count}}명", "unbalancedWarning": " -- 조별 인원이 불균형합니다", "unassignedTitle": "미배정 선수 ({{count}}명)", "assignGroupAriaLabel": "{{name}} 조 배정", "selectGroupPlaceholder": "조 선택", "groupEditWarning": "조 편성이 수동으로 변경되었습니다. 대진표를 다시 생성해야 변경 사항이 반영됩니다.", "moveGroupAriaLabel": "{{name}} 조 이동", "needMoreTeams": "팀이 2개 이상 필요합니다.", "needMorePlayers": "참가 선수가 2명 이상 필요합니다.", "bulkRefereeTitle": "일괄 심판 배정", "bulkRefereeDescription": "심판을 선택하면 배정되지 않은 모든 경기에 순서대로 배정됩니다.", "bulkRefereeAutoAssign": "자동 배정 (라운드로빈)", "bulkRefereeAutoAssignAriaLabel": "심판 자동 배정 (라운드로빈)", "bulkRefereeAlert": "{{count}}경기에 심판이 배정되었습니다.", "finalsTitle": "본선 대진 생성", "finalsNoQualifying": "먼저 조별 예선 대진을 생성하세요.", "finalsProgress": "예선 진행: {{completed}}/{{total}}경기 완료 | 조당 {{advancePerGroup}}명 진출 (총 {{totalAdvance}}명) | 본선 {{matchCount}}경기", "groupRankTitle": "조별 순위 현황", "rankSuffix": "위", "advanceLabel": "진출", "createFinalsSlots": "본선 {{count}}경기 슬롯 생성 (이후 수동 편성)", "createFinalsSlotsAriaLabel": "본선 대진 슬롯 생성", "createFinalsSlotsHint": "슬롯 생성 후 각 경기에 조/순위별 선수를 직접 배정할 수 있습니다.", "undecided": "미정", "finalsArrangement": "본선 대진 편성", "crossArrangement": "교차 편성", "crossArrangementAriaLabel": "교차 편성", "sequentialArrangement": "순차 편성", "sequentialArrangementAriaLabel": "순차 편성", "manualArrangementHint": "각 경기에서 조와 순위를 직접 선택하여 수동으로 대진을 편성하세요.", "arrangementSelectHint": "각 경기에서 조와 순위를 직접 선택하여 편성할 수 있습니다.", "matchNumber": "경기{{num}}", "inProgressCannotChange": "진행중/완료 경기는 변경 불가", "finalsArranged": "본선 대진이 변경되었습니다.", "noBracket": "생성된 대진표가 없습니다.", "manualAddHint": "상단 \"경기 추가\" 버튼으로 경기를 하나씩 등록하세요.", "orderUpAriaLabel": "순서 위로", "orderDownAriaLabel": "순서 아래로", "editMatchAriaLabel": "경기 수정", "editMatchButton": "수정", "deleteMatchAriaLabel": "경기 삭제", "walkoverBadge": "부전승", "refereeLabel": "심판", "refereeUnassigned": "미배정", "assistantRefereeLabel": "부심", "assistantRefereeNone": "없음", "courtLabel": "경기장", "courtUnassigned": "미배정", "deleteMatchConfirm": "이 경기를 삭제하시겠습니까?", "editMatchModalTitle": "경기 수정", "cancelAriaLabel": "취소", "cancelButton": "취소", "saveAriaLabel": "저장", "saveButton": "저장", "qualifyingStageName": "조별 예선", "finalsStageName": "본선 토너먼트", "groupSelectPlaceholder": "조 선택", "rankSelectPlaceholder": "순위 선택", "cannotEditWhileActive": "진행 중인 경기가 있어 대진표를 수정할 수 없습니다.", "confirmBracket": "대진표를 확정하고 대회를 시작하시겠습니까?", "confirmBracketAriaLabel": "대진표 확정 및 대회 시작", "confirmBracketButton": "대진표 확정" },
-      "scheduleTab": { "title": "스케줄 설정", "dateLabel": "날짜", "yearSuffix": "년", "monthSuffix": "월", "daySuffix": "일", "todayButton": "오늘", "startTimeLabel": "시작 시간", "hourSuffix": "시", "minuteSuffix": "분", "intervalLabel": "경기 간격 (분)", "endTimeLabel": "마감 시간", "restIntervalLabel": "선수 휴식 시간 (분)", "nextDayStartLabel": "다음날 시작 시간", "onlyUnassigned": "미배정 경기만 배정 (기존 스케줄 유지)", "generateButton": "스케줄 자동 배정", "generating": "배정 중...", "noCourts": "경기장을 먼저 등록해주세요.", "scheduleGridTitle": "스케줄 표", "dateUnspecified": "날짜 미지정", "dateColumnHeader": "날짜", "timeColumnHeader": "시간", "individualScheduleTitle": "개별 경기 스케줄", "resetScheduleButton": "스케줄 초기화", "resetting": "초기화 중...", "resetConfirm": "모든 경기의 스케줄(날짜, 시간)을 초기화하시겠습니까?", "unassignedLabel": "미배정", "scheduleDateLabel": "날짜", "scheduleTimeLabel": "시간", "courtLabel": "경기장", "courtUnassigned": "미배정", "saveButton": "저장", "savingButton": "저장 중...", "completedNoEdit": "스케줄 변경 불가", "conflictWarning": "동일 시간 중복 배정" },
+      "bracketTab": { "title": "대진표", "autoGenerateAriaLabel": "대진표 자동 생성", "generatingText": "생성 중...", "groupRoundRobinGenerate": "조별 라운드로빈 대진 생성", "autoGenerateText": "대진표 자동 생성", "addMatchButton": "경기 추가", "addMatchAriaLabel": "경기 추가", "addMatchTitle": "경기 추가", "team1Label": "팀 1", "team2Label": "팀 2", "player1Label": "선수 1", "player2Label": "선수 2", "team1SelectAriaLabel": "팀 1 선택", "team2SelectAriaLabel": "팀 2 선택", "player1SelectAriaLabel": "선수 1 선택", "player2SelectAriaLabel": "선수 2 선택", "selectPlaceholder": "선택", "groupIdLabel": "조 ID (선택)", "groupIdPlaceholder": "예: group_1", "groupIdAriaLabel": "조 ID", "addAriaLabel": "추가", "addButton": "추가", "samePlayerError": "같은 선수/팀을 선택할 수 없습니다.", "groupAssignmentTitle": "조 편성", "seedPlacement": "시드 배치 (시드 A→A조, B→B조)", "seedPlacementAriaLabel": "시드 배치 (시드만 해당 조에 배치)", "seedPlacementHint": "시드 선수만 해당 조에 배치됩니다. 나머지 선수는 아래에서 직접 배정하세요.", "autoAssignment": "자동 편성 (Snake Draft)", "autoAssignmentAriaLabel": "자동 편성 (Snake Draft)", "personCount": "{{count}}명", "unbalancedWarning": " -- 조별 인원이 불균형합니다", "unassignedTitle": "미배정 선수 ({{count}}명)", "assignGroupAriaLabel": "{{name}} 조 배정", "selectGroupPlaceholder": "조 선택", "groupEditWarning": "조 편성이 수동으로 변경되었습니다. 대진표를 다시 생성해야 변경 사항이 반영됩니다.", "moveGroupAriaLabel": "{{name}} 조 이동", "needMoreTeams": "팀이 2개 이상 필요합니다.", "needMorePlayers": "참가 선수가 2명 이상 필요합니다.", "bulkRefereeTitle": "일괄 심판 배정", "bulkRefereeDescription": "심판을 선택하면 배정되지 않은 모든 경기에 순서대로 배정됩니다.", "bulkRefereeAutoAssign": "자동 배정 (라운드로빈)", "bulkRefereeAutoAssignAriaLabel": "심판 자동 배정 (라운드로빈)", "bulkRefereeAlert": "{{count}}경기에 심판이 배정되었습니다.", "finalsTitle": "본선 대진 생성", "finalsNoQualifying": "먼저 조별 예선 대진을 생성하세요.", "finalsProgress": "예선 진행: {{completed}}/{{total}}경기 완료 | 조당 {{advancePerGroup}}명 진출 (총 {{totalAdvance}}명) | 본선 {{matchCount}}경기", "groupRankTitle": "조별 순위 현황", "rankSuffix": "위", "advanceLabel": "진출", "createFinalsSlots": "본선 {{count}}경기 슬롯 생성 (이후 수동 편성)", "createFinalsSlotsAriaLabel": "본선 대진 슬롯 생성", "createFinalsSlotsHint": "슬롯 생성 후 각 경기에 조/순위별 선수를 직접 배정할 수 있습니다.", "undecided": "미정", "finalsArrangement": "본선 대진 편성", "crossArrangement": "교차 편성", "crossArrangementAriaLabel": "교차 편성", "sequentialArrangement": "순차 편성", "sequentialArrangementAriaLabel": "순차 편성", "manualArrangementHint": "각 경기에서 조와 순위를 직접 선택하여 수동으로 대진을 편성하세요.", "arrangementSelectHint": "각 경기에서 조와 순위를 직접 선택하여 편성할 수 있습니다.", "matchNumber": "경기{{num}}", "inProgressCannotChange": "진행중/완료 경기는 변경 불가", "finalsArranged": "본선 대진이 변경되었습니다.", "noBracket": "생성된 대진표가 없습니다.", "manualAddHint": "상단 \"경기 추가\" 버튼으로 경기를 하나씩 등록하세요.", "orderUpAriaLabel": "순서 위로", "orderDownAriaLabel": "순서 아래로", "editMatchAriaLabel": "경기 수정", "editMatchButton": "수정", "deleteMatchAriaLabel": "경기 삭제", "walkoverBadge": "부전승", "refereeLabel": "심판", "refereeUnassigned": "미배정", "assistantRefereeLabel": "부심", "assistantRefereeNone": "없음", "courtLabel": "경기장", "courtUnassigned": "미배정", "deleteMatchConfirm": "이 경기를 삭제하시겠습니까?", "editMatchModalTitle": "경기 수정", "cancelAriaLabel": "취소", "cancelButton": "취소", "saveAriaLabel": "저장", "saveButton": "저장", "qualifyingStageName": "조별 예선", "finalsStageName": "본선 토너먼트", "groupSelectPlaceholder": "조 선택", "rankSelectPlaceholder": "순위 선택", "cannotEditWhileActive": "진행 중인 경기가 있어 대진표를 수정할 수 없습니다.", "confirmBracket": "대진표를 확정하고 대회를 시작하시겠습니까?", "confirmBracketAriaLabel": "대진표 확정 및 대회 시작", "confirmBracketButton": "대진표 확정", "confirmBracketUpdate": "대진표 변경사항을 확정하시겠습니까?", "bracketConfirmed": "대진표가 확정되었습니다.", "duplicateBlocked": "중복된 대진이 {{skipped}}건 발견되었습니다. 대진 생성이 취소되었습니다.", "matchCountExceeded": "설정된 최대 경기 수({{max}}경기)를 초과합니다.\n현재 {{current}}경기 + 새로 {{newCount}}경기 = {{total}}경기\n대진 생성이 취소되었습니다.", "addMatchDuplicate": "이미 동일한 대진이 존재합니다. 경기를 추가할 수 없습니다.", "allDuplicate": "모든 대진이 이미 생성되어 있습니다.", "finalsDuplicateBlocked": "이미 본선 대진이 {{count}}건 생성되어 있습니다. 중복 생성이 불가합니다." },
+      "scheduleTab": { "title": "스케줄 설정", "dateLabel": "날짜", "yearSuffix": "년", "monthSuffix": "월", "daySuffix": "일", "todayButton": "오늘", "startTimeLabel": "시작 시간", "hourSuffix": "시", "minuteSuffix": "분", "intervalLabel": "경기 간격 (분)", "endTimeLabel": "마감 시간", "restIntervalLabel": "선수 휴식 시간 (분)", "nextDayStartLabel": "다음날 시작 시간", "onlyUnassigned": "미배정 경기만 배정 (기존 스케줄 유지)", "generateButton": "스케줄 자동 배정", "generating": "배정 중...", "noCourts": "경기장을 먼저 등록해주세요.", "scheduleGridTitle": "스케줄 표", "dateUnspecified": "날짜 미지정", "dateColumnHeader": "날짜", "timeColumnHeader": "시간", "individualScheduleTitle": "개별 경기 스케줄", "resetScheduleButton": "스케줄 초기화", "resetting": "초기화 중...", "resetConfirm": "모든 경기의 스케줄(날짜, 시간)을 초기화하시겠습니까?", "unassignedLabel": "미배정", "scheduleDateLabel": "날짜", "scheduleTimeLabel": "시간", "courtLabel": "경기장", "courtUnassigned": "미배정", "saveButton": "저장", "savingButton": "저장 중...", "completedNoEdit": "스케줄 변경 불가", "conflictWarning": "동일 시간 중복 배정", "breakStartLabel": "휴식 시작 (예: 점심)", "breakStartAriaLabel": "휴식 시작 시간", "breakEndLabel": "휴식 종료", "breakEndAriaLabel": "휴식 종료 시간", "breakPeriod": "⏸ {{start}}~{{end}} 경기 없음", "scheduleAdjustTitle": "스케줄 조정", "timeShiftTitle": "⏱ 시간 일괄 이동", "shiftMinutesLabel": "이동 시간 (분)", "shiftMinutesAriaLabel": "이동할 분", "courtFilterLabel": "코트 (전체면 비움)", "courtFilterAriaLabel": "대상 코트", "allCourts": "전체 코트", "shiftConfirm": "{{count}}경기를 {{minutes}}분 이동하시겠습니까?", "shiftCompleteForward": "{{count}}경기 {{minutes}}분 뒤로 이동 완료", "shiftCompleteBackward": "{{count}}경기 {{minutes}}분 앞으로 이동 완료", "shiftForward": "{{minutes}}분 뒤로 →", "shiftBackward": "{{minutes}}분 앞으로 ←", "shiftAriaLabel": "{{minutes}}분 이동", "courtMoveTitle": "🔄 코트 이동", "fromCourtLabel": "출발 코트", "fromCourtAriaLabel": "출발 코트", "toCourtLabel": "도착 코트", "toCourtAriaLabel": "도착 코트", "selectOption": "선택", "noMatchesToMove": "이동할 경기가 없습니다.", "courtMoveConfirm": "{{count}}경기를 {{court}}으로 이동하시겠습니까?", "courtMoveComplete": "{{count}}경기 코트 이동 완료", "courtMoveAriaLabel": "코트 이동 실행", "courtMoveButton": "이동 실행" },
       "statusTab": { "tournamentStatus": "대회 상태:", "statusDraft": "초안", "statusRegistration": "접수중", "statusInProgress": "진행중", "statusPaused": "일시정지", "statusCompleted": "완료", "startTournament": "대회 시작", "pauseTournament": "일시정지", "resumeTournament": "재개", "completeTournament": "대회 완료", "stageManagement": "대회 단계 관리", "matchesComplete": "경기 완료", "qualifyingDone": "예선 완료 - 본선 진출자가 결정되었습니다", "createFinalsBracket": "본선 대진표 생성", "finalsDone": "본선 완료", "filterAll": "전체 ({{count}})", "filterPending": "대기 ({{count}})", "filterInProgress": "진행중 ({{count}})", "filterCompleted": "완료 ({{count}})", "noMatches": "표시할 경기가 없습니다.", "walkoverBadge": "부전승", "walkoverButton": "부전승", "walkoverReason": "부전승 사유: {{reason}}", "scoreCorrection": "점수 수정", "advanceToFinalsAlert": "본선 대진표 생성 완료! {{count}}경기가 생성되었습니다.", "scoreCorrected": "점수가 수정되었습니다.", "scoreCorrectionError": "점수 수정 중 오류가 발생했습니다.", "walkoverProcessed": "부전승 처리가 완료되었습니다.", "walkoverError": "부전승 처리 중 오류가 발생했습니다." },
       "correctionModal": { "title": "점수 수정", "closeAriaLabel": "닫기", "autoWinnerLabel": "자동 계산 승자: ", "undecided": "미정 (세트 승수 부족)", "reasonLabel": "수정 사유 (필수)", "reasonPlaceholder": "예: 심판 기록 오류 수정", "savingButton": "저장 중...", "saveButton": "저장", "cancelButton": "취소" },
       "walkoverModal": { "title": "부전승 처리", "closeAriaLabel": "닫기", "selectWinner": "승자 선택", "player1Default": "선수1", "player2Default": "선수2", "team1Default": "팀1", "team2Default": "팀2", "winnerButton": "{{name}} 승", "reasonLabel": "사유 (필수)", "reasonPlaceholder": "예: 기권, 부상, 노쇼", "processing": "처리 중...", "confirmButton": "확인", "cancelButton": "취소" },
@@ -982,7 +1056,18 @@
       "timeoutDurationInfo": "{{duration}} | {{remaining}}",
       "timeoutUnlimited": "제한없음",
       "timeoutRefereeAriaLabel": "레프리 타임아웃 (제한없음)",
-      "penaltyAriaLabel": "{{name}} {{action}}. 1회 경고, 2회 {{opponent}} +2점"
+      "penaltyAriaLabel": "{{name}} {{action}}. 1회 경고, 2회 {{opponent}} +2점",
+      "conflictError": "데이터 충돌 - 새로고침됨",
+      "whistleServeAriaLabel": "서브 및 1점 실점 휘슬",
+      "whistleServeButton": "서브/1점",
+      "whistleGoalAriaLabel": "골 득점 휘슬",
+      "whistleGoalButton": "골 휘슬",
+      "whistleEndAriaLabel": "타임아웃 및 경기 종료 휘슬",
+      "whistleEndButton": "종료/타임아웃",
+      "penaltySection": "벌점 (테이블푸싱/전자기기/말하기/고글터치)",
+      "gogglesTouchHint": "고글 터치 — 즉시 상대 +2점",
+      "gogglesTouchButton": "{{name}} 고글 터치",
+      "gogglesTouchAriaLabel": "{{name}} 고글 터치 — {{opponent}}에게 2점"
     },
 
     "practice": {
@@ -1404,7 +1489,9 @@
         "googleLogin": "Google로 로그인",
         "linked": "기기 간 자동 동기화 활성화됨",
         "logout": "로그아웃"
-      }
+      },
+      "bulkRemoveConfirm": "{{count}}명을 즐겨찾기에서 삭제하시겠습니까?",
+      "bulkRemove": "{{count}}명 삭제"
     },
 
     "notifications": {
