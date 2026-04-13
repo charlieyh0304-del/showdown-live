@@ -105,8 +105,10 @@ export function clearQueue(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-// Auto-flush when coming back online
-if (typeof window !== 'undefined') {
+// Auto-flush when coming back online (guarded to register only once)
+let onlineListenerRegistered = false;
+if (typeof window !== 'undefined' && !onlineListenerRegistered) {
+  onlineListenerRegistered = true;
   window.addEventListener('online', () => {
     // Small delay to let the network stabilize
     setTimeout(() => {

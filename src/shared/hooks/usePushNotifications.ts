@@ -41,7 +41,7 @@ async function syncSubscription(token: string, favorites: FavEntry[]) {
       try {
         const { remove: fbRemove } = await import('firebase/database');
         await fbRemove(ref(database, `pushSubscriptions/${prevKey}`));
-        console.log('[Push] Removed old subscription:', prevKey);
+        if (import.meta.env.DEV) console.log('[Push] Removed old subscription:', prevKey);
       } catch (e) {
         console.warn('[Push] Failed to remove old subscription:', e);
       }
@@ -56,7 +56,7 @@ async function syncSubscription(token: string, favorites: FavEntry[]) {
     platform: getPlatform(),
     updatedAt: Date.now(),
   });
-  console.log('[Push] Synced subscription to Firebase:', key, 'favorites:', favoriteIds.length, 'names:', favoriteNames);
+  if (import.meta.env.DEV) console.log('[Push] Synced subscription to Firebase:', key, 'favorites:', favoriteIds.length, 'names:', favoriteNames);
 }
 
 // 기존 firebase-messaging-sw.js 등록 정리
@@ -64,7 +64,7 @@ async function cleanupOldServiceWorkers() {
   const registrations = await navigator.serviceWorker.getRegistrations();
   for (const reg of registrations) {
     if (reg.active?.scriptURL?.includes('firebase-messaging-sw.js')) {
-      console.log('[Push] Unregistering old firebase-messaging-sw.js');
+      if (import.meta.env.DEV) console.log('[Push] Unregistering old firebase-messaging-sw.js');
       await reg.unregister();
     }
   }
@@ -90,7 +90,7 @@ async function registerAndGetToken(): Promise<string | null> {
     try {
       await deleteToken(messaging);
       localStorage.removeItem(TOKEN_KEY);
-      console.log('[Push] Deleted old token for SW migration');
+      if (import.meta.env.DEV) console.log('[Push] Deleted old token for SW migration');
     } catch (e) {
       console.warn('[Push] Token migration cleanup:', e);
     }

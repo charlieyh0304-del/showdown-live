@@ -172,7 +172,7 @@ export default function TeamMatchScoring() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onKeyDown={e => { if (e.key === 'Escape') { setShowSubstitution(false); setSubTeam(null); } }}>
             <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md space-y-4" role="dialog" aria-modal="true" aria-label={`${subTeamName} ${t('common.matchHistory.substitution')}`}>
               <h2 className="text-xl font-bold text-indigo-300 text-center">
-                🔄 {subTeamName} {t('common.matchHistory.substitution')}
+                <span aria-hidden="true">🔄 </span>{subTeamName} {t('common.matchHistory.substitution')}
               </h2>
 
               <div>
@@ -295,7 +295,7 @@ export default function TeamMatchScoring() {
       {goldenGoal.enabled && (
         goldenGoal.isActive ? (
           <div className="mx-4 mt-2 px-4 py-3 rounded-lg bg-red-700 text-white font-bold text-center" role="status" aria-live="assertive">
-            ⏱️ {t('referee.scoring.goldenGoalBanner')}
+            <span aria-hidden="true">⏱️ </span>{t('referee.scoring.goldenGoalBanner')}
           </div>
         ) : (
           <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-gray-800 text-cyan-300 font-mono text-center text-lg">

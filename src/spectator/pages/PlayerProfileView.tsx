@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useMatches, useTournament, usePlayers } from '@shared/hooks/useFirebase';
+import { useMatches, useTournament, useTournamentLocalPlayers } from '@shared/hooks/useFirebase';
 import { countSetWins } from '@shared/utils/scoring';
 import type { Match, TournamentStage } from '@shared/types';
 
@@ -12,7 +12,7 @@ export default function PlayerProfileView() {
   const { t } = useTranslation();
   const { tournament, loading: tLoading } = useTournament(tournamentId);
   const { matches, loading: mLoading } = useMatches(tournamentId);
-  const { players, loading: pLoading } = usePlayers();
+  const { players, loading: pLoading } = useTournamentLocalPlayers(tournamentId);
 
   const decodedName = decodeURIComponent(playerName || '');
 

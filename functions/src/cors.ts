@@ -5,13 +5,17 @@
  * 개발/에뮬레이터: localhost 포함
  */
 
-const PRODUCTION_ORIGINS = [
+const DEFAULT_PRODUCTION_ORIGINS = [
   "https://showdown-b5cc7.web.app",
   "https://showdown-b5cc7.firebaseapp.com",
   "https://showdown-staging.web.app",
   "https://showdown-staging.firebaseapp.com",
   "https://charlieyh0304-del.github.io",
 ];
+
+const PRODUCTION_ORIGINS: string[] = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : DEFAULT_PRODUCTION_ORIGINS;
 
 const DEV_ORIGINS = [
   "http://localhost:5173",

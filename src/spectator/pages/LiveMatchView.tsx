@@ -171,7 +171,7 @@ export default function LiveMatchView() {
 
       {match.goldenGoalActive && match.status === 'in_progress' && (
         <div className="card" style={{ background: '#b91c1c', color: 'white', textAlign: 'center', padding: '0.75rem', marginBottom: '0.75rem', fontWeight: 'bold' }} role="status">
-          ⏱️ {t('spectator.liveMatch.goldenGoalBanner')}
+          <span aria-hidden="true">⏱️ </span>{t('spectator.liveMatch.goldenGoalBanner')}
         </div>
       )}
 

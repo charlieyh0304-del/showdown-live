@@ -989,7 +989,7 @@ export default function PracticeScoring() {
       )}
       {rotationInfo && (
         <div className="bg-purple-900/70 px-4 py-2 text-center" role="alert">
-          <span className="text-purple-300 font-bold">🔄 {rotationInfo}</span>
+          <span className="text-purple-300 font-bold"><span aria-hidden="true">🔄 </span>{rotationInfo}</span>
         </div>
       )}
 
