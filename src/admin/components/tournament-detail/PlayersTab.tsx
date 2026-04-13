@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Player, Team, SeedEntry, Tournament } from '@shared/types';
 import { showWarning } from '@shared/utils/toast';
+import { showConfirm } from '@shared/utils/confirm';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -175,7 +176,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   }, [teams, newTeamName, newTeamMembers, addTournamentPlayer, setTeamsBulk]);
 
   const handleDeleteTeam = useCallback(async (teamId: string) => {
-    if (!confirm(t('admin.tournamentDetail.playersTabInline.deleteTeamConfirm'))) return;
+    if (!await showConfirm({ message: t('admin.tournamentDetail.playersTabInline.deleteTeamConfirm'), destructive: true })) return;
     await setTeamsBulk(teams.filter(t => t.id !== teamId));
   }, [teams, setTeamsBulk]);
 
@@ -373,7 +374,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                   className="btn btn-danger text-sm"
                   style={{ minHeight: '44px' }}
                   onClick={async () => {
-                    if (!confirm(t('admin.tournamentDetail.playersTabInline.bulkDeleteConfirm', { count: selectedPlayerIds.size }))) return;
+                    if (!await showConfirm({ message: t('admin.tournamentDetail.playersTabInline.bulkDeleteConfirm', { count: selectedPlayerIds.size }), destructive: true })) return;
                     for (const id of selectedPlayerIds) await deleteTournamentPlayer(id);
                     setSelectedPlayerIds(new Set());
                   }}

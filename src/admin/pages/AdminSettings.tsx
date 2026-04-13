@@ -4,6 +4,7 @@ import { ref, onValue, set, remove, push } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { hashPinWithSalt, generateSalt, verifyPin } from '@shared/utils/crypto';
 import { showWarning } from '@shared/utils/toast';
+import { showConfirm } from '@shared/utils/confirm';
 import { useAuth } from '@shared/hooks/useAuth';
 import { formatDate } from '@shared/utils/locale';
 import type { Admin } from '@shared/types';
@@ -201,7 +202,7 @@ export default function AdminSettings() {
       showWarning(t('admin.settings.cannotDeleteSelf'));
       return;
     }
-    if (!window.confirm(t('admin.settings.confirmDeleteAdmin', { name: admin.name }))) return;
+    if (!await showConfirm({ message: t('admin.settings.confirmDeleteAdmin', { name: admin.name }), destructive: true })) return;
     await remove(ref(database, `admins/${admin.id}`));
   }, [admins, session]);
 

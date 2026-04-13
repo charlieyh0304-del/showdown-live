@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import { loadSavedPracticeMatch, clearSavedPracticeMatch } from '../../hooks/usePracticeMatch';
+import { showConfirm } from '@shared/utils/confirm';
 import type { PracticeMatch } from '@shared/types';
 
 export default function PracticeHome() {
@@ -27,22 +28,22 @@ export default function PracticeHome() {
     navigate('/referee/practice/play?resume=true');
   };
 
-  const handleDiscardSaved = () => {
-    if (!confirm(t('referee.practice.home.deleteMatchConfirm'))) return;
+  const handleDiscardSaved = async () => {
+    if (!await showConfirm({ message: t('referee.practice.home.deleteMatchConfirm'), destructive: true })) return;
     clearSavedPracticeMatch();
     localStorage.removeItem('showdown_practice_live');
     setSavedMatch(null);
   };
 
-  const handleDeleteCompleted = (index: number) => {
-    if (!confirm(t('referee.practice.home.deleteMatchConfirm'))) return;
+  const handleDeleteCompleted = async (index: number) => {
+    if (!await showConfirm({ message: t('referee.practice.home.deleteMatchConfirm'), destructive: true })) return;
     const updated = completedMatches.filter((_, i) => i !== index);
     setCompletedMatches(updated);
     localStorage.setItem('showdown_practice_completed', JSON.stringify(updated));
   };
 
-  const handleDeleteAllCompleted = () => {
-    if (!confirm(t('referee.practice.home.deleteAllConfirm'))) return;
+  const handleDeleteAllCompleted = async () => {
+    if (!await showConfirm({ message: t('referee.practice.home.deleteAllConfirm'), destructive: true })) return;
     setCompletedMatches([]);
     localStorage.removeItem('showdown_practice_completed');
   };

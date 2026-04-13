@@ -31,6 +31,7 @@ import { useTimerAlerts } from './useTimerAlerts';
 import { useTimerSync } from './useTimerSync';
 import { useGoldenGoalAnnouncement } from './useGoldenGoalAnnouncement';
 import { useActiveMatchRecovery } from './useActiveMatchRecovery';
+import { showConfirm } from '@shared/utils/confirm';
 
 type PenaltyDropdownKey = 'player1' | 'player2' | null;
 
@@ -321,7 +322,7 @@ export function useIndividualScoring(
     const winnerName = winnerPlayer === 1 ? p1Name : p2Name;
     const loserName = winnerPlayer === 1 ? p2Name : p1Name;
 
-    if (!window.confirm(`${loserName} → ${winnerName} ${t('common.scoreActions.walkover')}?`)) return;
+    if (!await showConfirm({ message: `${loserName} → ${winnerName} ${t('common.scoreActions.walkover')}?` })) return;
 
     const reason = prompt(`${t('common.scoreActions.walkover')}`) || t('common.scoreActions.walkover');
 

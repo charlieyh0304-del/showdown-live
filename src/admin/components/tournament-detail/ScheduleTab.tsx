@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { calculateMatchCount } from '@shared/utils/tournament';
 import { showWarning, showSuccess } from '@shared/utils/toast';
+import { showConfirm } from '@shared/utils/confirm';
 import type { Match, MatchStatus, ScheduleSlot, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -179,7 +180,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
   }, [manualEdits, matches, schedule, updateMatch, updateScheduleSlot, checkPlayerTimeConflict]);
 
   const handleResetSchedule = useCallback(async () => {
-    if (!confirm(t('admin.tournamentDetail.scheduleTab.resetConfirm'))) return;
+    if (!await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.resetConfirm'), destructive: true })) return;
     setResettingSchedule(true);
     try {
       for (const match of matches) {
@@ -237,10 +238,10 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
     if (!onlyUnassigned) {
       const alreadyScheduled = matches.filter(m => m.scheduledDate && (m.status === 'pending' || m.status === 'in_progress'));
       if (alreadyScheduled.length > 0) {
-        const confirmed = confirm(t('admin.tournamentDetail.scheduleTab.overwriteConfirm', {
+        const confirmed = await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.overwriteConfirm', {
           count: alreadyScheduled.length,
           defaultValue: `이미 스케줄이 배정된 경기가 ${alreadyScheduled.length}건 있습니다.\n기존 스케줄을 덮어쓰시겠습니까?`,
-        }));
+        }) });
         if (!confirmed) return;
       }
     }
@@ -614,7 +615,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                 onClick={async () => {
                   const target = matches.filter(m => m.scheduledTime && (!shiftCourtId || m.courtId === shiftCourtId));
                   if (target.length === 0) return;
-                  if (!confirm(t('admin.tournamentDetail.scheduleTab.shiftConfirm', { count: target.length, minutes: shiftMinutes }))) return;
+                  if (!await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.shiftConfirm', { count: target.length, minutes: shiftMinutes }) })) return;
                   for (const m of target) {
                     const [h, min] = (m.scheduledTime || '00:00').split(':').map(Number);
                     let total = h * 60 + min + shiftMinutes;
@@ -663,7 +664,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                 const target = matches.filter(m => m.courtId === moveFromCourt);
                 if (target.length === 0) { showWarning(t('admin.tournamentDetail.scheduleTab.noMatchesToMove')); return; }
                 const toName = courts.find(c => c.id === moveToCourt)?.name || '';
-                if (!confirm(t('admin.tournamentDetail.scheduleTab.courtMoveConfirm', { count: target.length, court: toName }))) return;
+                if (!await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.courtMoveConfirm', { count: target.length, court: toName }) })) return;
                 for (const m of target) {
                   await updateMatch(m.id, { courtId: moveToCourt, courtName: toName });
                 }

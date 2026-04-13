@@ -6,6 +6,7 @@ import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { requestNotificationPermission, getNotificationPermissionStatus } from '@shared/utils/notifications';
 import { useNotificationSettings } from '@shared/hooks/useNotificationSettings';
 import { useNotificationHistory } from '@shared/hooks/useNotificationHistory';
+import { showConfirm } from '@shared/utils/confirm';
 export default function FavoritesView() {
   const { favorites, toggleFavorite, updateFavoriteName } = useFavorites();
   const { players, loading: pLoading } = usePlayers();
@@ -123,8 +124,8 @@ export default function FavoritesView() {
               <button
                 className="btn btn-danger"
                 style={{ fontSize: '0.875rem', minHeight: '44px' }}
-                onClick={() => {
-                  if (!confirm(t('spectator.favorites.bulkRemoveConfirm', { count: selectedIds.size }))) return;
+                onClick={async () => {
+                  if (!await showConfirm({ message: t('spectator.favorites.bulkRemoveConfirm', { count: selectedIds.size }), destructive: true })) return;
                   selectedIds.forEach(id => toggleFavorite(id));
                   setSelectedIds(new Set());
                 }}

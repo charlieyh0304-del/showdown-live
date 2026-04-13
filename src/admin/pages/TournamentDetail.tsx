@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { showWarning } from '@shared/utils/toast';
+import { showConfirm } from '@shared/utils/confirm';
 import {
   useTournament,
   useMatches,
@@ -116,7 +117,7 @@ export default function TournamentDetail() {
       t('admin.tournamentDetail.simulationConfirm.rulesKept'),
       t('admin.tournamentDetail.simulationConfirm.confirmContinue'),
     ];
-    if (!confirm(msgParts.join('\n'))) return;
+    if (!await showConfirm({ message: msgParts.join('\n') })) return;
 
     setSimulating(true);
     try {

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
 import { showWarning, showSuccess } from '@shared/utils/toast';
+import { showConfirm } from '@shared/utils/confirm';
 import { buildGroupAssignment, calculateMatchCount } from '@shared/utils/tournament';
 import type { Match, Team, Player, MatchStatus, StageGroup, Tournament } from '@shared/types';
 
@@ -413,7 +414,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
   }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, addMatch, expectedMatchCount.total, t]);
 
   const handleDeleteMatch = useCallback(async (matchId: string) => {
-    if (!confirm(t('admin.tournamentDetail.bracketTab.deleteMatchConfirm'))) return;
+    if (!await showConfirm({ message: t('admin.tournamentDetail.bracketTab.deleteMatchConfirm'), destructive: true })) return;
     await deleteMatch(matchId);
   }, [deleteMatch]);
 
@@ -528,7 +529,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                 const msg = tournament.status === 'in_progress' || tournament.status === 'paused'
                   ? t('admin.tournamentDetail.bracketTab.confirmBracketUpdate')
                   : t('admin.tournamentDetail.bracketTab.confirmBracket');
-                if (confirm(msg)) {
+                if (await showConfirm({ message: msg })) {
                   if (tournament.status !== 'in_progress') {
                     await updateTournament({ status: 'in_progress' });
                   }

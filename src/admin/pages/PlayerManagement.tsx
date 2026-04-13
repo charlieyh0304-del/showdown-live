@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePlayers } from '@shared/hooks/useFirebase';
+import { showConfirm } from '@shared/utils/confirm';
 import type { Player } from '@shared/types';
 
 interface PlayerForm {
@@ -137,7 +138,7 @@ export default function PlayerManagement() {
               className="btn btn-danger text-sm"
               style={{ minHeight: '44px' }}
               onClick={async () => {
-                if (!confirm(t('admin.players.bulkDeleteConfirm', { count: selectedIds.size }))) return;
+                if (!await showConfirm({ message: t('admin.players.bulkDeleteConfirm', { count: selectedIds.size }), destructive: true })) return;
                 for (const id of selectedIds) await deletePlayer(id);
                 setSelectedIds(new Set());
               }}
