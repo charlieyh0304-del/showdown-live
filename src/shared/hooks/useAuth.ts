@@ -8,8 +8,11 @@ const AUTH_KEY = 'showdown_auth';
 const LOGIN_TIMEOUT_MS = 15000;
 
 // 서버 사이드 PIN 검증 엔드포인트 (functions/src/handlers/auth.ts)
-const VERIFY_ADMIN_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/verifyAdminPin';
-const VERIFY_REFEREE_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/verifyRefereePin';
+// 프로젝트 ID 기반으로 자동 결정 — staging/production 자동 전환
+const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'showdown-b5cc7';
+const FUNCTIONS_BASE = `https://us-central1-${PROJECT_ID}.cloudfunctions.net`;
+const VERIFY_ADMIN_URL = `${FUNCTIONS_BASE}/verifyAdminPin`;
+const VERIFY_REFEREE_URL = `${FUNCTIONS_BASE}/verifyRefereePin`;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([

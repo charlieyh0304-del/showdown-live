@@ -6,7 +6,8 @@
     "test": "vitest run",
     "test:integration": "FIREBASE_DATABASE_EMULATOR_HOST=127.0.0.1:9000 vitest run src/integration/",
     "serve": "npm run build && firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "deploy:staging": "firebase deploy --only functions --project staging"
   },
   "engines": {
     "node": "22"

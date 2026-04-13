@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "preview": "vite preview",
+    "build:staging": "tsc -b && vite build --mode staging && cp dist/index.html dist/404.html",
     "deploy": "cross-env DEPLOY_TARGET=github npm run build && gh-pages -d dist",
+    "deploy:staging": "npm run build:staging && firebase deploy --only hosting --project staging",
     "test:e2e": "playwright test"
   },
   "dependencies": {

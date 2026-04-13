@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "showdown-b5cc7"
+    "default": "showdown-b5cc7",
+    "staging": "showdown-staging"
   }
 }

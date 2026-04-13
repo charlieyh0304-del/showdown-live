@@ -8,6 +8,8 @@
 const PRODUCTION_ORIGINS = [
   "https://showdown-b5cc7.web.app",
   "https://showdown-b5cc7.firebaseapp.com",
+  "https://showdown-staging.web.app",
+  "https://showdown-staging.firebaseapp.com",
   "https://charlieyh0304-del.github.io",
 ];
 
