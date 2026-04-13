@@ -99,9 +99,13 @@ export const verifyAdminPin = onRequest(
       // 1) admins 컬렉션 확인 (신규 다중 관리자 구조)
       const adminsSnap = await db.ref("admins").once("value");
       const admins = adminsSnap.exists()
-        ? (adminsSnap.val() as Record<string, { pin?: string }>)
+        ? (adminsSnap.val() as Record<string, { pin?: string; name?: string }>)
         : null;
       let adminId = findAdminByPin(admins, pin);
+      let adminName: string | null = null;
+      if (adminId && admins?.[adminId]?.name) {
+        adminName = admins[adminId].name!;
+      }
 
       // 2) 레거시 config/adminPin 확인
       if (!adminId) {
@@ -130,7 +134,7 @@ export const verifyAdminPin = onRequest(
       });
 
       logger.info("Admin login success", { adminId });
-      res.json({ customToken, adminId });
+      res.json({ customToken, adminId, adminName });
     } catch (err: unknown) {
       const e = err as { message?: string };
       logger.error("verifyAdminPin failed", { error: e.message });

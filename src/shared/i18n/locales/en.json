@@ -367,7 +367,8 @@
       "settings": "Settings",
       "playersManagement": "Player Management",
       "refereesManagement": "Referee Management",
-      "courtsManagement": "Court Management"
+      "courtsManagement": "Court Management",
+      "mainContent": "Admin main content"
     },
 
     "login": {
@@ -383,7 +384,8 @@
       "incorrectPin": "Incorrect PIN.",
       "tooManyAttempts": "Too many attempts. Please try again in {{seconds}} seconds.",
       "lockedMessage": "Incorrect PIN. Locked for {{seconds}} seconds due to too many attempts.",
-      "retryAfter": "You can try again in {{seconds}} seconds."
+      "retryAfter": "You can try again in {{seconds}} seconds.",
+      "successMessage": "Login successful. Navigating to admin dashboard."
     },
 
     "pinSetup": {

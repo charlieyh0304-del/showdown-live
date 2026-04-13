@@ -17,6 +17,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const { isAdmin, loginAdmin, logout } = useAuth();
   const adminPinExists = useAdminPinExists();
   const navigate = useNavigate();
+  const mainRef = useRef<HTMLElement>(null);
+  const prevIsAdmin = useRef(isAdmin);
+  const [loginAnnouncement, setLoginAnnouncement] = useState('');
+
+  // 로그인 성공 후 메인 콘텐츠로 초점 이동 + 스크린리더 알림
+  useEffect(() => {
+    if (isAdmin && !prevIsAdmin.current) {
+      setLoginAnnouncement(t('admin.login.successMessage'));
+      requestAnimationFrame(() => mainRef.current?.focus());
+    }
+    prevIsAdmin.current = isAdmin;
+  }, [isAdmin, t]);
 
   if (adminPinExists === null) {
     return (
@@ -36,6 +48,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {loginAnnouncement && (
+        <div role="status" aria-live="assertive" className="sr-only">
+          {loginAnnouncement}
+        </div>
+      )}
       <header role="banner">
         <nav className="flex items-center gap-2 p-4 border-b border-gray-700 flex-wrap" aria-label={t('admin.nav.label')}>
         <NavLink
@@ -87,7 +104,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </button>
         </nav>
       </header>
-      <main id="main-content" className="flex-1 p-4 w-full max-w-5xl mx-auto">
+      <main ref={mainRef} id="main-content" className="flex-1 p-4 w-full max-w-5xl mx-auto" tabIndex={-1} aria-label={t('admin.nav.mainContent')}>
         <ErrorBoundary>
           {children}
         </ErrorBoundary>

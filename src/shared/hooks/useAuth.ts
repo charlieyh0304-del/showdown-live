@@ -63,14 +63,8 @@ export function useAuth() {
       } catch {
         return false;
       }
-      // 관리자 이름은 admins/{id}/name 에서 읽기 (서버는 id만 반환)
-      let adminName = '관리자';
-      if (adminId !== 'legacy') {
-        try {
-          const nameSnap = await get(ref(database, `admins/${adminId}/name`));
-          if (nameSnap.exists()) adminName = String(nameSnap.val());
-        } catch { /* ignore */ }
-      }
+      // 서버가 adminName을 함께 반환 → 추가 DB 조회 불필요
+      const adminName = (data.adminName as string | null) ?? '관리자';
       saveSession({
         mode: 'admin',
         adminId: adminId === 'legacy' ? undefined : adminId,
