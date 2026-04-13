@@ -2,16 +2,21 @@
   "rules": {
     "config": {
       "adminPin": {
-        ".read": "auth != null",
+        ".read": "auth.token.role === 'admin'",
         ".write": "(auth != null && !data.exists()) || auth.token.role === 'admin'",
         ".validate": "newData.isString() && newData.val().length >= 10"
+      },
+      "adminExists": {
+        ".read": "auth != null",
+        ".write": "(auth != null && !data.exists()) || auth.token.role === 'admin'",
+        ".validate": "newData.isBoolean()"
       },
       "$other": {
         ".validate": false
       }
     },
     "admins": {
-      ".read": "auth != null",
+      ".read": "auth.token.role === 'admin'",
       "$adminId": {
         ".write": "(auth != null && !root.child('admins').exists() && !root.child('config/adminPin').exists()) || auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name', 'pin']) && newData.child('name').isString() && newData.child('pin').isString() && newData.child('pin').val().length >= 10"
@@ -64,7 +69,11 @@
       ".read": "auth != null",
       "$refereeId": {
         ".write": "auth.token.role === 'admin'",
-        ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()"
+        ".validate": "newData.hasChildren(['name']) && newData.child('name').isString()",
+        "pin": {
+          ".read": "auth.token.role === 'admin'",
+          ".validate": "newData.isString()"
+        }
       }
     },
     "courts": {

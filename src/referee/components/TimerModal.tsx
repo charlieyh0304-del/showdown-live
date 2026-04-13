@@ -34,12 +34,16 @@ export default function TimerModal({ title, seconds, isWarning, subtitle, onClos
         <h2 className="text-3xl font-bold text-yellow-400">{title}</h2>
         <div
           className={`text-8xl font-bold my-4 ${isWarning ? 'animate-pulse text-red-400' : 'text-white'}`}
+          role="timer"
+          aria-live="assertive"
+          aria-atomic="true"
+          aria-label={`${title} ${display}`}
         >
           {display}
         </div>
         {warningText && (
-          <div className="text-2xl font-bold text-red-400 animate-pulse">
-            ⚠️ {warningText}
+          <div className="text-2xl font-bold text-red-400 animate-pulse" role="alert">
+            <span aria-hidden="true">⚠️ </span>{warningText}
           </div>
         )}
         {subtitle && <p className="text-xl text-gray-300">{subtitle}</p>}

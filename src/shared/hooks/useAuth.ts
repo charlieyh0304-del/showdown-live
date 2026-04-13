@@ -122,11 +122,13 @@ export function useAdminPinExists() {
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      const adminsSnap = await get(ref(database, 'admins'));
-      if (!cancelled && adminsSnap.exists()) {
+      // config/adminExists는 공개 읽기 — PIN 해시 노출 없이 존재 여부만 확인
+      const existsSnap = await get(ref(database, 'config/adminExists'));
+      if (!cancelled && existsSnap.val() === true) {
         setExists(true);
         return;
       }
+      // 레거시 호환: config/adminPin 존재 여부 (해시 값은 DB 규칙으로 읽기 차단)
       const configSnap = await get(ref(database, 'config/adminPin'));
       if (!cancelled) setExists(!!configSnap.val());
     }

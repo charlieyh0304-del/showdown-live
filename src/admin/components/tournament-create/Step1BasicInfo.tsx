@@ -175,7 +175,7 @@ export default function Step1BasicInfo({
               key={preset.id}
               role="radio"
               aria-checked={state.presetId === preset.id}
-              aria-label={`${preset.name}${state.presetId === preset.id ? `, ${t('common.accessibility.selected')}` : ''}`}
+              aria-label={`${t(preset.description)}${state.presetId === preset.id ? `, ${t('common.accessibility.selected')}` : ''}`}
               className={`card w-full text-left p-4 border-2 ${state.presetId === preset.id ? 'border-yellow-400 bg-gray-800' : 'border-transparent hover:border-gray-600'}`}
               onClick={() => {
                 const errors = validateStep(1);
@@ -190,8 +190,8 @@ export default function Step1BasicInfo({
                 dispatch({ type: 'GO_TO_STEP', step: 2 });
               }}
             >
-              <h3 className="text-lg font-bold">{preset.name}</h3>
-              <p className="text-gray-400 text-sm">{preset.description}</p>
+              <h3 className="text-lg font-bold">{t(preset.name)}</h3>
+              <p className="text-gray-400 text-sm">{t(preset.description)}</p>
             </button>
           ))}
           <button

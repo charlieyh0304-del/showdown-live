@@ -184,6 +184,7 @@ export default function AdminSettings() {
     };
 
     await push(ref(database, 'admins'), newAdmin);
+    await set(ref(database, 'config/adminExists'), true);
 
     setAddSuccess(t('admin.settings.adminAdded', { name: newAdminName.trim() }));
     setNewAdminName('');

@@ -97,7 +97,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     const qualifyingEntries = Array.from(qualifyingGroups.entries()).sort(([a], [b]) => a.localeCompare(b));
 
     // Sub-group finals by roundLabel
-    const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
+    const roundOrder = [t('admin.tournamentDetail.statusTab.round128'), t('admin.tournamentDetail.statusTab.round64'), t('admin.tournamentDetail.statusTab.round32'), t('admin.tournamentDetail.statusTab.round16'), t('admin.tournamentDetail.statusTab.quarterFinal'), t('admin.tournamentDetail.statusTab.semiFinal'), t('admin.tournamentDetail.statusTab.final')];
     const finalsMap = new Map<string, Match[]>();
     finals.forEach(m => {
       const label = m.roundLabel || `R${m.round}`;
@@ -116,7 +116,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     // Sub-group ranking by roundLabel
     const rankingMap = new Map<string, Match[]>();
     ranking.forEach(m => {
-      const label = m.roundLabel || '순위 결정전';
+      const label = m.roundLabel || t('admin.tournamentDetail.statusTab.rankingMatch');
       if (!rankingMap.has(label)) rankingMap.set(label, []);
       rankingMap.get(label)!.push(m);
     });
@@ -128,18 +128,18 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     const isFullLeagueFormat = tournament.format === 'full_league' || tournament.formatType === 'round_robin';
     qualifyingEntries.forEach(([gid, gMatches]) => {
       const label = isFullLeagueFormat
-        ? (gid === 'default' || gid === 'full_league' ? '리그' : `${gid}`)
-        : (gid === 'default' ? '예선' : `${gid} 예선`);
+        ? (gid === 'default' || gid === 'full_league' ? t('admin.tournamentDetail.statusTab.league') : `${gid}`)
+        : (gid === 'default' ? t('admin.tournamentDetail.statusTab.qualifying') : `${gid} ${t('admin.tournamentDetail.statusTab.qualifying')}`);
       sections.push({ heading: label, matches: gMatches });
     });
     finalsEntries.forEach(([roundLabel, rMatches]) => {
-      sections.push({ heading: `본선 — ${roundLabel}`, matches: rMatches });
+      sections.push({ heading: `${t('admin.tournamentDetail.statusTab.finals')} — ${roundLabel}`, matches: rMatches });
     });
     rankingEntries.forEach(([roundLabel, rMatches]) => {
-      sections.push({ heading: `순위 결정전 — ${roundLabel}`, matches: rMatches });
+      sections.push({ heading: `${t('admin.tournamentDetail.statusTab.rankingMatch')} — ${roundLabel}`, matches: rMatches });
     });
     if (other.length > 0) {
-      sections.push({ heading: '기타', matches: other });
+      sections.push({ heading: t('admin.tournamentDetail.statusTab.other'), matches: other });
     }
 
     return sections;

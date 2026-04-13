@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useAdminPinExists } from '@shared/hooks/useAuth';
 import { hashPinWithSalt, generateSalt, createRateLimiter } from '@shared/utils/crypto';
-import { ref, set } from 'firebase/database';
+import { ref, set, update } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
 import AiChatPanel from './AiChatPanel';
@@ -142,7 +142,7 @@ function AdminPinSetup() {
       // PBKDF2 + salt (100k iterations). 기존 SHA-256 해시는 verifyPin에서 자동 호환.
       const salt = generateSalt();
       const hashed = await hashPinWithSalt(pin, salt);
-      await set(ref(database, 'config/adminPin'), hashed);
+      await update(ref(database, 'config'), { adminPin: hashed, adminExists: true });
     } catch {
       setError(t('common.error.saveFailed'));
     } finally {

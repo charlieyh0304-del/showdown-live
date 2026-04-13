@@ -2,8 +2,10 @@ import type { TournamentType, BracketFormatType, ScoringRules, MatchRules, TeamR
 
 export interface TournamentPreset {
   id: string;
-  name: string;
-  description: string;
+  /** i18n key for name (under common.presets) */
+  nameKey: string;
+  /** i18n key for description */
+  descriptionKey: string;
   type: TournamentType;
   scoringRules: ScoringRules;
   matchRules: MatchRules;
@@ -14,8 +16,8 @@ export interface TournamentPreset {
 export const TOURNAMENT_PRESETS: TournamentPreset[] = [
   {
     id: 'ibsa_individual',
-    name: 'IBSA 공식 개인전',
-    description: '11점 | 2세트 선승 | 최대 3세트 | 2점차',
+    nameKey: 'common.presets.ibsaIndividual.name',
+    descriptionKey: 'common.presets.ibsaIndividual.description',
     type: 'individual',
     scoringRules: { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2, deuceEnabled: true },
     matchRules: { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 },
@@ -23,8 +25,8 @@ export const TOURNAMENT_PRESETS: TournamentPreset[] = [
   },
   {
     id: 'ibsa_team',
-    name: 'IBSA 공식 팀전',
-    description: '31점 | 1세트 | 2점차 | 팀 3명',
+    nameKey: 'common.presets.ibsaTeam.name',
+    descriptionKey: 'common.presets.ibsaTeam.description',
     type: 'team',
     scoringRules: { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2, deuceEnabled: true },
     matchRules: { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 },
@@ -33,20 +35,28 @@ export const TOURNAMENT_PRESETS: TournamentPreset[] = [
   },
 ];
 
-export const FORMAT_OPTIONS: { value: BracketFormatType; label: string; description: string }[] = [
-  { value: 'round_robin', label: '풀리그 (라운드로빈)', description: '모든 참가자가 서로 한 번씩 대결' },
-  { value: 'single_elimination', label: '싱글 엘리미네이션', description: '한 번 지면 탈락하는 토너먼트' },
-  { value: 'double_elimination', label: '더블 엘리미네이션', description: '두 번 지면 탈락 (패자부활전)' },
-  { value: 'swiss', label: '스위스 시스템', description: '비슷한 성적의 상대끼리 매칭' },
-  { value: 'group_knockout', label: '조별리그 + 토너먼트', description: '조별 예선 후 결선 토너먼트' },
+export interface FormatOption {
+  value: BracketFormatType;
+  /** i18n key for label */
+  labelKey: string;
+  /** i18n key for description */
+  descriptionKey: string;
+}
+
+export const FORMAT_OPTIONS: FormatOption[] = [
+  { value: 'round_robin', labelKey: 'common.formats.roundRobin.label', descriptionKey: 'common.formats.roundRobin.description' },
+  { value: 'single_elimination', labelKey: 'common.formats.singleElimination.label', descriptionKey: 'common.formats.singleElimination.description' },
+  { value: 'double_elimination', labelKey: 'common.formats.doubleElimination.label', descriptionKey: 'common.formats.doubleElimination.description' },
+  { value: 'swiss', labelKey: 'common.formats.swiss.label', descriptionKey: 'common.formats.swiss.description' },
+  { value: 'group_knockout', labelKey: 'common.formats.groupKnockout.label', descriptionKey: 'common.formats.groupKnockout.description' },
 ];
 
 // ===== 멀티스테이지 위자드 프리셋 =====
 export const WIZARD_PRESETS: WizardPreset[] = [
   {
     id: 'ibsa_individual',
-    name: 'IBSA 공식 개인전',
-    description: '11점 | 2세트 선승 | 풀리그',
+    name: 'common.presets.ibsaIndividual.name',
+    description: 'common.presets.ibsaIndividual.wizardDescription',
     type: 'individual',
     scoringRules: { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2, deuceEnabled: true },
     matchRules: { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 },
@@ -54,8 +64,8 @@ export const WIZARD_PRESETS: WizardPreset[] = [
   },
   {
     id: 'ibsa_team',
-    name: 'IBSA 공식 팀전',
-    description: '31점 | 1세트 | 풀리그 | 팀 3명',
+    name: 'common.presets.ibsaTeam.name',
+    description: 'common.presets.ibsaTeam.wizardDescription',
     type: 'team',
     scoringRules: { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2, deuceEnabled: true },
     matchRules: { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 },

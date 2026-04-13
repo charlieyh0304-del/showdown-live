@@ -1076,7 +1076,7 @@ export default function PracticeScoring() {
       <div className="flex border-b border-gray-700" aria-live="polite">
         <div className="flex-1 flex flex-col items-center py-3 px-2 border-r border-gray-700" style={match.currentServe === 'player1' ? { borderLeft: '3px solid rgba(234,179,8,0.4)' } : undefined}>
           <h2 className="text-lg font-bold text-yellow-400">
-            {match.currentServe === 'player1' && '🎾 '}{p1Name}
+            {match.currentServe === 'player1' && <span aria-hidden="true">🎾 </span>}{p1Name}
           </h2>
           {match.player1Coach && <span className="text-xs text-gray-500">{match.player1Coach}</span>}
           <div key={`p1-${scoreFlash}`} className="text-7xl font-bold my-1 text-yellow-400" style={{ animation: 'scoreFlash 0.3s ease-out' }}>
@@ -1090,7 +1090,7 @@ export default function PracticeScoring() {
         </div>
         <div className="flex-1 flex flex-col items-center py-3 px-2" style={match.currentServe === 'player2' ? { borderRight: '3px solid rgba(6,182,212,0.4)' } : undefined}>
           <h2 className="text-lg font-bold text-cyan-400">
-            {match.currentServe === 'player2' && '🎾 '}{p2Name}
+            {match.currentServe === 'player2' && <span aria-hidden="true">🎾 </span>}{p2Name}
           </h2>
           {match.player2Coach && <span className="text-xs text-gray-500">{match.player2Coach}</span>}
           <div key={`p2-${scoreFlash}`} className="text-7xl font-bold my-1 text-cyan-400" style={{ animation: 'scoreFlash 0.3s ease-out' }}>
