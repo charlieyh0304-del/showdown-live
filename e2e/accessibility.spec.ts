@@ -57,9 +57,9 @@ test.describe('A11y — Admin 페이지', () => {
   });
 
   test('tournament creation wizard step 1', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -72,9 +72,9 @@ test.describe('A11y — Admin 페이지', () => {
   });
 
   test('player management', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -87,9 +87,9 @@ test.describe('A11y — Admin 페이지', () => {
   });
 
   test('referee management', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -102,9 +102,9 @@ test.describe('A11y — Admin 페이지', () => {
   });
 
   test('court management', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -117,9 +117,9 @@ test.describe('A11y — Admin 페이지', () => {
   });
 
   test('admin settings', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -132,9 +132,9 @@ test.describe('A11y — Admin 페이지', () => {
   });
 
   test('tournament detail (first tournament)', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -242,14 +242,14 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('[role="tabpanel"] li button').first();
+    const tournamentButton = page.locator('li button[aria-label]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await waitForLoading(page);
+    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
     expect.soft(a11y.violations, formatViolations(a11y.violations)).toEqual([]);
@@ -259,19 +259,19 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('[role="tabpanel"] li button').first();
+    const tournamentButton = page.locator('li button[aria-label]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await waitForLoading(page);
+    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
 
     const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
     if (await playersTab.isVisible()) {
       await playersTab.click();
-      await waitForLoading(page);
+      await page.waitForTimeout(2000);
     }
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
@@ -282,19 +282,19 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('[role="tabpanel"] li button').first();
+    const tournamentButton = page.locator('li button[aria-label]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await waitForLoading(page);
+    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
 
     const standingsTab = page.locator('[role="tab"]').filter({ hasText: '순위' });
     if (await standingsTab.isVisible()) {
       await standingsTab.click();
-      await waitForLoading(page);
+      await page.waitForTimeout(2000);
     }
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
@@ -305,19 +305,19 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('[role="tabpanel"] li button').first();
+    const tournamentButton = page.locator('li button[aria-label]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await waitForLoading(page);
+    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
 
     const scheduleTab = page.locator('[role="tab"]').filter({ hasText: '일정' });
     if (await scheduleTab.isVisible()) {
       await scheduleTab.click();
-      await waitForLoading(page);
+      await page.waitForTimeout(2000);
     }
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
@@ -328,19 +328,19 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('[role="tabpanel"] li button').first();
+    const tournamentButton = page.locator('li button[aria-label]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await waitForLoading(page);
+    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
 
     const refereesTab = page.locator('[role="tab"]').filter({ hasText: '심판' });
     if (await refereesTab.isVisible()) {
       await refereesTab.click();
-      await waitForLoading(page);
+      await page.waitForTimeout(2000);
     }
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();

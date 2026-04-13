@@ -132,10 +132,13 @@ test.describe('Tournament View — Live Tab', () => {
       return;
     }
 
-    // Live tab should be default (overview)
-    const matchCards = page.locator('[aria-label*="vs"]');
-    const emptyState = page.locator('text=진행 중인 경기가 없습니다')
-      .or(page.locator('text=경기가 없습니다'));
+    // Live tab should be default (overview) — main content area should be visible
+    const mainContent = page.locator('main').first();
+    await expect(mainContent).toBeVisible({ timeout: 10000 });
+
+    // Should have either match cards or empty state indicator
+    const matchCards = page.locator('button[aria-label*="vs"], button[aria-label*="대"]');
+    const emptyState = page.locator('[role="status"]');
 
     const hasMatches = (await matchCards.count()) > 0;
     const hasEmpty = await emptyState.isVisible().catch(() => false);

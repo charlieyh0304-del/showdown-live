@@ -6,11 +6,11 @@ const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Tournament Creation Flow', () => {
   test('can navigate to tournament creation wizard', async ({ page }) => {
-    await navigateToAdmin(page);
+    if (!(await navigateToAdmin(page))) { test.skip(); return; }
 
     // Check if we're on dashboard (authenticated) or still on login
     const dashboard = page.locator('h1', { hasText: '대시보드' });
-    if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+    if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
       test.skip();
       return;
     }

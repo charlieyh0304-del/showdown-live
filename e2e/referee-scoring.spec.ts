@@ -67,13 +67,13 @@ test.describe('Referee Scoring Flow', () => {
     // Only proceed if there are tournaments
     if (await tournamentButton.isVisible()) {
       await tournamentButton.click();
-      await waitForLoading(page);
+      await page.waitForTimeout(3000);
 
       // Should show referee selection step
-      await expect(page.locator('text=심판 선택')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('h2', { hasText: '심판 선택' })).toBeVisible({ timeout: 15000 });
 
       // Should have a back button
-      await expect(page.locator('[aria-label="뒤로가기"]')).toBeVisible();
+      await expect(page.locator('button', { hasText: '뒤로' })).toBeVisible();
     }
   });
 
@@ -92,7 +92,7 @@ test.describe('Referee Scoring Flow', () => {
     }
 
     await tournamentButton.click();
-    await waitForLoading(page);
+    await page.waitForTimeout(3000);
 
     // Select referee if available
     const refereeButton = page.locator('button.btn-secondary').first();
@@ -105,7 +105,7 @@ test.describe('Referee Scoring Flow', () => {
     }
 
     await refereeButton.click();
-    await waitForLoading(page);
+    await page.waitForTimeout(2000);
 
     // Should show PIN entry
     await expect(page.locator('text=PIN 입력')).toBeVisible({ timeout: 5000 });

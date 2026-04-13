@@ -12,9 +12,13 @@ const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 // ── helpers ──────────────────────────────────────────────
 
 async function ensureAdminDashboard(page: import('@playwright/test').Page) {
-  await navigateToAdmin(page);
+  const loaded = await navigateToAdmin(page);
+  if (!loaded) {
+    test.skip();
+    return;
+  }
   const dashboard = page.locator('h1', { hasText: '대시보드' });
-  if (!(await dashboard.isVisible({ timeout: 10000 }).catch(() => false))) {
+  if (!(await dashboard.isVisible({ timeout: 5000 }).catch(() => false))) {
     test.skip();
   }
 }

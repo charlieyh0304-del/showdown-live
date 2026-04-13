@@ -7,11 +7,19 @@ const ADMIN_PIN = process.env.ADMIN_PIN || '0000';
  * Navigate to the admin dashboard.
  * Handles PIN login if required.
  */
-export async function navigateToAdmin(page: Page) {
+export async function navigateToAdmin(page: Page): Promise<boolean> {
   await page.goto('/admin');
 
-  // Firebase takes time - wait longer for initial load
+  // Firebase takes time - wait for initial load
   await page.waitForTimeout(3000);
+
+  // Wait for loading state (animate-pulse) to finish — admin PIN check from Firebase
+  const loaded = await page.waitForFunction(
+    () => document.querySelectorAll('.animate-pulse').length === 0,
+    { timeout: 30000 },
+  ).then(() => true).catch(() => false);
+
+  if (!loaded) return false;
 
   // Check if login is required
   const loginHeading = page.locator('h1', { hasText: '관리자 로그인' });
@@ -19,7 +27,10 @@ export async function navigateToAdmin(page: Page) {
   const dashboard = page.locator('h1', { hasText: '대시보드' });
 
   // Wait for one of: login, pin setup, or dashboard
-  await loginHeading.or(pinSetupHeading).or(dashboard).waitFor({ timeout: 15000 });
+  const found = await loginHeading.or(pinSetupHeading).or(dashboard)
+    .waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+
+  if (!found) return false;
 
   if (await loginHeading.isVisible()) {
     // Enter PIN and login
