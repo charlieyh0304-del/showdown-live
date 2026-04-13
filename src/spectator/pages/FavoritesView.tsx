@@ -311,7 +311,7 @@ export default function FavoritesView() {
               <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', margin: 0 }}>
                 {t('spectator.favorites.notifications.historyTitle')}
                 {unreadCount > 0 && (
-                  <span style={{ marginLeft: '0.5rem', backgroundColor: '#ef4444', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem', fontSize: '0.75rem', fontWeight: 'normal' }}>
+                  <span style={{ marginLeft: '0.5rem', backgroundColor: '#dc2626', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem', fontSize: '0.75rem', fontWeight: 'normal' }}>
                     {unreadCount}
                   </span>
                 )}

@@ -642,7 +642,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                   <span style={{
                     marginLeft: '0.5rem',
                     fontSize: '0.75rem',
-                    backgroundColor: '#16a34a',
+                    backgroundColor: '#15803d',
                     color: '#fff',
                     padding: '0.125rem 0.375rem',
                     borderRadius: '0.25rem',
@@ -918,7 +918,7 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 borderRadius: '0.25rem',
                 fontSize: '0.75rem',
                 fontWeight: 'bold',
-                backgroundColor: match.status === 'completed' ? '#16a34a' : match.status === 'in_progress' ? '#dc2626' : '#9ca3af',
+                backgroundColor: match.status === 'completed' ? '#15803d' : match.status === 'in_progress' ? '#b91c1c' : '#9ca3af',
                 color: '#fff',
                 marginLeft: '0.75rem',
               }}>

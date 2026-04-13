@@ -109,7 +109,7 @@ export default function RefereesTab({
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     {liveCount > 0 && (
-                      <span style={{ backgroundColor: '#ef4444', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                      <span style={{ backgroundColor: '#dc2626', color: '#fff', borderRadius: '9999px', padding: '0.125rem 0.5rem', fontSize: '0.75rem', fontWeight: 'bold' }}>
                         {t('spectator.tournament.referees.live')} {liveCount}
                       </span>
                     )}

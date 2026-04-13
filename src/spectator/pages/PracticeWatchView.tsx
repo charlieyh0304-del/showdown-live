@@ -131,7 +131,7 @@ export default function PracticeWatchView() {
                       aria-label={`${match.player1Name} vs ${match.player2Name} - ${t('spectator.practiceWatch.liveTag')}`}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <span style={{ backgroundColor: '#16a34a', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                        <span style={{ backgroundColor: '#15803d', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
                           {t('spectator.practiceWatch.liveTag')}
                         </span>
                         <span className="text-sm text-gray-300">{match.type === 'individual' ? t('spectator.practiceWatch.individualMatch') : t('spectator.practiceWatch.teamMatch')}</span>

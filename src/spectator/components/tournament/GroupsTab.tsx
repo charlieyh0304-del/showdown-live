@@ -128,7 +128,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                   <span style={{
                     marginLeft: '0.5rem',
                     fontSize: '0.75rem',
-                    backgroundColor: '#16a34a',
+                    backgroundColor: '#15803d',
                     color: '#fff',
                     padding: '0.125rem 0.375rem',
                     borderRadius: '0.25rem',

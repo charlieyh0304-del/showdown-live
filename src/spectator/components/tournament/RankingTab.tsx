@@ -166,7 +166,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                   <span style={{
                     marginLeft: '0.5rem',
                     fontSize: '0.75rem',
-                    backgroundColor: '#16a34a',
+                    backgroundColor: '#15803d',
                     color: '#fff',
                     padding: '0.125rem 0.375rem',
                     borderRadius: '0.25rem',
@@ -417,7 +417,7 @@ function TournamentResultsSummary({
           fontWeight: 'bold',
           padding: '0.25rem 0.625rem',
           borderRadius: '9999px',
-          backgroundColor: summary.isFinished ? '#16a34a' : '#d97706',
+          backgroundColor: summary.isFinished ? '#15803d' : '#b45309',
           color: '#fff',
         }}>
           {summary.isFinished ? t('common.matchStatus.completed') : t('common.matchStatus.inProgress')}
