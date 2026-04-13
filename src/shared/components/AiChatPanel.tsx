@@ -9,43 +9,49 @@ const SANITIZE_CONFIG = {
   ALLOWED_ATTR: ['class'],
 };
 
-const TOOL_LABELS: Record<string, string> = {
-  list_tournaments: '대회 조회', get_tournament: '대회 상세', list_players: '선수 조회',
-  list_matches: '경기 조회', list_courts: '코트 조회', list_referees: '심판 조회',
-  get_schedule: '스케줄 조회', create_tournament: '대회 생성', update_tournament: '대회 수정',
-  setup_full_tournament: '대회 구성', delete_tournament: '대회 삭제',
-  add_players_bulk: '선수 추가', delete_player: '선수 삭제',
-  add_match: '경기 추가', update_match: '경기 수정', delete_match: '경기 삭제',
-  generate_round_robin: '대진 생성', generate_finals: '본선 생성',
-  simulate_matches: '시뮬레이션', generate_schedule: '스케줄 생성',
-  shift_schedule: '스케줄 이동', move_matches_to_court: '코트 이동',
-  add_court: '코트 추가', add_referee: '심판 추가',
-};
+type TFunc = (key: string) => string;
 
-const ROLE_CONFIG: Record<ChatRole, { icon: string; title: string; placeholder: string; examples: string[] }> = {
-  admin: {
-    icon: '🤖', title: 'AI 어시스턴트',
-    placeholder: '대회 운영에 관해 무엇이든 물어보세요',
-    examples: ['대회 생성해줘', '오후 경기 30분 뒤로 밀어줘', '예선 시뮬레이션 돌려줘'],
-  },
-  referee: {
-    icon: '🏅', title: 'AI 심판 도우미',
-    placeholder: '경기 정보를 물어보세요',
-    examples: ['내 다음 배정 경기는?', '현재 진행 중인 경기 알려줘', '오늘 남은 경기 몇 개야?'],
-  },
-  spectator: {
-    icon: '📢', title: 'AI 관람 도우미',
-    placeholder: '선수나 경기 정보를 물어보세요',
-    examples: ['김민태 다음 경기 언제야?', 'A조 순위 알려줘', '오늘 결승 몇 시야?'],
-  },
-};
+function getToolLabels(t: TFunc): Record<string, string> {
+  return {
+    list_tournaments: t('aiChat.tools.listTournaments'), get_tournament: t('aiChat.tools.getTournament'), list_players: t('aiChat.tools.listPlayers'),
+    list_matches: t('aiChat.tools.listMatches'), list_courts: t('aiChat.tools.listCourts'), list_referees: t('aiChat.tools.listReferees'),
+    get_schedule: t('aiChat.tools.getSchedule'), create_tournament: t('aiChat.tools.createTournament'), update_tournament: t('aiChat.tools.updateTournament'),
+    setup_full_tournament: t('aiChat.tools.setupFullTournament'), delete_tournament: t('aiChat.tools.deleteTournament'),
+    add_players_bulk: t('aiChat.tools.addPlayersBulk'), delete_player: t('aiChat.tools.deletePlayer'),
+    add_match: t('aiChat.tools.addMatch'), update_match: t('aiChat.tools.updateMatch'), delete_match: t('aiChat.tools.deleteMatch'),
+    generate_round_robin: t('aiChat.tools.generateRoundRobin'), generate_finals: t('aiChat.tools.generateFinals'),
+    simulate_matches: t('aiChat.tools.simulateMatches'), generate_schedule: t('aiChat.tools.generateSchedule'),
+    shift_schedule: t('aiChat.tools.shiftSchedule'), move_matches_to_court: t('aiChat.tools.moveMatchesToCourt'),
+    add_court: t('aiChat.tools.addCourt'), add_referee: t('aiChat.tools.addReferee'),
+  };
+}
+
+function getRoleConfig(t: TFunc): Record<ChatRole, { icon: string; title: string; placeholder: string; examples: string[] }> {
+  return {
+    admin: {
+      icon: '🤖', title: t('aiChat.roles.admin.title'),
+      placeholder: t('aiChat.roles.admin.placeholder'),
+      examples: [t('aiChat.roles.admin.example1'), t('aiChat.roles.admin.example2'), t('aiChat.roles.admin.example3')],
+    },
+    referee: {
+      icon: '🏅', title: t('aiChat.roles.referee.title'),
+      placeholder: t('aiChat.roles.referee.placeholder'),
+      examples: [t('aiChat.roles.referee.example1'), t('aiChat.roles.referee.example2'), t('aiChat.roles.referee.example3')],
+    },
+    spectator: {
+      icon: '📢', title: t('aiChat.roles.spectator.title'),
+      placeholder: t('aiChat.roles.spectator.placeholder'),
+      examples: [t('aiChat.roles.spectator.example1'), t('aiChat.roles.spectator.example2'), t('aiChat.roles.spectator.example3')],
+    },
+  };
+}
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function ActionBadges({ actions }: { actions: ChatAction[] }) {
+function ActionBadges({ actions, toolLabels }: { actions: ChatAction[]; toolLabels: Record<string, string> }) {
   if (!actions || actions.length === 0) return null;
   const counts = new Map<string, number>();
   actions.forEach(a => counts.set(a.tool, (counts.get(a.tool) || 0) + 1));
@@ -55,7 +61,7 @@ function ActionBadges({ actions }: { actions: ChatAction[] }) {
         const isWrite = !tool.startsWith('list_') && !tool.startsWith('get_');
         return (
           <span key={tool} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${isWrite ? 'bg-green-900/60 text-green-300' : 'bg-gray-700/60 text-gray-400'}`}>
-            {isWrite ? '✓' : '🔍'} {TOOL_LABELS[tool] || tool}{count > 1 ? ` ×${count}` : ''}
+            {isWrite ? '✓' : '🔍'} {toolLabels[tool] || tool}{count > 1 ? ` ×${count}` : ''}
           </span>
         );
       })}
@@ -81,7 +87,7 @@ function simpleMarkdown(text: string): string {
     .replace(/\n/g, '<br/>');
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, toolLabels }: { msg: ChatMessage; toolLabels: Record<string, string> }) {
   const isUser = msg.role === 'user';
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -95,7 +101,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             : <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(simpleMarkdown(msg.content), SANITIZE_CONFIG) }} />
           }
         </div>
-        {!isUser && msg.actions && <ActionBadges actions={msg.actions} />}
+        {!isUser && msg.actions && <ActionBadges actions={msg.actions} toolLabels={toolLabels} />}
         <div className={`text-[10px] text-gray-500 mt-0.5 ${isUser ? 'text-right' : 'text-left'}`}>{formatTime(msg.timestamp)}</div>
       </div>
     </div>
@@ -115,7 +121,8 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const config = ROLE_CONFIG[userRole];
+  const config = getRoleConfig(t)[userRole];
+  const toolLabels = getToolLabels(t);
 
   useEffect(() => {
     // textarea에 포커스가 있으면 스크롤하지 않음 (스크린리더 가상커서 보호)
@@ -420,7 +427,7 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
             </div>
           </div>
         )}
-        {messages.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
+        {messages.map((msg, i) => <MessageBubble key={i} msg={msg} toolLabels={toolLabels} />)}
         {isLoading && (
           <div className="flex gap-2">
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm" aria-hidden="true">🤖</div>

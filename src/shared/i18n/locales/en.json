@@ -277,7 +277,36 @@
       "voiceResponseOn": "Voice response ON",
       "voiceResponseOff": "Voice response OFF",
       "voiceResponseOnAriaLabel": "Turn off voice response",
-      "voiceResponseOffAriaLabel": "Turn on voice response"
+      "voiceResponseOffAriaLabel": "Turn on voice response",
+      "tools": {
+        "listTournaments": "List tournaments", "getTournament": "Tournament details", "listPlayers": "List players",
+        "listMatches": "List matches", "listCourts": "List courts", "listReferees": "List referees",
+        "getSchedule": "Get schedule", "createTournament": "Create tournament", "updateTournament": "Update tournament",
+        "setupFullTournament": "Setup tournament", "deleteTournament": "Delete tournament",
+        "addPlayersBulk": "Add players", "deletePlayer": "Delete player",
+        "addMatch": "Add match", "updateMatch": "Update match", "deleteMatch": "Delete match",
+        "generateRoundRobin": "Generate round-robin", "generateFinals": "Generate finals",
+        "simulateMatches": "Simulate", "generateSchedule": "Generate schedule",
+        "shiftSchedule": "Shift schedule", "moveMatchesToCourt": "Move to court",
+        "addCourt": "Add court", "addReferee": "Add referee"
+      },
+      "roles": {
+        "admin": {
+          "title": "AI Assistant",
+          "placeholder": "Ask anything about tournament management",
+          "example1": "Create a tournament", "example2": "Shift afternoon matches by 30 min", "example3": "Run preliminary simulation"
+        },
+        "referee": {
+          "title": "AI Referee Assistant",
+          "placeholder": "Ask about match info",
+          "example1": "What's my next assigned match?", "example2": "Show matches in progress", "example3": "How many matches left today?"
+        },
+        "spectator": {
+          "title": "AI Spectator Assistant",
+          "placeholder": "Ask about players or matches",
+          "example1": "When is Kim's next match?", "example2": "Show Group A standings", "example3": "What time is the final today?"
+        }
+      }
     },
 
     "export": {
