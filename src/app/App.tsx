@@ -8,7 +8,7 @@ import LoadingSpinner from '@shared/components/LoadingSpinner';
 import AccessibilityMenu from '@shared/components/AccessibilityMenu';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
 import Toast from '@shared/components/Toast';
-import ConfirmDialog from '@shared/components/ConfirmDialog';
+import ConfirmDialog, { PromptDialog } from '@shared/components/ConfirmDialog';
 import { useRouteAnnouncer } from '@shared/hooks/useRouteAnnouncer';
 
 const AdminRoutes = lazy(() => import('../admin/AdminRoutes'));
@@ -77,6 +77,7 @@ function AppContent() {
       </div>
       <Toast />
       <ConfirmDialog />
+      <PromptDialog />
     </>
   );
 }

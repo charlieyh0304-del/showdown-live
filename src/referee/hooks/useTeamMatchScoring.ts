@@ -27,7 +27,7 @@ import { useTimerAlerts } from './useTimerAlerts';
 import { useTimerSync } from './useTimerSync';
 import { useGoldenGoalAnnouncement } from './useGoldenGoalAnnouncement';
 import { useActiveMatchRecovery } from './useActiveMatchRecovery';
-import { showConfirm } from '@shared/utils/confirm';
+import { showConfirm, showPrompt } from '@shared/utils/confirm';
 
 const DEFAULT_TEAM_CONFIG = {
   SETS_TO_WIN: 1,
@@ -276,7 +276,7 @@ export function useTeamMatchScoring(
 
     if (!await showConfirm({ message: `${loserName} → ${winnerName} ${t('common.scoreActions.walkover')}?` })) return;
 
-    const reason = prompt(t('common.scoreActions.walkover')) || t('common.scoreActions.walkover');
+    const reason = await showPrompt({ message: t('common.scoreActions.walkover'), placeholder: t('common.scoreActions.walkoverReasonPlaceholder') }) || t('common.scoreActions.walkover');
 
     const winnerId = winnerTeam === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
 

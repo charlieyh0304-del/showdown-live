@@ -170,6 +170,7 @@
       "penaltyElectronic": "전자기기 소리",
       "penaltyTalking": "경기 중 말하기",
       "walkover": "부전승",
+      "walkoverReasonPlaceholder": "예: 기권, 부상, 노쇼",
       "serveMiss": "서브 미스"
     },
 

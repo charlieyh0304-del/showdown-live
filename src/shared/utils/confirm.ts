@@ -28,3 +28,36 @@ export function showConfirm(options: ConfirmOptions): Promise<boolean> {
     listener!(options, resolve);
   });
 }
+
+// ===== Prompt (텍스트 입력) =====
+
+export interface PromptOptions {
+  message: string;
+  defaultValue?: string;
+  placeholder?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+}
+
+type PromptResolver = (value: string | null) => void;
+type PromptListener = (options: PromptOptions, resolve: PromptResolver) => void;
+
+let promptListener: PromptListener | null = null;
+
+export function onPrompt(cb: PromptListener): () => void {
+  promptListener = cb;
+  return () => { promptListener = null; };
+}
+
+/**
+ * window.prompt() 대체. PromptDialog가 마운트되어 있어야 동작.
+ * 마운트되지 않은 경우 fallback으로 window.prompt() 사용.
+ */
+export function showPrompt(options: PromptOptions): Promise<string | null> {
+  if (!promptListener) {
+    return Promise.resolve(typeof window !== 'undefined' ? window.prompt(options.message, options.defaultValue) : null);
+  }
+  return new Promise<string | null>((resolve) => {
+    promptListener!(options, resolve);
+  });
+}

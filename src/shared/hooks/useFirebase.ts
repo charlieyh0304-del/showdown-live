@@ -408,7 +408,15 @@ export function useMatches(tournamentId: string | null, limit?: number) {
   }, [tournamentId]);
 
   // Issue 5: Memoize stable match reference to avoid unnecessary re-renders
-  const stableMatches = useMemo(() => matches, [JSON.stringify(matches.map(m => m.id + ':' + m.status + ':' + m.updatedAt))]);
+  // 이전 키와 비교하여 실제 변경 시에만 새 참조 반환 (JSON.stringify 비용 제거)
+  const matchKeyRef = useRef('');
+  const stableMatchesRef = useRef(matches);
+  const matchKey = matches.map(m => m.id + ':' + m.status + ':' + (m.updatedAt ?? 0)).join('|');
+  if (matchKey !== matchKeyRef.current) {
+    matchKeyRef.current = matchKey;
+    stableMatchesRef.current = matches;
+  }
+  const stableMatches = stableMatchesRef.current;
 
   const addMatch = useCallback(async (match: Omit<Match, 'id'>) => {
     if (!tournamentId) return null;

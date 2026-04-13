@@ -27,6 +27,8 @@ import TimerModal from '../../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../../components/ActionToast';
 import FoulClassifyOverlay from '../../components/FoulClassifyOverlay';
+import PracticeCoinToss from '../../components/practice/PracticeCoinToss';
+import PracticeScoringPanel from '../../components/practice/PracticeScoringPanel';
 
 export default function PracticeScoring() {
   const { t } = useTranslation();
@@ -764,103 +766,22 @@ export default function PracticeScoring() {
   // ===== PENDING =====
   if (match.status === 'pending') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 p-4">
-        <h1 className="text-3xl font-bold text-center" style={{ color: '#c084fc' }}>{t('referee.practice.home.title')}</h1>
-        <div className="flex items-center justify-center gap-8 text-2xl">
-          <span className="text-yellow-400 font-bold">{p1Name}</span>
-          <span className="text-gray-400">vs</span>
-          <span className="text-cyan-400 font-bold">{p2Name}</span>
-        </div>
-        <p className="text-gray-400 text-center">
-          {matchType === 'team' ? t('referee.practice.scoring.rulesDisplayTeam') : t('referee.practice.scoring.rulesDisplay', { points: config.POINTS_TO_WIN, setsToWin: config.SETS_TO_WIN })}
-        </p>
-
-        {coinTossStep === 'toss' && (
-          <div className="card w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
-            <div className="flex gap-4">
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player1'); setCoinTossStep('choice'); }}>
-                {p1Name}
-              </button>
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player2'); setCoinTossStep('choice'); }}>
-                {p2Name}
-              </button>
-            </div>
-          </div>
-        )}
-        {coinTossStep === 'choice' && tossWinner && (
-          <div className="card w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-center">
-              {tossWinner === 'player1' ? p1Name : p2Name} !
-            </h2>
-            <p className="text-gray-400 text-center">{t('referee.scoring.serveChoice')} / {t('referee.scoring.receiveChoice')}</p>
-            <div className="flex gap-4">
-              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner); setCoinTossStep('court_change'); }} aria-label={`${tossWinner === 'player1' ? p1Name : p2Name} ${t('referee.scoring.serveChoice')}`}>
-                {t('referee.scoring.serveChoice')}
-              </button>
-              <button className="btn btn-accent btn-large flex-1 text-xl py-6" onClick={() => { setPendingFirstServe(tossWinner === 'player1' ? 'player2' : 'player1'); setCoinTossStep('court_change'); }} aria-label={`${tossWinner === 'player1' ? p1Name : p2Name} ${t('referee.scoring.receiveChoice')}`}>
-                {t('referee.scoring.receiveChoice')}
-              </button>
-            </div>
-            <div className="text-center">
-              <button className="text-sm text-gray-400 underline" onClick={() => { setCoinTossStep('toss'); setTossWinner(null); }} aria-label={t('referee.practice.scoring.coinTossBackAriaLabel')} style={{ minHeight: '44px' }}>
-                {t('common.back')}
-              </button>
-            </div>
-          </div>
-        )}
-        {coinTossStep === 'court_change' && tossWinner && (
-          <div className="card w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-center">{t('referee.scoring.courtChangeTitle')}</h2>
-            <p className="text-gray-400 text-center" aria-live="polite">
-              {t('referee.scoring.courtChangeQuestion', { loser: tossWinner === 'player1' ? p2Name : p1Name })}
-            </p>
-            <div className="flex gap-4" role="group" aria-label={t('referee.scoring.courtChangeAriaLabel')}>
-              <button
-                className="btn btn-primary btn-large flex-1 text-xl py-6"
-                onClick={() => { setCourtChangeByLoser(true); setCoinTossStep('warmup_ask'); }}
-                aria-label={`${tossWinner === 'player1' ? p2Name : p1Name}: ${t('referee.scoring.courtChangeYesButton')}`}
-              >
-                {t('referee.scoring.courtChangeYesButton')}
-              </button>
-              <button
-                className="btn bg-gray-700 text-white btn-large flex-1 text-xl py-6"
-                onClick={() => { setCourtChangeByLoser(false); setCoinTossStep('warmup_ask'); }}
-                aria-label={`${tossWinner === 'player1' ? p2Name : p1Name}: ${t('referee.scoring.courtChangeNoButton')}`}
-              >
-                {t('referee.scoring.courtChangeNoButton')}
-              </button>
-            </div>
-            <div className="text-center">
-              <button className="text-sm text-gray-400 underline" onClick={() => setCoinTossStep('choice')} aria-label={t('common.back')} style={{ minHeight: '44px' }}>
-                {t('common.back')}
-              </button>
-            </div>
-          </div>
-        )}
-        {coinTossStep === 'warmup_ask' && pendingFirstServe && (
-          <div className="card w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold text-center">{t('referee.scoring.warmupStart')}</h2>
-            <p className="text-gray-400 text-center">{t('referee.practice.scoring.coinTossWarmupAsk', { duration: matchType === 'team' ? `90${t('common.time.seconds')}` : `60${t('common.time.seconds')}` })}</p>
-            <div className="flex gap-4">
-              <button className="btn btn-success btn-large flex-1 text-xl py-6" onClick={() => {
-                handleStartPracticeMatch(pendingFirstServe, true);
-              }}>
-                {t('referee.scoring.warmupStart')}
-              </button>
-              <button className="btn btn-secondary btn-large flex-1 text-xl py-6" onClick={() => {
-                handleStartPracticeMatch(pendingFirstServe, false);
-              }}>
-                {t('referee.scoring.matchStartLabel')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="text-center">
-          <button className="btn btn-accent" onClick={() => navigate('/referee/practice/setup')}>{t('common.back')}</button>
-        </div>
-      </div>
+      <PracticeCoinToss
+        p1Name={p1Name}
+        p2Name={p2Name}
+        matchType={matchType}
+        config={config}
+        coinTossStep={coinTossStep}
+        tossWinner={tossWinner}
+        pendingFirstServe={pendingFirstServe}
+        onTossWinner={setTossWinner}
+        onCoinTossStep={setCoinTossStep}
+        onPendingFirstServe={setPendingFirstServe}
+        onCourtChange={setCourtChangeByLoser}
+        onStartMatch={handleStartPracticeMatch}
+        onBack={() => navigate('/referee/practice/setup')}
+        initAudio={initAudio}
+      />
     );
   }
 
@@ -1106,209 +1027,30 @@ export default function PracticeScoring() {
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
       {/* Scoring area */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {/* 단독 휘슬 버튼 - 최상단 */}
-        <div className="grid grid-cols-3 gap-2">
-          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
-            onClick={shortWhistle}
-            aria-label={t('referee.scoring.whistleServeAriaLabel')}
-            style={{ minHeight: '44px' }}
-          >
-            📣 {t('referee.scoring.whistleServeButton')}
-          </button>
-          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
-            onClick={goalWhistle}
-            aria-label={t('referee.scoring.whistleGoalAriaLabel')}
-            style={{ minHeight: '44px' }}
-          >
-            🎯 {t('referee.scoring.whistleGoalButton')}
-          </button>
-          <button className="btn bg-gray-700 hover:bg-gray-600 text-white py-3 text-sm font-bold"
-            onClick={longWhistle}
-            aria-label={t('referee.scoring.whistleEndAriaLabel')}
-            style={{ minHeight: '44px' }}
-          >
-            📢 {t('referee.scoring.whistleEndButton')}
-          </button>
-        </div>
-
-        {(() => {
-          const scoringDisabled = !!match.activeTimeout || showSideChange;
-          return (
-            <>
-              {/* Row 1: 골 +2 */}
-              <div className="grid grid-cols-2 gap-3">
-                <button className="btn btn-success text-lg py-5 font-bold" disabled={scoringDisabled}
-                  onClick={() => handleIBSAScore(1, 'goal', 2, false, `${p1Name} ${t('common.scoreActions.goal')}`)}
-                  aria-label={`${p1Name} ${t('common.scoreActions.goal')} +2`}>
-                  ⚽ {p1Name}<br/>{t('common.scoreActions.goal')} +2
-                </button>
-                <button className="btn btn-success text-lg py-5 font-bold" disabled={scoringDisabled}
-                  onClick={() => handleIBSAScore(2, 'goal', 2, false, `${p2Name} ${t('common.scoreActions.goal')}`)}
-                  aria-label={`${p2Name} ${t('common.scoreActions.goal')} +2`}>
-                  ⚽ {p2Name}<br/>{t('common.scoreActions.goal')} +2
-                </button>
-              </div>
-
-              {/* Row 2: 파울 +1 */}
-              <div className="grid grid-cols-2 gap-3">
-                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-base py-4 font-bold" disabled={scoringDisabled}
-                  onClick={() => handleQuickFoul(1)}
-                  aria-label={`${p1Name} ${t('common.scoreActions.foul')}, ${p2Name} +1`}>
-                  🟡 {p1Name} {t('common.scoreActions.foul')}<br/><span className="text-sm font-normal">→ {p2Name} +1</span>
-                </button>
-                <button className="btn bg-yellow-900 hover:bg-yellow-800 text-yellow-200 text-base py-4 font-bold" disabled={scoringDisabled}
-                  onClick={() => handleQuickFoul(2)}
-                  aria-label={`${p2Name} ${t('common.scoreActions.foul')}, ${p1Name} +1`}>
-                  🟡 {p2Name} {t('common.scoreActions.foul')}<br/><span className="text-sm font-normal">→ {p1Name} +1</span>
-                </button>
-              </div>
-            </>
-          );
-        })()}
-
-        {/* Dead ball & Serve miss */}
-        <div className="grid grid-cols-2 gap-3">
-          <button className="btn bg-purple-700 hover:bg-purple-600 text-white py-3" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
-            onClick={() => handleDeadBall(match.currentServe === 'player1' ? 1 : 2)}
-            aria-label={t('common.matchHistory.deadBall', { server: '' }).trim()}>
-            🔵 {t('common.matchHistory.deadBall', { server: '' }).trim()}
-          </button>
-          <button className="btn bg-orange-700 hover:bg-orange-600 text-white py-3" disabled={!!match.activeTimeout || showSideChange || match.status !== 'in_progress'}
-            onClick={handleServeMiss}
-            aria-label={t('common.scoreActions.serveMiss')}>
-            🎾 {t('common.scoreActions.serveMiss')}
-          </button>
-        </div>
-
-        {/* Row 3: 취소 */}
-        <button className="btn btn-danger py-3 w-full" onClick={handleUndo} disabled={match.scoreHistory.length === 0}
-          aria-label={t('common.undo')}>↩️ {t('referee.practice.scoring.undoButton')}</button>
-
-        {/* 접이식: 타임아웃 (선수/메디컬/심판) */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
-          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('timeout')} aria-expanded={expandedSection === 'timeout'}
-            aria-label={t('referee.scoring.timeoutTitle.player')}>
-            <span className="text-sm font-bold text-gray-300" aria-hidden="true">⏱️ {t('referee.scoring.timeoutTitle.player')}</span>
-            <span className="text-gray-400" aria-hidden="true">{expandedSection === 'timeout' ? '▲' : '▼'}</span>
-          </button>
-          {expandedSection === 'timeout' && (
-            <div className="px-3 py-3 space-y-2 bg-gray-900/50">
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(1, 'player')} disabled={match.player1Timeouts >= 1 || !!match.activeTimeout}
-                  aria-label={`${p1Name} ${t('referee.scoring.timeoutTitle.player')} (${1 - match.player1Timeouts}/1)`}>
-                  ⏱️ {p1Name} {t('referee.scoring.timeoutTitle.player')} ({1 - match.player1Timeouts}/1)
-                </button>
-                <button className="btn btn-secondary text-sm py-2" onClick={() => handleTimeout(2, 'player')} disabled={match.player2Timeouts >= 1 || !!match.activeTimeout}
-                  aria-label={`${p2Name} ${t('referee.scoring.timeoutTitle.player')} (${1 - match.player2Timeouts}/1)`}>
-                  ⏱️ {p2Name} {t('referee.scoring.timeoutTitle.player')} ({1 - match.player2Timeouts}/1)
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(1, 'medical')} disabled={!!match.activeTimeout || match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p1Name).length >= 1}
-                  aria-label={`${p1Name} ${t('referee.scoring.timeoutTitle.medical')} (${1 - match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p1Name).length}/1)`}>
-                  🏥 {p1Name} {t('referee.scoring.timeoutTitle.medical')} ({1 - match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p1Name).length}/1)
-                </button>
-                <button className="btn bg-teal-800 hover:bg-teal-700 text-white text-sm py-2" onClick={() => handleTimeout(2, 'medical')} disabled={!!match.activeTimeout || match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p2Name).length >= 1}
-                  aria-label={`${p2Name} ${t('referee.scoring.timeoutTitle.medical')} (${1 - match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p2Name).length}/1)`}>
-                  🏥 {p2Name} {t('referee.scoring.timeoutTitle.medical')} ({1 - match.scoreHistory.filter(h => h.actionType === 'timeout_medical' && h.actionPlayer === p2Name).length}/1)
-                </button>
-              </div>
-              <button className="btn bg-yellow-800 hover:bg-yellow-700 text-white text-sm py-2 w-full" onClick={() => handleTimeout(1, 'referee')} disabled={!!match.activeTimeout}
-                aria-label={t('referee.scoring.timeoutTitle.referee')}>
-                🟨 {t('referee.scoring.timeoutTitle.referee')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 접이식: 벌점 (테이블푸싱/전자기기/말하기/고글터치) */}
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
-          <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 hover:bg-gray-750 text-left" onClick={() => toggleSection('penalty')} aria-expanded={expandedSection === 'penalty'}
-            aria-label={t('referee.scoring.penaltySection')}>
-            <span className="text-sm font-bold text-gray-300" aria-hidden="true">🔴 {t('referee.scoring.penaltySection')}</span>
-            <span className="text-gray-400" aria-hidden="true">{expandedSection === 'penalty' ? '▲' : '▼'}</span>
-          </button>
-          {expandedSection === 'penalty' && (
-            <div className="px-3 py-3 bg-gray-900/50 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                {(['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'] as const).map(pType => {
-                  const label = t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`);
-                  return (
-                  <button key={`p1-${pType}`} className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2 rounded"
-                    disabled={!!match.activeTimeout || showSideChange}
-                    onClick={() => handlePenalty(1, pType)}
-                    aria-label={`${p1Name} ${label}`}>
-                    {p1Name} {label}
-                  </button>
-                  );
-                })}
-                {(['penalty_table_pushing', 'penalty_electronic', 'penalty_talking'] as const).map(pType => {
-                  const label = t(`common.scoreActions.${pType === 'penalty_table_pushing' ? 'penaltyTablePushing' : pType === 'penalty_electronic' ? 'penaltyElectronic' : 'penaltyTalking'}`);
-                  return (
-                  <button key={`p2-${pType}`} className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2 rounded"
-                    disabled={!!match.activeTimeout || showSideChange}
-                    onClick={() => handlePenalty(2, pType)}
-                    aria-label={`${p2Name} ${label}`}>
-                    {p2Name} {label}
-                  </button>
-                  );
-                })}
-              </div>
-              {/* 고글 터치: 즉시 2점 실점 */}
-              <div className="border-t border-red-800 pt-2">
-                <p className="text-[10px] text-red-400 mb-1">{t('referee.scoring.gogglesTouchHint')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button className="btn bg-red-800 hover:bg-red-700 text-white text-xs py-2 rounded font-bold"
-                    disabled={!!match.activeTimeout || showSideChange}
-                    onClick={() => handleIBSAScore(1, 'mask_touch', 2, true, t('referee.scoring.gogglesTouchButton', { name: p1Name }))}
-                    aria-label={t('referee.scoring.gogglesTouchAriaLabel', { name: p1Name, opponent: p2Name })}
-                    style={{ minHeight: '44px' }}
-                  >
-                    🥽 {t('referee.scoring.gogglesTouchButton', { name: p1Name })}
-                  </button>
-                  <button className="btn bg-red-800 hover:bg-red-700 text-white text-xs py-2 rounded font-bold"
-                    disabled={!!match.activeTimeout || showSideChange}
-                    onClick={() => handleIBSAScore(2, 'mask_touch', 2, true, t('referee.scoring.gogglesTouchButton', { name: p2Name }))}
-                    aria-label={t('referee.scoring.gogglesTouchAriaLabel', { name: p2Name, opponent: p1Name })}
-                    style={{ minHeight: '44px' }}
-                  >
-                    🥽 {t('referee.scoring.gogglesTouchButton', { name: p2Name })}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 팀전: 선수 교체 */}
-        {matchType === 'team' && ((match.team1Members?.length ?? 0) > 3 || (match.team2Members?.length ?? 0) > 3) && (
-          <div className="grid grid-cols-2 gap-2">
-            {(match.team1Members?.length ?? 0) > 3 && !match.team1SubUsed && (
-              <button className="btn bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm" onClick={() => { setSubTeam(1); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }} disabled={!!match.activeTimeout || showSideChange}>
-                🔄 {p1Name} {t('common.matchHistory.substitution')}
-              </button>
-            )}
-            {(match.team2Members?.length ?? 0) > 3 && !match.team2SubUsed && (
-              <button className="btn bg-purple-800 hover:bg-purple-700 text-white py-2 text-sm" onClick={() => { setSubTeam(2); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }} disabled={!!match.activeTimeout || showSideChange}>
-                🔄 {p2Name} {t('common.matchHistory.substitution')}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* History */}
-        <div>
-          <button className="text-sm text-gray-400 underline mb-2" onClick={() => setShowHistory(!showHistory)} style={{ minHeight: '44px' }}>
-            {showHistory ? `▲ ${t('referee.practice.scoring.historyClose')}` : `▼ ${t('referee.practice.scoring.historyToggle', { count: match.scoreHistory.length })}`}
-          </button>
-          {showHistory && match.scoreHistory.length > 0 && (
-            <div className="w-full">
-              <ScoreHistoryView history={match.scoreHistory} sets={sets} />
-            </div>
-          )}
-        </div>
-      </div>
+      <PracticeScoringPanel
+        p1Name={p1Name}
+        p2Name={p2Name}
+        matchType={matchType}
+        match={match}
+        sets={sets}
+        scoringDisabled={!!match.activeTimeout || showSideChange}
+        showSideChange={showSideChange}
+        showHistory={showHistory}
+        expandedSection={expandedSection}
+        onToggleSection={toggleSection}
+        onToggleHistory={() => setShowHistory(!showHistory)}
+        onIBSAScore={handleIBSAScore}
+        onQuickFoul={handleQuickFoul}
+        onDeadBall={handleDeadBall}
+        onServeMiss={handleServeMiss}
+        onUndo={handleUndo}
+        onTimeout={handleTimeout}
+        onPenalty={handlePenalty}
+        onOpenSubModal={(team) => { setSubTeam(team); setSubOutIdx(null); setSubInIdx(null); setShowSubModal(true); }}
+        shortWhistle={shortWhistle}
+        goalWhistle={goalWhistle}
+        longWhistle={longWhistle}
+      />
 
       {/* Foul classification overlay */}
       {foulClassify && (

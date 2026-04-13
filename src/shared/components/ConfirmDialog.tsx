@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { onConfirm, type ConfirmOptions } from '@shared/utils/confirm';
+import { onConfirm, onPrompt, type ConfirmOptions, type PromptOptions } from '@shared/utils/confirm';
 
 interface ActiveConfirm extends ConfirmOptions {
   resolve: (confirmed: boolean) => void;
@@ -85,6 +85,97 @@ export default function ConfirmDialog() {
           <button
             ref={confirmBtnRef}
             className={active.destructive ? 'btn btn-danger' : 'btn btn-primary'}
+            onClick={handleConfirm}
+          >
+            {active.confirmLabel || t('common.confirm')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== PromptDialog — window.prompt() 대체 =====
+
+interface ActivePrompt extends PromptOptions {
+  resolve: (value: string | null) => void;
+}
+
+export function PromptDialog() {
+  const { t } = useTranslation();
+  const [active, setActive] = useState<ActivePrompt | null>(null);
+  const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    return onPrompt((options, resolve) => {
+      setValue(options.defaultValue || '');
+      setActive({ ...options, resolve });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (active) {
+      inputRef.current?.focus();
+    }
+  }, [active]);
+
+  const handleConfirm = useCallback(() => {
+    active?.resolve(value || null);
+    setActive(null);
+    setValue('');
+  }, [active, value]);
+
+  const handleCancel = useCallback(() => {
+    active?.resolve(null);
+    setActive(null);
+    setValue('');
+  }, [active]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') handleCancel();
+    if (e.key === 'Enter') handleConfirm();
+  }, [handleCancel, handleConfirm]);
+
+  if (!active) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60"
+      role="presentation"
+      onClick={handleCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="prompt-dialog-message"
+        className="card w-[90%] max-w-sm space-y-4"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <p id="prompt-dialog-message" className="text-gray-200 whitespace-pre-line">
+          {active.message}
+        </p>
+        <input
+          ref={inputRef}
+          type="text"
+          className="input"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder={active.placeholder || ''}
+          aria-label={active.message}
+        />
+        <div className="flex gap-3 justify-end">
+          <button
+            ref={cancelBtnRef}
+            className="btn btn-secondary"
+            onClick={handleCancel}
+          >
+            {active.cancelLabel || t('common.cancel')}
+          </button>
+          <button
+            className="btn btn-primary"
             onClick={handleConfirm}
           >
             {active.confirmLabel || t('common.confirm')}

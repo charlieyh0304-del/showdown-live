@@ -170,6 +170,7 @@
       "penaltyElectronic": "Electronic Device Noise",
       "penaltyTalking": "Talking During Play",
       "walkover": "Walkover",
+      "walkoverReasonPlaceholder": "e.g. forfeit, injury, no-show",
       "serveMiss": "Serve Miss"
     },
 
