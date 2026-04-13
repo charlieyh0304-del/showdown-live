@@ -276,7 +276,7 @@ export function generateBracket(
     case 'round_robin':
       return generateRoundRobin(participants, tournamentId, matchType);
     case 'single_elimination':
-      return generateSingleElimination(participants, tournamentId, matchType, options as any);
+      return generateSingleElimination(participants, tournamentId, matchType, options as { thirdPlaceMatch?: boolean } | undefined);
     case 'double_elimination':
       // 더블 엘리미네이션은 싱글 엘리미네이션 기반으로 패자조를 추가
       return generateSingleElimination(participants, tournamentId, matchType, { thirdPlaceMatch: true });

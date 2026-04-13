@@ -566,7 +566,7 @@ export default function TournamentCreate() {
 
       {/* Step 4: 미리보기 */}
       {state.step === 4 && (
-        <WizardStep5Preview state={step5State as any} dispatch={dispatch as any} onSubmit={handleSubmit} />
+        <WizardStep5Preview state={step5State} dispatch={dispatch} onSubmit={handleSubmit} />
       )}
 
       {/* Navigation */}

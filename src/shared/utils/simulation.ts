@@ -812,7 +812,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
     );
   } else {
     players = (options?.existingPlayers && options.existingPlayers.length > 0)
-      ? options.existingPlayers.slice(0, participantCount).map(p => ({ ...p, gender: (p as any).gender }))
+      ? options.existingPlayers.slice(0, participantCount).map(p => ({ ...p }))
       : Array.from({ length: participantCount }, (_, i) => ({
           id: `sim_player_${i}`,
           name: genPlayerName(i),

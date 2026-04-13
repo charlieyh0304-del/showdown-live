@@ -1266,9 +1266,9 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                       <div>
                         <span>{match.team1Name ?? '?'} vs {match.team2Name ?? '?'}</span>
                         <div className="text-xs text-gray-400 mt-1 font-normal">
-                          {match.team1Name}: {(match.team1 as any)?.memberNames?.join(', ') || ''}
+                          {match.team1Name}: {match.team1?.memberNames?.join(', ') || ''}
                           {' | '}
-                          {match.team2Name}: {(match.team2 as any)?.memberNames?.join(', ') || ''}
+                          {match.team2Name}: {match.team2?.memberNames?.join(', ') || ''}
                         </div>
                       </div>
                     ) : `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`}

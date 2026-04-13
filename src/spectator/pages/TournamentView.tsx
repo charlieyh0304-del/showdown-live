@@ -1210,9 +1210,9 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ flex: 1 }}>
           {nameButton(p1, isP1Winner, 'left')}
-          {match.team1 && (match.team1 as any).memberNames && (
+          {match.team1?.memberNames && (
             <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-              {(match.team1 as any).memberNames.join(', ')}
+              {match.team1?.memberNames.join(', ')}
             </div>
           )}
         </div>
@@ -1239,9 +1239,9 @@ function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlay
         </div>
         <div style={{ flex: 1, textAlign: 'right' }}>
           {nameButton(p2, !isP1Winner && isCompleted, 'right')}
-          {match.team2 && (match.team2 as any).memberNames && (
+          {match.team2?.memberNames && (
             <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem', textAlign: 'right' }}>
-              {(match.team2 as any).memberNames.join(', ')}
+              {match.team2?.memberNames.join(', ')}
             </div>
           )}
         </div>
@@ -1690,9 +1690,9 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 >
                   {match.team1Name || t('referee.home.team1Default')}
                 </button>
-                {match.team1 && (match.team1 as any).memberNames && (
+                {match.team1?.memberNames && (
                   <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                    {(match.team1 as any).memberNames.join(', ')}
+                    {match.team1?.memberNames.join(', ')}
                   </div>
                 )}
               </span>
@@ -1715,9 +1715,9 @@ function TeamBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPl
                 >
                   {match.team2Name || t('referee.home.team2Default')}
                 </button>
-                {match.team2 && (match.team2 as any).memberNames && (
+                {match.team2?.memberNames && (
                   <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.25rem', textAlign: 'right' }}>
-                    {(match.team2 as any).memberNames.join(', ')}
+                    {match.team2?.memberNames.join(', ')}
                   </div>
                 )}
               </span>
