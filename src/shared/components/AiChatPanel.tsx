@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import DOMPurify from 'dompurify';
 import { useChatbot, type ChatRole, type ChatMessage, type ChatAction } from '../hooks/useChatbot';
 
 const SANITIZE_CONFIG = {
@@ -87,8 +86,11 @@ function simpleMarkdown(text: string): string {
     .replace(/\n/g, '<br/>');
 }
 
-function MessageBubble({ msg, toolLabels }: { msg: ChatMessage; toolLabels: Record<string, string> }) {
+function MessageBubble({ msg, toolLabels, purify }: { msg: ChatMessage; toolLabels: Record<string, string>; purify: typeof import('dompurify').default | null }) {
   const isUser = msg.role === 'user';
+  const sanitizedHtml = !isUser
+    ? (purify ? purify.sanitize(simpleMarkdown(msg.content), SANITIZE_CONFIG) : simpleMarkdown(msg.content))
+    : '';
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm ${isUser ? 'bg-cyan-700' : 'bg-gray-700'}`} aria-hidden="true">
@@ -98,7 +100,7 @@ function MessageBubble({ msg, toolLabels }: { msg: ChatMessage; toolLabels: Reco
         <div className={`rounded-xl px-3 py-2 text-sm ${isUser ? 'bg-cyan-800 text-white rounded-tr-sm whitespace-pre-wrap' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tl-sm'}`}>
           {isUser
             ? msg.content
-            : <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(simpleMarkdown(msg.content), SANITIZE_CONFIG) }} />
+            : <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
           }
         </div>
         {!isUser && msg.actions && <ActionBadges actions={msg.actions} toolLabels={toolLabels} />}
@@ -119,6 +121,12 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
   const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(userRole, tournamentId, contextInfo);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [domPurify, setDomPurify] = useState<typeof import('dompurify').default | null>(null);
+  useEffect(() => {
+    if (isOpen && !domPurify) {
+      import('dompurify').then(m => setDomPurify(m.default));
+    }
+  }, [isOpen, domPurify]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const config = getRoleConfig(t)[userRole];
@@ -427,7 +435,7 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
             </div>
           </div>
         )}
-        {messages.map((msg, i) => <MessageBubble key={i} msg={msg} toolLabels={toolLabels} />)}
+        {messages.map((msg, i) => <MessageBubble key={i} msg={msg} toolLabels={toolLabels} purify={domPurify} />)}
         {isLoading && (
           <div className="flex gap-2">
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm" aria-hidden="true">🤖</div>

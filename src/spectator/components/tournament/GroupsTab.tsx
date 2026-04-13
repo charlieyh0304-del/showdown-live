@@ -138,12 +138,12 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                 )}
               </td>
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.played}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}>{r.wins}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{r.losses}</td>
+              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}><span className="sr-only">{t('spectator.tournament.view.srWins')}</span>{r.wins}</td>
+              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}><span className="sr-only">{t('spectator.tournament.view.srLosses')}</span>{r.losses}</td>
               {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem' }}>{t('spectator.tournament.view.setWL', { w: r.setsWon, l: r.setsLost })}</td>}
-              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>}
+              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{(r.setsWon - r.setsLost) !== 0 && <span className="sr-only">{(r.setsWon - r.setsLost) > 0 ? t('spectator.tournament.view.srDiffPositive') : t('spectator.tournament.view.srDiffNegative')}</span>}{formatDiff(r.setsWon - r.setsLost).text}</td>}
               <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
+              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{(r.pointsFor - r.pointsAgainst) !== 0 && <span className="sr-only">{(r.pointsFor - r.pointsAgainst) > 0 ? t('spectator.tournament.view.srDiffPositive') : t('spectator.tournament.view.srDiffNegative')}</span>}{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
             </tr>
           ))}
         </tbody>

@@ -2,6 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import * as crypto from "crypto";
+import * as admin from "firebase-admin";
 import Anthropic from "@anthropic-ai/sdk";
 import { TOOL_DEFINITIONS, executeTool } from "./chatbot-tools";
 import { SYSTEM_PROMPT } from "./chatbot-prompt";
@@ -9,8 +10,25 @@ import { SYSTEM_PROMPT } from "./chatbot-prompt";
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 const MAX_TOOL_LOOPS = 15;
+const CHATBOT_RATE_LIMIT = 20; // 분당 최대 요청 수
+const CHATBOT_RATE_WINDOW_MS = 60 * 1000;
 
 import { ALLOWED_ORIGINS } from "./cors";
+
+// 간단한 인메모리 레이트 리밋 (Cloud Functions 인스턴스별)
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function checkChatbotRateLimit(uid: string): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(uid);
+  if (!bucket || now >= bucket.resetAt) {
+    rateBuckets.set(uid, { count: 1, resetAt: now + CHATBOT_RATE_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= CHATBOT_RATE_LIMIT) return false;
+  bucket.count++;
+  return true;
+}
 
 // 사용자 제공 문자열을 시스템 프롬프트에 안전하게 삽입하기 위한 sanitizer
 // - 길이 제한
@@ -62,7 +80,34 @@ export const chatbot = onRequest(
       userRole?: "admin" | "referee" | "spectator";
       contextInfo?: string;
     };
-    const role = userRole || "admin";
+
+    // 서버 사이드 역할 검증: Firebase Auth 토큰의 role claim 확인
+    let verifiedRole: "admin" | "referee" | "spectator" = "spectator";
+    let authUid: string | null = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const decoded = await admin.auth().verifyIdToken(authHeader.slice(7));
+        authUid = decoded.uid;
+        const tokenRole = decoded.role as string | undefined;
+        if (tokenRole === "admin" || tokenRole === "referee") {
+          verifiedRole = tokenRole;
+        }
+      } catch {
+        // 토큰 검증 실패 시 spectator로 폴백 (안전한 기본값)
+      }
+    }
+    // 클라이언트 요청이 검증된 역할보다 높은 권한이면 거부
+    const ROLE_LEVEL: Record<string, number> = { spectator: 0, referee: 1, admin: 2 };
+    const requestedRole = userRole || "spectator";
+    const role = ROLE_LEVEL[requestedRole] <= ROLE_LEVEL[verifiedRole] ? requestedRole : verifiedRole;
+
+    // 레이트 리밋: uid 기반 분당 20회 제한
+    const rlKey = authUid || req.ip || "anonymous";
+    if (!checkChatbotRateLimit(rlKey)) {
+      res.status(429).json({ error: "Too many requests. Please try again later." });
+      return;
+    }
 
     logger.info("Chatbot request received", {
       reqId,

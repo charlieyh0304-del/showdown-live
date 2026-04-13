@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { auth } from '@shared/config/firebase';
 
 export type ChatRole = 'admin' | 'referee' | 'spectator';
 
@@ -65,9 +66,14 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
     abortRef.current = new AbortController();
 
     try {
+      // Firebase Auth 토큰을 Authorization 헤더에 포함 (서버 사이드 역할 검증용)
+      const idToken = await auth.currentUser?.getIdToken().catch(() => null);
       const res = await fetch(FUNCTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}),
+        },
         body: JSON.stringify({
           messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
           tournamentId,

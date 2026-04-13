@@ -110,7 +110,6 @@ function showOnce(data) {
 
 // Firebase SDK 백그라운드 메시지 핸들러 (data-only 메시지)
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] onBackgroundMessage:', JSON.stringify(payload));
   const data = payload.data || {};
   return showOnce(data);
 });
@@ -137,10 +136,13 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   // data.link (SW 생성 알림) → fcmOptions.link (브라우저 자동 알림) → 기본값
-  const link = event.notification.data?.link
+  const rawLink = event.notification.data?.link
     || event.notification?.fcmOptions?.link
     || event.action
     || '/spectator';
+
+  // 보안: 상대 경로만 허용 (외부 URL 리다이렉트 방지)
+  const link = (typeof rawLink === 'string' && rawLink.startsWith('/')) ? rawLink : '/spectator';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

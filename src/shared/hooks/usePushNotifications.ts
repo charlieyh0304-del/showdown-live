@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getMessaging, getToken, deleteToken, onMessage } from 'firebase/messaging';
 import { ref, set } from 'firebase/database';
-import app, { database } from '@shared/config/firebase';
+import app, { database, auth } from '@shared/config/firebase';
 import { sendNotification } from '@shared/utils/notifications';
 
 // VAPID key - 환경변수에서만 로드 (하드코딩 제거)
@@ -51,6 +51,7 @@ async function syncSubscription(token: string, favorites: FavEntry[]) {
 
   await set(subRef, {
     token,
+    uid: auth.currentUser?.uid || '',
     favoriteIds,
     favoriteNames,
     platform: getPlatform(),

@@ -38,6 +38,7 @@
     "select": "{{name}} 선택",
     "all": "전체",
     "noResults": "해당 경기가 없습니다",
+    "showMore": "더 보기",
 
     "presets": {
       "ibsaIndividual": {
@@ -1008,6 +1009,9 @@
   },
 
   "referee": {
+    "scoresheet": {
+      "caption": "{{set}} 스코어시트"
+    },
     "layout": {
       "headerAriaLabel": "심판 헤더",
       "refereeName": "{{name}} 심판",
@@ -1426,6 +1430,10 @@
         "setDiff": "세트차",
         "pointsDiff": "점수득실",
         "goalDiff": "득실차",
+        "srWins": "승: ",
+        "srLosses": "패: ",
+        "srDiffPositive": "양수 득실: ",
+        "srDiffNegative": "음수 득실: ",
         "advanceBadge": "진출",
         "setWL": "{{w}}승 {{l}}패",
         "win": "승",

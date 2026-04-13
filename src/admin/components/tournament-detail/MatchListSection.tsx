@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Match, MatchStatus } from '@shared/types';
+
+const MATCHES_PER_PAGE = 30;
 
 const STATUS_LABEL_KEYS: Record<MatchStatus, string> = {
   pending: 'common.matchStatus.pending',
@@ -63,6 +66,7 @@ export default function MatchListSection({
   handleEditMatch,
 }: MatchListSectionProps) {
   const { t } = useTranslation();
+  const [visibleCount, setVisibleCount] = useState(MATCHES_PER_PAGE);
 
   return (
     <>
@@ -81,7 +85,7 @@ export default function MatchListSection({
             const bIsQual = b.groupId ? 0 : 1;
             if (aIsQual !== bIsQual) return aIsQual - bIsQual;
             return (a.createdAt ?? 0) - (b.createdAt ?? 0);
-          }).map((match, matchIdx) => (
+          }).slice(0, visibleCount).map((match, matchIdx) => (
             <div key={match.id} className="card space-y-3" role="listitem" aria-setsize={matches.length} aria-posinset={matchIdx + 1}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
@@ -92,6 +96,7 @@ export default function MatchListSection({
                       onClick={() => handleSwapRound(match.id, 'up')}
                       disabled={matchIdx === 0}
                       aria-label={t('admin.tournamentDetail.bracketTab.orderUpAriaLabel')}
+                      style={{ minWidth: '44px', minHeight: '44px' }}
                     >
                       &uarr;
                     </button>
@@ -100,6 +105,7 @@ export default function MatchListSection({
                       onClick={() => handleSwapRound(match.id, 'down')}
                       disabled={matchIdx === matches.length - 1}
                       aria-label={t('admin.tournamentDetail.bracketTab.orderDownAriaLabel')}
+                      style={{ minWidth: '44px', minHeight: '44px' }}
                     >
                       &darr;
                     </button>
@@ -238,6 +244,15 @@ export default function MatchListSection({
             </div>
           </div>
         </div>
+      )}
+      {matches.length > visibleCount && (
+        <button
+          className="btn btn-secondary w-full mt-3"
+          onClick={() => setVisibleCount(v => v + MATCHES_PER_PAGE)}
+          aria-label={t('common.showMore')}
+        >
+          {t('common.showMore')} ({visibleCount}/{matches.length})
+        </button>
       )}
     </>
   );

@@ -90,9 +90,10 @@
     "pushSubscriptions": {
       ".read": true,
       "$tokenKey": {
-        ".write": "auth != null",
-        ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt'])",
+        ".write": "auth != null && (!data.exists() || !data.child('uid').exists() || data.child('uid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['token', 'favoriteIds', 'platform', 'updatedAt', 'uid'])",
         "token": { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "uid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
         "favoriteIds": { ".validate": true },
         "favoriteNames": { ".validate": true },
         "platform": { ".validate": "newData.isString() && newData.val().length <= 50" },

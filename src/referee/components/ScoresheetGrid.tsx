@@ -98,36 +98,37 @@ export default function ScoresheetGrid({
 
       <div ref={scrollRef} className="overflow-x-auto scoresheet-scroll">
         <table className="scoresheet-table" style={{ borderCollapse: 'collapse', minWidth: maxPoints * 32 + 130 }}>
-          <tbody>
-            {/* Player A row */}
+          <caption className="sr-only">{t('referee.scoresheet.caption', { set: setLabel })}</caption>
+          <thead>
             <tr className="border-b border-gray-700">
-              <td className="scoresheet-name-cell bg-yellow-900/30 text-yellow-400">
+              <th scope="col" className="scoresheet-name-cell bg-yellow-900/30 text-yellow-400">
                 <div className="font-bold text-xs truncate" style={{ maxWidth: 60 }}>
                   {currentServe === 'player1' && <span className="mr-0.5">🎾</span>}
                   {playerAName}
                 </div>
                 {coachA && <div className="text-[10px] text-gray-500 truncate">{coachA}</div>}
-              </td>
-              <td className="scoresheet-wpt-cell">
+              </th>
+              <th scope="col" className="scoresheet-wpt-cell">
                 <span className="scoresheet-badge bg-amber-800/60 text-amber-300" title="W">
                   W{warnings.player1}
                 </span>
-              </td>
-              <td className="scoresheet-wpt-cell">
+              </th>
+              <th scope="col" className="scoresheet-wpt-cell">
                 <span className="scoresheet-badge bg-red-800/60 text-red-300" title="P">
                   P{penalties.player1}
                 </span>
-              </td>
-              <td className="scoresheet-wpt-cell">
+              </th>
+              <th scope="col" className="scoresheet-wpt-cell">
                 <span className="scoresheet-badge bg-blue-800/60 text-blue-300" title="T.O.">
                   T{timeouts.player1}
                 </span>
-              </td>
+              </th>
               {pointNumbers.map(n => {
                 const scored = n <= playerAScore;
                 const isHighlight = n === highlightPoint;
                 return (
-                  <td
+                  <th
+                    scope="col"
                     key={n}
                     className={`scoresheet-point-cell ${scored ? 'scoresheet-scored-a' : ''} ${isHighlight ? 'scoresheet-highlight' : ''}`}
                     aria-label={scored ? `${playerAName} ${n}${t('common.units.point')}` : `${n}`}
@@ -137,20 +138,21 @@ export default function ScoresheetGrid({
                     ) : (
                       <span className="text-gray-500 text-xs">{n}</span>
                     )}
-                  </td>
+                  </th>
                 );
               })}
               {/* Result */}
-              <td className="scoresheet-result-cell text-yellow-400 font-bold text-lg">
+              <th scope="col" className="scoresheet-result-cell text-yellow-400 font-bold text-lg">
                 {playerAScore}
-              </td>
+              </th>
             </tr>
-
+          </thead>
+          <tbody>
             {/* Serve indicator rows */}
             <tr className="border-b border-gray-700 bg-gray-800/50">
-              <td className="scoresheet-name-cell text-[10px] text-gray-500 text-right pr-1" colSpan={4}>
+              <th scope="row" className="scoresheet-name-cell text-[10px] text-gray-500 text-right pr-1" colSpan={4}>
                 Serv.
-              </td>
+              </th>
               {pointNumbers.map((n, i) => {
                 const isHighlight = n === highlightPoint;
                 // Serve number for the i-th total point
@@ -182,13 +184,13 @@ export default function ScoresheetGrid({
 
             {/* Player B row */}
             <tr>
-              <td className="scoresheet-name-cell bg-cyan-900/30 text-cyan-400">
+              <th scope="row" className="scoresheet-name-cell bg-cyan-900/30 text-cyan-400">
                 <div className="font-bold text-xs truncate" style={{ maxWidth: 60 }}>
                   {currentServe === 'player2' && <span className="mr-0.5">🎾</span>}
                   {playerBName}
                 </div>
                 {coachB && <div className="text-[10px] text-gray-500 truncate">{coachB}</div>}
-              </td>
+              </th>
               <td className="scoresheet-wpt-cell">
                 <span className="scoresheet-badge bg-amber-800/60 text-amber-300" title="W">
                   W{warnings.player2}

@@ -38,6 +38,7 @@
     "select": "Select {{name}}",
     "all": "All",
     "noResults": "No matching matches",
+    "showMore": "Show more",
 
     "presets": {
       "ibsaIndividual": {
@@ -1008,6 +1009,9 @@
   },
 
   "referee": {
+    "scoresheet": {
+      "caption": "{{set}} scoresheet"
+    },
     "layout": {
       "headerAriaLabel": "Referee Header",
       "refereeName": "Referee {{name}}",
@@ -1426,6 +1430,10 @@
         "setDiff": "Set Diff",
         "pointsDiff": "Point Diff",
         "goalDiff": "Goal Diff",
+        "srWins": "Wins: ",
+        "srLosses": "Losses: ",
+        "srDiffPositive": "Positive diff: ",
+        "srDiffNegative": "Negative diff: ",
         "advanceBadge": "Advance",
         "setWL": "{{w}}W {{l}}L",
         "win": "W",
