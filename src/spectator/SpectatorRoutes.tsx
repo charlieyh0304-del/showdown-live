@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import SpectatorLayout from './components/SpectatorLayout';
+import { SectionErrorBoundary } from '@shared/components/ErrorBoundary';
 import SpectatorHome from './pages/SpectatorHome';
 import TournamentView from './pages/TournamentView';
 import LiveMatchView from './pages/LiveMatchView';
@@ -11,19 +12,19 @@ export default function SpectatorRoutes() {
   return (
     <SpectatorLayout>
       <Routes>
-        <Route path="/" element={<SpectatorHome />} />
+        <Route path="/" element={<SectionErrorBoundary><SpectatorHome /></SectionErrorBoundary>} />
         {/* Tournament context routes - 5 bottom tabs */}
-        <Route path="/tournament/:id" element={<TournamentView viewTab="overview" />} />
-        <Route path="/tournament/:id/players" element={<TournamentView viewTab="players" />} />
-        <Route path="/tournament/:id/standings" element={<TournamentView viewTab="standings" />} />
-        <Route path="/tournament/:id/schedule" element={<TournamentView viewTab="schedule" />} />
-        <Route path="/tournament/:id/referees" element={<TournamentView viewTab="referees" />} />
+        <Route path="/tournament/:id" element={<SectionErrorBoundary><TournamentView viewTab="overview" /></SectionErrorBoundary>} />
+        <Route path="/tournament/:id/players" element={<SectionErrorBoundary><TournamentView viewTab="players" /></SectionErrorBoundary>} />
+        <Route path="/tournament/:id/standings" element={<SectionErrorBoundary><TournamentView viewTab="standings" /></SectionErrorBoundary>} />
+        <Route path="/tournament/:id/schedule" element={<SectionErrorBoundary><TournamentView viewTab="schedule" /></SectionErrorBoundary>} />
+        <Route path="/tournament/:id/referees" element={<SectionErrorBoundary><TournamentView viewTab="referees" /></SectionErrorBoundary>} />
         {/* Detail views */}
-        <Route path="/match/:tournamentId/:matchId" element={<LiveMatchView />} />
-        <Route path="/player/:tournamentId/:playerName" element={<PlayerProfileView />} />
+        <Route path="/match/:tournamentId/:matchId" element={<SectionErrorBoundary><LiveMatchView /></SectionErrorBoundary>} />
+        <Route path="/player/:tournamentId/:playerName" element={<SectionErrorBoundary><PlayerProfileView /></SectionErrorBoundary>} />
         {/* Home context routes */}
-        <Route path="/favorites" element={<FavoritesView />} />
-        <Route path="/practice" element={<PracticeWatchView />} />
+        <Route path="/favorites" element={<SectionErrorBoundary><FavoritesView /></SectionErrorBoundary>} />
+        <Route path="/practice" element={<SectionErrorBoundary><PracticeWatchView /></SectionErrorBoundary>} />
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>
     </SpectatorLayout>

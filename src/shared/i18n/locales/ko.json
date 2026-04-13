@@ -46,7 +46,9 @@
       "saveFailed": "저장 중 오류가 발생했습니다.",
       "authFailed": "인증 중 오류가 발생했습니다.",
       "tournamentCreateFailed": "대회 생성 중 오류가 발생했습니다.",
-      "networkError": "네트워크 오류입니다. 연결을 확인하고 다시 시도해주세요."
+      "networkError": "네트워크 오류입니다. 연결을 확인하고 다시 시도해주세요.",
+      "sectionFailed": "이 영역을 불러오는 중 오류가 발생했습니다.",
+      "retry": "다시 시도"
     },
 
     "connection": {

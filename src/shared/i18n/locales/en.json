@@ -46,7 +46,9 @@
       "saveFailed": "An error occurred while saving.",
       "authFailed": "An error occurred during authentication.",
       "tournamentCreateFailed": "An error occurred while creating the tournament.",
-      "networkError": "Network error. Please check your connection and try again."
+      "networkError": "Network error. Please check your connection and try again.",
+      "sectionFailed": "An error occurred while loading this section.",
+      "retry": "Retry"
     },
 
     "connection": {

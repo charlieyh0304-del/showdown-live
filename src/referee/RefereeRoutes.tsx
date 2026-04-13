@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RefereeLayout from './components/RefereeLayout';
 import PracticeLayout from './components/PracticeLayout';
+import { SectionErrorBoundary } from '@shared/components/ErrorBoundary';
 import RefereeLogin from './pages/RefereeLogin';
 import RefereeHome from './pages/RefereeHome';
 import IndividualScoring from './pages/IndividualScoring';
@@ -13,17 +14,17 @@ import PracticeHistory from './pages/practice/PracticeHistory';
 export default function RefereeRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<RefereeLogin />} />
+      <Route path="/" element={<SectionErrorBoundary><RefereeLogin /></SectionErrorBoundary>} />
       <Route element={<RefereeLayout />}>
-        <Route path="/games" element={<RefereeHome />} />
-        <Route path="/match/:tournamentId/:matchId" element={<IndividualScoring />} />
-        <Route path="/team/:tournamentId/:matchId" element={<TeamMatchScoring />} />
+        <Route path="/games" element={<SectionErrorBoundary><RefereeHome /></SectionErrorBoundary>} />
+        <Route path="/match/:tournamentId/:matchId" element={<SectionErrorBoundary><IndividualScoring /></SectionErrorBoundary>} />
+        <Route path="/team/:tournamentId/:matchId" element={<SectionErrorBoundary><TeamMatchScoring /></SectionErrorBoundary>} />
       </Route>
       <Route path="/practice" element={<PracticeLayout />}>
-        <Route index element={<PracticeHome />} />
-        <Route path="setup" element={<PracticeSetup />} />
-        <Route path="play" element={<PracticeScoring />} />
-        <Route path="history" element={<PracticeHistory />} />
+        <Route index element={<SectionErrorBoundary><PracticeHome /></SectionErrorBoundary>} />
+        <Route path="setup" element={<SectionErrorBoundary><PracticeSetup /></SectionErrorBoundary>} />
+        <Route path="play" element={<SectionErrorBoundary><PracticeScoring /></SectionErrorBoundary>} />
+        <Route path="history" element={<SectionErrorBoundary><PracticeHistory /></SectionErrorBoundary>} />
       </Route>
       <Route path="*" element={<Navigate to="" replace />} />
     </Routes>
