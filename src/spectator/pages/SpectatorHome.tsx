@@ -5,7 +5,7 @@ import { useTournaments } from '@shared/hooks/useFirebase';
 import type { Tournament } from '@shared/types';
 
 export default function SpectatorHome() {
-  const { tournaments, loading } = useTournaments();
+  const { tournaments, loading } = useTournaments(20);
   const [filter, setFilter] = useState<'in_progress' | 'completed'>('in_progress');
   const navigate = useNavigate();
   const { t } = useTranslation();

@@ -25,7 +25,7 @@ function NotificationWatcher() {
 
 function NotificationWatcherInner() {
   const { favoriteIds, favorites } = useFavorites();
-  const { tournaments } = useTournaments();
+  const { tournaments } = useTournaments(20);
 
   // Pick any active tournament (in_progress first, then registration, then any)
   const activeTournamentId = useMemo(
@@ -36,7 +36,7 @@ function NotificationWatcherInner() {
     [tournaments]
   );
 
-  const { matches } = useMatches(activeTournamentId);
+  const { matches } = useMatches(activeTournamentId, 100);
   const { schedule } = useSchedule(activeTournamentId);
   const { settings: notifSettings } = useNotificationSettings();
 

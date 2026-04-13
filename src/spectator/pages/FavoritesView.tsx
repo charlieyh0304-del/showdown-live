@@ -9,7 +9,7 @@ import { useNotificationHistory } from '@shared/hooks/useNotificationHistory';
 export default function FavoritesView() {
   const { favorites, toggleFavorite, updateFavoriteName } = useFavorites();
   const { players, loading: pLoading } = usePlayers();
-  const { tournaments } = useTournaments();
+  const { tournaments } = useTournaments(20);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [notifPermission, setNotifPermission] = useState(() => getNotificationPermissionStatus());
@@ -26,7 +26,7 @@ export default function FavoritesView() {
       || null,
     [tournaments]
   );
-  const { matches } = useMatches(firstActiveTournamentId);
+  const { matches } = useMatches(firstActiveTournamentId, 100);
 
   useEffect(() => {
     document.title = t('spectator.favorites.pageTitle');

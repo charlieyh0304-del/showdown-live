@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ref, onValue, set, push, remove, update, get, runTransaction, type DataSnapshot } from 'firebase/database';
+import { ref, onValue, set, push, remove, update, get, runTransaction, query, limitToLast, type DataSnapshot, type Query } from 'firebase/database';
 import { database } from '../config/firebase';
 import { queueUpdate } from '../utils/offlineQueue';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
@@ -54,6 +54,45 @@ function subscribeToPath(path: string, callback: (snapshot: DataSnapshot) => voi
     if (entry.count <= 0) {
       entry.unsub();
       listenerCache.delete(path);
+    }
+  };
+}
+
+// ===== Query-based listener deduplication =====
+// Like subscribeToPath but for Firebase Query objects (limitToLast, orderByChild, etc.)
+const queryListenerCache = new Map<string, { unsub: () => void; count: number; callbacks: Set<(data: DataSnapshot) => void>; lastSnapshot: DataSnapshot | null }>();
+
+function subscribeToQuery(cacheKey: string, q: Query, callback: (snapshot: DataSnapshot) => void): () => void {
+  if (queryListenerCache.has(cacheKey)) {
+    const entry = queryListenerCache.get(cacheKey)!;
+    entry.count++;
+    entry.callbacks.add(callback);
+    if (entry.lastSnapshot) {
+      queueMicrotask(() => callback(entry.lastSnapshot!));
+    }
+    return () => {
+      entry.callbacks.delete(callback);
+      entry.count--;
+      if (entry.count <= 0) {
+        entry.unsub();
+        queryListenerCache.delete(cacheKey);
+      }
+    };
+  }
+  const callbacks = new Set<(snapshot: DataSnapshot) => void>([callback]);
+  const cacheEntry = { unsub: () => {}, count: 1, callbacks, lastSnapshot: null as DataSnapshot | null };
+  cacheEntry.unsub = onValue(q, (snap) => {
+    cacheEntry.lastSnapshot = snap;
+    callbacks.forEach(cb => cb(snap));
+  });
+  queryListenerCache.set(cacheKey, cacheEntry);
+  return () => {
+    callbacks.delete(callback);
+    const entry = queryListenerCache.get(cacheKey)!;
+    entry.count--;
+    if (entry.count <= 0) {
+      entry.unsub();
+      queryListenerCache.delete(cacheKey);
     }
   };
 }
@@ -230,13 +269,15 @@ export function useCourts() {
 }
 
 // ===== 대회 =====
-export function useTournaments() {
+/** @param limit 최근 N개만 구독 (기본: 전체). 관중/심판 모드에서는 20 권장. */
+export function useTournaments(limit?: number) {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    const unsub = subscribeToPath('tournaments', (snap) => {
+    const path = 'tournaments';
+    const handleSnap = (snap: DataSnapshot) => {
       if (!isMounted) return;
       const data = snap.val();
       setTournaments(data ? Object.entries(data).map(([id, t]) => {
@@ -245,9 +286,12 @@ export function useTournaments() {
         return { id, ...(tournament as unknown as Omit<Tournament, 'id'>) };
       }).sort((a, b) => b.createdAt - a.createdAt) : []);
       setLoading(false);
-    });
+    };
+    const unsub = limit
+      ? subscribeToQuery(`${path}:last${limit}`, query(ref(database, path), limitToLast(limit)), handleSnap)
+      : subscribeToPath(path, handleSnap);
     return () => { isMounted = false; unsub(); };
-  }, []);
+  }, [limit]);
 
   const addTournament = useCallback(async (tournament: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newRef = push(ref(database, 'tournaments'));
@@ -338,14 +382,16 @@ export function useTournament(tournamentId: string | null) {
 }
 
 // ===== 대회별 경기 =====
-export function useMatches(tournamentId: string | null) {
+/** @param limit 최근 N개만 구독 (기본: 전체). 관중 뷰에서는 100 권장. */
+export function useMatches(tournamentId: string | null, limit?: number) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!tournamentId) { setMatches([]); setLoading(false); return; }
     let isMounted = true;
-    const unsub = subscribeToPath(`matches/${tournamentId}`, (snap) => {
+    const path = `matches/${tournamentId}`;
+    const handleSnap = (snap: DataSnapshot) => {
       if (!isMounted) return;
       const data = snap.val();
       setMatches(data ? Object.entries(data).map(([id, raw]) => {
@@ -354,7 +400,10 @@ export function useMatches(tournamentId: string | null) {
         return { id, ...(m as unknown as Omit<Match, 'id'>) };
       }).sort((a, b) => (a.round ?? 0) - (b.round ?? 0)) : []);
       setLoading(false);
-    });
+    };
+    const unsub = limit
+      ? subscribeToQuery(`${path}:last${limit}`, query(ref(database, path), limitToLast(limit)), handleSnap)
+      : subscribeToPath(path, handleSnap);
     return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
@@ -699,13 +748,17 @@ export function useSchedule(tournamentId: string | null) {
 }
 
 // ===== 알림 =====
+const NOTIFICATION_LIMIT = 50;
+
 export function useNotifications(tournamentId: string | null) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     if (!tournamentId) { setNotifications([]); return; }
     let isMounted = true;
-    const unsub = subscribeToPath(`notifications/${tournamentId}`, (snap) => {
+    const path = `notifications/${tournamentId}`;
+    const q = query(ref(database, path), limitToLast(NOTIFICATION_LIMIT));
+    const unsub = subscribeToQuery(`${path}:last${NOTIFICATION_LIMIT}`, q, (snap) => {
       if (!isMounted) return;
       const data = snap.val();
       setNotifications(data ? Object.entries(data).map(([id, n]) => {

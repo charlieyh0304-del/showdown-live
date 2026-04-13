@@ -28,7 +28,7 @@ export default function RefereeLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { loginReferee } = useAuth();
-  const { tournaments, loading: tournamentsLoading } = useTournaments();
+  const { tournaments, loading: tournamentsLoading } = useTournaments(20);
   const { referees, loading: refereesLoading } = useReferees();
 
   const [step, setStep] = useState<Step>('tournament');
