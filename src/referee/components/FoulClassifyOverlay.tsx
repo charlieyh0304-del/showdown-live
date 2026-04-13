@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ScoreActionType } from '@shared/types';
 
@@ -31,6 +31,7 @@ export default function FoulClassifyOverlay({
 }: FoulClassifyOverlayProps) {
   const { t } = useTranslation();
   const [remaining, setRemaining] = useState(Math.ceil(autoCloseMs / 1000));
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(onDismiss, autoCloseMs);
@@ -38,14 +39,34 @@ export default function FoulClassifyOverlay({
     return () => { clearTimeout(timer); clearInterval(countdown); };
   }, [autoCloseMs, onDismiss]);
 
+  // 다이얼로그 열릴 때 첫 번째 버튼에 초점
+  useEffect(() => {
+    const firstBtn = dialogRef.current?.querySelector<HTMLButtonElement>('button.btn');
+    firstBtn?.focus();
+  }, []);
+
+  // ESC로 닫기
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') onDismiss();
+  };
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 border-t-2 border-yellow-500 px-3 py-3 animate-slideUp">
+    <div
+      ref={dialogRef}
+      className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 border-t-2 border-yellow-500 px-3 py-3 animate-slideUp"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${playerName} ${t('common.scoreActions.foul')} — ${t('referee.scoring.classifyFoul')}`}
+      onKeyDown={handleKeyDown}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-bold text-yellow-400">
           {playerName} {t('common.scoreActions.foul')} — {t('referee.scoring.classifyFoul')}
         </span>
-        <button className="text-gray-400 text-xs px-2 py-1" onClick={onDismiss}>
-          ✕ {remaining}s
+        <span aria-live="polite" className="sr-only">{remaining}{t('common.time.seconds')}</span>
+        <button className="text-gray-400 text-xs px-2 py-1" onClick={onDismiss}
+          aria-label={t('common.close')}>
+          <span aria-hidden="true">✕ {remaining}s</span>
         </button>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -54,6 +75,7 @@ export default function FoulClassifyOverlay({
             key={f.type}
             className="btn bg-yellow-900/70 hover:bg-yellow-800 text-yellow-200 text-xs py-2.5 px-1 rounded font-medium"
             onClick={() => onClassify(f.type, t(f.labelKey))}
+            aria-label={`${playerName} ${t(f.labelKey)}`}
           >
             {t(f.labelKey)}
           </button>
@@ -70,6 +92,7 @@ export default function FoulClassifyOverlay({
                 key={p.type}
                 className="btn bg-red-900/70 hover:bg-red-800 text-red-200 text-xs py-2.5 px-1 rounded font-medium"
                 onClick={() => onPenalty(player, p.type as 'penalty_table_pushing' | 'penalty_electronic' | 'penalty_talking')}
+                aria-label={`${playerName} ${t(p.labelKey)}`}
               >
                 {t(p.labelKey)}
               </button>

@@ -6,6 +6,7 @@
     "save": "저장",
     "saving": "저장 중...",
     "cancel": "취소",
+    "undo": "실행 취소",
     "delete": "삭제",
     "deleting": "삭제 중...",
     "confirm": "확인",
@@ -1099,6 +1100,7 @@
       "whistleEndAriaLabel": "타임아웃 및 경기 종료 휘슬",
       "whistleEndButton": "종료/타임아웃",
       "penaltySection": "벌점 (테이블푸싱/전자기기/말하기/고글터치)",
+      "otherActions": "기타 (워밍업/교체/부전승)",
       "gogglesTouchHint": "고글 터치 — 즉시 상대 +2점",
       "gogglesTouchButton": "{{name}} 고글 터치",
       "gogglesTouchAriaLabel": "{{name}} 고글 터치 — {{opponent}}에게 2점"

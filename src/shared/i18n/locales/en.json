@@ -6,6 +6,7 @@
     "save": "Save",
     "saving": "Saving...",
     "cancel": "Cancel",
+    "undo": "Undo",
     "delete": "Delete",
     "deleting": "Deleting...",
     "confirm": "Confirm",
@@ -1099,6 +1100,7 @@
       "whistleEndAriaLabel": "Timeout and match end whistle",
       "whistleEndButton": "End/Timeout",
       "penaltySection": "Penalty (Table Pushing/Electronic/Talking/Goggles Touch)",
+      "otherActions": "Other (Warmup/Substitution/Walkover)",
       "gogglesTouchHint": "Goggles touch — opponent gets +2 pts instantly",
       "gogglesTouchButton": "{{name}} Goggles Touch",
       "gogglesTouchAriaLabel": "{{name}} Goggles Touch — {{opponent}} gets 2 pts"

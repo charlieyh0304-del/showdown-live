@@ -15,7 +15,8 @@ export interface ChatAction {
   result: string;
 }
 
-const FUNCTION_URL = 'https://us-central1-showdown-b5cc7.cloudfunctions.net/chatbot';
+const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'showdown-b5cc7';
+const FUNCTION_URL = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/chatbot`;
 
 function getChatStorageKey(role: ChatRole, tid?: string): string {
   return `showdown_chat_${role}_${tid || 'global'}`;
