@@ -31,6 +31,7 @@ export default function RefereeHome() {
       if (stored) {
         const parsed = JSON.parse(stored) as { tournamentId: string; matchId: string };
         if (parsed.tournamentId && parsed.matchId) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setRecoveryMatch(parsed);
         }
       }

@@ -9,7 +9,6 @@ export interface PracticeScoringPanelProps {
   match: PracticeMatch;
   sets: SetScore[];
   scoringDisabled: boolean;
-  showSideChange: boolean;
   showHistory: boolean;
   expandedSection: string | null;
   onToggleSection: (key: string) => void;
@@ -34,7 +33,6 @@ export default function PracticeScoringPanel({
   match,
   sets,
   scoringDisabled,
-  showSideChange,
   showHistory,
   expandedSection,
   onToggleSection,

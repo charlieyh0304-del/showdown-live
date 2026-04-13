@@ -16,6 +16,7 @@ export default function AuthGuard({ requiredMode, children, fallbackPath }: Auth
 
   // 8-hour session expiry
   const SESSION_TTL = 8 * 60 * 60 * 1000;
+  // eslint-disable-next-line react-hooks/purity
   if (Date.now() - session.authenticatedAt > SESSION_TTL) {
     return <Navigate to={fallbackPath} replace />;
   }

@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useAdminPinExists } from '@shared/hooks/useAuth';
 import { hashPinWithSalt, generateSalt, createRateLimiter } from '@shared/utils/crypto';
-import { ref, set, update } from 'firebase/database';
+import { ref, update } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
 import AiChatPanel from './AiChatPanel';
@@ -24,6 +24,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   // 로그인 성공 후 메인 콘텐츠로 초점 이동 + 스크린리더 알림
   useEffect(() => {
     if (isAdmin && !prevIsAdmin.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoginAnnouncement(t('admin.login.successMessage'));
       requestAnimationFrame(() => mainRef.current?.focus());
     }

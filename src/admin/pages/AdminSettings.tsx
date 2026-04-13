@@ -20,7 +20,7 @@ function loadSampleNames(): SampleNames {
   try {
     const saved = localStorage.getItem(SAMPLE_STORAGE_KEY);
     if (saved) return JSON.parse(saved);
-  } catch {}
+  } catch { /* ignored */ }
   return { players: [], referees: [] };
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { exportResultsCSV } from './export';
-import type { Tournament, Match, Player, Team } from '../types';
+import type { Tournament, Match, Player } from '../types';
 
 const baseTournament: Tournament = {
   id: 't1',

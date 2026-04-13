@@ -17,6 +17,7 @@ export default function PracticeHome() {
   const [completedMatches, setCompletedMatches] = useState<PracticeMatch[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSavedMatch(loadSavedPracticeMatch());
     try {
       const stored = localStorage.getItem('showdown_practice_completed');

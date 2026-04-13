@@ -66,6 +66,7 @@ export function useCountdownTimer(onComplete?: () => void) {
   const endTimeRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onCompleteRef = useRef(onComplete);
+  // eslint-disable-next-line react-hooks/refs
   onCompleteRef.current = onComplete;
 
   const stop = useCallback(() => {

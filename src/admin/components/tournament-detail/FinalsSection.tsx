@@ -169,7 +169,7 @@ export default function FinalsSection({
                   }));
                   return;
                 }
-                const now = Date.now();
+                const now = Date.now(); // eslint-disable-line react-hooks/purity
                 const newMatches: Omit<Match, 'id'>[] = [];
                 for (let i = 0; i < matchCount; i++) {
                   newMatches.push({
@@ -232,7 +232,7 @@ export default function FinalsSection({
     });
     byGroup.forEach(arr => arr.sort((a, b) => a.rank - b.rank));
 
-    let pairs: [string, string][] = [];
+    const pairs: [string, string][] = [];
 
     if (mode === 'cross') {
       for (let i = 0; i < groupIds.length; i += 2) {

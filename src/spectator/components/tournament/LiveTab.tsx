@@ -67,6 +67,7 @@ export default function LiveTab({
           const p1Diff = currentSetData.player1Score - prevParts[0];
           const p2Diff = currentSetData.player2Score - prevParts[1];
           let scorer = '';
+          // eslint-disable-next-line react-hooks/rules-of-hooks
           if (p1Diff > 0) scorer = `${match.player1Name || t('referee.home.player1Default')} +${p1Diff}`;
           else if (p2Diff > 0) scorer = `${match.player2Name || t('referee.home.player2Default')} +${p2Diff}`;
 

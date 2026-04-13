@@ -51,6 +51,7 @@ export default function LiveMatchView() {
     if (prevScoreRef.current && prevScoreRef.current !== scoreStr) {
       const p1 = match.type === 'team' ? (match.team1Name || t('referee.home.team1Default')) : (match.player1Name || t('referee.home.player1Default'));
       const p2 = match.type === 'team' ? (match.team2Name || t('referee.home.team2Default')) : (match.player2Name || t('referee.home.player2Default'));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnnouncement(t('spectator.liveMatch.scoreAriaLabel', { p1, p1Score: currentSetData.player1Score, p2, p2Score: currentSetData.player2Score }));
     }
     prevScoreRef.current = scoreStr;
@@ -135,6 +136,7 @@ export default function LiveMatchView() {
           const scoreAfter = latest.scoreAfter ?? { player1: 0, player2: 0 };
           const p1 = match.type === 'team' ? (match.team1Name || '') : (match.player1Name || '');
           const p2 = match.type === 'team' ? (match.team2Name || '') : (match.player2Name || '');
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setAnnouncement(`${latest.scoringPlayer} +${latest.points}점. ${p1} ${scoreAfter.player1} 대 ${p2} ${scoreAfter.player2}`);
         } else if (latest.actionLabel) {
           setAnnouncement(latest.actionLabel);
@@ -270,7 +272,7 @@ function ScoreHistorySection({
       if (h.actionType === 'serve') {
         const side = h.serverSide ?? '';
         const keep = h.serveNumber === 1 || side !== prevServerSide;
-        prevServerSide = side;
+        prevServerSide = side; // eslint-disable-line react-hooks/immutability
         return keep;
       }
       return h.points > 0 || META_ACTION_TYPES.has(h.actionType) || h.penaltyWarning;

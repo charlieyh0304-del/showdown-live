@@ -93,7 +93,7 @@ function simulateScoreHistory(
     // 첫 세트는 코인토스 결과, 이후 세트는 교대
     let server: 'player1' | 'player2' = setIdx === 0 ? firstServer : (setIdx % 2 === 0 ? firstServer : (firstServer === 'player1' ? 'player2' : 'player1'));
     let serveCount = 0;
-    let totalServeChanges = 0; // 서브 교대 횟수 (로테이션 추적용)
+    // 서브 교대 카운터 (로테이션 이벤트 추적)
     const targetP1 = set.player1Score;
     const targetP2 = set.player2Score;
     let entryIndex = 0;
@@ -242,7 +242,6 @@ function simulateScoreHistory(
       if (serveCount >= maxServes) {
         server = server === 'player1' ? 'player2' : 'player1';
         serveCount = 0;
-        totalServeChanges++;
 
         // 팀전: 서브 교대 시 선수 로테이션 이벤트 (서브 순서가 있는 경우)
         if (matchType === 'team' && teamServeOrders) {

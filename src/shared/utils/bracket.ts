@@ -39,8 +39,6 @@ export function generateRoundRobin(
   const fixed = players[0];
   const rotating = players.slice(1);
 
-  let matchNumber = 0;
-
   for (let round = 0; round < rounds; round++) {
     const currentPlayers = [fixed, ...rotating];
 
@@ -51,7 +49,6 @@ export function generateRoundRobin(
       // BYE 경기는 건너뜀
       if (p1.id === 'BYE' || p2.id === 'BYE') continue;
 
-      matchNumber++;
       const m = createMatchBase(tournamentId, matchType, round + 1);
 
       if (matchType === 'team') {

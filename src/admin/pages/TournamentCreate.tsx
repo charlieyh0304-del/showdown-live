@@ -165,11 +165,11 @@ const defaultState: WizardState = {
   hasThirdPlaceMatch: true,
 };
 
-function getNextStep(current: number, _hasGroupStage: boolean): number {
+function getNextStep(current: number): number {
   return Math.min(4, current + 1);
 }
 
-function getPrevStep(current: number, _hasGroupStage: boolean): number {
+function getPrevStep(current: number): number {
   return Math.max(1, current - 1);
 }
 
@@ -307,7 +307,7 @@ function reducer(state: WizardState, action: Action): WizardState {
       };
     }
     case 'NEXT_STEP': {
-      const nextStep = getNextStep(state.step, state.hasGroupStage);
+      const nextStep = getNextStep(state.step);
       const next = { ...state, step: nextStep };
       // Skip step 3 for full league all mode (no format selection needed)
       if (state.step === 2 && nextStep === 3 && (state.tournamentMode === 'full_league_all' || state.tournamentMode === 'manual')) {
@@ -316,7 +316,7 @@ function reducer(state: WizardState, action: Action): WizardState {
       return next;
     }
     case 'PREV_STEP': {
-      const prevStep = getPrevStep(state.step, state.hasGroupStage);
+      const prevStep = getPrevStep(state.step);
       const next = { ...state, step: prevStep };
       if (state.step === 4 && prevStep === 3 && (state.tournamentMode === 'full_league_all' || state.tournamentMode === 'manual')) {
         next.step = 2;
@@ -532,8 +532,40 @@ export default function TournamentCreate() {
 
   // Build Step 5 compatible state
   const step5State = {
-    ...state,
     step: state.step as 1 | 2 | 3 | 4,
+    name: state.name,
+    date: state.date,
+    type: state.type,
+    presetId: state.presetId,
+    tournamentMode: state.tournamentMode,
+    participantCount: state.participantCount,
+    participantNames: state.participantNames,
+    hasGroupStage: state.hasGroupStage,
+    groupCount: state.groupCount,
+    qualifyingFormat: state.qualifyingFormat,
+    qualifyingScoringRules: state.qualifyingScoringRules,
+    qualifyingMatchRules: state.qualifyingMatchRules,
+    advancePerGroup: state.advancePerGroup,
+    hasFinalsStage: state.hasFinalsStage,
+    finalsFormat: state.finalsFormat as 'single_elimination' | 'double_elimination',
+    advanceCount: state.advanceCount,
+    startingRound: state.finalsStartRound,
+    seedMethod: 'ranking' as const,
+    finalsScoringRules: state.finalsScoringRules,
+    finalsMatchRules: state.finalsMatchRules,
+    hasThirdPlaceMatch: state.thirdPlaceMatch,
+    rankingMatch: state.rankingMatch,
+    scoringRules: state.scoringRules,
+    matchRules: state.matchRules,
+    teamRules: state.teamRules,
+    formatType: state.formatType,
+    useCustomRules: state.useCustomRules,
+    bracketArrangement: state.bracketArrangement,
+    hasRoundScoringOverride: state.hasRoundScoringOverride,
+    roundOverrideFromRound: state.roundOverrideFromRound,
+    roundOverrideSetsToWin: state.roundOverrideSetsToWin,
+    roundOverrideMaxSets: state.roundOverrideMaxSets,
+    customPairings: state.customPairings,
   };
 
   return (

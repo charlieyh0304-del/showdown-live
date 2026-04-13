@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { onConfirm, showConfirm } from './confirm';
 
 describe('confirm event bus', () => {

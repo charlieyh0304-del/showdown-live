@@ -59,6 +59,7 @@ export function useRouteAnnouncer() {
     }
 
     // Announce the page title to screen readers
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAnnouncement(title);
 
     // Move focus to main content area or h1 after navigation

@@ -23,7 +23,7 @@ import { formatTime, speak, preWarmSpeech } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
-import { useCountdownTimer } from './useCountdownTimer';
+import { useCountdownTimer, playWarningBeep } from './useCountdownTimer';
 import { useDoubleClickGuard } from './useDoubleClickGuard';
 import { useFocusTrap } from './useFocusTrap';
 import { useWhistle } from '@shared/hooks/useWhistle';

@@ -1034,7 +1034,6 @@ export default function PracticeScoring() {
         match={match}
         sets={sets}
         scoringDisabled={!!match.activeTimeout || showSideChange}
-        showSideChange={showSideChange}
         showHistory={showHistory}
         expandedSection={expandedSection}
         onToggleSection={toggleSection}

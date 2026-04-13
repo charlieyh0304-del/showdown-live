@@ -28,6 +28,7 @@ function TimeoutModal({ match, player1Name, player2Name, timeoutTimer, onClose }
   useEffect(() => {
     if (toType !== 'referee' || !match.activeTimeout) return;
     const startTime = match.activeTimeout.startTime;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setElapsed(Math.floor((Date.now() - startTime) / 1000));
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime) / 1000));

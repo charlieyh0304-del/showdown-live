@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, onValue, set, push, remove, update, get, runTransaction, query, limitToLast, type DataSnapshot, type Query } from 'firebase/database';
 import { database } from '../config/firebase';

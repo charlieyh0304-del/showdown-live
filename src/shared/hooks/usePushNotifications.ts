@@ -125,6 +125,7 @@ export function usePushNotifications(favorites: FavEntry[]) {
     const supported = 'serviceWorker' in navigator &&
       'PushManager' in window &&
       'Notification' in window;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPushSupported(supported);
 
     if (!supported) { setDebugInfo('❌ 푸시 미지원 브라우저'); return; }

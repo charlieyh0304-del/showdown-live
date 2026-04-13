@@ -78,7 +78,7 @@ function getStartingRoundLabel(round: number, t: (key: string) => string): strin
 // ===== 컴포넌트 =====
 
 interface WizardStep5Props {
-  state: Pick<TournamentWizardState, 'name' | 'date' | 'type' | 'participantCount' | 'hasGroupStage' | 'groupCount' | 'hasFinalsStage' | 'advanceCount' | 'scoringRules' | 'matchRules' | 'teamRules' | 'qualifyingScoringRules' | 'qualifyingMatchRules' | 'finalsScoringRules' | 'finalsMatchRules' | 'rankingMatch' | 'advancePerGroup' | 'hasRoundScoringOverride' | 'roundOverrideFromRound' | 'roundOverrideSetsToWin' | 'roundOverrideMaxSets'>;
+  state: TournamentWizardState;
   dispatch: (action: WizardAction) => void;
   onSubmit: () => void;
 }
