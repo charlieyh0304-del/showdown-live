@@ -22,7 +22,7 @@ export function onConfirm(cb: ConfirmListener): () => void {
  */
 export function showConfirm(options: ConfirmOptions): Promise<boolean> {
   if (!listener) {
-    return Promise.resolve(window.confirm(options.message));
+    return Promise.resolve(typeof window !== 'undefined' ? window.confirm(options.message) : true);
   }
   return new Promise<boolean>((resolve) => {
     listener!(options, resolve);
