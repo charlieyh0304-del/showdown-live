@@ -221,6 +221,7 @@ export default function TeamMatchScoring() {
                 <button
                   className="btn flex-1 bg-gray-600 hover:bg-gray-500 text-white"
                   onClick={() => { setShowSubstitution(false); setSubTeam(null); }}
+                  aria-label={t('common.cancel')}
                 >
                   {t('common.cancel')}
                 </button>
@@ -228,6 +229,7 @@ export default function TeamMatchScoring() {
                   className="btn flex-1 bg-indigo-600 hover:bg-indigo-500 text-white"
                   disabled={subOutIndex === null || subInIndex === null}
                   onClick={handleSubstitution}
+                  aria-label={t('common.confirm')}
                 >
                   {t('common.confirm')}
                 </button>
@@ -299,7 +301,7 @@ export default function TeamMatchScoring() {
           </div>
         ) : (
           <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-gray-800 text-cyan-300 font-mono text-center text-lg">
-            ⏱ {Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
+            <span aria-hidden="true">⏱ </span>{Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
           </div>
         )
       )}

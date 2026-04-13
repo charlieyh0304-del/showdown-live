@@ -186,10 +186,12 @@ export default function IndividualScoring() {
           <div className="card w-full max-w-md space-y-4">
             <h2 className="text-xl font-bold text-center">{t('referee.scoring.coinToss')}</h2>
             <div className="flex gap-4">
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player1'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player1'); setCoinTossStep('choice'); }}
+                aria-label={`${player1Name} ${t('referee.scoring.coinToss')}`}>
                 {player1Name}
               </button>
-              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player2'); setCoinTossStep('choice'); }}>
+              <button className="btn btn-primary btn-large flex-1 text-xl py-6" onClick={() => { initAudio(); setTossWinner('player2'); setCoinTossStep('choice'); }}
+                aria-label={`${player2Name} ${t('referee.scoring.coinToss')}`}>
                 {player2Name}
               </button>
             </div>
@@ -292,12 +294,14 @@ export default function IndividualScoring() {
               <button
                 className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
                 onClick={() => handleWalkover(1)}
+                aria-label={`${player1Name} ${t('common.scoreActions.walkover')}`}
               >
                 {player1Name} {t('common.scoreActions.walkover')}
               </button>
               <button
                 className="btn bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm py-2"
                 onClick={() => handleWalkover(2)}
+                aria-label={`${player2Name} ${t('common.scoreActions.walkover')}`}
               >
                 {player2Name} {t('common.scoreActions.walkover')}
               </button>
@@ -513,7 +517,7 @@ export default function IndividualScoring() {
           </div>
         ) : (
           <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-gray-800 text-cyan-300 font-mono text-center text-lg">
-            ⏱ {Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
+            <span aria-hidden="true">⏱ </span>{Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
           </div>
         )
       )}

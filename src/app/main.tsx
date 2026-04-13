@@ -60,8 +60,9 @@ if ('serviceWorker' in navigator) {
 
       // 즉시 업데이트 체크
       reg.update();
-      // 30초마다 업데이트 체크
-      setInterval(() => reg.update(), 5 * 60 * 1000);
+      // 5분마다 업데이트 체크 (페이지 언로드 시 정리)
+      const updateInterval = setInterval(() => reg.update(), 5 * 60 * 1000);
+      window.addEventListener('beforeunload', () => clearInterval(updateInterval));
       // 탭이 다시 활성화될 때 업데이트 체크
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') reg.update();
