@@ -156,7 +156,14 @@ describe('calculateWildcard', () => {
 });
 
 describe('calculateMatchCount', () => {
-  const noRanking = { enabled: false };
+  const noRanking: import('../types').RankingMatchConfig = {
+    enabled: false,
+    thirdPlace: false,
+    fifthToEighth: false,
+    fifthToEighthFormat: 'simple',
+    classificationGroups: false,
+    classificationGroupSize: 4,
+  };
 
   it('single stage (no groups, no finals) → full round robin', () => {
     const result = calculateMatchCount(4, false, 0, false, 0, noRanking);
@@ -190,13 +197,13 @@ describe('calculateMatchCount', () => {
   });
 
   it('ranking match: 3rd place adds 1', () => {
-    const result = calculateMatchCount(8, true, 2, true, 4, { enabled: true, thirdPlace: true });
+    const result = calculateMatchCount(8, true, 2, true, 4, { ...noRanking, enabled: true, thirdPlace: true });
     expect(result.ranking).toBe(1);
   });
 
   it('ranking match: 5-8th simple adds 2', () => {
     const result = calculateMatchCount(8, true, 2, true, 4, {
-      enabled: true, fifthToEighth: true, fifthToEighthFormat: 'simple',
+      ...noRanking, enabled: true, fifthToEighth: true, fifthToEighthFormat: 'simple',
     });
     expect(result.ranking).toBe(2);
   });

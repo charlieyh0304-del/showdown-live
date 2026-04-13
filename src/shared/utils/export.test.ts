@@ -11,6 +11,7 @@ const baseTournament: Tournament = {
   format: 'full_league',
   createdAt: 0,
   updatedAt: 0,
+  gameConfig: { winScore: 11, setsToWin: 3 },
 };
 
 const players: Player[] = [
@@ -21,13 +22,15 @@ const players: Player[] = [
 const completedMatch: Match = {
   id: 'm1',
   tournamentId: 't1',
+  type: 'individual',
+  round: 1,
   player1Id: 'p1',
   player1Name: 'Alice',
   player2Id: 'p2',
   player2Name: 'Bob',
   status: 'completed',
   winnerId: 'p1',
-  sets: [{ player1Score: 11, player2Score: 5 }, { player1Score: 11, player2Score: 7 }],
+  sets: [{ player1Score: 11, player2Score: 5, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0 }, { player1Score: 11, player2Score: 7, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0 }],
   currentSet: 1,
   createdAt: 0,
 };
