@@ -12,35 +12,35 @@ type TFunc = (key: string) => string;
 
 function getToolLabels(t: TFunc): Record<string, string> {
   return {
-    list_tournaments: t('aiChat.tools.listTournaments'), get_tournament: t('aiChat.tools.getTournament'), list_players: t('aiChat.tools.listPlayers'),
-    list_matches: t('aiChat.tools.listMatches'), list_courts: t('aiChat.tools.listCourts'), list_referees: t('aiChat.tools.listReferees'),
-    get_schedule: t('aiChat.tools.getSchedule'), create_tournament: t('aiChat.tools.createTournament'), update_tournament: t('aiChat.tools.updateTournament'),
-    setup_full_tournament: t('aiChat.tools.setupFullTournament'), delete_tournament: t('aiChat.tools.deleteTournament'),
-    add_players_bulk: t('aiChat.tools.addPlayersBulk'), delete_player: t('aiChat.tools.deletePlayer'),
-    add_match: t('aiChat.tools.addMatch'), update_match: t('aiChat.tools.updateMatch'), delete_match: t('aiChat.tools.deleteMatch'),
-    generate_round_robin: t('aiChat.tools.generateRoundRobin'), generate_finals: t('aiChat.tools.generateFinals'),
-    simulate_matches: t('aiChat.tools.simulateMatches'), generate_schedule: t('aiChat.tools.generateSchedule'),
-    shift_schedule: t('aiChat.tools.shiftSchedule'), move_matches_to_court: t('aiChat.tools.moveMatchesToCourt'),
-    add_court: t('aiChat.tools.addCourt'), add_referee: t('aiChat.tools.addReferee'),
+    list_tournaments: t('common.aiChat.tools.listTournaments'), get_tournament: t('common.aiChat.tools.getTournament'), list_players: t('common.aiChat.tools.listPlayers'),
+    list_matches: t('common.aiChat.tools.listMatches'), list_courts: t('common.aiChat.tools.listCourts'), list_referees: t('common.aiChat.tools.listReferees'),
+    get_schedule: t('common.aiChat.tools.getSchedule'), create_tournament: t('common.aiChat.tools.createTournament'), update_tournament: t('common.aiChat.tools.updateTournament'),
+    setup_full_tournament: t('common.aiChat.tools.setupFullTournament'), delete_tournament: t('common.aiChat.tools.deleteTournament'),
+    add_players_bulk: t('common.aiChat.tools.addPlayersBulk'), delete_player: t('common.aiChat.tools.deletePlayer'),
+    add_match: t('common.aiChat.tools.addMatch'), update_match: t('common.aiChat.tools.updateMatch'), delete_match: t('common.aiChat.tools.deleteMatch'),
+    generate_round_robin: t('common.aiChat.tools.generateRoundRobin'), generate_finals: t('common.aiChat.tools.generateFinals'),
+    simulate_matches: t('common.aiChat.tools.simulateMatches'), generate_schedule: t('common.aiChat.tools.generateSchedule'),
+    shift_schedule: t('common.aiChat.tools.shiftSchedule'), move_matches_to_court: t('common.aiChat.tools.moveMatchesToCourt'),
+    add_court: t('common.aiChat.tools.addCourt'), add_referee: t('common.aiChat.tools.addReferee'),
   };
 }
 
 function getRoleConfig(t: TFunc): Record<ChatRole, { icon: string; title: string; placeholder: string; examples: string[] }> {
   return {
     admin: {
-      icon: '🤖', title: t('aiChat.roles.admin.title'),
-      placeholder: t('aiChat.roles.admin.placeholder'),
-      examples: [t('aiChat.roles.admin.example1'), t('aiChat.roles.admin.example2'), t('aiChat.roles.admin.example3')],
+      icon: '🤖', title: t('common.aiChat.roles.admin.title'),
+      placeholder: t('common.aiChat.roles.admin.placeholder'),
+      examples: [t('common.aiChat.roles.admin.example1'), t('common.aiChat.roles.admin.example2'), t('common.aiChat.roles.admin.example3')],
     },
     referee: {
-      icon: '🏅', title: t('aiChat.roles.referee.title'),
-      placeholder: t('aiChat.roles.referee.placeholder'),
-      examples: [t('aiChat.roles.referee.example1'), t('aiChat.roles.referee.example2'), t('aiChat.roles.referee.example3')],
+      icon: '🏅', title: t('common.aiChat.roles.referee.title'),
+      placeholder: t('common.aiChat.roles.referee.placeholder'),
+      examples: [t('common.aiChat.roles.referee.example1'), t('common.aiChat.roles.referee.example2'), t('common.aiChat.roles.referee.example3')],
     },
     spectator: {
-      icon: '📢', title: t('aiChat.roles.spectator.title'),
-      placeholder: t('aiChat.roles.spectator.placeholder'),
-      examples: [t('aiChat.roles.spectator.example1'), t('aiChat.roles.spectator.example2'), t('aiChat.roles.spectator.example3')],
+      icon: '📢', title: t('common.aiChat.roles.spectator.title'),
+      placeholder: t('common.aiChat.roles.spectator.placeholder'),
+      examples: [t('common.aiChat.roles.spectator.example1'), t('common.aiChat.roles.spectator.example2'), t('common.aiChat.roles.spectator.example3')],
     },
   };
 }
@@ -88,8 +88,9 @@ function simpleMarkdown(text: string): string {
 
 function MessageBubble({ msg, toolLabels, purify }: { msg: ChatMessage; toolLabels: Record<string, string>; purify: typeof import('dompurify').default | null }) {
   const isUser = msg.role === 'user';
-  const sanitizedHtml = !isUser
-    ? (purify ? purify.sanitize(simpleMarkdown(msg.content), SANITIZE_CONFIG) : simpleMarkdown(msg.content))
+  const canSanitize = !!purify && typeof purify.sanitize === 'function';
+  const sanitizedHtml = !isUser && canSanitize
+    ? purify!.sanitize(simpleMarkdown(msg.content), SANITIZE_CONFIG)
     : '';
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -100,7 +101,9 @@ function MessageBubble({ msg, toolLabels, purify }: { msg: ChatMessage; toolLabe
         <div className={`rounded-xl px-3 py-2 text-sm ${isUser ? 'bg-cyan-800 text-white rounded-tr-sm whitespace-pre-wrap' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tl-sm'}`}>
           {isUser
             ? msg.content
-            : <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+            : canSanitize
+              ? <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+              : <div className="whitespace-pre-wrap">{msg.content}</div>
           }
         </div>
         {!isUser && msg.actions && <ActionBadges actions={msg.actions} toolLabels={toolLabels} />}
@@ -123,8 +126,24 @@ export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps)
   const [input, setInput] = useState('');
   const [domPurify, setDomPurify] = useState<typeof import('dompurify').default | null>(null);
   useEffect(() => {
-    if (isOpen && !domPurify) {
-      import('dompurify').then(m => setDomPurify(m.default));
+    if (isOpen && !domPurify && typeof window !== 'undefined') {
+      import('dompurify').then(m => {
+        // dompurify 3.x: ESM default export is a DOMPurify instance with .sanitize.
+        // CJS interop edge cases: `m` may already BE the instance (no default wrap).
+        // If window wasn't available at module eval time, the instance is a factory
+        // lacking .sanitize — re-instantiate with the live window.
+        const mod = m as unknown as { default?: unknown };
+        let purify = (mod.default ?? m) as {
+          sanitize?: (html: string, config?: unknown) => string;
+          (win: Window): { sanitize?: (html: string, config?: unknown) => string };
+        };
+        if (typeof purify.sanitize !== 'function' && typeof purify === 'function') {
+          try { purify = purify(window) as typeof purify; } catch { /* ignore */ }
+        }
+        if (typeof purify.sanitize === 'function') {
+          setDomPurify(purify as unknown as typeof import('dompurify').default);
+        }
+      }).catch(() => { /* fall back to plain-text rendering */ });
     }
   }, [isOpen, domPurify]);
   const scrollRef = useRef<HTMLDivElement>(null);
