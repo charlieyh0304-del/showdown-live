@@ -1,17 +1,27 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+    <script>
+      // Set html lang before any content renders (for screen readers)
+      (function() {
+        var lang = localStorage.getItem('showdown_language') || 'ko';
+        var l = lang === 'en' ? 'en' : 'ko';
+        document.documentElement.lang = l;
+        // Also set title early for screen readers
+        var titles = { ko: '쇼다운 대회 관리', en: 'Showdown Tournament Manager' };
+        document.title = titles[l] || titles.ko;
+      })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="시각장애인 스포츠 쇼다운 대회 관리 앱">
+    <meta name="description" content="Showdown - Tournament Management for Visually Impaired Table Sport">
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="쇼다운">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>쇼다운 대회 관리</title>
+    <link rel="apple-touch-icon" href="/showdown-live/icons/icon-152.png">
+    <title>Showdown</title>
     <script>
       // 1) 이전 커스텀 service-worker.js 강제 해제 (showdown-v* 캐시 사용하던 SW)
       (function() {
@@ -28,7 +38,7 @@
 
       // 2) 앱 버전 — 빌드 시마다 자동 변경되어 캐시를 초기화합니다
       (function() {
-        var APP_VERSION = '2603231046';
+        var APP_VERSION = '2604201439';
         var key = 'showdown_app_version';
         var saved = localStorage.getItem(key);
         if (saved !== APP_VERSION) {
@@ -64,29 +74,38 @@
           manifest.rel = 'manifest';
           document.head.appendChild(manifest);
         }
+        var lang = localStorage.getItem('showdown_language') || 'ko';
+        var titles = {
+          ko: { spectator: '쇼다운 관람', referee: '쇼다운 심판', admin: '쇼다운 관리' },
+          en: { spectator: 'Showdown Spectator', referee: 'Showdown Referee', admin: 'Showdown Admin' }
+        };
+        var t = titles[lang] || titles.ko;
         if (path.indexOf('/spectator') !== -1) {
           manifest.href = base + '/manifest-spectator.json';
-          document.title = '쇼다운 관람';
+          document.title = t.spectator;
           document.querySelector('meta[name="theme-color"]').content = '#1a73e8';
-          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관람';
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = t.spectator;
         } else if (path.indexOf('/referee') !== -1) {
           manifest.href = base + '/manifest-referee.json';
-          document.title = '쇼다운 심판';
+          document.title = t.referee;
           document.querySelector('meta[name="theme-color"]').content = '#f59e0b';
-          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 심판';
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = t.referee;
         } else if (path.indexOf('/admin') !== -1) {
           manifest.href = base + '/manifest-admin.json';
-          document.title = '쇼다운 관리';
+          document.title = t.admin;
           document.querySelector('meta[name="theme-color"]').content = '#ef4444';
-          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = '쇼다운 관리';
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').content = t.admin;
         } else {
           // Default: use the VitePWA-generated manifest
           manifest.href = base + '/manifest.webmanifest';
         }
       })();
     </script>
-  <script type="module" crossorigin src="/showdown-live/assets/index-DYh1t0zs.js"></script>
-  <link rel="stylesheet" crossorigin href="/showdown-live/assets/index-BxhkquVq.css">
+  <script type="module" crossorigin src="/showdown-live/assets/index-CfmVHo-6.js"></script>
+  <link rel="modulepreload" crossorigin href="/showdown-live/assets/react-BVk83-3q.js">
+  <link rel="modulepreload" crossorigin href="/showdown-live/assets/i18n-sxZSGQ1N.js">
+  <link rel="modulepreload" crossorigin href="/showdown-live/assets/firebase-dzLH7EHt.js">
+  <link rel="stylesheet" crossorigin href="/showdown-live/assets/index-DaG8w-Sy.css">
 <link rel="manifest" href="/showdown-live/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/showdown-live/registerSW.js"></script></head>
 <body>
     <div id="root"></div>
