@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, onValue, set, push, remove, update, get, runTransaction, query, limitToLast, type DataSnapshot, type Query } from 'firebase/database';
-import { database } from '../config/firebase';
+import { database, authReady } from '../config/firebase';
 import { queueUpdate } from '../utils/offlineQueue';
 import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
 
@@ -43,10 +43,30 @@ function subscribeToPath(path: string, callback: (snapshot: DataSnapshot) => voi
   }
   const callbacks = new Set<(snapshot: DataSnapshot) => void>([callback]);
   const cacheEntry = { unsub: () => {}, count: 1, callbacks, lastSnapshot: null as DataSnapshot | null };
-  cacheEntry.unsub = onValue(ref(database, path), (snap) => {
-    cacheEntry.lastSnapshot = snap;
-    callbacks.forEach(cb => cb(snap));
-  });
+  let retries = 0;
+  const attach = (): (() => void) => onValue(
+    ref(database, path),
+    (snap) => {
+      cacheEntry.lastSnapshot = snap;
+      callbacks.forEach(cb => cb(snap));
+    },
+    (err) => {
+      // The value callback never fires on a cancelled listen, so consumers would stay in
+      // `loading` forever. The usual cause: the listener attached before anonymous auth
+      // finished and the node requires auth (e.g. `referees` rule is `auth != null`).
+      // Re-attach once auth is ready; cap retries to avoid a tight loop if it keeps failing.
+      // Logged in all builds so a cancellation is diagnosable in deployed environments too.
+      console.warn(`[showdown] DB listen cancelled for "${path}": ${err.message} — will retry after auth`);
+      if (retries >= 3) return;
+      retries++;
+      authReady.then(() => {
+        if (listenerCache.get(path) === cacheEntry && cacheEntry.count > 0) {
+          cacheEntry.unsub = attach();
+        }
+      }).catch(() => {});
+    },
+  );
+  cacheEntry.unsub = attach();
   listenerCache.set(path, cacheEntry);
   return () => {
     callbacks.delete(callback);
@@ -82,10 +102,26 @@ function subscribeToQuery(cacheKey: string, q: Query, callback: (snapshot: DataS
   }
   const callbacks = new Set<(snapshot: DataSnapshot) => void>([callback]);
   const cacheEntry = { unsub: () => {}, count: 1, callbacks, lastSnapshot: null as DataSnapshot | null };
-  cacheEntry.unsub = onValue(q, (snap) => {
-    cacheEntry.lastSnapshot = snap;
-    callbacks.forEach(cb => cb(snap));
-  });
+  let retries = 0;
+  const attach = (): (() => void) => onValue(
+    q,
+    (snap) => {
+      cacheEntry.lastSnapshot = snap;
+      callbacks.forEach(cb => cb(snap));
+    },
+    (err) => {
+      // See subscribeToPath: recover from a pre-auth permission-denied so loading resolves.
+      console.warn(`[showdown] DB query listen cancelled for "${cacheKey}": ${err.message} — will retry after auth`);
+      if (retries >= 3) return;
+      retries++;
+      authReady.then(() => {
+        if (queryListenerCache.get(cacheKey) === cacheEntry && cacheEntry.count > 0) {
+          cacheEntry.unsub = attach();
+        }
+      }).catch(() => {});
+    },
+  );
+  cacheEntry.unsub = attach();
   queryListenerCache.set(cacheKey, cacheEntry);
   return () => {
     callbacks.delete(callback);
