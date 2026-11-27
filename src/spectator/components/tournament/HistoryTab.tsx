@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { countSetWins } from '@shared/utils/scoring';
+import { matchSetWins } from '@shared/utils/scoring';
+import type { TournamentLike } from '@shared/rules/competitionRules';
 import type { Match } from '@shared/types';
 import type { useNavigate } from 'react-router-dom';
 
@@ -8,6 +9,8 @@ export interface HistoryTabProps {
   matches: Match[];
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
+  /** 대회 규칙(세트 승수 판정)을 읽는다 */
+  tournament?: TournamentLike | null;
 }
 
 const HISTORY_ITEMS_PER_PAGE = 30;
@@ -17,6 +20,7 @@ export default function HistoryTab({
   matches,
   navigate,
   tournamentId,
+  tournament,
 }: HistoryTabProps) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
@@ -139,7 +143,7 @@ export default function HistoryTab({
                 </div>
                 <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {(expandedSections.has(`q_${groupId}`) ? gMatches : gMatches.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
-                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={gMatches.length} />
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} tournament={tournament} index={mi} total={gMatches.length} />
                   ))}
                 </div>
                 {gMatches.length > SECTION_INITIAL_LIMIT && (
@@ -178,7 +182,7 @@ export default function HistoryTab({
                 </div>
                 <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {(expandedSections.has(`f_${roundLabel}`) ? rMatches : rMatches.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
-                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={rMatches.length} />
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} tournament={tournament} index={mi} total={rMatches.length} />
                   ))}
                 </div>
                 {rMatches.length > SECTION_INITIAL_LIMIT && (
@@ -217,7 +221,7 @@ export default function HistoryTab({
                 </div>
                 <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {(expandedSections.has(`r_${roundLabel}`) ? rMatches : rMatches.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
-                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={rMatches.length} />
+                    <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} tournament={tournament} index={mi} total={rMatches.length} />
                   ))}
                 </div>
                 {rMatches.length > SECTION_INITIAL_LIMIT && (
@@ -244,7 +248,7 @@ export default function HistoryTab({
           )}
           <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {(expandedSections.has('other') ? stageGroups.other : stageGroups.other.slice(0, SECTION_INITIAL_LIMIT)).map((m, mi) => (
-              <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} index={mi} total={stageGroups.other.length} />
+              <HistoryMatchCard key={m.id} match={m} navigate={navigate} tournamentId={tournamentId} tournament={tournament} index={mi} total={stageGroups.other.length} />
             ))}
           </div>
           {stageGroups.other.length > SECTION_INITIAL_LIMIT && (
@@ -306,12 +310,14 @@ function HistoryMatchCard({
   match,
   navigate,
   tournamentId,
+  tournament,
   index,
   total,
 }: {
   match: Match;
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
+  tournament?: TournamentLike | null;
   index?: number;
   total?: number;
 }) {
@@ -323,14 +329,16 @@ function HistoryMatchCard({
   const isP1Winner = isCompleted && match.winnerId === (match.player1Id || match.team1Id);
   const isP2Winner = isCompleted && match.winnerId === (match.player2Id || match.team2Id);
   const sets = Array.isArray(match.sets) ? match.sets : [];
-  const setWins = isIndividual && sets.length > 0 ? countSetWins(sets) : null;
+  // 세트 승수는 그 경기의 유효 규칙으로 센다 (11점 기본값 아님)
+  const multiSet = isIndividual || sets.length > 1;
+  const setWins = multiSet && sets.length > 0 ? matchSetWins(match, tournament) : null;
 
   const borderColor = match.status === 'in_progress' ? '#eab308' : isCompleted ? '#374151' : '#1f2937';
 
   // Build formatted score string for readable display
   const scoreText = (() => {
     if (sets.length === 0 || match.status === 'pending') return null;
-    if (isIndividual && setWins) {
+    if (multiSet && setWins) {
       const setScoreDetails = sets.map((s, i) => `${t('common.matchHistory.setLabel', { num: i + 1 })}: ${s.player1Score}-${s.player2Score}`).join(', ');
       return { p1Score: String(setWins.player1), p2Score: String(setWins.player2), label: t('common.units.set'), detail: setScoreDetails };
     }

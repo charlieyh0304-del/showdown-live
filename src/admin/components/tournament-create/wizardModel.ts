@@ -110,8 +110,8 @@ export type Action =
   | { type: 'REMOVE_SCHEDULE_DATE'; date: string }
   | { type: 'SET_RULES_DRAFT'; draft: RulesDraft };
 
-const INDIVIDUAL_SCORING: ScoringRules = { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2, deuceEnabled: true };
-const TEAM_SCORING: ScoringRules = { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2, deuceEnabled: true };
+const INDIVIDUAL_SCORING: ScoringRules = { winScore: 11, setsToWin: 2, maxSets: 3, minLead: 2 };
+const TEAM_SCORING: ScoringRules = { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2 };
 
 const DEFAULT_MATCH_RULES: MatchRules = { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 };
 

@@ -9,12 +9,10 @@ import {
   checkMatchWinner,
   createEmptySet,
   countSetWins,
-  advanceServe,
-  revertServe,
-  shouldSideChange,
   createScoreHistoryEntry,
-  getMaxServes,
+  rulesFromLegacyConfig,
 } from '@shared/utils/scoring';
+import { advanceServeTurn, revertServeTurn, servesPerTurnOf, shouldChangeSidesMidSet } from '@shared/rules/serve';
 import type { ScoreHistoryEntry } from '@shared/types';
 import { formatTime } from '@shared/utils/locale';
 import type { SetScore, ScoreActionType, PracticeMatch } from '@shared/types';
@@ -45,6 +43,8 @@ export default function PracticeScoring() {
     ? { SETS_TO_WIN: 1, MAX_SETS: 1, POINTS_TO_WIN: 31, MIN_POINT_DIFF: 2 }
     : { SETS_TO_WIN: 2, MAX_SETS: 3, POINTS_TO_WIN: 11, MIN_POINT_DIFF: 2 };
   const config = JSON.parse(searchParams.get('config') || JSON.stringify(defaultConfig));
+  // 연습 모드 서브 수: IBSA 기본(개인 2, 단체 3)
+  const maxServes = servesPerTurnOf(rulesFromLegacyConfig(config), matchType);
   const team1Members: string[] = matchType === 'team' ? JSON.parse(searchParams.get('t1m') || '[]') : [];
   const team2Members: string[] = matchType === 'team' ? JSON.parse(searchParams.get('t2m') || '[]') : [];
 
@@ -264,9 +264,7 @@ export default function PracticeScoring() {
       scoreBefore, scoreAfter,
     });
 
-    const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
-      match.currentServe, match.serveCount, matchType,
-    );
+    const { currentServe: nextServe, serveCount: nextCount } = advanceServeTurn(match.currentServe, match.serveCount, maxServes);
 
     // 팀전: 서브를 마친 팀이 선수 교체 (로테이션)
     let rotationEntry: ReturnType<typeof createScoreHistoryEntry> | null = null;
@@ -325,7 +323,7 @@ export default function PracticeScoring() {
     const actionDesc = toOpponent
       ? `${actorName} ${label.split(' ').slice(1).join(' ')} → ${pName} +${points}${t('common.units.point')}`
       : `${pName} ${t('common.scoreActions.goal')}! +${points}${t('common.units.point')}`;
-    const nextServeDisplay = `${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes(matchType)}`;
+    const nextServeDisplay = `${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${maxServes}`;
     setLastAction(rotationAnnounce
       ? `${actionDesc} | ${p1Name} ${scoreAfter.player1} : ${scoreAfter.player2} ${p2Name} | ${nextServeDisplay} | ${rotationAnnounce}`
       : `${actionDesc} | ${p1Name} ${scoreAfter.player1} : ${scoreAfter.player2} ${p2Name} | ${nextServeDisplay}`);
@@ -366,7 +364,7 @@ export default function PracticeScoring() {
     }
 
     // Side change
-    if (shouldSideChange(matchType, cs, match.sideChangeUsed, sets, config)) {
+    if (shouldChangeSidesMidSet(cs, sets.slice(0, ci), rulesFromLegacyConfig(config), match.sideChangeUsed)) {
       updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory, ...rotationUpdate,
@@ -463,9 +461,7 @@ export default function PracticeScoring() {
     cs.winnerId = null;
     sets[ci] = cs;
 
-    const { currentServe, serveCount } = revertServe(
-      match.currentServe, match.serveCount, matchType,
-    );
+    const { currentServe, serveCount } = revertServeTurn(match.currentServe, match.serveCount, maxServes);
 
     updateMatch({ sets, currentServe, serveCount, scoreHistory: match.scoreHistory.slice(1) });
     const serverAfterUndo = currentServe === 'player1' ? p1Name : p2Name;
@@ -824,7 +820,6 @@ export default function PracticeScoring() {
   const cs = sets[ci] ?? createEmptySet();
   const setWins = countSetWins(sets, config);
   const serverName = match.currentServe === 'player1' ? p1Name : p2Name;
-  const maxServes = getMaxServes(matchType);
 
 
   // W/P/T.O. counts from score history

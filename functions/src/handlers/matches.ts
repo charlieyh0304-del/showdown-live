@@ -2,6 +2,7 @@
  * Match CRUD 핸들러
  */
 import { db } from "../db-helpers";
+import { defaultMatchType, planMatchUpdate } from "../lib/match-update";
 
 export async function addMatch(input: Record<string, unknown>): Promise<string> {
   if (!input.tournamentId || typeof input.tournamentId !== "string") {
@@ -27,17 +28,20 @@ export async function addMatch(input: Record<string, unknown>): Promise<string> 
     return JSON.stringify({ error: "player1Id/player2Id (또는 team1Id/team2Id)가 모두 필요합니다." });
   }
   const now = Date.now();
+  const tData = tCheckSnap.val() as Record<string, unknown> | null;
+  // 경기 type 기본값 = 대회 type (단체·랜덤팀 대회면 team): 규칙(31점 등)과 순위 집계가 맞게
+  const matchType = defaultMatchType(tData?.type, input.matchType, !!(input.team1Id || input.team2Id));
   const newRef = db.ref(`matches/${input.tournamentId}`).push();
   await newRef.set({
     tournamentId: input.tournamentId,
-    type: input.matchType || "individual",
+    type: matchType,
     status: "pending",
     round: input.round || 1,
     player1Id: input.player1Id || input.team1Id || "",
     player2Id: input.player2Id || input.team2Id || "",
     player1Name: input.player1Name || input.team1Name || "",
     player2Name: input.player2Name || input.team2Name || "",
-    ...((input.matchType === "team" || input.team1Id) ? {
+    ...(matchType === "team" ? {
       team1Id: input.team1Id || input.player1Id, team2Id: input.team2Id || input.player2Id,
       team1Name: input.team1Name || input.player1Name, team2Name: input.team2Name || input.player2Name,
     } : {}),
@@ -62,18 +66,11 @@ export async function updateMatch(input: Record<string, unknown>): Promise<strin
   if (!matchCheckSnap.exists()) {
     return JSON.stringify({ error: "해당 경기를 찾을 수 없습니다." });
   }
-  // Fix 2: winnerId validation — must match one of the participants (empty/null OK)
-  if ("winnerId" in fields) {
-    const w = fields.winnerId;
-    if (w !== null && w !== "" && typeof w === "string") {
-      const m = matchCheckSnap.val() as Record<string, unknown>;
-      const valid = [m.player1Id, m.player2Id, m.team1Id, m.team2Id].filter(Boolean);
-      if (!valid.includes(w)) {
-        return JSON.stringify({ error: "승자 ID가 경기 참가자와 일치하지 않습니다." });
-      }
-    }
-  }
-  const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
+  // 승자 검증(참가자·세트 점수와 일치)과 부전승(표시 + 규칙의 부전승 세트)은 lib/match-update
+  const tourSnap = await db.ref(`tournaments/${tournamentId}`).once("value");
+  const plan = planMatchUpdate(matchCheckSnap.val() as Record<string, unknown>, tourSnap.exists() ? tourSnap.val() as Record<string, unknown> : null, fields);
+  if ("error" in plan) return JSON.stringify({ error: plan.error });
+  const updates: Record<string, unknown> = { ...plan.updates, updatedAt: Date.now() };
   delete updates.tournamentId;
   delete updates.matchId;
   await db.ref(`matches/${tournamentId}/${matchId}`).update(updates);

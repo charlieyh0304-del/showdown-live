@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   mapToLegacyFormat,
   buildGroupAssignment,
-  generateRoundRobinPairings,
-  generateSingleEliminationBracket,
   calculateWildcard,
   calculateMatchCount,
   countPlayableMatches,
@@ -60,85 +58,6 @@ describe('buildGroupAssignment', () => {
   it('assigns group names as A조, B조, ...', () => {
     const groups = buildGroupAssignment(['a', 'b', 'c'], 3);
     expect(groups.map(g => g.name)).toEqual(['A조', 'B조', 'C조']);
-  });
-});
-
-describe('generateRoundRobinPairings', () => {
-  it('returns empty for < 2 participants', () => {
-    expect(generateRoundRobinPairings(0)).toEqual([]);
-    expect(generateRoundRobinPairings(1)).toEqual([]);
-  });
-
-  it('generates correct number of matches for even participants', () => {
-    // 4 players → 4*3/2 = 6 matches
-    const pairings = generateRoundRobinPairings(4);
-    expect(pairings).toHaveLength(6);
-  });
-
-  it('generates correct number of matches for odd participants', () => {
-    // 5 players → 5*4/2 = 10 matches
-    const pairings = generateRoundRobinPairings(5);
-    expect(pairings).toHaveLength(10);
-  });
-
-  it('each participant appears the right number of times', () => {
-    const pairings = generateRoundRobinPairings(4);
-    const counts = new Map<number, number>();
-    for (const p of pairings) {
-      counts.set(p.player1Index, (counts.get(p.player1Index) || 0) + 1);
-      counts.set(p.player2Index, (counts.get(p.player2Index) || 0) + 1);
-    }
-    // Each of 4 players plays 3 matches
-    for (let i = 0; i < 4; i++) {
-      expect(counts.get(i)).toBe(3);
-    }
-  });
-
-  it('no duplicate pairings', () => {
-    const pairings = generateRoundRobinPairings(6);
-    const seen = new Set<string>();
-    for (const p of pairings) {
-      const key = [Math.min(p.player1Index, p.player2Index), Math.max(p.player1Index, p.player2Index)].join('-');
-      expect(seen.has(key)).toBe(false);
-      seen.add(key);
-    }
-  });
-});
-
-describe('generateSingleEliminationBracket', () => {
-  it('returns empty for < 2 participants', () => {
-    expect(generateSingleEliminationBracket(0)).toEqual([]);
-    expect(generateSingleEliminationBracket(1)).toEqual([]);
-  });
-
-  it('generates correct total slots for power of 2', () => {
-    // 4 participants → 2 rounds: 2 + 1 = 3 slots
-    const slots = generateSingleEliminationBracket(4);
-    expect(slots).toHaveLength(3);
-  });
-
-  it('generates correct total slots for non-power of 2', () => {
-    // 5 participants → rounds up to 8 → 3 rounds: 4 + 2 + 1 = 7 slots
-    const slots = generateSingleEliminationBracket(5);
-    expect(slots).toHaveLength(7);
-  });
-
-  it('round 1 has no source positions', () => {
-    const slots = generateSingleEliminationBracket(8);
-    const r1 = slots.filter(s => s.round === 1);
-    expect(r1).toHaveLength(4);
-    for (const s of r1) {
-      expect(s.sourcePosition1).toBeUndefined();
-      expect(s.sourcePosition2).toBeUndefined();
-    }
-  });
-
-  it('subsequent rounds reference previous round positions', () => {
-    const slots = generateSingleEliminationBracket(4);
-    const final = slots.find(s => s.round === 2);
-    expect(final).toBeDefined();
-    expect(final!.sourcePosition1).toBe(1);
-    expect(final!.sourcePosition2).toBe(2);
   });
 });
 

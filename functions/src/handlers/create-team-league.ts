@@ -20,14 +20,20 @@ export async function createTeamLeague(input: Record<string, unknown>, executeTo
     teams: input.teams,
     groupCount: tlGroupCount,
     advancePerGroup: tlIsFullLeague ? 0 : asNumber(input.advancePerGroup, 2),
-    qualifyingWinScore: asNumber(input.qualifyingWinScore, 31),
-    qualifyingSetsToWin: 1,
+    qualifyingWinScore: asNumber(input.qualifyingWinScore ?? input.winScore, 31),
+    // 세트 수도 대회마다 정한다 (기본 단판 1세트)
+    qualifyingSetsToWin: asNumber(input.qualifyingSetsToWin ?? input.setsToWin, 1),
+    finalsSetsToWin: input.finalsSetsToWin, finalsWinScore: input.finalsWinScore,
+    roundOverrideFromRound: input.roundOverrideFromRound,
+    roundOverrideSetsToWin: input.roundOverrideSetsToWin,
+    servesPerTurn: input.servesPerTurn, sideChangeAt: input.sideChangeAt,
+    playersOnCourt: input.playersOnCourt,
     finalsFormat: asString(input.finalsFormat, "single_elimination"),
     finalsStartRound: input.finalsStartRound,
     avoidSameGroup: input.avoidSameGroup,
     bracketArrangement: input.bracketArrangement,
     thirdPlace: input.thirdPlace !== false,
-    fifthToEighth: input.fifthToEighth !== false,
+    fifthToEighth: input.fifthToEighth === true,
     fifthToEighthFormat: input.fifthToEighthFormat,
     classificationGroups: input.classificationGroups,
     classificationGroupSize: input.classificationGroupSize,
@@ -39,6 +45,7 @@ export async function createTeamLeague(input: Record<string, unknown>, executeTo
     minLead: input.minLead, deuceEnabled: input.deuceEnabled,
     seeds: input.seeds, tiebreakerRules: input.tiebreakerRules,
     wildcardCount: input.wildcardCount,
+    ...(typeof input.teamRestMinutes === "number" ? { minRestMinutes: input.teamRestMinutes } : {}),
   });
   const tlParsed = JSON.parse(tlResult);
   if (!tlParsed.success) return JSON.stringify({ error: `대회 생성 실패: ${tlParsed.error}` });
@@ -59,13 +66,13 @@ export async function createTeamLeague(input: Record<string, unknown>, executeTo
 
   // 4. 스케줄 생성
   const matchDur = asNumber(input.matchDurationMinutes, 60);
-  const teamRest = asNumber(input.teamRestMinutes, 30);
+  // 팀 최소 휴식(앞 경기 종료 → 다음 경기 시작, 팀원 전원)은 대회 규칙(rules.schedule.minRestMinutes)에서 읽는다
   const schedResult = await executeTool("generate_schedule", {
     tournamentId: tlTid, scheduleDate: asString(input.date),
     startTime: asString(input.startTime, "09:00"),
     endTime: asString(input.endTime, "18:00"),
     nextDayStartTime: asString(input.nextDayStartTime) || asString(input.startTime, "09:00"),
-    intervalMinutes: matchDur, playerRestMinutes: matchDur + teamRest,
+    intervalMinutes: matchDur,
     ...(input.breakStart ? { breakStart: input.breakStart } : {}),
     ...(input.breakEnd ? { breakEnd: input.breakEnd } : {}),
     ...(input.scheduleDates ? { scheduleDates: input.scheduleDates } : {}),

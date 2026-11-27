@@ -2,6 +2,8 @@
  * Tournament CRUD 핸들러
  */
 import { db, hashPinSHA256, hashPinPBKDF2 } from "../db-helpers";
+import { DEFAULT_INDIVIDUAL_SCORING, DEFAULT_TEAM_SCORING, isTeamType } from "../shared/rules/competitionRules";
+import { rankingConfigUpdate } from "../lib/tournament-update";
 
 // ===== PIN brute force 방어: RTDB 기반 rate limiter =====
 const RL_WINDOW_MS = 10 * 60 * 1000;   // 10분 윈도우
@@ -62,18 +64,24 @@ export async function createTournament(input: Record<string, unknown>): Promise<
     }
   }
   const newRef = db.ref("tournaments").push();
+  const type = typeof input.type === "string" && input.type ? input.type : "individual";
+  const isTeam = isTeamType(type);
+  // 기본값은 대회 규칙 단일 설정원의 기본값 (개인 11점 3세트제 = 2선승, 단체 31점 단판)
+  const defaults = isTeam ? DEFAULT_TEAM_SCORING : DEFAULT_INDIVIDUAL_SCORING;
+  const winScore = typeof input.winScore === "number" && input.winScore > 0 ? input.winScore : defaults.winScore;
+  const setsToWin = typeof input.setsToWin === "number" && input.setsToWin > 0 ? input.setsToWin : defaults.setsToWin;
   const data = {
     name: input.name || "새 대회",
     date: input.date || new Date().toISOString().split("T")[0],
     ...(input.endDate ? { endDate: input.endDate } : {}),
-    type: input.type || "individual",
+    type,
     format: "full_league",
     formatType: input.formatType || "round_robin",
     status: "draft",
-    gameConfig: {
-      winScore: input.winScore || 11,
-      setsToWin: input.setsToWin || 3,
-    },
+    // resolver가 읽는 규칙 층 (단체전 점수도 rules.scoring.team에)
+    rules: { scoring: { [isTeam ? "team" : "individual"]: { winScore, setsToWin, maxSets: setsToWin * 2 - 1 } } },
+    // 옛 화면 호환 (개인전 gameConfig, 단체전 teamMatchSettings)
+    ...(isTeam ? { teamMatchSettings: { winScore, setsToWin, minLead: 2 } } : { gameConfig: { winScore, setsToWin } }),
     createdAt: now,
     updatedAt: now,
   };
@@ -86,21 +94,12 @@ export async function updateTournament(input: Record<string, unknown>): Promise<
   const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
   delete updates.tournamentId;
 
-  // rankingMatchConfig 부분 업데이트
+  // 순위결정전 설정: 레거시 rankingMatchConfig와 규칙 층 rules.finalRanking을 함께 쓴다
+  // (rules.finalRanking이 레거시 값보다 우선하므로, 레거시만 쓰면 바뀌지 않는다)
   if (rankingUpTo !== undefined || thirdPlace !== undefined || fifthToEighth !== undefined || classificationGroups !== undefined) {
     const curSnap = await db.ref(`tournaments/${tournamentId}`).once("value");
     const curData = curSnap.exists() ? curSnap.val() as Record<string, unknown> : {};
-    const curCfg = (curData.rankingMatchConfig as Record<string, unknown>) || {
-      enabled: false, thirdPlace: false, fifthToEighth: false,
-      fifthToEighthFormat: "simple", classificationGroups: false, classificationGroupSize: 4,
-    };
-    const newCfg = { ...curCfg };
-    if (thirdPlace !== undefined) newCfg.thirdPlace = thirdPlace as boolean;
-    if (fifthToEighth !== undefined) newCfg.fifthToEighth = fifthToEighth as boolean;
-    if (classificationGroups !== undefined) newCfg.classificationGroups = classificationGroups as boolean;
-    if (rankingUpTo !== undefined) newCfg.rankingUpTo = rankingUpTo as number;
-    newCfg.enabled = !!(newCfg.thirdPlace || newCfg.fifthToEighth || newCfg.classificationGroups || (newCfg.rankingUpTo as number) > 0);
-    updates.rankingMatchConfig = newCfg;
+    Object.assign(updates, rankingConfigUpdate(curData, { rankingUpTo, thirdPlace, fifthToEighth, classificationGroups }, "rules" in fields));
   }
 
   await db.ref(`tournaments/${tournamentId}`).update(updates);

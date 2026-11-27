@@ -2,11 +2,10 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { push, update, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { checkMatchWinner, checkSetWinner, getEffectiveScoringRules } from '@shared/utils/scoring';
-import { byeSetsFactory, computeFinalsSeeding, retirementSetsFor, walkoverSetsFor } from '@shared/utils/competition';
+import { byeSetsFactory, computeFinalsSeeding, correctionResult, retirementSetsFor, walkoverSetsFor } from '@shared/utils/competition';
 import { showSuccess, showError } from '@shared/utils/toast';
 import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, toFirebaseValue, type WriteResult } from '@shared/utils/dataWrites';
-import { buildSingleEliminationSkeleton, thirdPlaceStageId } from '@shared/utils/bracketSkeleton';
+import { buildSingleEliminationSkeleton, fifthToEighthStageId, thirdPlaceStageId } from '@shared/utils/bracketSkeleton';
 import { resolveCompetitionRules } from '@shared/rules/competitionRules';
 import { retirementMatchFlags } from '@shared/rules/walkover';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
@@ -183,7 +182,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     if (creatingFinalsRef.current) return;
     const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id || 'finals';
     // 이미 본선(또는 3/4위전) 경기가 있으면 다시 만들지 않는다: 링크된 대진 전체가 중복된다
-    const existingFinals = matches.filter(m => m.stageId === finalsStageId || m.stageId === thirdPlaceStageId(finalsStageId)).length;
+    const existingFinals = matches.filter(m => m.stageId === finalsStageId || m.stageId === thirdPlaceStageId(finalsStageId) || m.stageId === fifthToEighthStageId(finalsStageId)).length;
     if (existingFinals > 0) {
       showError(t('admin.tournamentDetail.bracketTab.finalsDuplicateBlocked', { count: existingFinals }));
       return;
@@ -227,14 +226,16 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
 
     // 1라운드: 표준 시드 위치(1·2번 시드는 결승에서만) + 조 교차. BYE는 상위 시드가 받고 부전승 점수(기본 11:0)로 완료된다
     const matchType = isTeamType ? 'team' : 'individual';
+    const finalRankingRules = resolveCompetitionRules(tournament, finalsStageId).finalRanking;
     const entries = buildSingleEliminationSkeleton({
       tournamentId: tournament.id,
       stageId: finalsStageId,
       matchType,
       slots: seeding.slots.map(q => (q ? { id: q.id, name: idToName.get(q.id) || q.name || q.id } : null)),
       byeSets: byeSetsFactory(tournament, finalsStageId, matchType),
-      // 3/4위전 여부는 대회 규칙(finalRanking.thirdPlace, 레거시 rankingMatchConfig.thirdPlace 포함)에서 읽는다
-      thirdPlace: resolveCompetitionRules(tournament, finalsStageId).finalRanking.thirdPlace === 'match',
+      // 3/4위전·5~8위 결정전은 대회 규칙(finalRanking, 레거시 rankingMatchConfig 포함)에서 읽는다 (서버 generate_finals와 같음)
+      thirdPlace: finalRankingRules.thirdPlace === 'match',
+      fifthToEighth: finalRankingRules.fifthToEighthMatches,
       makeKey: () => push(ref(database, matchesPath)).key!,
       now: Date.now(),
       labels: {
@@ -277,24 +278,17 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
 
   const correctionWinner = useMemo(() => {
     if (correctionSets.length === 0 || !correctionMatch) return null;
-    // 그 경기의 유효 규칙(스테이지·팀 31점 등)으로 판정한다 (B12)
-    return checkMatchWinner(correctionSets, getEffectiveScoringRules(correctionMatch, tournament));
+    // 그 경기의 유효 규칙(라운드·스테이지·팀 31점·듀스 캡)으로 판정한다 (B12)
+    return correctionResult(correctionMatch, correctionSets, tournament).winner;
   }, [correctionSets, correctionMatch, tournament]);
 
   const handleSaveCorrection = async () => {
     if (!correctionMatch || !correctionReason.trim()) return;
     setCorrectionSaving(true);
     try {
-      const rulesConfig = getEffectiveScoringRules(correctionMatch, tournament);
-      const newSets: SetScore[] = correctionSets.map(s => {
-        const winner = checkSetWinner(s.player1Score, s.player2Score, rulesConfig);
-        return { ...s, winnerId: winner === 1 ? (correctionMatch.player1Id || correctionMatch.team1Id || null) : winner === 2 ? (correctionMatch.player2Id || correctionMatch.team2Id || null) : null };
-      });
-
-      const matchWinner = checkMatchWinner(newSets, rulesConfig);
-      let newWinnerId: string | null = null;
-      if (matchWinner === 1) newWinnerId = correctionMatch.player1Id || correctionMatch.team1Id || null;
-      if (matchWinner === 2) newWinnerId = correctionMatch.player2Id || correctionMatch.team2Id || null;
+      const corrected = correctionResult(correctionMatch, correctionSets, tournament);
+      const newSets: SetScore[] = corrected.sets;
+      const newWinnerId = corrected.winnerId;
 
       const historyEntry: ScoreHistoryEntry = {
         time: new Date().toISOString(),

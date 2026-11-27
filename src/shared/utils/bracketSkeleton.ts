@@ -3,6 +3,7 @@
  *
  * - 2라운드 이후 경기는 sourceMatch1/sourceMatch2(sourceType 'winner')로 이전 라운드 두 경기를 가리킨다.
  * - 3/4위전은 4강 두 경기를 sourceType 'loser'로 가리킨다.
+ * - 5~8위 결정전(fifthToEighth)은 8강 경기를 sourceType 'loser'로 가리킨다 (서버 finals-plan과 같은 구조·라벨).
  * - 서버 트리거(functions advanceOnMatchResult)가 이 링크를 읽어 승자/패자를 자동으로 채운다.
  * - 1라운드 배치(시드)는 호출부가 정한다. 표준 시드 배치는 shared/rules/seeding.ts의 placeSeeds를 쓴다(M0c).
  * - BYE 경기는 isBye + walkoverReason 'bye'로 쓰고(구 필드 bye는 쓰지 않음), 실제 선수 쪽 부전승 점수는
@@ -14,6 +15,7 @@
  * ("결정전"이 들어간 roundLabel은 관전/현황 화면에서 순위결정전으로 분류된다.)
  */
 import type { Match, MatchType, SetScore } from '../types';
+import type { FifthToEighthFormat } from '../rules/competitionRules';
 import { BYE_WALKOVER_REASON } from '../rules/walkover';
 import { createEmptySet } from './scoring';
 
@@ -37,6 +39,8 @@ export interface SkeletonOptions {
   /** 길이 = 2의 거듭제곱(대진 크기). [2k], [2k+1]이 1라운드 k번째 경기 */
   slots: FirstRoundSlot[];
   thirdPlace: boolean;
+  /** 5~8위 결정전 방식 (대회 규칙 finalRanking.fifthToEighthMatches). 없으면 'none'. 8강이 있을 때만 만든다. */
+  fifthToEighth?: FifthToEighthFormat;
   makeKey: () => string;
   now: number;
   labels: { undecided: string; bye: string };
@@ -44,7 +48,7 @@ export interface SkeletonOptions {
   byeSets?: (winnerSide: 1 | 2, winnerId: string) => SetScore[];
 }
 
-/** 표준 라운드 이름 (서버 functions/src/lib/bracket-seeding.ts ROUND_NAMES와 같은 값) */
+/** 표준 라운드 이름 (서버 functions/src/lib/finals-plan.ts roundName과 같은 값: 결승, N강) */
 export function roundLabelFor(participants: number): string {
   return participants === 2 ? '결승' : `${participants}강`;
 }
@@ -53,6 +57,17 @@ export const THIRD_PLACE_ROUND_LABEL = '3/4위 결정전';
 
 export function thirdPlaceStageId(finalsStageId: string): string {
   return `${finalsStageId}_3rd`;
+}
+
+/** 5~8위 결정전 경기 수 (대진 크기 8 이상일 때만 생긴다): simple 2, full 4, round_robin 6 */
+export function fifthToEighthMatchCount(format: FifthToEighthFormat, bracketSize: number): number {
+  if (bracketSize < 8) return 0;
+  return format === 'simple' ? 2 : format === 'full' ? 4 : format === 'round_robin' ? 6 : 0;
+}
+
+/** 5~8위 결정전 스테이지 ID (서버 finals-plan과 같은 값) */
+export function fifthToEighthStageId(finalsStageId: string): string {
+  return `${finalsStageId}_5to8`;
 }
 
 export function nextPowerOfTwo(n: number): number {
@@ -90,7 +105,7 @@ function sideFields(side: 1 | 2, matchType: MatchType, id: string, name: string)
 }
 
 export function buildSingleEliminationSkeleton(opts: SkeletonOptions): SkeletonEntry[] {
-  const { tournamentId, stageId, matchType, slots, thirdPlace, makeKey, now, labels, byeSets } = opts;
+  const { tournamentId, stageId, matchType, slots, thirdPlace, fifthToEighth = 'none', makeKey, now, labels, byeSets } = opts;
   const size = nextPowerOfTwo(Math.max(2, slots.length));
   const totalRounds = Math.log2(size);
   const entries: SkeletonEntry[] = [];
@@ -147,6 +162,7 @@ export function buildSingleEliminationSkeleton(opts: SkeletonOptions): SkeletonE
 
   // 2라운드 ~ 결승
   let semifinalKeys: string[] = size === 4 ? [...prevKeys] : [];
+  let quarterKeys: string[] = size === 8 ? [...prevKeys] : [];
   for (let round = 2; round <= totalRounds; round++) {
     const participants = size / Math.pow(2, round - 1);
     const label = roundLabelFor(participants);
@@ -161,6 +177,7 @@ export function buildSingleEliminationSkeleton(opts: SkeletonOptions): SkeletonE
       keys.push(key);
     }
     if (participants === 4) semifinalKeys = [...keys];
+    if (participants === 8) quarterKeys = [...keys];
     prevKeys = keys;
   }
 
@@ -173,6 +190,34 @@ export function buildSingleEliminationSkeleton(opts: SkeletonOptions): SkeletonE
     match.sourceMatch2 = semifinalKeys[1];
     match.sourceType = 'loser';
     entries.push({ key: makeKey(), match });
+  }
+
+  // 5~8위 결정전: 8강 네 경기의 패자 (서버 finals-plan과 같은 방식·라벨)
+  if (fifthToEighth !== 'none' && quarterKeys.length === 4) {
+    const placement = (round: number, pos: number, label: string, s1: string, s2: string, type: 'winner' | 'loser'): string => {
+      const match = base(round, pos, label);
+      match.stageId = fifthToEighthStageId(stageId);
+      delete match.bracketRound; // BracketRound 타입은 본선 라운드만 표현한다
+      match.sourceMatch1 = s1;
+      match.sourceMatch2 = s2;
+      match.sourceType = type;
+      const key = makeKey();
+      entries.push({ key, match });
+      return key;
+    };
+    if (fifthToEighth === 'round_robin') {
+      let n = 0;
+      for (let i = 0; i < 4; i++) {
+        for (let j = i + 1; j < 4; j++) placement(totalRounds + 1, n++, '5~8위 순위 결정전', quarterKeys[i], quarterKeys[j], 'loser');
+      }
+    } else {
+      const c1 = placement(totalRounds + 1, 0, '5-8위 결정전', quarterKeys[0], quarterKeys[1], 'loser');
+      const c2 = placement(totalRounds + 1, 1, '5-8위 결정전', quarterKeys[2], quarterKeys[3], 'loser');
+      if (fifthToEighth === 'full') {
+        placement(totalRounds + 2, 0, '5/6위 결정전', c1, c2, 'winner');
+        placement(totalRounds + 2, 1, '7/8위 결정전', c1, c2, 'loser');
+      }
+    }
   }
 
   return entries;

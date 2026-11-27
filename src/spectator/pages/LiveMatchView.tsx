@@ -2,7 +2,9 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
-import { countSetWins, getEffectiveScoringRules, getMaxServes } from '@shared/utils/scoring';
+import { matchSetWins } from '@shared/utils/scoring';
+import { matchKindOf, resolveMatchScoring } from '@shared/rules/competitionRules';
+import { servesPerTurnOf } from '@shared/rules/serve';
 import { parseTimeDisplay } from '@shared/utils/locale';
 import { useWhistle } from '@shared/hooks/useWhistle';
 import type { ScoreHistoryEntry, Tournament } from '@shared/types';
@@ -42,9 +44,7 @@ export default function LiveMatchView() {
   // 점수 변경 감지 → 음성 안내
   useEffect(() => {
     if (!match || !Array.isArray(match.sets) || match.sets.length === 0) return;
-    const currentSetData = match.type === 'team'
-      ? match.sets[0]
-      : match.sets[match.currentSet ?? 0] ?? match.sets[match.sets.length - 1];
+    const currentSetData = match.sets[match.currentSet ?? 0] ?? match.sets[match.sets.length - 1];
     if (!currentSetData) return;
 
     const scoreStr = `${currentSetData.player1Score}-${currentSetData.player2Score}-${match.currentSet}`;
@@ -200,12 +200,12 @@ export default function LiveMatchView() {
       {match.type === 'individual' ? (
         <IndividualMatchDetail match={match} tournament={tournament} />
       ) : (
-        <TeamMatchDetail match={match} />
+        <TeamMatchDetail match={match} tournament={tournament} />
       )}
 
       {/* 서브 정보 */}
       {isLive && match.currentServe && match.serveSelected && (
-        <ServeIndicator match={match} />
+        <ServeIndicator match={match} tournament={tournament} />
       )}
 
       {/* 경기장/심판 */}
@@ -227,13 +227,14 @@ export default function LiveMatchView() {
 }
 
 // ===== 서브 표시 =====
-function ServeIndicator({ match }: { match: NonNullable<ReturnType<typeof useMatch>['match']> }) {
+function ServeIndicator({ match, tournament }: { match: NonNullable<ReturnType<typeof useMatch>['match']>; tournament: Tournament | null | undefined }) {
   const { t } = useTranslation();
   const isTeam = match.type === 'team';
   const p1 = isTeam ? (match.team1Name ?? t('referee.home.team1Default')) : (match.player1Name ?? t('referee.home.player1Default'));
   const p2 = isTeam ? (match.team2Name ?? t('referee.home.team2Default')) : (match.player2Name ?? t('referee.home.player2Default'));
   const serverName = match.currentServe === 'player1' ? p1 : p2;
-  const maxServes = getMaxServes(match.type ?? 'individual');
+  // 서브 수는 그 경기의 규칙(servesPerTurn, 기본 개인 2·단체 3)에서 읽는다 (심판 화면과 같은 값)
+  const maxServes = servesPerTurnOf(resolveMatchScoring(match, tournament), matchKindOf(match.type));
   const serveCount = match.serveCount ?? 0;
 
   return (
@@ -458,8 +459,7 @@ function IndividualMatchDetail({
   const currentSet = currentSetIdx + 1; // 표시용 (1-indexed)
   const currentSetData = sets[currentSetIdx];
   // 세트 승자는 그 경기의 유효 규칙(경기 → 스테이지 → 라운드별 → 대회 규칙)으로 판정한다 (심판 화면과 같은 값)
-  const effectiveConfig = getEffectiveScoringRules(match, tournament);
-  const setWins = countSetWins(sets, effectiveConfig);
+  const setWins = matchSetWins(match, tournament);
   const hasTimeout = match.activeTimeout != null;
 
   return (
@@ -521,10 +521,11 @@ function IndividualMatchDetail({
 }
 
 // ===== 팀전 상세 =====
-function TeamMatchDetail({ match }: { match: NonNullable<ReturnType<typeof useMatch>['match']> }) {
+function TeamMatchDetail({ match, tournament }: { match: NonNullable<ReturnType<typeof useMatch>['match']>; tournament: Tournament | null | undefined }) {
   const { t } = useTranslation();
   const safeSets = Array.isArray(match.sets) ? match.sets : [];
-  const setData = safeSets.length > 0 ? safeSets[0] : null;
+  // 단체전도 여러 세트일 수 있다 (규칙 setsToWin > 1): 진행 중 세트를 보여 준다
+  const setData = safeSets.length > 0 ? (safeSets[match.currentSet ?? 0] ?? safeSets[safeSets.length - 1]) : null;
   const team1Score = setData?.player1Score ?? 0;
   const team2Score = setData?.player2Score ?? 0;
   const hasTimeout = match.activeTimeout != null;
@@ -547,7 +548,7 @@ function TeamMatchDetail({ match }: { match: NonNullable<ReturnType<typeof useMa
       </div>
 
       <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem', marginBottom: '1rem', border: '2px solid #374151' }} aria-live="polite" aria-atomic="true">
-        <p style={{ color: '#d1d5db', marginBottom: '0.5rem' }}>{t('spectator.liveMatch.teamMatchPoints')}</p>
+        <p style={{ color: '#d1d5db', marginBottom: '0.5rem' }}>{t('spectator.liveMatch.teamMatchPoints', { points: resolveMatchScoring(match, tournament).winScore })}</p>
         <div className="score-display" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }} aria-label={t('spectator.liveMatch.scoreAriaLabel', { p1: match.team1Name || t('referee.home.team1Default'), p1Score: team1Score, p2: match.team2Name || t('referee.home.team2Default'), p2Score: team2Score })}>
           <span style={{ color: 'var(--color-primary)' }}>{team1Score}</span>
           <span style={{ color: '#9ca3af', fontSize: '3rem' }} aria-hidden="true">-</span>

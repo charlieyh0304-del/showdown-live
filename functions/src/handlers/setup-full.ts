@@ -2,6 +2,7 @@
  * 풀 토너먼트 생성 핸들러 (개인전/팀전, 풀리그/조별리그)
  */
 import { db, asString, asNumber, asBoolean } from "../db-helpers";
+import { buildSetupRules } from "../lib/setup-rules";
 
 export async function setupFullTournament(input: Record<string, unknown>): Promise<string> {
   const now = Date.now();
@@ -17,8 +18,10 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
   const groupCount = asNumber(input.groupCount, 4);
   const advancePerGroup = asNumber(input.advancePerGroup, 2);
   const seeds = (input.seeds as string[]) || [];
-  const qualWinScore = asNumber(input.qualifyingWinScore, isTeamTour ? 31 : 11);
-  const qualSetsToWin = asNumber(input.qualifyingSetsToWin, isTeamTour ? 1 : 2);
+  // 점수 기본값은 대회 규칙 단일 설정원의 기본값(개인 11점 3세트제, 단체 31점 단판)이다 (lib/setup-rules)
+  const kindDefaults = buildSetupRules({ isTeam: isTeamTour }).defaults;
+  const qualWinScore = asNumber(input.qualifyingWinScore, kindDefaults.winScore);
+  const qualSetsToWin = asNumber(input.qualifyingSetsToWin, kindDefaults.setsToWin);
   const finalsFormat = asString(input.finalsFormat, "single_elimination");
   const thirdPlace = input.thirdPlace !== false;
   const fifthToEighth = asBoolean(input.fifthToEighth);
@@ -37,8 +40,8 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
   const bracketArrangement = asString(input.bracketArrangement, "cross_group");
   const fifthToEighthFormat = asString(input.fifthToEighthFormat, "simple");
   const classificationGroupSize = asNumber(input.classificationGroupSize, 4);
-  const minLead = asNumber(input.minLead, 2);
-  const deuceEnabled = input.deuceEnabled !== false;
+  // deuceEnabled: false = 2점 차 없음 → minLead 1 (deuceEnabled 필드 자체는 더 이상 저장하지 않는다)
+  const minLead = input.deuceEnabled === false ? 1 : asNumber(input.minLead, 2);
   const tiebreakerRules = (input.tiebreakerRules as string[]) || [];
   const finalsSetsToWin = input.finalsSetsToWin as number | undefined;
   const finalsWinScore = input.finalsWinScore as number | undefined;
@@ -86,8 +89,17 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
 
   const isFullLeague = groupCount <= 1;
   const effectiveFinalsStartRound = finalsStartRound || totalAdvance;
-  const effectiveFinalsSetsToWin = finalsSetsToWin || qualSetsToWin;
-  const effectiveFinalsWinScore = finalsWinScore || qualWinScore;
+  const setupRules = buildSetupRules({
+    isTeam: isTeamTour, isFullLeague,
+    qualifying: { winScore: qualWinScore, setsToWin: qualSetsToWin, minLead },
+    finals: { winScore: finalsWinScore, setsToWin: finalsSetsToWin },
+    servesPerTurn: input.servesPerTurn, sideChangeAt: input.sideChangeAt, playersOnCourt: input.playersOnCourt ?? (isTeamTour ? teamSize : undefined),
+    advancePerGroup, wildcards: wildcardCountInput, avoidSameGroup,
+    thirdPlace, fifthToEighth, fifthToEighthFormat, classificationGroups, classificationGroupSize, rankingUpTo: rankingUpToInput,
+    roundOverride: roundOverrideFromRound && roundOverrideSetsToWin ? { fromRound: roundOverrideFromRound, setsToWin: roundOverrideSetsToWin } : undefined,
+    placement: { setsToWin: input.rankingSetsToWin, winScore: input.rankingWinScore },
+    minRestMinutes: input.minRestMinutes,
+  });
   const tournamentData: Record<string, unknown> = {
     name: input.name || "새 대회",
     date: input.date || new Date().toISOString().split("T")[0],
@@ -98,8 +110,10 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
     format: isFullLeague ? "full_league" : "group_league",
     formatType: isFullLeague ? "round_robin" : "group_knockout",
     status: "draft",
+    // 규칙 단일 설정원 (resolveCompetitionRules가 읽는다). 아래 레거시 필드는 옛 화면 호환용 같은 값이다.
+    rules: setupRules.tournamentRules,
     gameConfig: { winScore: qualWinScore, setsToWin: qualSetsToWin },
-    scoringRules: { winScore: qualWinScore, setsToWin: qualSetsToWin, maxSets: qualSetsToWin * 2 - 1, minLead, deuceEnabled },
+    scoringRules: { winScore: qualWinScore, setsToWin: qualSetsToWin, maxSets: qualSetsToWin * 2 - 1, minLead },
     matchRules: { timeoutsPerPlayer: 1, timeoutDurationSeconds: 60 },
     ...(isTeamTour ? {
       teamMatchSettings: { winScore: qualWinScore, setsToWin: qualSetsToWin, minLead },
@@ -107,8 +121,8 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
     } : {}),
     ...(tiebreakerRules.length > 0 ? { tiebreakerRules } : {}),
     qualifyingConfig: isFullLeague
-      ? { format: "round_robin", scoringRules: { winScore: qualWinScore, setsToWin: qualSetsToWin, maxSets: qualSetsToWin * 2 - 1, minLead, deuceEnabled } }
-      : { format: "group_round_robin", groupCount, scoringRules: { winScore: qualWinScore, setsToWin: qualSetsToWin, maxSets: qualSetsToWin * 2 - 1, minLead, deuceEnabled } },
+      ? { format: "round_robin" }
+      : { format: "group_round_robin", groupCount },
     // 풀리그도 rankingMatchConfig 저장 (rankingUpTo 등 제한 가능)
     ...(isFullLeague ? {
       rankingMatchConfig: {
@@ -130,13 +144,7 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
         ...(wildcardCountInput > 0 ? { wildcardCount: wildcardCountInput } : {}),
         avoidSameGroup,
         bracketArrangement,
-        scoringRules: { winScore: effectiveFinalsWinScore, setsToWin: effectiveFinalsSetsToWin, maxSets: effectiveFinalsSetsToWin * 2 - 1, minLead, deuceEnabled },
-        ...(roundOverrideFromRound && roundOverrideSetsToWin ? {
-          roundScoringOverride: {
-            fromRound: roundOverrideFromRound,
-            scoringRules: { winScore: effectiveFinalsWinScore, setsToWin: roundOverrideSetsToWin, maxSets: roundOverrideSetsToWin * 2 - 1, minLead, deuceEnabled },
-          },
-        } : {}),
+        // 본선 점수 규칙은 본선 스테이지 rules.scoring에, 라운드별 세트 수는 rules.roundScoring에 저장한다 (resolver가 읽는 곳)
       },
       rankingMatchConfig: {
         enabled: thirdPlace || fifthToEighth || classificationGroups || rankingUpToInput > 0,
@@ -146,15 +154,14 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
         classificationGroups,
         classificationGroupSize,
         ...(rankingUpToInput > 0 ? { rankingUpTo: rankingUpToInput } : {}),
-        ...((input.rankingSetsToWin as number) ? { rankingSetsToWin: input.rankingSetsToWin as number } : {}),
-        ...((input.rankingWinScore as number) ? { rankingWinScore: input.rankingWinScore as number } : {}),
+        // 순위결정전 점수는 rules.placementScoring에 저장한다
       },
     }),
     stages: isFullLeague
       ? [{ id: qualStageId, type: "qualifying", format: "round_robin", status: "pending", groupCount: 1, groups: [] }]
       : [
           { id: qualStageId, type: "qualifying", format: "group_round_robin", status: "pending", groupCount, groups: [] },
-          { id: finalsStageId, type: "finals", format: finalsFormat, status: "pending", advanceCount: totalAdvance },
+          { id: finalsStageId, type: "finals", format: finalsFormat, status: "pending", advanceCount: totalAdvance, ...(setupRules.finalsStageRules ? { rules: setupRules.finalsStageRules } : {}) },
         ],
     createdAt: now,
     updatedAt: now,

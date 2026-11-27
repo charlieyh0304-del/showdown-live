@@ -202,3 +202,50 @@ describe('round scoring override (M0b, B15: wizard round override was ignored by
     expect(matchRoundSize({})).toBeNull();
   });
 });
+
+describe('M0g resolver fields', () => {
+  it('a stage clears tournament time limit / deuce cap with 0 or null (legacy stage.scoringRules too)', () => {
+    const t = {
+      scoringRules: { winScore: 11, setsToWin: 2, timeLimitSeconds: 600, deuceCap: 15 },
+      stages: [
+        { id: 'a', scoringRules: { winScore: 11, setsToWin: 2, timeLimitSeconds: 0, deuceCap: 0 } },
+        { id: 'b', rules: { scoring: { individual: { timeLimitSeconds: null, deuceCap: null } } } },
+      ],
+    };
+    expect(resolveMatchScoring({ type: 'individual' }, t)).toMatchObject({ timeLimitSeconds: 600, deuceCap: 15 });
+    for (const stageId of ['a', 'b']) {
+      const r = resolveMatchScoring({ type: 'individual', stageId }, t);
+      expect(r.timeLimitSeconds).toBeUndefined();
+      expect(r.deuceCap).toBeUndefined();
+    }
+  });
+  it('deuceEnabled: false means no win-by-2 (minLead 1) unless minLead is given', () => {
+    expect(resolveMatchScoring({ type: 'individual' }, { scoringRules: { winScore: 11, setsToWin: 2, deuceEnabled: false } }).minLead).toBe(1);
+    expect(resolveMatchScoring({ type: 'individual' }, { scoringRules: { winScore: 11, setsToWin: 2, minLead: 2, deuceEnabled: false } }).minLead).toBe(2);
+    expect(setWinnerByRules(11, 10, resolveMatchScoring({ type: 'individual' }, { scoringRules: { winScore: 11, setsToWin: 2, deuceEnabled: false } }))).toBe(1);
+  });
+  it('serve / side change / players on court / rotation fields resolve per kind; legacy teamRules.teamSize maps to playersOnCourt', () => {
+    const t = { type: 'team', teamRules: { teamSize: 2 }, rules: { scoring: { team: { winScore: 21, servesPerTurn: 2, sideChangeAt: 10, serveRotation: ['a1', 'b1', 'A2', 'B2', 'x9'] } } } };
+    expect(resolveMatchScoring({ type: 'team' }, t)).toMatchObject({ winScore: 21, servesPerTurn: 2, sideChangeAt: 10, playersOnCourt: 2, serveRotation: ['A1', 'B1', 'A2', 'B2'] });
+    const t2 = { ...t, stages: [{ id: 's', rules: { scoring: { team: { servesPerTurn: 0, serveRotation: '' } } } }] };
+    const r = resolveMatchScoring({ type: 'team', stageId: 's' }, t2);
+    expect(r.servesPerTurn).toBeUndefined();
+    expect(r.serveRotation).toBeUndefined();
+  });
+  it('placement scoring applies to placement matches (not the third-place match); legacy rankingSetsToWin maps', () => {
+    const t = { rankingMatchConfig: { rankingSetsToWin: 1 }, stages: [{ id: 'f', type: 'finals' }] };
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'f_5to8', roundLabel: '5/6위 결정전' }, t).setsToWin).toBe(1);
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'f_class_0', roundLabel: '9~12위 순위 결정전' }, t).setsToWin).toBe(1);
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'f_3rd', roundLabel: '3/4위 결정전' }, t).setsToWin).toBe(2);
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'f', roundLabel: '8강' }, t).setsToWin).toBe(2);
+  });
+  it('finalRanking placement generation fields: defaults and legacy rankingMatchConfig mapping', () => {
+    expect(DEFAULT_COMPETITION_RULES.finalRanking).toMatchObject({ fifthToEighthMatches: 'none', classificationGroups: false, classificationGroupSize: 4 });
+    const r = resolveCompetitionRules({ rankingMatchConfig: { fifthToEighth: true, fifthToEighthFormat: 'round_robin', classificationGroups: true, classificationGroupSize: 8, rankingUpTo: 12 } });
+    expect(r.finalRanking).toMatchObject({ fifthToEighthMatches: 'round_robin', classificationGroups: true, classificationGroupSize: 8, rankingUpTo: 12, placementMatches: true });
+    expect(resolveCompetitionRules({ rankingMatchConfig: { fifthToEighth: true }, rules: { finalRanking: { fifthToEighthMatches: 'none' } } }).finalRanking.fifthToEighthMatches).toBe('none');
+  });
+  it('criteriaFromLegacy accepts rule criterion names and keeps points first once', () => {
+    expect(criteriaFromLegacy(['points', 'wins', 'points_for', 'lot', 'bogus'])).toEqual(['points', 'wins', 'points_scored', 'lot']);
+  });
+});

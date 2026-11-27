@@ -2,9 +2,10 @@ import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
 import { showWarning } from '@shared/utils/toast';
 import { combineWriteResults, notifyWriteOutcome, replaceStagesFor, type MatchesBulkOptions, type WriteResult } from '@shared/utils/dataWrites';
-import { buildFirstRoundSlots, buildSingleEliminationSkeleton, nextPowerOfTwo, type FirstRoundSlot } from '@shared/utils/bracketSkeleton';
+import { buildFirstRoundSlots, buildSingleEliminationSkeleton, fifthToEighthMatchCount, nextPowerOfTwo, type FirstRoundSlot } from '@shared/utils/bracketSkeleton';
 import { byeSetsFactory, computeFinalsSeeding } from '@shared/utils/competition';
 import { resolveCompetitionRules } from '@shared/rules/competitionRules';
+import { marksFromQualification, splitQualificationTies } from '@shared/utils/ranking';
 import { isByeMatch } from '@shared/rules/walkover';
 import { findDuplicateSlot } from '@shared/rules/seeding';
 import TieDecisionPanel from './TieDecisionPanel';
@@ -79,8 +80,16 @@ export default function FinalsSection({
   // 진출 인원·동률·시드는 대회 규칙 단일 설정원(shared/rules)에서 읽는다
   const firstRound = finalsMatches.filter(m => !hasSourceLinks(m) && m.stageId === finalsStage.id);
   const seeding = computeFinalsSeeding(tournament, qualifyingMatches, qualifyingStage?.id, finalsStage.id, { size: firstRound.length * 2 || undefined });
-  const advancePerGroup = resolveCompetitionRules(tournament, qualifyingStage?.id).qualification.perGroup;
-  const totalAdvance = finalsStage.advanceCount || advancePerGroup * (tournament.qualifyingConfig?.groupCount || 2);
+  const qualRules = resolveCompetitionRules(tournament, qualifyingStage?.id).qualification;
+  const advancePerGroup = qualRules.perGroup;
+  // 본선 진출 인원 = 조당 인원 × 조 수 + 와일드카드 (본선 생성기와 같은 규칙). 조 수는 실제 조 편성/예선 경기에서 센다.
+  const groupCount = qualifyingGroups.length || new Set(qualifyingMatches.map(m => m.groupId)).size || tournament.qualifyingConfig?.groupCount || 1;
+  const totalAdvance = advancePerGroup * groupCount + qualRules.wildcards;
+  // 진출 표시: selectQualifiers 결과(와일드카드 포함). 관전 순위표와 같은 표시 규칙(marksFromQualification):
+  // 경계 동률이 걸린 선수는 진출로 표시하지 않고, 그 조 경기가 다 끝난 뒤에만 '동률 결정 필요'로 표시한다.
+  const marks = marksFromQualification(seeding.qualification, qualifyingMatches);
+  const tiedIds = new Set([...marks].filter(([, m]) => m === 'tie').map(([id]) => id));
+  const qualifierIds = new Set([...marks].filter(([, m]) => m !== 'tie').map(([id]) => id));
   // 조별 순위 (규칙의 동률 기준 반영): 선수 ID → 조/순위
   const groupRankings = new Map<string, { groupId: string; groupName: string; rank: number }>();
   seeding.qualification.groups.forEach(g => {
@@ -88,12 +97,16 @@ export default function FinalsSection({
       groupRankings.set(r.row.id, { groupId: g.groupId, groupName: groupIdToName.get(g.groupId) || g.groupId, rank: r.rank });
     });
   });
-  const blockingTies = seeding.qualification.blockingTies;
+  // 동률 결정 화면에는 확정된 동률(그 범위 경기가 다 끝남)만 보인다. 본선 생성 가드는 전체 blockingTies를 쓴다.
+  const blockingTies = splitQualificationTies(seeding.qualification, qualifyingMatches).settled;
   const matchType = isTeamType ? 'team' as const : 'individual' as const;
   const byeSets = byeSetsFactory(tournament, finalsStage.id, matchType);
 
   // 3/4위전 사용 여부: 대회 규칙(finalRanking.thirdPlace, 레거시 rankingMatchConfig.thirdPlace 포함)
-  const includeThirdPlace = resolveCompetitionRules(tournament, finalsStage.id).finalRanking.thirdPlace === 'match';
+  const finalRankingRules = resolveCompetitionRules(tournament, finalsStage.id).finalRanking;
+  const includeThirdPlace = finalRankingRules.thirdPlace === 'match';
+  // 5~8위 결정전 방식 (서버 generate_finals와 같은 규칙: finalRanking.fifthToEighthMatches)
+  const fifthToEighth = finalRankingRules.fifthToEighthMatches;
 
   // --- Finals Creation (no finals matches yet) ---
   if (finalsMatches.length === 0) {
@@ -102,10 +115,11 @@ export default function FinalsSection({
     const entrantCount = Math.max(2, totalAdvance);
     const bracketSize = nextPowerOfTwo(entrantCount);
     const hasThirdPlaceMatch = includeThirdPlace && bracketSize >= 4;
-    // 실제로 치르는 본선 경기 수 (BYE 제외): N-1 (+3/4위전)
-    const matchCount = entrantCount - 1 + (hasThirdPlaceMatch ? 1 : 0);
+    const placementCount = fifthToEighthMatchCount(fifthToEighth, bracketSize);
+    // 실제로 치르는 본선 경기 수 (BYE 제외): N-1 (+3/4위전, +5~8위 결정전)
+    const matchCount = entrantCount - 1 + (hasThirdPlaceMatch ? 1 : 0) + placementCount;
     // 생성되는 슬롯 수 (BYE 경기 포함)
-    const slotCount = bracketSize - 1 + (hasThirdPlaceMatch ? 1 : 0);
+    const slotCount = bracketSize - 1 + (hasThirdPlaceMatch ? 1 : 0) + placementCount;
 
     const completedCount = qualifyingMatches.filter(m => m.status === 'completed').length;
     const totalCount = qualifyingMatches.length;
@@ -142,10 +156,11 @@ export default function FinalsSection({
                       <div key={group.id} className="bg-gray-800 rounded p-2">
                         <h5 className="text-xs font-bold text-cyan-400 mb-1">{group.name}</h5>
                         {groupPlayerRankings.map(([pid, info]) => (
-                          <div key={pid} className={`text-xs flex gap-1 ${info.rank <= advancePerGroup ? 'text-green-400' : 'text-gray-400'}`}>
+                          <div key={pid} className={`text-xs flex gap-1 ${qualifierIds.has(pid) ? 'text-green-400' : 'text-gray-400'}`}>
                             <span className="w-6">{info.rank}{t('admin.tournamentDetail.bracketTab.rankSuffix')}</span>
                             <span>{idToName.get(pid) || pid}</span>
-                            {info.rank <= advancePerGroup && <span className="text-green-500 ml-auto">{t('admin.tournamentDetail.bracketTab.advanceLabel')}</span>}
+                            {qualifierIds.has(pid) && <span className="text-green-500 ml-auto">{t('admin.tournamentDetail.bracketTab.advanceLabel')}</span>}
+                            {tiedIds.has(pid) && <span className="text-yellow-400 ml-auto">{t('common.competitionRules.qualifierTie')}</span>}
                           </div>
                         ))}
                       </div>
@@ -194,6 +209,7 @@ export default function FinalsSection({
                   slots,
                   byeSets,
                   thirdPlace: includeThirdPlace,
+                  fifthToEighth,
                   makeKey: () => newMatchKey(tournament.id),
                   now,
                   labels: {
@@ -354,7 +370,7 @@ export default function FinalsSection({
           <button
             className="btn btn-primary"
             onClick={applySeededArrangement}
-            disabled={seeding.qualification.qualifiers.length < 2 || blockingTies.length > 0}
+            disabled={seeding.qualification.qualifiers.length < 2 || seeding.qualification.blockingTies.length > 0}
             aria-label={t('common.competitionRules.finals.seededArrangementAria')}
           >
             {t('common.competitionRules.finals.seededArrangement')}

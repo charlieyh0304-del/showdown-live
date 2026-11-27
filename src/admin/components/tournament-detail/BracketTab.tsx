@@ -222,6 +222,8 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
               player2Timeouts: 0,
               winnerId: null,
               createdAt: now,
+              // 스테이지 규칙(점수·동률·휴식)이 이 경기에 적용되도록 스테이지를 적는다
+              ...(qualifyingStage ? { stageId: qualifyingStage.id } : {}),
             });
             existingMatchPairs.add(pairKey);
             round++;
@@ -260,6 +262,8 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
               player2Timeouts: 0,
               winnerId: null,
               createdAt: now,
+              // 스테이지 규칙(점수·동률·휴식)이 이 경기에 적용되도록 스테이지를 적는다
+              ...(qualifyingStage ? { stageId: qualifyingStage.id } : {}),
             });
             existingMatchPairs.add(pairKey);
             round++;
@@ -356,6 +360,9 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
 
     const now = Date.now();
     const maxRound = matches.length > 0 ? Math.max(...matches.map(m => m.round ?? 0)) : 0;
+    // 수동 추가 경기도 스테이지 규칙을 받도록: 예선(리그) 스테이지, 스테이지가 하나뿐이면 그 스테이지
+    const stageList = toArray(tournament.stages);
+    const addStageId = (stageList.find(s => s.type === 'qualifying') ?? (stageList.length === 1 ? stageList[0] : undefined))?.id;
     if (isTeamType) {
       const t1 = teams.find(t => t.id === addPlayer1);
       const t2 = teams.find(t => t.id === addPlayer2);
@@ -378,6 +385,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
         winnerId: null,
         createdAt: now,
         ...(addGroupId ? { groupId: addGroupId } : {}),
+        ...(addStageId ? { stageId: addStageId } : {}),
       });
     } else {
       const p1 = tournamentPlayers.find(p => p.id === addPlayer1);
@@ -399,13 +407,14 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
         winnerId: null,
         createdAt: now,
         ...(addGroupId ? { groupId: addGroupId } : {}),
+        ...(addStageId ? { stageId: addStageId } : {}),
       });
     }
     setAddPlayer1('');
     setAddPlayer2('');
     setAddGroupId('');
     setShowAddForm(false);
-  }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, addMatch, expectedMatchCount.total, t]);
+  }, [addPlayer1, addPlayer2, addGroupId, isTeamType, teams, tournamentPlayers, matches, tournament.id, tournament.stages, addMatch, expectedMatchCount.total, t]);
 
   const handleDeleteMatch = useCallback(async (matchId: string) => {
     if (!await showConfirm({ message: t('admin.tournamentDetail.bracketTab.deleteMatchConfirm'), destructive: true })) return;

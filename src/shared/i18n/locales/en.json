@@ -71,7 +71,8 @@
       "draw": {
         "seed": "Draw seed: {{seed}} (the same seed gives the same draw)",
         "unassigned": "{{count}} players could not be placed in a team: {{names}}"
-      }
+      },
+      "qualifierTie": "Tie to resolve"
     },
     "appName": "Showdown",
     "appDescription": "Tournament Management for Visually Impaired Table Sport",
@@ -1093,7 +1094,9 @@
       "addTeamModal": { "title": "Add New Team", "teamNameLabel": "Team Name", "coachNameLabel": "Coach Name (optional)", "coachPlaceholder": "Coach name", "playerRegistration": "Player Registration", "playerNamePlaceholder": "Player name", "playerNameAriaLabel": "Player name", "addPlayersPrompt": "Please add players.", "removePlayerAriaLabel": "Remove {{name}}", "createTeamButton": "Create Team ({{count}} members)", "createTeamAriaLabel": "Create team", "cancelAriaLabel": "Cancel", "cancelButton": "Cancel" },
       "globalPlayerModal": { "closeAriaLabel": "Close", "noGlobalPlayers": "No global players registered.", "selectedAriaLabel": "{{name}} selected", "unselectedAriaLabel": "{{name}} not selected", "importButton": "Import {{count}} players", "importAriaLabel": "Import selected players", "cancelButton": "Cancel", "cancelAriaLabel": "Cancel" },
       "bracketTab": { "title": "Bracket", "autoGenerateAriaLabel": "Auto-generate bracket", "generatingText": "Generating...", "groupRoundRobinGenerate": "Generate Group Round Robin", "autoGenerateText": "Auto-generate Bracket", "addMatchButton": "Add Match", "addMatchAriaLabel": "Add match", "addMatchTitle": "Add Match", "team1Label": "Team 1", "team2Label": "Team 2", "player1Label": "Player 1", "player2Label": "Player 2", "team1SelectAriaLabel": "Select Team 1", "team2SelectAriaLabel": "Select Team 2", "player1SelectAriaLabel": "Select Player 1", "player2SelectAriaLabel": "Select Player 2", "selectPlaceholder": "Select", "groupIdLabel": "Group ID (optional)", "groupIdPlaceholder": "e.g. group_1", "groupIdAriaLabel": "Group ID", "addAriaLabel": "Add", "addButton": "Add", "samePlayerError": "Cannot select the same player/team.", "groupAssignmentTitle": "Group Assignment", "seedPlacement": "Seed Placement (Seed A→Group A, B→Group B)", "seedPlacementAriaLabel": "Seed placement (seeds only)", "seedPlacementHint": "Only seeded players are placed in groups. Assign remaining players below.", "autoAssignment": "Auto Assignment (Snake Draft)", "autoAssignmentAriaLabel": "Auto assignment (Snake Draft)", "personCount": "{{count}}", "unbalancedWarning": " -- Groups are unbalanced", "unassignedTitle": "Unassigned Players ({{count}})", "assignGroupAriaLabel": "Assign {{name}} to group", "selectGroupPlaceholder": "Select Group", "groupEditWarning": "Groups have been manually changed. Regenerate the bracket to apply changes.", "moveGroupAriaLabel": "Move {{name}} to group", "needMoreTeams": "At least 2 teams are required.", "needMorePlayers": "At least 2 players are required.", "bulkRefereeTitle": "Bulk Referee Assignment", "bulkRefereeDescription": "Select to assign referees to all unassigned matches in order.", "bulkRefereeAutoAssign": "Auto Assign (Round Robin)", "bulkRefereeAutoAssignAriaLabel": "Auto assign referees (round robin)", "bulkRefereeAlert": "Referees assigned to {{count}} matches.", "finalsTitle": "Create Finals Bracket", "finalsNoQualifying": "Please create qualifying brackets first.", "finalsProgress": "Qualifying: {{completed}}/{{total}} matches complete | {{advancePerGroup}} per group advance ({{totalAdvance}} total) | {{matchCount}} finals matches", "groupRankTitle": "Group Rankings", "rankSuffix": "", "advanceLabel": "Advance", "createFinalsSlots": "Create {{count}} Finals Slots (manual assignment)", "createFinalsSlotsAriaLabel": "Create finals bracket slots", "createFinalsSlotsHint": "After creating slots, you can manually assign players by group/rank to each match.", "undecided": "TBD", "finalsArrangement": "Finals Bracket Arrangement", "crossArrangement": "Cross Arrangement", "crossArrangementAriaLabel": "Cross arrangement", "sequentialArrangement": "Sequential Arrangement", "sequentialArrangementAriaLabel": "Sequential arrangement", "manualArrangementHint": "Select group and rank for each match to manually arrange the bracket.", "arrangementSelectHint": "Select group and rank for each match to arrange the bracket.", "matchNumber": "Match {{num}}", "inProgressCannotChange": "In-progress/completed matches cannot be changed", "finalsArranged": "Finals bracket has been updated.", "noBracket": "No bracket has been created.", "manualAddHint": "Use the \"Add Match\" button above to register matches one by one.", "orderUpAriaLabel": "Move up", "orderDownAriaLabel": "Move down", "editMatchAriaLabel": "Edit match", "editMatchButton": "Edit", "deleteMatchAriaLabel": "Delete match", "walkoverBadge": "Walkover", "refereeLabel": "Referee", "refereeUnassigned": "Unassigned", "assistantRefereeLabel": "Asst. Referee", "assistantRefereeNone": "None", "courtLabel": "Court", "courtUnassigned": "Unassigned", "deleteMatchConfirm": "Are you sure you want to delete this match?", "editMatchModalTitle": "Edit Match", "cancelAriaLabel": "Cancel", "cancelButton": "Cancel", "saveAriaLabel": "Save", "saveButton": "Save", "qualifyingStageName": "Group Qualifying", "finalsStageName": "Finals Tournament", "groupSelectPlaceholder": "Select Group", "rankSelectPlaceholder": "Select Rank", "cannotEditWhileActive": "Cannot modify bracket while matches are in progress.", "confirmBracket": "Confirm bracket and start the tournament?", "confirmBracketAriaLabel": "Confirm bracket and start tournament", "confirmBracketButton": "Confirm Bracket", "confirmBracketUpdate": "Confirm bracket changes?", "bracketConfirmed": "Bracket has been confirmed.", "duplicateBlocked": "{{skipped}} duplicate matches found. Bracket generation has been cancelled.", "matchCountExceeded": "Maximum match count ({{max}}) exceeded.\nCurrently {{current}} + {{newCount}} new = {{total}} total.\nBracket generation has been cancelled.", "addMatchDuplicate": "This match already exists. Cannot add duplicate match.", "allDuplicate": "All possible matches have already been created.", "byeSlot": "BYE", "autoAdvanceHint": "From round 2 on, the final and the 3rd-place match fill automatically with the winners (losers for 3rd place) of earlier matches.", "finalsDuplicateBlocked": "Finals bracket already has {{count}} matches. Cannot create duplicates." },
-      "scheduleTab": { "title": "Schedule Settings", "dateLabel": "Date", "yearSuffix": "", "monthSuffix": "", "daySuffix": "", "todayButton": "Today", "startTimeLabel": "Start Time", "hourSuffix": "h", "minuteSuffix": "m", "intervalLabel": "Match Interval (min)", "endTimeLabel": "End Time", "restIntervalLabel": "Player Rest Time (min)", "nextDayStartLabel": "Next Day Start Time", "onlyUnassigned": "Assign unassigned matches only (keep existing schedule)", "generateButton": "Auto-assign Schedule", "generating": "Assigning...", "noCourts": "Please register courts first.", "scheduleGridTitle": "Schedule Grid", "dateUnspecified": "Date not set", "dateColumnHeader": "Date", "timeColumnHeader": "Time", "individualScheduleTitle": "Individual Match Schedule", "resetScheduleButton": "Reset Schedule", "resetting": "Resetting...", "resetConfirm": "Reset all match schedules (dates, times)?", "unassignedLabel": "Unassigned", "scheduleDateLabel": "Date", "scheduleTimeLabel": "Time", "courtLabel": "Court", "courtUnassigned": "Unassigned", "saveButton": "Save", "savingButton": "Saving...", "completedNoEdit": "Schedule locked", "conflictWarning": "Time conflict", "breakStartLabel": "Break Start (e.g. Lunch)", "breakStartAriaLabel": "Break start time", "breakEndLabel": "Break End", "breakEndAriaLabel": "Break end time", "breakPeriod": "⏸ {{start}}~{{end}} no matches", "scheduleAdjustTitle": "Schedule Adjustment", "timeShiftTitle": "⏱ Bulk Time Shift", "shiftMinutesLabel": "Shift Time (min)", "shiftMinutesAriaLabel": "Minutes to shift", "courtFilterLabel": "Court (leave empty for all)", "courtFilterAriaLabel": "Target court", "allCourts": "All Courts", "shiftConfirm": "Shift {{count}} matches by {{minutes}} minutes?", "shiftCompleteForward": "{{count}} matches shifted {{minutes}} min later", "shiftCompleteBackward": "{{count}} matches shifted {{minutes}} min earlier", "shiftForward": "{{minutes}} min later →", "shiftBackward": "{{minutes}} min earlier ←", "shiftAriaLabel": "Shift {{minutes}} min", "courtMoveTitle": "🔄 Court Transfer", "fromCourtLabel": "From Court", "fromCourtAriaLabel": "Source court", "toCourtLabel": "To Court", "toCourtAriaLabel": "Destination court", "selectOption": "Select", "noMatchesToMove": "No matches to move.", "courtMoveConfirm": "Move {{count}} matches to {{court}}?", "courtMoveComplete": "{{count}} matches court transfer complete", "courtMoveAriaLabel": "Execute court transfer", "courtMoveButton": "Execute Transfer" },
+      "scheduleTab": { "title": "Schedule Settings", "dateLabel": "Date", "yearSuffix": "", "monthSuffix": "", "daySuffix": "", "todayButton": "Today", "startTimeLabel": "Start Time", "hourSuffix": "h", "minuteSuffix": "m", "intervalLabel": "Match length (min, until the next match on the court)", "endTimeLabel": "End Time", "restIntervalLabel": "Minimum player rest (min, previous match end → next start)", "nextDayStartLabel": "Next Day Start Time", "onlyUnassigned": "Assign unassigned matches only (keep existing schedule)", "generateButton": "Auto-assign Schedule", "generating": "Assigning...", "noCourts": "Please register courts first.", "scheduleGridTitle": "Schedule Grid", "dateUnspecified": "Date not set", "dateColumnHeader": "Date", "timeColumnHeader": "Time", "individualScheduleTitle": "Individual Match Schedule", "resetScheduleButton": "Reset Schedule", "resetting": "Resetting...", "resetConfirm": "Reset all match schedules (dates, times)?", "unassignedLabel": "Unassigned", "scheduleDateLabel": "Date", "scheduleTimeLabel": "Time", "courtLabel": "Court", "courtUnassigned": "Unassigned", "saveButton": "Save", "savingButton": "Saving...", "completedNoEdit": "Schedule locked", "conflictWarning": "Time conflict", "breakStartLabel": "Break Start (e.g. Lunch)", "breakStartAriaLabel": "Break start time", "breakEndLabel": "Break End", "breakEndAriaLabel": "Break end time", "breakPeriod": "⏸ {{start}}~{{end}} no matches", "scheduleAdjustTitle": "Schedule Adjustment", "timeShiftTitle": "⏱ Bulk Time Shift", "shiftMinutesLabel": "Shift Time (min)", "shiftMinutesAriaLabel": "Minutes to shift", "courtFilterLabel": "Court (leave empty for all)", "courtFilterAriaLabel": "Target court", "allCourts": "All Courts", "shiftConfirm": "Shift {{count}} matches by {{minutes}} minutes?", "shiftCompleteForward": "{{count}} matches shifted {{minutes}} min later", "shiftCompleteBackward": "{{count}} matches shifted {{minutes}} min earlier", "shiftForward": "{{minutes}} min later →", "shiftBackward": "{{minutes}} min earlier ←", "shiftAriaLabel": "Shift {{minutes}} min", "courtMoveTitle": "🔄 Court Transfer", "fromCourtLabel": "From Court", "fromCourtAriaLabel": "Source court", "toCourtLabel": "To Court", "toCourtAriaLabel": "Destination court", "selectOption": "Select", "noMatchesToMove": "No matches to move.", "courtMoveConfirm": "Move {{count}} matches to {{court}}?", "courtMoveComplete": "{{count}} matches court transfer complete", "courtMoveAriaLabel": "Execute court transfer", "courtMoveButton": "Execute Transfer",
+        "restFromRules": "Tournament rules ({{minutes}} min, per-stage settings apply)",
+        "restIntervalHelp": "Rest is measured from the planned end of the previous match. For team matches it applies to every member, and bracket matches are placed after their source matches (e.g. quarterfinals) end." },
       "statusTab": { "tournamentStatus": "Tournament Status:", "statusDraft": "Draft", "statusRegistration": "Registration", "statusInProgress": "In Progress", "statusPaused": "Paused", "statusCompleted": "Completed", "startTournament": "Start Tournament", "pauseTournament": "Pause", "resumeTournament": "Resume", "completeTournament": "Complete Tournament", "stageManagement": "Stage Management", "matchesComplete": "matches complete", "qualifyingDone": "Qualifying complete - finalists have been determined", "createFinalsBracket": "Create Finals Bracket", "finalsDone": "Finals complete", "filterAll": "All ({{count}})", "filterPending": "Pending ({{count}})", "filterInProgress": "In Progress ({{count}})", "filterCompleted": "Completed ({{count}})", "noMatches": "No matches to display.", "walkoverBadge": "Walkover", "walkoverButton": "Walkover", "walkoverReason": "Walkover reason: {{reason}}", "scoreCorrection": "Score Correction", "advanceToFinalsAlert": "Finals bracket created! {{count}} matches generated.", "advanceToFinalsStageNotSaved": "{{count}} finals matches were created, but switching to the finals stage was not saved because someone else changed this tournament first. Do not create them again; check the refreshed stage.", "scoreCorrected": "Score has been corrected.", "scoreCorrectionError": "An error occurred while correcting the score.", "walkoverProcessed": "Walkover has been processed.", "walkoverError": "An error occurred while processing the walkover.", "round128": "Round of 128", "round64": "Round of 64", "round32": "Round of 32", "round16": "Round of 16", "quarterFinal": "Quarterfinal", "semiFinal": "Semifinal", "final": "Final", "rankingMatch": "Ranking Match", "league": "League", "qualifying": "Qualifying", "finals": "Finals", "other": "Other",
         "retiredBadge": "Won by retirement",
         "retiredProcessed": "Retirement recorded.",
@@ -1156,7 +1159,17 @@
           "bestOf": "Sets per match from that round",
           "summary": "From {{round}}: best of {{max}} (first to {{win}})",
           "off": "No per-round sets"
-        }
+        },
+        "servesPerTurn": "Serves per turn",
+        "servesPerTurnHelp": "How many serves in a row before the serve passes to the opponent.",
+        "sideChangeAt": "Side change score (deciding set)",
+        "sideChangeAtHelp": "In the deciding set (including single-set matches), ends are changed when one side reaches this score. In other sets, ends are changed after the set.",
+        "playersOnCourt": "Players on court",
+        "playersOnCourtHelp": "How many players of one team play at the same time.",
+        "serveRotation": "Serve order",
+        "serveRotationHelp": "Separate with commas. A is the team serving first in the set, B the other team, and the number is the player order. The two teams must alternate. Leave empty for the default order ({{example}}).",
+        "autoPlaceholder": "Auto ({{value}})",
+        "autoHelp": "Leave empty to use the default ({{value}})."
       },
       "rounds": {
         "r2": "Final",
@@ -1253,7 +1266,7 @@
       "schedule": {
         "legend": "Player rest",
         "minRest": "Minimum rest (minutes)",
-        "minRestHelp": "Measured from the end of the previous match to the start of the next (not start to start). Making the automatic schedule use this value is part of the scheduling engine work."
+        "minRestHelp": "Measured from the planned end of the previous match (start + match length) to the start of the next (not start to start). Automatic scheduling keeps this rest; for team matches it applies to every member, and bracket matches wait for their source matches (e.g. quarterfinals) to end."
       },
       "fields": {
         "scoring-individual-winScore": "Individual points to win a set",
@@ -1289,7 +1302,13 @@
         "qualification-wildcards": "Wildcards",
         "qualification-avoidSameGroupFirstRound": "Avoid same group",
         "schedule-minRestMinutes": "Minimum rest",
-        "confirm": "Rules confirmation"
+        "confirm": "Rules confirmation",
+        "scoring-individual-servesPerTurn": "Individual serves per turn",
+        "scoring-individual-sideChangeAt": "Individual side change score",
+        "scoring-team-servesPerTurn": "Team serves per turn",
+        "scoring-team-sideChangeAt": "Team side change score",
+        "scoring-team-playersOnCourt": "Team players on court",
+        "scoring-team-serveRotation": "Team serve order"
       },
       "errors": {
         "summaryTitle": "{{count}} items need fixing",
@@ -1302,7 +1321,9 @@
         "tiebreakEmpty": "At least one tiebreak criterion is needed.",
         "roundFrom": "Choose the round to start from.",
         "lotSeedMissing": "No lot seed.",
-        "confirmRequired": "Confirm that you have reviewed the rules."
+        "confirmRequired": "Confirm that you have reviewed the rules.",
+        "sideChangeRange": "Must be lower than the points to win a set (at most {{max}}).",
+        "rotationInvalid": "Use team letters (A/B) with player numbers 1–{{players}}, alternating teams, e.g. A1, B1."
       },
       "impact": {
         "started": "Some matches have started or finished. Saving recomputes standings and qualifiers with the new rules.",
@@ -1352,7 +1373,8 @@
       "listJoiner": ", ",
       "valueOn": "On",
       "valueOff": "Off",
-      "valueNone": "None"
+      "valueNone": "None",
+      "valueAuto": "Automatic (default)"
     }
   },
 
@@ -1479,7 +1501,12 @@
       "otherActions": "Other (Warmup/Substitution/Walkover)",
       "gogglesTouchHint": "Goggles touch — opponent gets +2 pts instantly",
       "gogglesTouchButton": "{{name}} Goggles Touch",
-      "gogglesTouchAriaLabel": "{{name}} Goggles Touch — {{opponent}} gets 2 pts"
+      "gogglesTouchAriaLabel": "{{name}} Goggles Touch — {{opponent}} gets 2 pts",
+      "matchRuleSummary": "{{points}} points | {{sets}} | {{serves}} serves per turn | {{lead}}",
+      "ruleBestOf": "best of {{max}} (first to {{win}})",
+      "ruleSingleSet": "single set",
+      "ruleWinBy2": "win by 2",
+      "ruleNoWinBy2": "no win by 2"
     },
 
     "practice": {
@@ -1767,7 +1794,7 @@
         "matchAriaTeam": "{{p1}} vs {{p2}}, {{status}}",
         "setScoreDisplay": "Sets {{p1}} - {{p2}}",
         "currentSet": "(Set {{set}})",
-        "teamMatchPoints": "31-point match",
+        "teamMatchPoints": "{{points}}-point match",
         "coachLabel": "Coach",
         "groupLabel": "Group {{id}}",
         "matchLabel": "Matches",
@@ -1813,7 +1840,8 @@
         "noSearchResults": "No players found for \"{{query}}\"",
         "historySummary": "Total {{total}} | Completed {{completed}} | In Progress {{inProgress}} | Pending {{pending}}",
         "qualifyingGroupLeague": "Qualifying (Group League)",
-        "finalsTournament": "Finals (Tournament)"
+        "finalsTournament": "Finals (Tournament)",
+        "wildcardBadge": "Wildcard"
       }
     },
 
@@ -1834,7 +1862,7 @@
       "serveCount": "{{name}} serve {{current}}/{{max}}",
       "timeoutInProgress": "Timeout in progress",
       "setScore": "Sets {{p1}} - {{p2}}",
-      "teamMatchPoints": "31-point match",
+      "teamMatchPoints": "{{points}}-point match",
       "scoreAriaLabel": "{{p1}} {{p1Score}} pts vs {{p2}} {{p2Score}} pts",
       "goldenGoalActivated": "Golden goal mode active. Next scorer wins immediately.",
       "goldenGoalBanner": "Golden goal mode — next scorer wins",

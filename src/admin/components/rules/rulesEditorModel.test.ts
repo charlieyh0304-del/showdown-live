@@ -271,3 +271,28 @@ describe('write payload', () => {
     expect(isDraftDirty(base, setFieldValue(d, 'f', 'standingsPoints.win', 2))).toBe(true);
   });
 });
+
+describe('serve / side change fields (M0g)', () => {
+  const team = { type: 'team', stages: [{ id: 'q', type: 'qualifying' }, { id: 'f', type: 'finals' }] };
+  it('empty value means automatic (0 marker) and resolves to the default', () => {
+    let d = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.team.servesPerTurn', 2);
+    expect(resolveMatchScoring({ type: 'team' }, withDraft(team, d)).servesPerTurn).toBe(2);
+    d = setFieldValue(d, 'f', 'scoring.team.servesPerTurn', null);
+    expect(d.stages.f).toEqual({ scoring: { team: { servesPerTurn: 0 } } });
+    expect(displayValue(team, d, 'f', 'scoring.team.servesPerTurn')).toBe(null);
+    expect(resolveMatchScoring({ type: 'team', stageId: 'f' }, withDraft(team, d)).servesPerTurn).toBeUndefined();
+    expect(validateDraft(team, d)).toEqual([]);
+  });
+  it('side change score must be lower than the target score', () => {
+    const d = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.team.sideChangeAt', 31);
+    expect(validateDraft(team, d)).toEqual([{ scope: TOURNAMENT_SCOPE, path: 'scoring.team.sideChangeAt', code: 'sideChangeRange', params: { max: 30 } }]);
+  });
+  it('serve rotation must alternate teams within the players on court', () => {
+    const ok = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.team.serveRotation', ['A1', 'B2', 'A2', 'B1']);
+    expect(validateDraft(team, setFieldValue(ok, TOURNAMENT_SCOPE, 'scoring.team.playersOnCourt', 2))).toEqual([]);
+    const bad = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.team.serveRotation', ['A1', 'A2', 'B1']);
+    expect(validateDraft(team, bad).map(i => i.code)).toEqual(['rotationInvalid']);
+    const tooMany = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.team.serveRotation', ['A1', 'B4']);
+    expect(validateDraft(team, tooMany).map(i => i.code)).toEqual(['rotationInvalid']);
+  });
+});

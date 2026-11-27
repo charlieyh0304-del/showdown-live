@@ -1,7 +1,8 @@
 import { createContext, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { countSetWins, getEffectiveScoringRules, getSetScoresByServer } from '@shared/utils/scoring';
-import { calculateGroupRanking } from '@shared/utils/ranking';
+import { matchSetWins, getSetScoresByServer } from '@shared/utils/scoring';
+import { qualifierMarks } from '@shared/utils/ranking';
+import GroupRankingTable from './GroupRankingTable';
 import { useSlotLabel, type SlotLabel } from '@shared/hooks/useSlotLabel';
 import type { Match, Tournament } from '@shared/types';
 
@@ -215,7 +216,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                 const isInProgress = m.status === 'in_progress';
                 const sets = Array.isArray(m.sets) ? m.sets : [];
                 // 세트 승수는 그 경기의 유효 규칙(스테이지·팀 31점)으로 센다
-                const setWins = sets.length > 0 ? countSetWins(sets, getEffectiveScoringRules(m, tournament)) : null;
+                const setWins = sets.length > 0 ? matchSetWins(m, tournament) : null;
 
                 return (
                   <div
@@ -594,6 +595,9 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
 // ===== Group Stage View =====
 function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const { t } = useTranslation();
+  const { tournament } = useContext(BracketContext);
+  // 진출 표시: 본선 생성기와 같은 진출자 선정(조당 인원 + 와일드카드 + 동률 규칙)
+  const marks = useMemo(() => qualifierMarks(matches, tournament), [matches, tournament]);
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
@@ -613,7 +617,7 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
           </h3>
 
           {/* 조별 순위표 */}
-          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
+          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} marks={marks} />
 
           {/* 조별 경기 결과 */}
           <div style={{ marginTop: '1rem' }}>
@@ -630,93 +634,6 @@ function GroupStageView({ matches, onSelectPlayer, isTeam = false }: { matches: 
   );
 }
 
-function formatDiff(value: number): { text: string; color: string } {
-  if (value > 0) return { text: `+${value}`, color: '#22c55e' };
-  if (value < 0) return { text: `${value}`, color: '#ef4444' };
-  return { text: '0', color: '#9ca3af' };
-}
-
-function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
-  const { t } = useTranslation();
-  const { tournament } = useContext(BracketContext);
-  const rankings = useMemo(() => {
-    const r = calculateGroupRanking(matches, undefined, tournament, matches[0]?.groupId || '');
-    return r.map(p => ({
-      name: p.playerName || '',
-      played: p.played,
-      wins: p.wins,
-      losses: p.losses,
-      setsWon: p.setsWon,
-      setsLost: p.setsLost,
-      pointsFor: p.pointsFor,
-      pointsAgainst: p.pointsAgainst,
-    }));
-  }, [matches, tournament]);
-
-  if (rankings.length === 0) return null;
-
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.875rem' }}>
-        <caption className="sr-only">{t('spectator.tournament.tabs.groups')}</caption>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #374151' }}>
-            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.rankLabel')}</th>
-            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.nameLabel')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.matchesLabel')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.winsLabel')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.lossesLabel')}</th>
-            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.setWinsLosses')}</th>}
-            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.setDiff')}</th>}
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.pointsDiff')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.goalDiff')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rankings.map((r, i) => (
-            <tr
-              key={r.name}
-              style={{
-                borderBottom: '1px solid #1f2937',
-                backgroundColor: i < 2 ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-              }}
-            >
-              <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{i + 1}</td>
-              <td style={{ padding: '0.5rem', fontWeight: 600, color: '#fff' }}>
-                <button
-                  className="text-left hover:underline hover:text-yellow-400"
-                  onClick={() => onSelectPlayer(r.name)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 600, padding: 0 }}
-                >
-                  {r.name}
-                </button>
-                {i < 2 && (
-                  <span style={{
-                    marginLeft: '0.5rem',
-                    fontSize: '0.75rem',
-                    backgroundColor: '#15803d',
-                    color: '#fff',
-                    padding: '0.125rem 0.375rem',
-                    borderRadius: '0.25rem',
-                  }}>
-                    {t('spectator.tournament.view.advanceBadge')}
-                  </span>
-                )}
-              </td>
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.played}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}>{r.wins}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}>{r.losses}</td>
-              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem' }}>{t('spectator.tournament.view.setWL', { w: r.setsWon, l: r.setsLost })}</td>}
-              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{formatDiff(r.setsWon - r.setsLost).text}</td>}
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlayer?: (name: string) => void }) {
   const { t } = useTranslation();
@@ -815,7 +732,7 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
     const isP1 = match.player1Id === p1Id;
     const won = match.winnerId === p1Id;
     if (Array.isArray(match.sets) && match.sets.length > 0) {
-      const setWins = countSetWins(match.sets, getEffectiveScoringRules(match, tournament));
+      const setWins = matchSetWins(match, tournament);
       const myWins = isP1 ? setWins.player1 : setWins.player2;
       const oppWins = isP1 ? setWins.player2 : setWins.player1;
       return {

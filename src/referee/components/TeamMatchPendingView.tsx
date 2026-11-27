@@ -35,6 +35,8 @@ interface Props {
   updateMatch: (patch: Record<string, unknown>) => Promise<unknown>;
   warmupTimer: { start: (seconds: number) => void };
   setShowWarmup: (b: boolean) => void;
+  /** 이 경기의 규칙 요약 (대회 규칙 resolveMatchScoring에서): 목표 점수·세트·서브 수·2점 차 */
+  ruleSummary: { winScore: number; setsToWin: number; maxSets: number; servesPerTurn: number; minLead: number };
 }
 
 /**
@@ -62,6 +64,7 @@ export default function TeamMatchPendingView({
   updateMatch,
   warmupTimer,
   setShowWarmup,
+  ruleSummary,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -80,7 +83,12 @@ export default function TeamMatchPendingView({
           {match.team2?.coachName && <div className="text-sm text-gray-400">{match.team2.coachName}</div>}
         </div>
       </div>
-      <p className="text-lg text-gray-400 text-center">{t('referee.practice.setup.teamRuleSummary')}</p>
+      <p className="text-lg text-gray-400 text-center">{t('referee.scoring.matchRuleSummary', {
+        points: ruleSummary.winScore,
+        sets: ruleSummary.maxSets > 1 ? t('referee.scoring.ruleBestOf', { max: ruleSummary.maxSets, win: ruleSummary.setsToWin }) : t('referee.scoring.ruleSingleSet'),
+        serves: ruleSummary.servesPerTurn,
+        lead: ruleSummary.minLead >= 2 ? t('referee.scoring.ruleWinBy2') : t('referee.scoring.ruleNoWinBy2'),
+      })}</p>
       {match.courtName && <p className="text-gray-400 text-center">{t('referee.home.court')}: {match.courtName}</p>}
 
       {coinTossStep === 'team_order' && (() => {

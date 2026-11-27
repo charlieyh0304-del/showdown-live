@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { countSetWins } from '@shared/utils/scoring';
+import { setWinnerByRules, setWinsByRules } from '@shared/rules/competitionRules';
 import { hasUndecidedParticipant } from '@shared/utils/bracketSkeleton';
 import { showError } from '@shared/utils/toast';
 import type { SetScore, ScoreHistoryEntry } from '@shared/types';
@@ -84,8 +84,8 @@ export default function IndividualScoring() {
     // data
     match, matchLoading, updateMatch,
     player1Name, player2Name,
-    // game config
-    gameConfig,
+    // 경기 규칙 (resolveMatchScoring)
+    rules,
     // state + setters
     announcement, lastAction,
     scoreFlash,
@@ -334,7 +334,7 @@ export default function IndividualScoring() {
     const isP2Winner = match.winnerId === match.player2Id;
     const winnerName = isP2Winner ? player2Name : player1Name;
     const loserName = isP2Winner ? player1Name : player2Name;
-    const completedSetWins = Array.isArray(match.sets) && match.sets.length > 0 ? countSetWins(match.sets, gameConfig) : { player1: 0, player2: 0 };
+    const completedSetWins = Array.isArray(match.sets) && match.sets.length > 0 ? setWinsByRules(match.sets, rules) : { player1: 0, player2: 0 };
     const winSets = isP2Winner ? completedSetWins.player2 : completedSetWins.player1;
     const loseSets = isP2Winner ? completedSetWins.player1 : completedSetWins.player2;
     const completedHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
@@ -352,7 +352,7 @@ export default function IndividualScoring() {
               {match.sets.map((s: SetScore, i: number) => {
                 const setWinScore = isP2Winner ? s.player2Score : s.player1Score;
                 const setLoseScore = isP2Winner ? s.player1Score : s.player2Score;
-                const setWinnerName = s.player1Score > s.player2Score ? player1Name : player2Name;
+                const setWinnerName = setWinnerByRules(s.player1Score, s.player2Score, rules) === 2 ? player2Name : player1Name;
                 return (
                   <div key={i} className="flex justify-between items-center bg-gray-800 rounded px-4 py-2" aria-label={`${t('common.matchHistory.setLabel', { num: i + 1 })}: ${winnerName} ${setWinScore} : ${loserName} ${setLoseScore}`}>
                     <span className="text-sm text-gray-400">{t('common.matchHistory.setLabel', { num: i + 1 })}</span>
@@ -468,7 +468,7 @@ export default function IndividualScoring() {
         <div className="flex items-center justify-between">
           <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/games')} aria-label={t('referee.home.title')}>← {t('referee.home.title')}</button>
           <div className="text-center">
-            <h1 className="text-lg font-bold text-yellow-400">{t('common.matchHistory.setLabel', { num: currentSetIndex + 1 })}/{gameConfig.MAX_SETS}</h1>
+            <h1 className="text-lg font-bold text-yellow-400">{t('common.matchHistory.setLabel', { num: currentSetIndex + 1 })}/{rules.maxSets}</h1>
             <div className="text-sm text-gray-400" aria-label={`${t('common.units.set')} ${setWins.player1} : ${setWins.player2}`}>{t('common.units.set')}: {setWins.player1} - {setWins.player2}</div>
           </div>
           <div className="text-sm text-gray-400 text-right">

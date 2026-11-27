@@ -1,22 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { speak, preWarmSpeech, formatTime } from '@shared/utils/locale';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
-  checkSetWinner,
   createEmptySet,
-  advanceServe,
-  revertServe,
-  shouldSideChange,
   createScoreHistoryEntry,
-  getMaxServes,
-  getEffectiveGameConfig,
-  getEffectiveScoringRules,
   getEffectiveTimeLimitSeconds,
   applyGoldenGoalEvent,
   getPenaltyAction,
   computePenaltyCounts,
 } from '@shared/utils/scoring';
+import {
+  DEFAULT_TEAM_SCORING,
+  resolveMatchScoring,
+  setWinnerByRules,
+  setWinsByRules,
+} from '@shared/rules/competitionRules';
+import {
+  advanceServeTurn,
+  nextRotationToken,
+  playersOnCourtOf,
+  revertServeTurn,
+  serveRotationOf,
+  servesPerTurnOf,
+  shouldChangeSidesMidSet,
+} from '@shared/rules/serve';
+import { firstServerOfSet, setEndOutcome, undoSetTransition } from './teamScoringModel';
 import { useGoldenGoalTimer } from './useGoldenGoalTimer';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { useCountdownTimer, playWarningBeep } from './useCountdownTimer';
@@ -31,13 +40,6 @@ import { useGoldenGoalAnnouncement } from './useGoldenGoalAnnouncement';
 import { useActiveMatchRecovery } from './useActiveMatchRecovery';
 import { showConfirm, showPrompt } from '@shared/utils/confirm';
 
-const DEFAULT_TEAM_CONFIG = {
-  SETS_TO_WIN: 1,
-  MAX_SETS: 1,
-  POINTS_TO_WIN: 31,
-  MIN_POINT_DIFF: 2,
-} as const;
-
 export function useTeamMatchScoring(
   tournamentId: string | undefined,
   matchId: string | undefined,
@@ -45,13 +47,16 @@ export function useTeamMatchScoring(
   const { t } = useTranslation();
   const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
   const { tournament } = useTournament(tournamentId ?? null);
-  // 서버 진출·순위와 같은 규칙 해석기(경기 → 스테이지 → 대회 규칙 → teamMatchSettings → 31점)를 쓴다
-  const gameConfig = match && tournament
-    ? getEffectiveScoringRules({ ...match, type: 'team' }, tournament)
-    : tournament
-      ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
-      : DEFAULT_TEAM_CONFIG;
-  const timeLimitSeconds = match && tournament ? getEffectiveTimeLimitSeconds(match, tournament) : 0;
+  // 서버 진출·순위와 같은 규칙 해석기(경기 → 라운드/순위결정전 → 스테이지 → 대회 규칙 → teamMatchSettings → 31점)를 쓴다.
+  // 세트 수(setsToWin > 1이면 다음 세트 진행), 서브 수, 사이드 체인지 점수, 코트 위 선수 수, 서브 순서도 여기서 읽는다.
+  const rules = useMemo(
+    () => (match ? resolveMatchScoring({ ...match, type: 'team' }, tournament) : DEFAULT_TEAM_SCORING),
+    [match, tournament],
+  );
+  const maxServes = servesPerTurnOf(rules, 'team');
+  const playersOnCourt = playersOnCourtOf(rules);
+  const serveRotation = useMemo(() => serveRotationOf(rules), [rules]);
+  const timeLimitSeconds = match ? getEffectiveTimeLimitSeconds({ ...match, type: 'team' }, tournament) : 0;
   const goldenGoal = useGoldenGoalTimer(match?.matchStartedAt, timeLimitSeconds);
   const { canAct, startProcessing, done } = useDoubleClickGuard();
   const { shortWhistle, longWhistle, goalWhistle, initAudio } = useWhistle();
@@ -83,7 +88,7 @@ export function useTeamMatchScoring(
     if (match?.status === 'pending') {
       const t1 = match.team1;
       const t2 = match.team2;
-      const teamSize = tournament?.teamRules?.teamSize ?? 3;
+      const teamSize = playersOnCourt;
       if (t1?.memberIds && team1Order.ids.length === 0) {
         setTeam1Order({ ids: t1.memberIds.slice(0, teamSize), names: (t1.memberNames ?? []).slice(0, teamSize) });
       }
@@ -91,7 +96,7 @@ export function useTeamMatchScoring(
         setTeam2Order({ ids: t2.memberIds.slice(0, teamSize), names: (t2.memberNames ?? []).slice(0, teamSize) });
       }
     }
-  }, [match?.status, match?.team1?.memberIds, match?.team2?.memberIds, tournament?.teamRules?.teamSize]);
+  }, [match?.status, match?.team1?.memberIds, match?.team2?.memberIds, playersOnCourt]);
 
   const showSideChange = !!(match?.sideChangeStartTime) && !sideChangeDismissed;
 
@@ -294,8 +299,8 @@ export function useTeamMatchScoring(
       set: (match.currentSet ?? 0) + 1,
       server: (match.currentServe ?? 'player1') === 'player1' ? t1Name : t2Name,
       serveNumber: (match.serveCount ?? 0) + 1,
-      scoreBefore: { player1: match.sets?.[0]?.player1Score ?? 0, player2: match.sets?.[0]?.player2Score ?? 0 },
-      scoreAfter: { player1: match.sets?.[0]?.player1Score ?? 0, player2: match.sets?.[0]?.player2Score ?? 0 },
+      scoreBefore: { player1: match.sets?.[match.currentSet ?? 0]?.player1Score ?? 0, player2: match.sets?.[match.currentSet ?? 0]?.player2Score ?? 0 },
+      scoreAfter: { player1: match.sets?.[match.currentSet ?? 0]?.player1Score ?? 0, player2: match.sets?.[match.currentSet ?? 0]?.player2Score ?? 0 },
     });
 
     const prevHistory = match.scoreHistory ?? [];
@@ -339,15 +344,16 @@ export function useTeamMatchScoring(
         return;
       }
       const scoringTeamGG = toOpponent ? (actingTeam === 1 ? 2 : 1) : actingTeam;
+      const ciGG = match.currentSet ?? 0;
       const setsGG = [...match.sets.map(s => ({ ...s }))];
-      const csGG = { ...setsGG[0] };
+      const csGG = { ...setsGG[ciGG] };
       const beforeGG = { player1: csGG.player1Score, player2: csGG.player2Score };
       const { newScores } = applyGoldenGoalEvent('goal', scoringTeamGG, beforeGG);
       csGG.player1Score = newScores.player1;
       csGG.player2Score = newScores.player2;
       const winnerId = scoringTeamGG === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
       csGG.winnerId = winnerId;
-      setsGG[0] = csGG;
+      setsGG[ciGG] = csGG;
       const t1NameGG = match.team1Name ?? t('referee.home.team1Default');
       const t2NameGG = match.team2Name ?? t('referee.home.team2Default');
       const winnerName = scoringTeamGG === 1 ? t1NameGG : t2NameGG;
@@ -357,7 +363,7 @@ export function useTeamMatchScoring(
         actionType: 'goal',
         actionLabel: `${t('referee.scoring.goldenGoalActivated')} - ${label}`,
         points,
-        set: 1,
+        set: ciGG + 1,
         server: (match.currentServe ?? 'player1') === 'player1' ? t1NameGG : t2NameGG,
         serveNumber: (match.serveCount ?? 0) + 1,
         scoreBefore: beforeGG,
@@ -381,15 +387,18 @@ export function useTeamMatchScoring(
     startProcessing();
     try {
 
+    const ci = match.currentSet ?? 0;
     const sets = [...match.sets.map(s => ({ ...s }))];
-    const cs = { ...sets[0] };
+    const cs = { ...sets[ci] };
+    // 이미 끝난 세트에는 점수를 넣지 않는다
+    if (cs.winnerId || setWinnerByRules(cs.player1Score, cs.player2Score, rules)) return;
 
     const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
     const scoringTeam = toOpponent ? (actingTeam === 1 ? 2 : 1) : actingTeam;
 
     if (scoringTeam === 1) cs.player1Score += points;
     else cs.player2Score += points;
-    sets[0] = cs;
+    sets[ci] = cs;
 
     const scoreAfter = { player1: cs.player1Score, player2: cs.player2Score };
 
@@ -404,7 +413,7 @@ export function useTeamMatchScoring(
       scoringPlayer: scoringTeam === 1 ? t1Name : t2Name,
       actionPlayer: actingTeam === 1 ? t1Name : t2Name,
       actionType, actionLabel: label, points,
-      set: 1,
+      set: ci + 1,
       server: serverName, serveNumber,
       scoreBefore, scoreAfter,
       serverSide: currentServe,
@@ -413,19 +422,20 @@ export function useTeamMatchScoring(
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     let newHistory = [historyEntry, ...prevHistory];
 
-    const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
-      currentServe, serveCount, 'team',
-    );
+    const { currentServe: nextServe, serveCount: nextCount, turnChanged } = advanceServeTurn(currentServe, serveCount, maxServes);
 
     let rotationUpdate: Record<string, unknown> = {};
-    if (nextCount === 0 && nextServe !== currentServe) {
-      const teamKey = currentServe === 'player1' ? 'team1' : 'team2';
-      const orderKey = `${teamKey}PlayerOrder` as 'team1PlayerOrder' | 'team2PlayerOrder';
-      const indexKey = `${teamKey}CurrentPlayerIndex` as 'team1CurrentPlayerIndex' | 'team2CurrentPlayerIndex';
-      const currentIdx = (match[indexKey] as number | undefined) ?? 0;
-      const order = (match[orderKey] as string[] | undefined) ?? [];
-      const activeCount = Math.min(3, order.length);
-      const nextIdx = activeCount > 0 ? (currentIdx + 1) % activeCount : 0;
+    if (turnChanged) {
+      // 서브 순서(규칙 serveRotation, 기본 A1,B1,A2,B2…): A = 이 세트에 먼저 서브한 팀
+      const setFirst = firstServerOfSet(match, ci);
+      const keyOf = (side: 'player1' | 'player2') => (side === 'player1' ? 'team1' : 'team2');
+      const finishedIdx = (match[`${keyOf(currentServe)}CurrentPlayerIndex`] as number | undefined) ?? 0;
+      const nextTok = nextRotationToken(serveRotation, { team: currentServe === setFirst ? 'A' : 'B', player: finishedIdx + 1 });
+      const nextKey = keyOf(nextServe);
+      const order = (match[`${nextKey}PlayerOrder`] as string[] | undefined) ?? [];
+      const activeCount = Math.min(playersOnCourt, order.length);
+      const nextIdx = activeCount > 0 ? (nextTok.player - 1) % activeCount : 0;
+      const indexKey = `${nextKey}CurrentPlayerIndex` as 'team1CurrentPlayerIndex' | 'team2CurrentPlayerIndex';
       const rotTeamName = currentServe === 'player1' ? t1Name : t2Name;
 
       const rotationEntry: ScoreHistoryEntry = {
@@ -435,7 +445,7 @@ export function useTeamMatchScoring(
         actionType: 'player_rotation' as ScoreActionType,
         actionLabel: `${t('common.matchHistory.playerRotation')} (${rotTeamName})`,
         points: 0,
-        set: 1,
+        set: ci + 1,
         server: nextServe === 'player1' ? t1Name : t2Name,
         serveNumber: 1,
         scoreBefore: scoreAfter,
@@ -463,16 +473,19 @@ export function useTeamMatchScoring(
     setLastAction(`${actionDesc} | ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}`);
 
     setAnnouncement(
-      `${tName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes('team')}`
+      `${tName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${maxServes}`
     );
 
-    const setWinner = checkSetWinner(cs.player1Score, cs.player2Score, gameConfig);
-    if (setWinner) {
-      const winnerId = setWinner === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
-      cs.winnerId = winnerId;
-      sets[0] = cs;
+    sets[ci] = cs;
+    const setEnd = setEndOutcome(match, sets, ci, rules, {
+      sideIds: [match.team1Id ?? 'team1', match.team2Id ?? 'team2'],
+      serverName: side => (side === 'player1' ? t1Name : t2Name),
+      time: formatTime(),
+      sideChangeLabel: t('common.matchHistory.sideChange'),
+    });
+    if (setEnd?.kind === 'completed') {
       const ok1 = await updateMatch({
-        sets, status: 'completed', winnerId,
+        sets: setEnd.sets, status: 'completed', winnerId: setEnd.winnerId,
         currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
         ...rotationUpdate,
@@ -482,8 +495,30 @@ export function useTeamMatchScoring(
       if (tournamentId) autoBackupToLocal(tournamentId);
       return;
     }
+    if (setEnd?.kind === 'next_set') {
+      // 경기가 아직 안 끝났다(setsToWin > 1): 다음 세트. 코트를 바꾸고 이전 세트 첫 서브의 반대 팀이 첫 서브(IBSA).
+      const okSet = await updateMatch({
+        sets: setEnd.sets, currentSet: setEnd.currentSet,
+        currentServe: setEnd.currentServe, serveCount: setEnd.serveCount,
+        sideChangeUsed: setEnd.sideChangeUsed,
+        player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
+        scoreHistory: [setEnd.setStartEntry, ...newHistory],
+        ...rotationUpdate,
+      });
+      if (!okSet) { notifyUpdateFailed(); return; }
+      const setWinnerName = setEnd.setWinner === 1 ? t1Name : t2Name;
+      const nextFirstName = setEnd.currentServe === 'player1' ? t1Name : t2Name;
+      const setMsg = `${setWinnerName} ${t('common.matchHistory.setLabel', { num: ci + 1 })} ${scoreAfter.player1} : ${scoreAfter.player2}. ${t('common.units.set')} ${setEnd.wins.player1} : ${setEnd.wins.player2}. ${t('common.matchHistory.sideChange')}. ${nextFirstName} ${t('common.matchHistory.serve')}`;
+      setLastAction(setMsg);
+      setAnnouncement(setMsg);
+      setTimeout(() => longWhistle(), 500);
+      setPendingSideChange(true);
+      if (tournamentId) autoBackupDebounced(tournamentId);
+      return;
+    }
 
-    if (shouldSideChange('team', cs, match.sideChangeUsed ?? false, sets, gameConfig)) {
+    // 사이드 체인지: 결정 세트(단판 포함)에서 규칙의 사이드 체인지 점수(기본 ceil(목표/2), 31점 → 16)에 닿으면
+    if (shouldChangeSidesMidSet(cs, sets.slice(0, ci), rules, match.sideChangeUsed ?? false)) {
       const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
@@ -503,24 +538,36 @@ export function useTeamMatchScoring(
     if (tournamentId) autoBackupDebounced(tournamentId);
 
     } finally { done(); }
-  }, [match, gameConfig, updateMatch, canAct, startProcessing, done, tournamentId, goalWhistle, shortWhistle, longWhistle, goldenGoal.isActive, t]);
+  }, [match, rules, maxServes, playersOnCourt, serveRotation, updateMatch, canAct, startProcessing, done, tournamentId, goalWhistle, shortWhistle, longWhistle, goldenGoal.isActive, t]);
 
   const handleUndo = useCallback(async () => {
     if (!match) return;
     const history: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     if (history.length === 0) return;
 
+    const ci = match.currentSet ?? 0;
+    // 세트 전환 직후라면 새 세트를 지우고 이전 세트의 마지막 득점을 되돌린다
+    const transition = undoSetTransition(match.sets ?? [], ci, history);
+    if (transition) {
+      await updateMatch(transition.update);
+      const t1n = match.team1Name ?? t('referee.home.team1Default');
+      const t2n = match.team2Name ?? t('referee.home.team2Default');
+      const msgT = `${t1n} ${transition.score.player1}, ${t2n} ${transition.score.player2}. ${transition.update.currentServe === 'player1' ? t1n : t2n} ${t('common.matchHistory.serve')}`;
+      setPendingSideChange(false);
+      setAnnouncement(msgT);
+      setLastAction(`↩️ ${msgT}`);
+      return;
+    }
+
     const lastEntry = history[0];
     const sets = [...(match.sets ?? []).map(s => ({ ...s }))];
-    const cs = { ...sets[0] };
+    const cs = { ...sets[ci] };
     cs.player1Score = lastEntry.scoreBefore.player1;
     cs.player2Score = lastEntry.scoreBefore.player2;
     cs.winnerId = null;
-    sets[0] = cs;
+    sets[ci] = cs;
 
-    const { currentServe, serveCount } = revertServe(
-      match.currentServe ?? 'player1', match.serveCount ?? 0, 'team',
-    );
+    const { currentServe, serveCount } = revertServeTurn(match.currentServe ?? 'player1', match.serveCount ?? 0, maxServes);
 
     await updateMatch({ sets, currentServe, serveCount, scoreHistory: history.slice(1) });
     const t1Name = match.team1Name ?? t('referee.home.team1Default');
@@ -529,7 +576,7 @@ export function useTeamMatchScoring(
     const msg = `${t1Name} ${cs.player1Score}, ${t2Name} ${cs.player2Score}. ${serverName} ${t('common.matchHistory.serve')}`;
     setAnnouncement(msg);
     setLastAction(`↩️ ${msg}`);
-  }, [match, updateMatch, t]);
+  }, [match, updateMatch, maxServes, t]);
 
   const handleChangeServe = useCallback(async () => {
     if (!match || match.status !== 'in_progress') return;
@@ -553,7 +600,7 @@ export function useTeamMatchScoring(
     if (match.status !== 'in_progress') return;
     if (match.activeTimeout) return;
 
-    const currentSetData = match.sets?.[0];
+    const currentSetData = match.sets?.[match.currentSet ?? 0];
     const t1Name = match.team1Name ?? t('referee.home.team1Default');
     const t2Name = match.team2Name ?? t('referee.home.team2Default');
     const currentServe = match.currentServe ?? 'player1';
@@ -568,7 +615,7 @@ export function useTeamMatchScoring(
       actionType: 'dead_ball',
       actionLabel: t('common.matchHistory.deadBall', { server: actionTeamName }),
       points: 0,
-      set: 1,
+      set: (match.currentSet ?? 0) + 1,
       server: serverTeamName,
       serveNumber: serveCount + 1,
       scoreBefore,
@@ -599,12 +646,12 @@ export function useTeamMatchScoring(
     }
     const teamId = team === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
     const tName = team === 1 ? (match.team1Name ?? t('referee.home.team1Default')) : (match.team2Name ?? t('referee.home.team2Default'));
-    const currentSetData = match.sets?.[0];
+    const currentSetData = match.sets?.[match.currentSet ?? 0];
     const actionType = type === 'player' ? 'timeout_player' : type === 'medical' ? 'timeout_medical' : 'timeout_referee';
     const actionLabel = type === 'player' ? t('referee.scoring.timeoutTitle.player') : type === 'medical' ? t('referee.scoring.timeoutTitle.medical') : t('referee.scoring.timeoutTitle.referee');
     const timeoutEntry: ScoreHistoryEntry = {
       time: formatTime(),
-      set: 1,
+      set: (match.currentSet ?? 0) + 1,
       scoringPlayer: '',
       actionPlayer: type === 'referee' ? '' : tName,
       actionType: actionType as ScoreActionType,
@@ -659,11 +706,11 @@ export function useTeamMatchScoring(
     if (isWarning) {
       startProcessing();
       try {
-      const currentSetData = match.sets?.[0];
+      const currentSetData = match.sets?.[match.currentSet ?? 0];
       const scoreBefore = { player1: currentSetData?.player1Score ?? 0, player2: currentSetData?.player2Score ?? 0 };
       const warningEntry: ScoreHistoryEntry = {
         time: formatTime(),
-        set: 1,
+        set: (match.currentSet ?? 0) + 1,
         scoringPlayer: '',
         actionPlayer: actorName,
         actionType: penaltyType as ScoreActionType,
@@ -708,7 +755,7 @@ export function useTeamMatchScoring(
     setFoulClassify(null);
   }, [match, updateMatch]);
 
-  const teamSize = tournament?.teamRules?.teamSize ?? 3;
+  const teamSize = playersOnCourt;
 
   const getTeamActivePlayers = useCallback((teamNum: 1 | 2) => {
     if (!match) return { ids: [] as string[], names: [] as string[] };
@@ -781,7 +828,7 @@ export function useTeamMatchScoring(
     const currentServeVal = match.currentServe ?? 'player1';
     const serveCountVal = match.serveCount ?? 0;
     const serverNameVal = currentServeVal === 'player1' ? t1Name : t2Name;
-    const cs = match.sets?.[0];
+    const cs = match.sets?.[match.currentSet ?? 0];
     const scoreBefore = {
       player1: cs?.player1Score ?? 0,
       player2: cs?.player2Score ?? 0,
@@ -793,7 +840,7 @@ export function useTeamMatchScoring(
       actionType: 'substitution',
       actionLabel: `${t('common.matchHistory.substitution')}: ${outName} → ${inName}`,
       points: 0,
-      set: 1,
+      set: (match.currentSet ?? 0) + 1,
       server: serverNameVal,
       serveNumber: serveCountVal + 1,
       scoreBefore,
@@ -842,11 +889,12 @@ export function useTeamMatchScoring(
 
   // Derived values for in_progress view
   const sets = Array.isArray(match?.sets) && match!.sets!.length > 0 ? match!.sets! : [createEmptySet()];
-  const currentSet = sets[0] ?? createEmptySet();
+  const currentSetIndex = match?.currentSet ?? 0;
+  const currentSet = sets[currentSetIndex] ?? createEmptySet();
+  const setWins = setWinsByRules(sets, rules);
   const currentServe = match?.currentServe ?? 'player1';
   const serveCountVal = match?.serveCount ?? 0;
   const serverName = currentServe === 'player1' ? team1Name : team2Name;
-  const maxServes = getMaxServes('team');
   const history: ScoreHistoryEntry[] = match?.scoreHistory ?? [];
 
   const t1TimeoutsUsed = match?.player1Timeouts ?? 0;
@@ -897,8 +945,10 @@ export function useTeamMatchScoring(
     handlePenalty, handleQuickFoul, handleClassifyFoul,
     handleSubstitution, openSubstitution,
     getTeamActivePlayers, getTeamReservePlayers, hasReserves,
+    // 경기 규칙 (resolveMatchScoring)
+    rules,
     // derived
-    sets, currentSet, currentServe, serveCountVal, serverName, maxServes,
+    sets, currentSet, currentSetIndex, setWins, currentServe, serveCountVal, serverName, maxServes,
     history,
     t1TimeoutsUsed, t2TimeoutsUsed,
     p1Warnings, p2Warnings, p1Penalties, p2Penalties,

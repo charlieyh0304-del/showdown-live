@@ -1,83 +1,61 @@
-import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry, Match, Tournament, TournamentStage } from '../types';
+import type { SetScore, ScoreActionType, ScoreHistoryEntry, Match } from '../types';
 import { formatTime } from '@shared/utils/locale';
-import { resolveMatchScoring } from '../rules/competitionRules';
+import {
+  DEFAULT_INDIVIDUAL_SCORING,
+  matchWinnerByRules,
+  resolveMatchScoring,
+  setWinnerByRules,
+  setWinsByRules,
+  type MatchScoringLike,
+  type ScoringRuleSet,
+  type TournamentLike,
+} from '../rules/competitionRules';
 
-export const DEFAULT_GAME_CONFIG = {
-  SETS_TO_WIN: 2,
-  MAX_SETS: 3,
-  POINTS_TO_WIN: 11,
-  MIN_POINT_DIFF: 2,
-} as const;
-
-export const TEAM_GAME_CONFIG = {
-  SETS_TO_WIN: 1,
-  MAX_SETS: 1,
-  POINTS_TO_WIN: 31,
-  MIN_POINT_DIFF: 2,
-} as const;
-
-export function getEffectiveGameConfig(
-  gameConfigOrRules?: GameConfig | ScoringRules,
-  matchType?: MatchType,
-) {
-  // ScoringRules (확장 타입) 지원
-  if (gameConfigOrRules && 'minLead' in gameConfigOrRules) {
-    const rules = gameConfigOrRules as ScoringRules;
-    return {
-      SETS_TO_WIN: rules.setsToWin,
-      MAX_SETS: rules.maxSets,
-      POINTS_TO_WIN: rules.winScore,
-      MIN_POINT_DIFF: rules.minLead,
-    };
-  }
-
-  // 기존 로직 (하위 호환)
-  if (matchType === 'team') return TEAM_GAME_CONFIG;
-  if (!gameConfigOrRules) return DEFAULT_GAME_CONFIG;
-
-  const gc = gameConfigOrRules as GameConfig;
-  return {
-    SETS_TO_WIN: gc.setsToWin,
-    MAX_SETS: gc.setsToWin * 2 - 1,
-    POINTS_TO_WIN: gc.winScore,
-    MIN_POINT_DIFF: 2,
-  };
+/**
+ * 경기 판정은 모두 대회 규칙 단일 설정원(shared/rules)을 쓴다:
+ * resolveMatchScoring(경기, 대회) → setWinnerByRules / matchWinnerByRules / setWinsByRules (듀스 캡 포함).
+ * 서브·사이드 체인지는 shared/rules/serve.ts.
+ *
+ * 아래 대문자 설정(LegacyGameConfig)과 checkSetWinner/checkMatchWinner/countSetWins는 연습 모드
+ * (대회와 무관한 로컬 경기, PracticeMatch.gameConfig) 전용 어댑터다. 대회 경기에는 쓰지 않는다
+ * (src/shared/rules/outcomeGuard.test.ts가 막는다).
+ */
+export interface LegacyGameConfig {
+  SETS_TO_WIN: number;
+  MAX_SETS: number;
+  POINTS_TO_WIN: number;
+  MIN_POINT_DIFF: number;
 }
 
-export function checkSetWinner(
-  player1Score: number,
-  player2Score: number,
-  config?: ReturnType<typeof getEffectiveGameConfig>,
-  deuceCap?: number,
-): 1 | 2 | null {
-  const { POINTS_TO_WIN, MIN_POINT_DIFF } = config || DEFAULT_GAME_CONFIG;
-
-  // 듀스 캡: 캡 점수 도달 시 1점 차로도 승리
-  if (deuceCap && (player1Score >= deuceCap || player2Score >= deuceCap)) {
-    if (player1Score > player2Score) return 1;
-    if (player2Score > player1Score) return 2;
-    return null;
-  }
-
-  if (player1Score >= POINTS_TO_WIN && player1Score - player2Score >= MIN_POINT_DIFF) return 1;
-  if (player2Score >= POINTS_TO_WIN && player2Score - player1Score >= MIN_POINT_DIFF) return 2;
-  return null;
+/** 연습 모드 설정 → 점수 규칙 (없으면 개인전 기본값) */
+export function rulesFromLegacyConfig(config?: LegacyGameConfig | null, deuceCap?: number): ScoringRuleSet {
+  const base: ScoringRuleSet = config
+    ? { winScore: config.POINTS_TO_WIN, setsToWin: config.SETS_TO_WIN, maxSets: config.MAX_SETS, minLead: config.MIN_POINT_DIFF }
+    : { ...DEFAULT_INDIVIDUAL_SCORING };
+  return deuceCap ? { ...base, deuceCap } : base;
 }
 
-export function checkMatchWinner(
-  sets: SetScore[],
-  config?: ReturnType<typeof getEffectiveGameConfig>
-): 1 | 2 | null {
-  const effectiveConfig = config || DEFAULT_GAME_CONFIG;
-  let p1 = 0, p2 = 0;
-  for (const set of sets) {
-    const winner = checkSetWinner(set.player1Score, set.player2Score, effectiveConfig);
-    if (winner === 1) p1++;
-    if (winner === 2) p2++;
-  }
-  if (p1 >= effectiveConfig.SETS_TO_WIN) return 1;
-  if (p2 >= effectiveConfig.SETS_TO_WIN) return 2;
-  return null;
+/** 연습 모드 전용: 세트 승자 */
+export function checkSetWinner(player1Score: number, player2Score: number, config?: LegacyGameConfig, deuceCap?: number): 1 | 2 | null {
+  return setWinnerByRules(player1Score, player2Score, rulesFromLegacyConfig(config, deuceCap));
+}
+
+/** 연습 모드 전용: 경기 승자 */
+export function checkMatchWinner(sets: SetScore[], config?: LegacyGameConfig): 1 | 2 | null {
+  return matchWinnerByRules(sets, rulesFromLegacyConfig(config));
+}
+
+/** 연습 모드 전용: 세트 승수 */
+export function countSetWins(sets: SetScore[], config?: LegacyGameConfig) {
+  return setWinsByRules(sets, rulesFromLegacyConfig(config));
+}
+
+/** 대회 경기의 세트 승수 (경기 → 스테이지 → 대회 규칙, 듀스 캡 포함) */
+export function matchSetWins(
+  match: MatchScoringLike & { sets?: ReadonlyArray<{ player1Score?: unknown; player2Score?: unknown } | null | undefined> | null },
+  tournament: TournamentLike | null | undefined,
+): { player1: number; player2: number } {
+  return setWinsByRules(Array.isArray(match.sets) ? match.sets : [], resolveMatchScoring(match, tournament));
 }
 
 export function createEmptySet(): SetScore {
@@ -87,38 +65,6 @@ export function createEmptySet(): SetScore {
     player1Violations: 0, player2Violations: 0,
     winnerId: null,
   };
-}
-
-export function countSetWins(sets: SetScore[], config?: ReturnType<typeof getEffectiveGameConfig>) {
-  let p1 = 0, p2 = 0;
-  for (const set of sets) {
-    const w = checkSetWinner(set.player1Score, set.player2Score, config);
-    if (w === 1) p1++;
-    if (w === 2) p2++;
-  }
-  return { player1: p1, player2: p2 };
-}
-
-// ===== IBSA 서브 로테이션 =====
-// 개인전: 2회 서브 후 교대, 팀전: 3회 서브 후 교대
-export function getMaxServes(matchType: MatchType): number {
-  return matchType === 'team' ? 3 : 2;
-}
-
-export function advanceServe(
-  currentServe: 'player1' | 'player2',
-  serveCount: number,
-  matchType: MatchType,
-): { currentServe: 'player1' | 'player2'; serveCount: number } {
-  const maxServes = getMaxServes(matchType);
-  const nextCount = serveCount + 1;
-  if (nextCount >= maxServes) {
-    return {
-      currentServe: currentServe === 'player1' ? 'player2' : 'player1',
-      serveCount: 0,
-    };
-  }
-  return { currentServe, serveCount: nextCount };
 }
 
 // ===== 골든골 (시간 제한 경기) =====
@@ -163,45 +109,6 @@ export function applyGoldenGoalEvent(
   return { newScores, winner: scorer };
 }
 
-// Undo 시 서브 되돌리기
-export function revertServe(
-  currentServe: 'player1' | 'player2',
-  serveCount: number,
-  matchType: MatchType,
-): { currentServe: 'player1' | 'player2'; serveCount: number } {
-  const maxServes = getMaxServes(matchType);
-  const prevCount = serveCount - 1;
-  if (prevCount < 0) {
-    return {
-      currentServe: currentServe === 'player1' ? 'player2' : 'player1',
-      serveCount: maxServes - 1,
-    };
-  }
-  return { currentServe, serveCount: prevCount };
-}
-
-// 사이드 체인지 체크
-export function shouldSideChange(
-  matchType: MatchType,
-  set: SetScore,
-  sideChangeUsed: boolean,
-  sets: SetScore[],
-  config: ReturnType<typeof getEffectiveGameConfig>,
-): boolean {
-  if (sideChangeUsed) return false;
-  const sideChangePoint = matchType === 'team' ? 16 : 6;
-  const maxScore = Math.max(set.player1Score, set.player2Score);
-
-  if (matchType === 'individual') {
-    // 개인전: 결정 세트(양쪽 모두 SETS_TO_WIN-1 승)에서만 사이드 체인지
-    const setWins = countSetWins(sets.slice(0, -1), config);
-    const isDecidingSet = setWins.player1 === config.SETS_TO_WIN - 1 && setWins.player2 === config.SETS_TO_WIN - 1;
-    return isDecidingSet && maxScore >= sideChangePoint;
-  }
-  // 팀전: 항상
-  return maxScore >= sideChangePoint;
-}
-
 // 득점 히스토리 항목 생성
 export function createScoreHistoryEntry(opts: {
   scoringPlayer: string;
@@ -222,34 +129,16 @@ export function createScoreHistoryEntry(opts: {
   };
 }
 
-// ===== 스코어링 규칙 우선순위 체인 =====
-// 대회 규칙 단일 설정원(shared/rules/competitionRules.ts resolveMatchScoring)을 그대로 쓴다:
-// match.appliedScoringRules > stage(rules/scoringRules) > tournament(rules/scoringRules) > 팀 31점·teamMatchSettings / gameConfig > 기본
-export function getEffectiveScoringRules(
-  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules'> & Partial<Pick<Match, 'roundLabel' | 'bracketRound'>>,
-  tournament: Tournament | null | undefined,
-): ReturnType<typeof getEffectiveGameConfig> {
-  const r = resolveMatchScoring(match, tournament);
-  return { SETS_TO_WIN: r.setsToWin, MAX_SETS: r.maxSets, POINTS_TO_WIN: r.winScore, MIN_POINT_DIFF: r.minLead };
-}
-
 /**
- * match + tournament에서 유효 시간 제한(초)을 추출.
- * 우선순위: match.appliedScoringRules > stage.scoringRules > tournament.scoringRules
- * 0/없음 = 시간 제한 없음.
+ * 경기의 유효 시간 제한(초). 0 = 시간 제한 없음.
+ * 대회 규칙 단일 설정원(resolveMatchScoring: 경기 → 라운드/순위결정전 → 스테이지 → 대회)에서 읽는다.
+ * 스테이지에서 0을 저장하면 대회 값을 끈다.
  */
 export function getEffectiveTimeLimitSeconds(
-  match: Match,
-  tournament: Tournament,
+  match: MatchScoringLike,
+  tournament: TournamentLike | null | undefined,
 ): number {
-  if (match.appliedScoringRules?.timeLimitSeconds) return match.appliedScoringRules.timeLimitSeconds;
-  if (match.stageId && tournament.stages) {
-    const stages = Array.isArray(tournament.stages) ? tournament.stages : Object.values(tournament.stages) as TournamentStage[];
-    const stage = stages.find((s: TournamentStage) => s.id === match.stageId);
-    if (stage?.scoringRules?.timeLimitSeconds) return stage.scoringRules.timeLimitSeconds;
-  }
-  if (tournament.scoringRules?.timeLimitSeconds) return tournament.scoringRules.timeLimitSeconds;
-  return 0;
+  return resolveMatchScoring(match, tournament).timeLimitSeconds ?? 0;
 }
 
 /**

@@ -1,15 +1,18 @@
 /**
  * 전체 시뮬레이션 워크플로우 핸들러 (run_full_simulation)
- * - 예선 시뮬레이션 → 본선 생성/시뮬 → 5-8위/9-16위/17위~ 순위결정전 → 최종 순위 산출
+ * - 예선 시뮬레이션 → 본선 생성(generate_finals) → 본선·순위결정전 시뮬레이션 반복 → 최종 순위 산출
+ *
+ * 어떤 순위결정전을 만들지는 모두 대회 규칙(resolveCompetitionRules(..).finalRanking)이 정한다:
+ * 3/4위전(thirdPlace), 5~8위 결정전(fifthToEighthMatches: 8강 패자 링크), 예선 탈락자 순위 결정전 리그
+ * (classificationGroups + classificationGroupSize 티어). generate_finals가 한 번에 만들고,
+ * 패자/승자 링크는 simulate_matches의 진출 처리(lib/advancement)가 채운다. 여기서 경기를 직접 만들지 않는다.
+ * 순위표·최종 순위는 shared/rules(rankMatches, computeFinalPlacements)로 계산한다.
  */
 import { db } from "../db-helpers";
-import {
-  splitIntoRankingTiers,
-  type MatchLike,
-} from "../lib/rankings-compute";
-import { resultContextFor } from "../shared/rules/standings";
+import { toList } from "../shared/rules/competitionRules";
+import { resultContextFor, type MatchLike } from "../shared/rules/standings";
 import { rankMatches, splitByGroup } from "../shared/rules/qualification";
-import { computeFinalPlacements } from "../shared/rules/finalRanking";
+import { finalPlacementsFor } from "../shared/rules/finalRanking";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
@@ -37,15 +40,13 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
     // 결승이 없으면 생성
     const mSnap = await db.ref(`matches/${tid}`).once("value");
     const allM = mSnap.exists() ? Object.values(mSnap.val() as Record<string, Record<string, unknown>>) : [];
-    const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
+    const stageIds = toList<Record<string, unknown>>(tourData.stages).filter(x => x && typeof x === "object" && x.type !== "qualifying").map(x => x.id).filter((x): x is string => typeof x === "string");
+    const hasFinals = allM.some(m => typeof m.stageId === "string" && stageIds.some(sid => m.stageId === sid || (m.stageId as string).startsWith(`${sid}_`)));
 
     if (!hasFinals) {
-      const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
       const genR = await executeTool("generate_finals", {
         tournamentId: tid,
-        // 3/4위전 여부는 대회 규칙(finalRanking.thirdPlace)에서 generate_finals가 읽는다
-        includeFifthToEighth: rc?.fifthToEighth || false,
-        includeClassification: rc?.classificationGroups || false,
+        // 3/4위전·5~8위 결정전·순위 결정전 리그는 대회 규칙(finalRanking)에서 generate_finals가 읽는다 (여기서 강제하지 않음)
         // 시뮬레이션: 진출 경계 동률은 seed 추첨으로 정하고 그 결정을 기록한다
         resolveTiesByLot: true,
       });
@@ -61,7 +62,7 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
 
     // 본선 + 분류 경기 반복 시뮬레이션 (hasFinals 여부와 무관하게 항상 실행)
     let consecutiveZero = 0;
-    for (let round = 0; round < 12; round++) {
+    for (let round = 0; round < 16; round++) {
       const finSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true, lightweight: true });
       const finP = JSON.parse(finSim);
       if (finP.success && finP.count > 0) {
@@ -77,353 +78,6 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
     }
   }
 
-  // 2.5 브라켓 패자 기반 순위결정전 생성 + 시뮬레이션 (배치 처리)
-  const mType = isTeam ? "team" : "individual";
-  const nowElim = Date.now();
-  const createElimRankingMatches = async (
-    groups: Array<{ label: string; startRank: number; members: Array<{ id: string; name: string }> }>,
-    baseStageId: string,
-    timeOffset: number,
-  ) => {
-    // 1단계: 모든 그룹의 준결승/단일경기 한 번에 생성
-    const allBulk: Record<string, unknown> = {};
-    const semiKeyMap: Map<string, { semi1: string; semi2: string }> = new Map();
-    let totalMc = 0;
-    for (const grp of groups) {
-      const members = grp.members;
-      if (members.length < 2) continue;
-      const stageId3 = `${baseStageId}_${grp.startRank}`;
-      if (members.length >= 4) {
-        const semi1Key = db.ref(`matches/${tid}`).push().key!;
-        allBulk[`matches/${tid}/${semi1Key}`] = {
-          tournamentId: tid, type: mType, status: "pending", round: 1, stageId: stageId3,
-          bracketRound: `${grp.label} 결정전`, roundLabel: `${grp.label} 결정전`,
-          player1Id: members[0].id, player2Id: members[3].id,
-          player1Name: members[0].name, player2Name: members[3].name,
-          ...(isTeam ? { team1Id: members[0].id, team2Id: members[3].id, team1Name: members[0].name, team2Name: members[3].name } : {}),
-          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-          currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null, createdAt: nowElim + timeOffset + totalMc,
-        };
-        totalMc++;
-        const semi2Key = db.ref(`matches/${tid}`).push().key!;
-        allBulk[`matches/${tid}/${semi2Key}`] = {
-          tournamentId: tid, type: mType, status: "pending", round: 1, stageId: stageId3,
-          bracketRound: `${grp.label} 결정전`, roundLabel: `${grp.label} 결정전`,
-          player1Id: members[1].id, player2Id: members[2].id,
-          player1Name: members[1].name, player2Name: members[2].name,
-          ...(isTeam ? { team1Id: members[1].id, team2Id: members[2].id, team1Name: members[1].name, team2Name: members[2].name } : {}),
-          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-          currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null, createdAt: nowElim + timeOffset + totalMc,
-        };
-        totalMc++;
-        semiKeyMap.set(stageId3, { semi1: semi1Key, semi2: semi2Key });
-      } else {
-        // 2-3명: 단순 1경기
-        const mKey = db.ref(`matches/${tid}`).push().key!;
-        allBulk[`matches/${tid}/${mKey}`] = {
-          tournamentId: tid, type: mType, status: "pending", round: 1, stageId: stageId3,
-          bracketRound: `${grp.label} 결정전`, roundLabel: `${grp.startRank}/${grp.startRank + 1}위 결정전`,
-          player1Id: members[0].id, player2Id: members[1].id,
-          player1Name: members[0].name, player2Name: members[1].name,
-          ...(isTeam ? { team1Id: members[0].id, team2Id: members[1].id, team1Name: members[0].name, team2Name: members[1].name } : {}),
-          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-          currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null, createdAt: nowElim + timeOffset + totalMc,
-        };
-        totalMc++;
-      }
-    }
-    if (totalMc === 0) return;
-    await db.ref().update(allBulk);
-    // 준결승 1회 시뮬레이션
-    await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true, lightweight: true });
-
-    // 2단계: 모든 그룹의 결승(승자전+패자전) 한 번에 생성
-    if (semiKeyMap.size > 0) {
-      const refreshSnap = await db.ref(`matches/${tid}`).once("value");
-      const allM = refreshSnap.val() as Record<string, Record<string, unknown>>;
-      const finalsBulk: Record<string, unknown> = {};
-      let finalsMc = 0;
-      for (const grp of groups) {
-        if (grp.members.length < 4) continue;
-        const stageId3 = `${baseStageId}_${grp.startRank}`;
-        const keys = semiKeyMap.get(stageId3);
-        if (!keys) continue;
-        const sm1 = allM[keys.semi1], sm2 = allM[keys.semi2];
-        if (!sm1 || !sm2 || sm1.status !== "completed" || sm2.status !== "completed") continue;
-
-        const extractWL = (sm: Record<string, unknown>) => {
-          const wId = sm.winnerId as string;
-          const p1 = (sm.player1Id || sm.team1Id) as string;
-          const wName = wId === p1 ? (sm.player1Name || sm.team1Name) as string : (sm.player2Name || sm.team2Name) as string;
-          const lId = wId === p1 ? (sm.player2Id || sm.team2Id) as string : p1;
-          const lName = wId === p1 ? (sm.player2Name || sm.team2Name) as string : (sm.player1Name || sm.team1Name) as string;
-          return { wId, wName, lId, lName };
-        };
-        const w1 = extractWL(sm1), w2 = extractWL(sm2);
-
-        const wKey = db.ref(`matches/${tid}`).push().key!;
-        finalsBulk[`matches/${tid}/${wKey}`] = {
-          tournamentId: tid, type: mType, status: "pending", round: 2, stageId: stageId3,
-          bracketRound: `${grp.startRank}/${grp.startRank + 1}위`, roundLabel: `${grp.startRank}/${grp.startRank + 1}위 결정전`,
-          player1Id: w1.wId, player2Id: w2.wId,
-          player1Name: w1.wName, player2Name: w2.wName,
-          ...(isTeam ? { team1Id: w1.wId, team2Id: w2.wId, team1Name: w1.wName, team2Name: w2.wName } : {}),
-          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-          currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null, createdAt: nowElim + timeOffset + 1000 + finalsMc,
-        };
-        finalsMc++;
-        const lKey = db.ref(`matches/${tid}`).push().key!;
-        finalsBulk[`matches/${tid}/${lKey}`] = {
-          tournamentId: tid, type: mType, status: "pending", round: 2, stageId: stageId3,
-          bracketRound: `${grp.startRank + 2}/${grp.startRank + 3}위`, roundLabel: `${grp.startRank + 2}/${grp.startRank + 3}위 결정전`,
-          player1Id: w1.lId, player2Id: w2.lId,
-          player1Name: w1.lName, player2Name: w2.lName,
-          ...(isTeam ? { team1Id: w1.lId, team2Id: w2.lId, team1Name: w1.lName, team2Name: w2.lName } : {}),
-          sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-          currentSet: 0, player1Timeouts: 0, player2Timeouts: 0, winnerId: null, createdAt: nowElim + timeOffset + 1000 + finalsMc,
-        };
-        finalsMc++;
-      }
-      if (finalsMc > 0) {
-        await db.ref().update(finalsBulk);
-        await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true, lightweight: true });
-      }
-    }
-    allSteps.push(`${groups.length}개 순위결정전 그룹: ${totalMc}경기 완료`);
-  };
-
-  if (!simIsFullLeague) {
-    const rankSnap = await db.ref(`matches/${tid}`).once("value");
-    if (rankSnap.exists()) {
-      const allRankM = Object.entries(rankSnap.val() as Record<string, Record<string, unknown>>);
-      const completedFinals = allRankM.filter(([, m]) =>
-        m.status === "completed" && !m.isBye &&
-        ((m.stageId as string) || "").includes("finals") &&
-        !((m.stageId as string) || "").includes("class") &&
-        !((m.stageId as string) || "").includes("3rd") &&
-        !((m.stageId as string) || "").includes("5to8")
-      );
-
-      // 라운드별 패자 수집
-      const roundLosers = new Map<string, Array<{ id: string; name: string }>>();
-      for (const [, m] of completedFinals) {
-        const rl = (m.roundLabel || m.bracketRound || "") as string;
-        if (!rl || rl === "결승") continue;
-        if (!roundLosers.has(rl)) roundLosers.set(rl, []);
-        const wId = m.winnerId as string;
-        const p1Id = (m.player1Id || m.team1Id) as string;
-        const p2Id = (m.player2Id || m.team2Id) as string;
-        const loserId = wId === p1Id ? p2Id : p1Id;
-        const loserName = wId === p1Id
-          ? (m.player2Name || m.team2Name) as string
-          : (m.player1Name || m.team1Name) as string;
-        if (loserId && loserId !== "BYE" && loserName && loserName !== "부전승") {
-          roundLosers.get(rl)!.push({ id: loserId, name: loserName });
-        }
-      }
-
-      const finalsStageId = (tourData.stages as Array<{ id: string; type: string }>)?.find(s => s.type === "finals")?.id || "finals";
-      // nowElim/mType 사용 (상위 스코프)
-
-      // 5-8위 결정전: 8강 패자 4명
-      const qfLosers = roundLosers.get("8강") || [];
-      if (qfLosers.length >= 2) {
-        const rankBulk: Record<string, unknown> = {};
-        let rmc = 0;
-        // 4명이면 풀 방식 (2 준결승 + 5/6위 + 7/8위), 2-3명이면 라운드로빈
-        if (qfLosers.length >= 4) {
-          // 준결승 2경기
-          for (let qi = 0; qi < 2; qi++) {
-            const p1 = qfLosers[qi], p2 = qfLosers[3 - qi];
-            const mKey = db.ref(`matches/${tid}`).push().key!;
-            rankBulk[`matches/${tid}/${mKey}`] = {
-              tournamentId: tid, type: mType, status: "pending",
-              round: 1, stageId: `${finalsStageId}_class_5to8`,
-              bracketRound: "5-8위", roundLabel: "5-8위 결정전",
-              player1Id: p1.id, player2Id: p2.id,
-              player1Name: p1.name, player2Name: p2.name,
-              ...(isTeam ? { team1Id: p1.id, team2Id: p2.id, team1Name: p1.name, team2Name: p2.name } : {}),
-              sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-              currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
-              winnerId: null, createdAt: nowElim + rmc,
-            };
-            rmc++;
-          }
-        } else {
-          // 라운드로빈
-          for (let i = 0; i < qfLosers.length; i++) {
-            for (let j = i + 1; j < qfLosers.length; j++) {
-              const mKey = db.ref(`matches/${tid}`).push().key!;
-              rankBulk[`matches/${tid}/${mKey}`] = {
-                tournamentId: tid, type: mType, status: "pending",
-                round: 1, stageId: `${finalsStageId}_class_5to8`,
-                bracketRound: "5~8위 순위 결정전", roundLabel: "5~8위 순위 결정전",
-                player1Id: qfLosers[i].id, player2Id: qfLosers[j].id,
-                player1Name: qfLosers[i].name, player2Name: qfLosers[j].name,
-                ...(isTeam ? { team1Id: qfLosers[i].id, team2Id: qfLosers[j].id, team1Name: qfLosers[i].name, team2Name: qfLosers[j].name } : {}),
-                sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-                currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
-                winnerId: null, createdAt: nowElim + rmc,
-              };
-              rmc++;
-            }
-          }
-        }
-        if (rmc > 0) {
-          await db.ref().update(rankBulk);
-          allSteps.push(`5-8위 결정전 ${rmc}경기 생성`);
-          // 시뮬레이션 (준결승 → 5/6위, 7/8위)
-          for (let r = 0; r < 3; r++) {
-            const rs = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true, lightweight: true });
-            const rp = JSON.parse(rs);
-            if (rp.success && rp.count > 0) {
-              allSteps.push(`5-8위 라운드${r + 1}: ${rp.count}경기 완료`);
-              // 풀 방식: 준결승 후 5/6위, 7/8위 매치 생성
-              if (qfLosers.length >= 4 && r === 0) {
-                const refreshSnap2 = await db.ref(`matches/${tid}`).once("value");
-                const allM2 = refreshSnap2.val() as Record<string, Record<string, unknown>>;
-                const semiMatches = Object.entries(allM2).filter(([, m2]) =>
-                  m2.status === "completed" && (m2.roundLabel as string) === "5-8위 결정전" &&
-                  ((m2.stageId as string) || "").includes("5to8")
-                );
-                if (semiMatches.length >= 2) {
-                  const winners: Array<{ id: string; name: string }> = [];
-                  const losers2: Array<{ id: string; name: string }> = [];
-                  for (const [, sm] of semiMatches) {
-                    const wId2 = sm.winnerId as string;
-                    const p1Id2 = (sm.player1Id || sm.team1Id) as string;
-                    const wName2 = wId2 === p1Id2 ? (sm.player1Name || sm.team1Name) as string : (sm.player2Name || sm.team2Name) as string;
-                    const lId2 = wId2 === p1Id2 ? (sm.player2Id || sm.team2Id) as string : p1Id2;
-                    const lName2 = wId2 === p1Id2 ? (sm.player2Name || sm.team2Name) as string : (sm.player1Name || sm.team1Name) as string;
-                    winners.push({ id: wId2, name: wName2 });
-                    losers2.push({ id: lId2, name: lName2 });
-                  }
-                  const finalBulk: Record<string, unknown> = {};
-                  // 5/6위전
-                  const k56 = db.ref(`matches/${tid}`).push().key!;
-                  finalBulk[`matches/${tid}/${k56}`] = {
-                    tournamentId: tid, type: mType, status: "pending",
-                    round: 2, stageId: `${finalsStageId}_class_5to8`,
-                    bracketRound: "5/6위", roundLabel: "5/6위 결정전",
-                    player1Id: winners[0].id, player2Id: winners[1].id,
-                    player1Name: winners[0].name, player2Name: winners[1].name,
-                    ...(isTeam ? { team1Id: winners[0].id, team2Id: winners[1].id, team1Name: winners[0].name, team2Name: winners[1].name } : {}),
-                    sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-                    currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
-                    winnerId: null, createdAt: nowElim + 100,
-                  };
-                  // 7/8위전
-                  const k78 = db.ref(`matches/${tid}`).push().key!;
-                  finalBulk[`matches/${tid}/${k78}`] = {
-                    tournamentId: tid, type: mType, status: "pending",
-                    round: 2, stageId: `${finalsStageId}_class_5to8`,
-                    bracketRound: "7/8위", roundLabel: "7/8위 결정전",
-                    player1Id: losers2[0].id, player2Id: losers2[1].id,
-                    player1Name: losers2[0].name, player2Name: losers2[1].name,
-                    ...(isTeam ? { team1Id: losers2[0].id, team2Id: losers2[1].id, team1Name: losers2[0].name, team2Name: losers2[1].name } : {}),
-                    sets: [{ player1Score: 0, player2Score: 0, winnerId: null }],
-                    currentSet: 0, player1Timeouts: 0, player2Timeouts: 0,
-                    winnerId: null, createdAt: nowElim + 101,
-                  };
-                  await db.ref().update(finalBulk);
-                }
-              }
-            } else break;
-          }
-        }
-      }
-
-      // 9-16위 순위 결정전: classificationGroups가 true일 때만 실행
-      const rankCfgCheck = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-      const r16Losers = roundLosers.get("16강") || roundLosers.get("32강") || [];
-      if (rankCfgCheck?.classificationGroups && r16Losers.length >= 2) {
-        // 4명씩 그룹 분할 — 16강 패자 = 9위~
-        const r16Groups = splitIntoRankingTiers(r16Losers, 4, 9);
-        await createElimRankingMatches(r16Groups, `${finalsStageId}_class_9to16`, 200);
-      }
-
-      // 남은 미완료 경기 시뮬레이션 (5/6위, 7/8위 등)
-      for (let extra = 0; extra < 3; extra++) {
-        const extraSim = await executeTool("simulate_matches", { tournamentId: tid, skipAutoGenerate: true, lightweight: true });
-        const extraP = JSON.parse(extraSim);
-        if (extraP.success && extraP.count > 0) {
-          allSteps.push(`추가 순위결정: ${extraP.count}경기 완료`);
-        } else break;
-      }
-
-      // ===== Phase 2f: 17위~ 그룹 탈락자 순위결정전 직접 생성 =====
-      // generate_finals의 classification 매치에 의존하지 않고 직접 생성
-      const rankCfg = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-      const doClassification = rankCfg?.classificationGroups;
-      if (doClassification) {
-        // 조별 순위에서 본선 미진출자(탈락자) 수집
-        const qualSnap2 = await db.ref(`matches/${tid}`).once("value");
-        if (qualSnap2.exists()) {
-          const allQualM = Object.entries(qualSnap2.val() as Record<string, Record<string, unknown>>);
-
-          // 예선 경기에서 조별 순위 계산
-          const gRankStats = new Map<string, Array<{ id: string; name: string; wins: number; sd: number; pd: number }>>();
-          for (const [, qm] of allQualM) {
-            if (qm.status !== "completed") continue;
-            const qSid = (qm.stageId as string) || "";
-            if (qSid.includes("finals") || qSid.includes("ranking") || qSid.includes("class") || qSid.includes("3rd") || qSid.includes("5to8")) continue;
-            const qGid = (qm.groupId as string) || "";
-            if (!qGid) continue;
-            if (!gRankStats.has(qGid)) gRankStats.set(qGid, []);
-            const gArr = gRankStats.get(qGid)!;
-            const qp1 = (qm.player1Id || qm.team1Id) as string;
-            const qp2 = (qm.player2Id || qm.team2Id) as string;
-            const qn1 = (qm.player1Name || qm.team1Name) as string;
-            const qn2 = (qm.player2Name || qm.team2Name) as string;
-            let e1 = gArr.find(e => e.id === qp1);
-            let e2 = gArr.find(e => e.id === qp2);
-            if (!e1) { e1 = { id: qp1, name: qn1, wins: 0, sd: 0, pd: 0 }; gArr.push(e1); }
-            if (!e2) { e2 = { id: qp2, name: qn2, wins: 0, sd: 0, pd: 0 }; gArr.push(e2); }
-            if (qm.winnerId === qp1) e1.wins++; else if (qm.winnerId === qp2) e2.wins++;
-            for (const qs of ((qm.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
-              if (qs.player1Score > qs.player2Score) { e1.sd++; e2.sd--; } else if (qs.player2Score > qs.player1Score) { e2.sd++; e1.sd--; }
-              e1.pd += qs.player1Score - qs.player2Score; e2.pd += qs.player2Score - qs.player1Score;
-            }
-          }
-
-          // 본선 진출자 ID 수집
-          const advancedIds2 = new Set<string>();
-          for (const [, fm] of allQualM) {
-            const fSid = (fm.stageId as string) || "";
-            if (!fSid.includes("finals") || fSid.includes("class") || fSid.includes("3rd") || fSid.includes("5to8")) continue;
-            const fp1 = (fm.player1Id || fm.team1Id) as string;
-            const fp2 = (fm.player2Id || fm.team2Id) as string;
-            if (fp1 && fp1 !== "" && fp1 !== "BYE") advancedIds2.add(fp1);
-            if (fp2 && fp2 !== "" && fp2 !== "BYE") advancedIds2.add(fp2);
-          }
-
-          // 그룹 탈락자 수집 (성적순 정렬)
-          const groupEliminated: Array<{ id: string; name: string; wins: number; sd: number; pd: number }> = [];
-          for (const [, gArr] of [...gRankStats.entries()].sort()) {
-            const sorted = [...gArr].sort((a, b) => b.wins - a.wins || b.sd - a.sd || b.pd - a.pd);
-            for (const p of sorted) {
-              if (!advancedIds2.has(p.id)) groupEliminated.push(p);
-            }
-          }
-
-          // 이미 classification 매치가 있는지 확인
-          const existingClass = allQualM.some(([, cm]) =>
-            ((cm.stageId as string) || "").includes("class") && !((cm.stageId as string) || "").includes("5to8") && !((cm.stageId as string) || "").includes("9to16")
-          );
-
-          if (groupEliminated.length >= 2 && !existingClass) {
-            const classStageId = (tourData.stages as Array<{ id: string; type: string }>)?.find(s => s.type === "finals")?.id || "finals";
-
-            // 4명씩 그룹 분할 (IBSA 방식) — 17위부터 (본선 16명 + 5-8위 + 9-16위 = 16)
-            const classGroups = splitIntoRankingTiers(groupEliminated, 4, 17);
-
-            await createElimRankingMatches(classGroups, `${classStageId}_class`, 500);
-          }
-        }
-      }
-    }
-  }
-
   // 3. 대회 완료
   await db.ref(`tournaments/${tid}/status`).set("completed");
 
@@ -433,8 +87,14 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
   const matchList: MatchLike[] = finalM.map(([, m]) => m);
   const latestTourSnap = await db.ref(`tournaments/${tid}`).once("value");
   const latestTour = (latestTourSnap.exists() ? latestTourSnap.val() : tourData) as Record<string, unknown>;
-  const rankCtx = resultContextFor(latestTour);
-  const leagueMatches = matchList.filter(m => !/finals|ranking|3rd|5to8|class/.test(typeof m.stageId === "string" ? m.stageId : ""));
+  // 예선(리그) 경기 = 예선 스테이지 경기 (스테이지가 없는 옛 대회는 조 경기)
+  const stageList = toList<Record<string, unknown>>(latestTour.stages).filter(x => x && typeof x === "object");
+  const qualStageId = stageList.find(x => x.type === "qualifying")?.id;
+  const finalsStageId = stageList.find(x => x.type === "finals")?.id;
+  // 조별 순위표는 예선 스테이지 규칙(동률 기준·승점·부전승 집계)으로
+  const rankCtx = resultContextFor(latestTour, "standings", typeof qualStageId === "string" ? qualStageId : undefined);
+  const inStage = (m: MatchLike, sid: unknown) => typeof sid === "string" && typeof m.stageId === "string" && (m.stageId === sid || m.stageId.startsWith(`${sid}_`));
+  const leagueMatches = matchList.filter(m => (qualStageId ? m.stageId === qualStageId : !!m.groupId));
   const groupRankings = splitByGroup(leagueMatches).filter(g => g.matches.some(m => m.status === "completed")).map(({ groupId, matches }) => {
     const header = !groupId || groupId === "full_league" ? "최종 순위" : `${groupId} 순위`;
     const tableHeader = "순위 | 이름 | 승 | 패 | 세트(승-패) | 득점-실점";
@@ -447,7 +107,7 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
 
   // 5. 본선 + 순위결정전 결과 (BYE 제외)
   const finalsResults = finalM
-    .filter(([, m]) => m.status === "completed" && !m.isBye && ((m.stageId as string) || "").match(/finals|ranking|3rd|5to8|class/))
+    .filter(([, m]) => m.status === "completed" && !m.isBye && (finalsStageId ? inStage(m, finalsStageId) : !leagueMatches.includes(m)))
     .map(([, m]) => {
       const n1 = (m.team1Name || m.player1Name) as string, n2 = (m.team2Name || m.player2Name) as string;
       const winner = m.winnerId === (m.team1Id || m.player1Id) ? n1 : n2;
@@ -476,9 +136,9 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
     }
   }
 
-  // 7. 최종 전체 순위 산출 — lib/rankings-compute의 순수 함수 위임
+  // 7. 최종 전체 순위 산출 — shared/rules/finalRanking
   // 총 승수가 아니라 대진 결과(결승 → 3/4위전 → 순위결정전 → 라운드)로 정한다 (B4)
-  const finalRanking = computeFinalPlacements({ matches: matchList, ctx: rankCtx })
+  const finalRanking = finalPlacementsFor(matchList, latestTour)
     .map(p => `${p.place}위${p.joint ? "(공동)" : ""}: ${p.name}`);
 
   return JSON.stringify({

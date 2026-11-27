@@ -85,3 +85,17 @@ describe('computeFinalPlacements', () => {
     expect(placeOf(p)).toEqual({ a: 1, b: 2 });
   });
 });
+
+describe('5-8 placement formats (M0g)', () => {
+  const p58 = (label: string, a: string, b: string, winner: string) => ko(label, a, b, winner, { stageId: 'fin_5to8', bracketRound: undefined });
+  it('simple: cross matches only → winners joint 5th, losers joint 7th', () => {
+    const ms = [...bracket(), p58('5-8위 결정전', 'h', 'e', 'h'), p58('5-8위 결정전', 'g', 'f', 'f')];
+    const places = placeOf(computeFinalPlacements({ matches: ms, ctx: resultContextFor({}) }));
+    expect([places.h, places.f, places.e, places.g]).toEqual([5, 5, 7, 7]);
+  });
+  it('full: 5/6 and 7/8 matches decide the order', () => {
+    const ms = [...bracket(), p58('5-8위 결정전', 'h', 'e', 'h'), p58('5-8위 결정전', 'g', 'f', 'f'), p58('5/6위 결정전', 'h', 'f', 'f'), p58('7/8위 결정전', 'e', 'g', 'g')];
+    const places = placeOf(computeFinalPlacements({ matches: ms, ctx: resultContextFor({}) }));
+    expect([places.f, places.h, places.g, places.e]).toEqual([5, 6, 7, 8]);
+  });
+});

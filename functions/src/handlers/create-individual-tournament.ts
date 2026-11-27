@@ -10,7 +10,9 @@ export async function createIndividualTournament(input: Record<string, unknown>,
   const steps: string[] = [];
   const setsToWin = asNumber(input.setsToWin, 2);
   const matchDur = asNumber(input.matchDurationMinutes, 30);
-  const pRest = asNumber(input.playerRestMinutes, 30);
+  // 선수 최소 휴식(앞 경기 종료 → 다음 경기 시작). 주면 대회 규칙(rules.schedule.minRestMinutes)에 저장, 없으면 규칙 기본값(30분)
+  const minRest = typeof input.minRestMinutes === "number" ? input.minRestMinutes
+    : typeof input.playerRestMinutes === "number" ? input.playerRestMinutes : undefined;
   const isFullLeagueReq = asString(input.format) === "full_league" || asNumber(input.groupCount) === 1;
   const itGroupCount = isFullLeagueReq ? 1 : asNumber(input.groupCount, 4);
 
@@ -40,6 +42,9 @@ export async function createIndividualTournament(input: Record<string, unknown>,
     wildcardCount: input.wildcardCount,
     roundOverrideFromRound: input.roundOverrideFromRound,
     roundOverrideSetsToWin: input.roundOverrideSetsToWin,
+    finalsWinScore: input.finalsWinScore,
+    servesPerTurn: input.servesPerTurn, sideChangeAt: input.sideChangeAt,
+    ...(minRest !== undefined ? { minRestMinutes: minRest } : {}),
   });
   const itParsed = JSON.parse(itResult);
   if (!itParsed.success) return JSON.stringify({ error: `대회 생성 실패: ${itParsed.error}` });
@@ -56,7 +61,7 @@ export async function createIndividualTournament(input: Record<string, unknown>,
     startTime: asString(input.startTime, "09:00"),
     endTime: asString(input.endTime, "18:00"),
     nextDayStartTime: asString(input.nextDayStartTime) || asString(input.startTime, "09:00"),
-    intervalMinutes: matchDur, playerRestMinutes: matchDur + pRest,
+    intervalMinutes: matchDur,
     ...(input.breakStart ? { breakStart: input.breakStart } : {}),
     ...(input.breakEnd ? { breakEnd: input.breakEnd } : {}),
     ...(input.scheduleDates ? { scheduleDates: input.scheduleDates } : {}),

@@ -6,7 +6,7 @@ import {
   parseTimeToMinutes,
   shiftTime as shiftTimePure,
 } from "../lib/schedule-time";
-import { allocateSchedule, type ScheduleMatch, type ScheduleCourt } from "../lib/schedule-allocation";
+import { allocateSchedule, type ScheduleCourt, type RawMatch } from "../lib/schedule-allocation";
 
 export async function generateRoundRobin(input: Record<string, unknown>): Promise<string> {
   const tid = asString(input.tournamentId);
@@ -165,8 +165,11 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   const tid = asString(input.tournamentId);
   const startTime = asString(input.startTime, "09:00");
   const endTime = asString(input.endTime, "19:00");
+  // 경기 시간(= 같은 코트 다음 경기까지 간격). 선수 휴식은 이 시간이 끝난 뒤부터 잰다.
   const interval = asNumber(input.intervalMinutes, 30);
-  const playerRest = asNumber(input.playerRestMinutes, 60);
+  // 최소 휴식(앞 경기 종료 → 다음 경기 시작). 없으면 경기 스테이지의 대회 규칙(schedule.minRestMinutes, 기본 30분)
+  const minRestOverride = typeof input.minRestMinutes === "number" && Number.isFinite(input.minRestMinutes) && input.minRestMinutes >= 0
+    ? input.minRestMinutes : null;
   const scheduleDate = asString(input.scheduleDate, new Date().toISOString().split("T")[0]);
   const inputScheduleDates = (input.scheduleDates as string[]) || [];
   const nextDayStart = asString(input.nextDayStartTime, startTime);
@@ -207,9 +210,9 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   const courtsSnap = await db.ref("courts").once("value");
   if (!courtsSnap.exists()) return JSON.stringify({ error: "코트가 없습니다." });
 
-  type MatchEntry = Record<string, unknown> & { id: string };
-  let matchList: MatchEntry[] = Object.entries(matchesSnap.val())
+  const allMatchList: RawMatch[] = Object.entries(matchesSnap.val())
     .map(([id, v]) => ({ id, ...(v as Record<string, unknown>) }));
+  let matchList = allMatchList;
 
   if (onlyUnassigned) {
     matchList = matchList.filter((m) =>
@@ -227,30 +230,17 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
   const courts: ScheduleCourt[] = Object.entries(courtsSnap.val())
     .map(([id, v]) => ({ id, name: (v as { name: string }).name }));
 
-  const allocMatches: ScheduleMatch[] = matchList.map(m => ({
-    id: m.id,
-    player1Id: m.player1Id,
-    player2Id: m.player2Id,
-    team1Id: m.team1Id,
-    team2Id: m.team2Id,
-    player1Name: m.player1Name,
-    player2Name: m.player2Name,
-    team1Name: m.team1Name,
-    team2Name: m.team2Name,
-    status: m.status,
-  }));
-
-  const { slots, skippedCount } = allocateSchedule(allocMatches, courts, {
+  const { slots, skippedCount } = allocateSchedule(matchList, courts, {
     dayStart,
     dayEnd,
     nextDayStartMin,
     breakStart,
     breakEnd,
-    interval,
-    playerRest,
+    matchDuration: interval,
     scheduleDates,
     effectiveStartDate,
-  });
+  }, schedTourData, { minRestOverride, allMatches: allMatchList });
+  const restLabel = minRestOverride !== null ? `${minRestOverride}분` : "대회 규칙(단계별)";
 
   const scheduleBulk: Record<string, unknown> = {};
   for (const slot of slots) {
@@ -295,8 +285,8 @@ export async function generateSchedule(input: Record<string, unknown>): Promise<
     dates: dates.length,
     summary,
     scheduleDetail,
-    settings: { interval, playerRest, breakTime: breakStartStr ? `${breakStartStr}-${breakEndStr}` : "없음", endTime },
-    message: `${slots.length}경기 스케줄 생성 완료 (${dates.length}일, 팀 휴식 ${playerRest}분, 경기 간격 ${interval}분${breakStartStr ? `, 점심 ${breakStartStr}-${breakEndStr}` : ""})`,
+    settings: { interval, minRest: restLabel, restMeasuredFrom: "앞 경기 종료", breakTime: breakStartStr ? `${breakStartStr}-${breakEndStr}` : "없음", endTime },
+    message: `${slots.length}경기 스케줄 생성 완료 (${dates.length}일, 최소 휴식 ${restLabel}(앞 경기 종료→다음 경기 시작), 경기 시간 ${interval}분${breakStartStr ? `, 점심 ${breakStartStr}-${breakEndStr}` : ""})`,
   });
 }
 

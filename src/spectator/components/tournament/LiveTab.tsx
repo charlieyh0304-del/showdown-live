@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { countSetWins } from '@shared/utils/scoring';
+import { matchSetWins } from '@shared/utils/scoring';
+import { resolveMatchScoring, type TournamentLike } from '@shared/rules/competitionRules';
 import type { Match } from '@shared/types';
 import type { useNavigate } from 'react-router-dom';
 
@@ -10,6 +11,8 @@ export interface LiveTabProps {
   toggleFavorite: (id: string, name?: string) => void;
   navigate: ReturnType<typeof useNavigate>;
   tournamentId: string;
+  /** 대회 규칙(세트 승수·목표 점수)을 읽는다 */
+  tournament?: TournamentLike | null;
 }
 
 // CSS keyframes injected once for score flash animation
@@ -43,6 +46,7 @@ export default function LiveTab({
   toggleFavorite,
   navigate,
   tournamentId,
+  tournament,
 }: LiveTabProps) {
   const liveMatches = matches.filter((m) => m.status === 'in_progress');
   const prevScoresRef = useRef<Map<string, string>>(new Map());
@@ -84,7 +88,7 @@ export default function LiveTab({
         }
         prevScoresRef.current.set(key, scoreStr);
       } else if (match.type === 'team' && Array.isArray(match.sets) && match.sets.length > 0) {
-        const setData = match.sets[0];
+        const setData = match.sets[match.currentSet ?? 0] ?? match.sets[match.sets.length - 1];
         const key = match.id;
         const scoreStr = `${setData.player1Score}-${setData.player2Score}`;
         const prev = prevScoresRef.current.get(key);
@@ -211,14 +215,14 @@ export default function LiveTab({
               </div>
 
               {match.type === 'individual' ? (
-                <IndividualMatchCard
+                <IndividualMatchCard tournament={tournament}
                   match={match}
                   isFavorite={isFavorite}
                   toggleFavorite={toggleFavorite}
                   justChanged={changedMatchId === match.id}
                 />
               ) : (
-                <TeamMatchCard match={match} justChanged={changedMatchId === match.id} />
+                <TeamMatchCard tournament={tournament} match={match} justChanged={changedMatchId === match.id} />
               )}
 
               {(match.refereeName || match.assistantRefereeName) && (
@@ -241,7 +245,9 @@ function IndividualMatchCard({
   isFavorite,
   toggleFavorite,
   justChanged,
+  tournament,
 }: {
+  tournament?: TournamentLike | null;
   match: Match;
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string, name?: string) => void;
@@ -252,7 +258,8 @@ function IndividualMatchCard({
   const currentSetData = safeSets.length > 0 && match.currentSet != null
     ? safeSets[match.currentSet] ?? safeSets[safeSets.length - 1] ?? null
     : null;
-  const setWins = safeSets.length > 0 ? countSetWins(safeSets) : { player1: 0, player2: 0 };
+  // 세트 승수는 그 경기의 유효 규칙(듀스 캡·라운드별 규칙 포함)으로 센다
+  const setWins = safeSets.length > 0 ? matchSetWins(match, tournament) : { player1: 0, player2: 0 };
   const scoreKey = `${currentSetData?.player1Score}-${currentSetData?.player2Score}`;
 
   return (
@@ -309,10 +316,11 @@ function IndividualMatchCard({
   );
 }
 
-function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boolean }) {
+function TeamMatchCard({ match, justChanged, tournament }: { match: Match; justChanged?: boolean; tournament?: TournamentLike | null }) {
   const { t } = useTranslation();
   const safeSets = Array.isArray(match.sets) ? match.sets : [];
-  const setData = safeSets.length > 0 ? safeSets[0] : null;
+  // 단체전도 여러 세트일 수 있다 (규칙 setsToWin > 1): 진행 중 세트를 보여 준다
+  const setData = safeSets.length > 0 ? (safeSets[match.currentSet ?? 0] ?? safeSets[safeSets.length - 1]) : null;
   const team1Score = setData?.player1Score ?? 0;
   const team2Score = setData?.player2Score ?? 0;
   const scoreKey = `${team1Score}-${team2Score}`;
@@ -335,7 +343,7 @@ function TeamMatchCard({ match, justChanged }: { match: Match; justChanged?: boo
             <span style={{ color: '#fff', textShadow: '0 0 12px var(--color-secondary)' }}>{team2Score}</span>
           </div>
           <div style={{ fontSize: '0.875rem', color: '#d1d5db', marginTop: '0.25rem' }}>
-            {t('spectator.tournament.view.teamMatchPoints')}
+            {t('spectator.tournament.view.teamMatchPoints', { points: resolveMatchScoring(match, tournament).winScore })}
           </div>
         </div>
         <div style={{ textAlign: 'center' }}>

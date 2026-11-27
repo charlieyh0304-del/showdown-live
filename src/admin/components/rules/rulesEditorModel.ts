@@ -5,13 +5,15 @@
  * 화면에는 resolveCompetitionRules로 계산한 유효 값을 보여 준다. 그래서 화면에 보이는 값이 곧 경기 생성·점수·순위가 쓰는 값이다.
  *
  * - Firebase는 null을 저장하지 못한다(키 삭제). 그래서 "상위 값을 끄는" 값은 표식으로 저장한다:
- *   walkover.setScore 0 = 세트 목표 점수 사용, roundScoring.fromRound 0 = 라운드별 규칙 없음.
+ *   walkover.setScore 0 = 세트 목표 점수 사용, roundScoring.fromRound 0 = 라운드별 규칙 없음,
+ *   서브 수·사이드 체인지 점수·코트 위 선수 수 0 = 기본값(자동), 서브 순서 "" = 기본 순서.
  * - 동률 결정(rules/tiebreakDecisions)은 동률 화면이 따로 쓰므로 편집기는 건드리지 않는다.
  */
 import {
   resolveCompetitionRules,
   isObject,
   matchKindOf,
+  rotationFrom,
   toList,
   DEFAULT_COMPETITION_RULES,
   TIEBREAK_CRITERIA,
@@ -23,6 +25,7 @@ import {
   type TournamentLike,
 } from '@shared/rules/competitionRules';
 import { isByeMatch } from '@shared/rules/walkover';
+import { isValidServeRotation, parseRotationToken, playersOnCourtOf, sideChangePointOf } from '@shared/rules/serve';
 
 /** 편집 범위: 대회 전체 또는 스테이지 ID */
 export const TOURNAMENT_SCOPE = '__tournament__';
@@ -39,10 +42,16 @@ export const RULE_FIELD_PATHS = [
   'scoring.individual.setsToWin',
   'scoring.individual.maxSets',
   'scoring.individual.minLead',
+  'scoring.individual.servesPerTurn',
+  'scoring.individual.sideChangeAt',
   'scoring.team.winScore',
   'scoring.team.setsToWin',
   'scoring.team.maxSets',
   'scoring.team.minLead',
+  'scoring.team.servesPerTurn',
+  'scoring.team.sideChangeAt',
+  'scoring.team.playersOnCourt',
+  'scoring.team.serveRotation',
   'roundScoring',
   'standingsPoints.win',
   'standingsPoints.draw',
@@ -156,9 +165,16 @@ function clone<T>(v: T): T {
 }
 
 /** 유효 값 → 층에 저장할 값 (null은 Firebase에 못 쓰므로 표식으로 바꾼다) */
+/** 비우면 '기본값(자동)'이 되는 점수 항목 (0 표식): 서브 수·사이드 체인지 점수·코트 위 선수 수 */
+function isAutoField(path: string): boolean {
+  return /^scoring\.(individual|team)\.(servesPerTurn|sideChangeAt|playersOnCourt)$/.test(path);
+}
+
 export function toLayerValue(path: string, value: unknown): unknown {
   if (path === 'walkover.setScore' && value === null) return 0;
   if (path === 'roundScoring' && value === null) return { fromRound: 0 };
+  if (isAutoField(path) && value === null) return 0;
+  if (path.endsWith('.serveRotation') && (value === null || (Array.isArray(value) && value.length === 0))) return '';
   return clone(value);
 }
 
@@ -234,6 +250,8 @@ export function displayValue(t: TournamentLike, draft: RulesDraft, scope: string
     const raw = getPath(layer, path);
     if (path === 'walkover.setScore' && raw === 0) return null;
     if (path === 'roundScoring' && isObject(raw) && raw.fromRound === 0) return null;
+    if (isAutoField(path) && raw === 0) return null;
+    if (path.endsWith('.serveRotation') && raw === '') return null;
     return raw;
   }
   return getPath(effectiveRules(t, draft, scope), path);
@@ -377,7 +395,9 @@ export type RuleIssueCode =
   | 'tiebreakEmpty'
   | 'roundFrom'
   | 'lotSeedMissing'
-  | 'confirmRequired';
+  | 'confirmRequired'
+  | 'sideChangeRange'
+  | 'rotationInvalid';
 
 export interface RuleIssue {
   scope: string;
@@ -397,6 +417,12 @@ const NUMBER_CONSTRAINTS: Record<string, NumberConstraint> = {
   'scoring.team.setsToWin': { min: 1, max: 9, integer: true },
   'scoring.team.maxSets': { min: 1, max: 17, integer: true },
   'scoring.team.minLead': { min: 1, max: 9, integer: true },
+  // 0 = 기본값(자동)
+  'scoring.individual.servesPerTurn': { min: 0, max: 10, integer: true },
+  'scoring.team.servesPerTurn': { min: 0, max: 10, integer: true },
+  'scoring.individual.sideChangeAt': { min: 0, max: 98, integer: true },
+  'scoring.team.sideChangeAt': { min: 0, max: 98, integer: true },
+  'scoring.team.playersOnCourt': { min: 0, max: 9, integer: true },
   'standingsPoints.win': { min: -99, max: 99, integer: false },
   'standingsPoints.draw': { min: -99, max: 99, integer: false },
   'standingsPoints.loss': { min: -99, max: 99, integer: false },
@@ -448,6 +474,19 @@ function validateScope(t: TournamentLike, draft: RulesDraft, scope: string): Rul
       const s = eff.scoring[kind];
       if (s.maxSets % 2 !== 1 || s.maxSets !== s.setsToWin * 2 - 1) {
         out.push({ scope, path: `scoring.${kind}.maxSets`, code: 'bestOfOdd' });
+      }
+      // 사이드 체인지 점수는 목표 점수보다 작아야 한다 (그래야 세트 도중에 바꿀 수 있다)
+      if (sideChangePointOf(s) >= s.winScore && hasPath(layer, `scoring.${kind}.sideChangeAt`)) {
+        out.push({ scope, path: `scoring.${kind}.sideChangeAt`, code: 'sideChangeRange', params: { max: s.winScore - 1 } });
+      }
+    }
+    // 단체전 서브 순서: A/B + 1..코트 위 선수 수, 두 팀이 번갈아 (예: A1,B1,A2,B2,A3,B3)
+    if (hasPath(layer, 'scoring.team.serveRotation')) {
+      const raw = getPath(layer, 'scoring.team.serveRotation');
+      const tokens = toList<unknown>(raw).map(x => String(x));
+      const n = playersOnCourtOf(eff.scoring.team);
+      if (tokens.length > 0 && (tokens.some(x => !parseRotationToken(x)) || !isValidServeRotation(rotationFrom(tokens) ?? [], n))) {
+        out.push({ scope, path: 'scoring.team.serveRotation', code: 'rotationInvalid', params: { players: n } });
       }
     }
     if (eff.tiebreak.criteria.length === 0) out.push({ scope, path: 'tiebreak.criteria', code: 'tiebreakEmpty' });
@@ -566,8 +605,7 @@ function positive(v: unknown): number | undefined {
  * 마법사 저장과 대회 상세 '경기 규칙' 탭이 이 함수를 함께 쓴다.
  * 레거시 층은 규칙 층보다 아래라서 유효 값을 다시 적어도 그 단계의 유효 규칙은 바뀌지 않는다.
  * 진출 인원·와일드카드는 예선 스테이지, 같은 조 회피·3/4위전은 본선 스테이지 규칙에서 읽는다(생성기와 같게).
- * finalsConfig.roundScoringOverride는 맞추지 않는다(규칙 층의 roundScoring이 우선한다.
- * functions simulate.ts는 아직 이 필드를 직접 읽는다).
+ * finalsConfig.roundScoringOverride는 맞추지 않는다(규칙 층의 roundScoring이 우선하고, 판정 코드는 모두 resolver를 거친다).
  */
 export function legacyRuleFields(t: TournamentLike): Record<string, unknown> {
   const out: Record<string, unknown> = {};

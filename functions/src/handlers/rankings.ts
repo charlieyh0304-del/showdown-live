@@ -4,7 +4,7 @@
  */
 import { db, asString } from "../db-helpers";
 import { aggregateStandings, normalizeResults, resultContextFor } from "../shared/rules/standings";
-import { computeFinalPlacements } from "../shared/rules/finalRanking";
+import { finalPlacementsFor } from "../shared/rules/finalRanking";
 
 export interface RankingEntry {
   rank: number;
@@ -51,7 +51,7 @@ export async function getTournamentRankings(
   // 순위표/통계는 대회 규칙(shared/rules)의 점수 규칙·부전승 집계 설정을 따른다.
   const ctx = resultContextFor(tData, "stats");
   const statRows = aggregateStandings(normalizeResults(allMatches, ctx), ctx.rules);
-  const rankings: RankingEntry[] = computeFinalPlacements({ matches: allMatches, ctx: resultContextFor(tData) }).map(p => {
+  const rankings: RankingEntry[] = finalPlacementsFor(allMatches, tData).map(p => {
     const st = statRows.get(p.id);
     return {
       rank: p.place,

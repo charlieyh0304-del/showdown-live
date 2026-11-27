@@ -75,16 +75,19 @@ export function generateMatchHtml(
     coinTossHtml = `<p class="coin-toss">${escHtml(t('common.pdf.coinToss'))}: ${tossWinner} - ${escHtml(tossChoice)} / ${escHtml(t('common.pdf.courtChange'))}: ${tossLoser} - ${escHtml(courtChange)}</p>`;
   }
 
-  // Set results table
+  // Set results table: 세트 승자는 심판 화면이 대회 규칙으로 판정해 저장한 set.winnerId를 쓴다 (점수 크기 비교 아님)
+  const id1 = (isTeam ? match.team1Id : match.player1Id) ?? 'player1';
+  const id2 = (isTeam ? match.team2Id : match.player2Id) ?? 'player2';
+  const setWinnerSide = (s: { winnerId?: string | null }): 1 | 2 | null =>
+    !s.winnerId ? null : s.winnerId === id1 || s.winnerId === 'player1' || s.winnerId === 'team1' ? 1 : s.winnerId === id2 || s.winnerId === 'player2' || s.winnerId === 'team2' ? 2 : null;
   const setRows = sets.map((s, i) => {
-    const winner = s.winnerId
-      ? (s.player1Score > s.player2Score ? p1 : p2)
-      : '-';
-    const winClass = s.winnerId ? ' class="winner"' : '';
+    const side = setWinnerSide(s);
+    const winner = side === 1 ? p1 : side === 2 ? p2 : '-';
+    const winClass = ' class="winner"';
     return `<tr>
       <td>${i + 1}</td>
-      <td${s.player1Score > s.player2Score ? winClass : ''}>${s.player1Score}</td>
-      <td${s.player2Score > s.player1Score ? winClass : ''}>${s.player2Score}</td>
+      <td${side === 1 ? winClass : ''}>${s.player1Score}</td>
+      <td${side === 2 ? winClass : ''}>${s.player2Score}</td>
       <td>${winner}</td>
     </tr>`;
   }).join('');
@@ -95,10 +98,9 @@ export function generateMatchHtml(
     const winnerName = match.winnerId === (isTeam ? match.team1Id : match.player1Id) ? p1 : p2;
     let p1Wins = 0, p2Wins = 0;
     sets.forEach(s => {
-      if (s.winnerId) {
-        if (s.player1Score > s.player2Score) p1Wins++;
-        else p2Wins++;
-      }
+      const side = setWinnerSide(s);
+      if (side === 1) p1Wins++;
+      else if (side === 2) p2Wins++;
     });
     finalHtml = `<div class="final-result" role="status" aria-label="${escHtml(t('common.pdf.finalResult'))}: ${winnerName} (${p1Wins}-${p2Wins})">
       <strong>${escHtml(t('common.pdf.finalResult'))}:</strong> ${winnerName} (${p1Wins} - ${p2Wins})

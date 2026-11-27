@@ -3,7 +3,7 @@
  * 부전승 세트, 본선 진출자·시드 배치, 미정 슬롯 설명을 한곳에서 만든다.
  */
 import type { Match, MatchType, SetScore, Tournament } from '../types';
-import { resolveCompetitionRules, resolveMatchScoring } from '../rules/competitionRules';
+import { matchWinnerByRules, resolveCompetitionRules, resolveMatchScoring, setWinnerByRules } from '../rules/competitionRules';
 import { buildByeSets, buildRetirementSets, buildWalkoverSets, isRealParticipantId } from '../rules/walkover';
 import { resultContextFor } from '../rules/standings';
 import { selectQualifiers, type QualificationResult } from '../rules/qualification';
@@ -36,6 +36,26 @@ export function retirementSetsFor(
   const rules = resolveCompetitionRules(tournament, match.stageId);
   const sets = Array.isArray(match.sets) ? match.sets : Object.values((match.sets ?? {}) as Record<string, SetScore>);
   return buildRetirementSets(sets, retiringSide, resolveMatchScoring(match, tournament), rules, winnerId, retiringId);
+}
+
+/**
+ * 점수 정정 결과: 세트별 승자와 경기 승자를 그 경기의 유효 규칙(라운드·스테이지·팀 목표 점수·듀스 캡)으로 다시 판정한다.
+ * 세트 승수가 이겨야 하는 세트 수에 못 미치거나 같으면 승자 없음(null).
+ */
+export function correctionResult(
+  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules' | 'roundLabel' | 'bracketRound' | 'player1Id' | 'player2Id' | 'team1Id' | 'team2Id'>,
+  sets: readonly SetScore[],
+  tournament: RulesTournament,
+): { sets: SetScore[]; winner: 1 | 2 | null; winnerId: string | null } {
+  const rules = resolveMatchScoring(match, tournament);
+  const id1 = match.player1Id || match.team1Id || null;
+  const id2 = match.player2Id || match.team2Id || null;
+  const out = sets.map(s => {
+    const w = setWinnerByRules(s.player1Score, s.player2Score, rules);
+    return { ...s, winnerId: w === 1 ? id1 : w === 2 ? id2 : null };
+  });
+  const winner = matchWinnerByRules(out, rules);
+  return { sets: out, winner, winnerId: winner === 1 ? id1 : winner === 2 ? id2 : null };
 }
 
 /** 본선 골격의 BYE 경기 세트를 만드는 함수 (bracketSkeleton byeSets 옵션) */

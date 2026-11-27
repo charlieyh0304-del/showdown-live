@@ -44,7 +44,7 @@ export default function TeamMatchScoring() {
     handlePenalty, handleQuickFoul, handleClassifyFoul,
     handleSubstitution, openSubstitution,
     getTeamActivePlayers, getTeamReservePlayers, hasReserves,
-    sets, currentSet, currentServe, serveCountVal, serverName, maxServes,
+    sets, currentSet, currentSetIndex, setWins, rules, currentServe, serveCountVal, serverName, maxServes,
     history,
     t1TimeoutsUsed, t2TimeoutsUsed,
     p1Warnings, p2Warnings, p1Penalties, p2Penalties,
@@ -80,6 +80,7 @@ export default function TeamMatchScoring() {
     return (
       <TeamMatchPendingView
         match={match}
+        ruleSummary={{ winScore: rules.winScore, setsToWin: rules.setsToWin, maxSets: rules.maxSets, servesPerTurn: maxServes, minLead: rules.minLead }}
         team1Name={team1Name}
         team2Name={team2Name}
         coinTossStep={coinTossStep}
@@ -105,7 +106,7 @@ export default function TeamMatchScoring() {
 
   // ===== COMPLETED =====
   if (match.status === 'completed') {
-    return <TeamMatchCompletedView match={match} team1Name={team1Name} team2Name={team2Name} />;
+    return <TeamMatchCompletedView match={match} team1Name={team1Name} team2Name={team2Name} rules={rules} />;
   }
 
   // ===== IN_PROGRESS =====
@@ -257,6 +258,12 @@ export default function TeamMatchScoring() {
           <button className="btn btn-accent text-sm" onClick={() => navigate('/referee/games')} aria-label={t('referee.home.title')}>← {t('referee.home.title')}</button>
           <div className="text-center">
             <h1 className="text-lg font-bold text-yellow-400">{t('referee.home.teamMatch')}</h1>
+            {rules.maxSets > 1 && (
+              <>
+                <div className="text-sm text-yellow-300">{t('common.matchHistory.setLabel', { num: currentSetIndex + 1 })}/{rules.maxSets}</div>
+                <div className="text-sm text-gray-400" aria-label={`${t('common.units.set')} ${setWins.player1} : ${setWins.player2}`}>{t('common.units.set')}: {setWins.player1} - {setWins.player2}</div>
+              </>
+            )}
           </div>
           <div className="text-sm text-gray-400 text-right">
             {match.courtName && <div>{match.courtName}</div>}

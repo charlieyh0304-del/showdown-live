@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   buildFirstRoundSlots,
   buildSingleEliminationSkeleton,
+  fifthToEighthMatchCount,
+  fifthToEighthStageId,
   hasUndecidedParticipant,
   nextPowerOfTwo,
   thirdPlaceStageId,
@@ -9,8 +11,9 @@ import {
 } from './bracketSkeleton';
 import { createEmptySet } from './scoring';
 import type { SetScore } from '../types';
+import type { FifthToEighthFormat } from '../rules/competitionRules';
 
-function build(n: number, opts: { thirdPlace?: boolean; entrants?: SkeletonEntrant[]; team?: boolean; byeSets?: (side: 1 | 2, id: string) => SetScore[] } = {}) {
+function build(n: number, opts: { thirdPlace?: boolean; fifthToEighth?: FifthToEighthFormat; entrants?: SkeletonEntrant[]; team?: boolean; byeSets?: (side: 1 | 2, id: string) => SetScore[] } = {}) {
   let seq = 0;
   return buildSingleEliminationSkeleton({
     tournamentId: 't1',
@@ -18,6 +21,7 @@ function build(n: number, opts: { thirdPlace?: boolean; entrants?: SkeletonEntra
     matchType: opts.team ? 'team' : 'individual',
     slots: buildFirstRoundSlots(n, opts.entrants),
     thirdPlace: opts.thirdPlace ?? true,
+    fifthToEighth: opts.fifthToEighth,
     makeKey: () => `k${seq++}`,
     now: 1000,
     labels: { undecided: '미정', bye: '부전승' },
@@ -159,5 +163,39 @@ describe('hasUndecidedParticipant', () => {
   it('양쪽이 정해지면 false', () => {
     expect(hasUndecidedParticipant({ player1Id: 'a', player2Id: 'b' })).toBe(false);
     expect(hasUndecidedParticipant({ team1Id: 'x', team2Id: 'y' })).toBe(false);
+  });
+});
+
+describe('buildSingleEliminationSkeleton 5~8위 결정전 (서버 finals-plan과 같은 구조)', () => {
+  const quarterKeys = (entries: ReturnType<typeof build>) => entries.filter(e => e.match.roundLabel === '8강').map(e => e.key);
+  const placements = (entries: ReturnType<typeof build>) => entries.filter(e => e.match.stageId === fifthToEighthStageId('stage_finals_1'));
+  it('simple: 8강 패자 교차전 2경기', () => {
+    const e = build(8, { fifthToEighth: 'simple' });
+    const qf = quarterKeys(e);
+    const p = placements(e);
+    expect(p.map(x => [x.match.roundLabel, x.match.sourceMatch1, x.match.sourceMatch2, x.match.sourceType])).toEqual([
+      ['5-8위 결정전', qf[0], qf[1], 'loser'],
+      ['5-8위 결정전', qf[2], qf[3], 'loser'],
+    ]);
+    expect(p.every(x => x.match.bracketRound === undefined)).toBe(true);
+    expect(fifthToEighthMatchCount('simple', 8)).toBe(p.length);
+  });
+  it('full: 교차전 + 5/6위전(승자) + 7/8위전(패자)', () => {
+    const e = build(16, { fifthToEighth: 'full' });
+    const p = placements(e);
+    expect(p.map(x => x.match.roundLabel)).toEqual(['5-8위 결정전', '5-8위 결정전', '5/6위 결정전', '7/8위 결정전']);
+    expect(p[2].match).toMatchObject({ sourceMatch1: p[0].key, sourceMatch2: p[1].key, sourceType: 'winner' });
+    expect(p[3].match).toMatchObject({ sourceMatch1: p[0].key, sourceMatch2: p[1].key, sourceType: 'loser' });
+    expect(fifthToEighthMatchCount('full', 16)).toBe(4);
+  });
+  it('round_robin: 8강 패자 4명 풀리그 6경기', () => {
+    const p = placements(build(8, { fifthToEighth: 'round_robin' }));
+    expect(p).toHaveLength(6);
+    expect(p.every(x => x.match.sourceType === 'loser' && x.match.roundLabel === '5~8위 순위 결정전')).toBe(true);
+  });
+  it('8강이 없으면(4강 이하) 만들지 않고, none이면 만들지 않는다', () => {
+    expect(placements(build(4, { fifthToEighth: 'full' }))).toHaveLength(0);
+    expect(fifthToEighthMatchCount('full', 4)).toBe(0);
+    expect(placements(build(8))).toHaveLength(0);
   });
 });

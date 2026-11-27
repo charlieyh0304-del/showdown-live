@@ -24,9 +24,18 @@ export interface ScoringRules {
   setsToWin: number;
   maxSets: number;
   minLead: number;
-  deuceEnabled: boolean;
+  /** 레거시: false면 2점 차 없음(minLead 1)으로 읽는다. 새로 저장하지 않는다(minLead를 쓴다). */
+  deuceEnabled?: boolean;
   deuceCap?: number;
   maxScore?: number;
+  /** 서브 수 (없으면 개인 2, 단체 3). shared/rules/serve.ts */
+  servesPerTurn?: number;
+  /** 결정 세트 사이드 체인지 점수 (없으면 ceil(winScore/2)) */
+  sideChangeAt?: number;
+  /** 단체전 코트 위 선수 수 (없으면 3) */
+  playersOnCourt?: number;
+  /** 단체전 서브 순서 토큰 (예: A1,B1,A2,B2,A3,B3) */
+  serveRotation?: string[];
   /**
    * 시간 제한 (초). 설정 시 경기/세트 시작 후 이 시간이 지나면 골든골 모드 진입.
    * 골든골 모드: 어느 한 선수가 다음 골을 넣으면 즉시 승자.

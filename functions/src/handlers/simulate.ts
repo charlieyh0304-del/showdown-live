@@ -4,8 +4,10 @@
  * - 일반 모드: 코인토스/서브/타임아웃/사이드체인지 등 포인트 단위 진행
  * - 예선 완료 시 결승 자동 생성/시뮬레이션 지원 (executeTool 콜백)
  */
-import { db, asString, asNumber, asBoolean } from "../db-helpers";
+import { db, asString, asBoolean } from "../db-helpers";
 import { resolveScoringRules, sweepAdvancement, walkoverSetsForTournament, type MatchData as AdvMatchData } from "../lib/advancement";
+import { resolveMatchScoring, setWinnerByRules } from "../shared/rules/competitionRules";
+import { playersOnCourtOf, servesPerTurnOf, sideChangePointOf } from "../shared/rules/serve";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
@@ -62,22 +64,11 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
   const tourSnap = await db.ref(`tournaments/${tid}`).once("value");
   const tourData = tourSnap.exists() ? tourSnap.val() as Record<string, unknown> : {};
   const isTeamType = tourData.type === "team" || tourData.type === "randomTeamLeague";
-  const teamSettings = tourData.teamMatchSettings as { winScore?: number; setsToWin?: number } | undefined;
-  const gameConfig = tourData.gameConfig as { winScore?: number; setsToWin?: number } | undefined;
-  const finalsConfig = tourData.finalsConfig as { scoringRules?: { winScore?: number; setsToWin?: number }; roundScoringOverride?: { fromRound?: number; scoringRules?: { winScore?: number; setsToWin?: number } } } | undefined;
-  // 시간 제한(골든골) — tourData.scoringRules.timeLimitSeconds
-  const tourScoringRules = tourData.scoringRules as { timeLimitSeconds?: number } | undefined;
-  const timeLimitSeconds = Math.max(0, asNumber(input.timeLimitSeconds, tourScoringRules?.timeLimitSeconds || 0));
-  // 예선 기본값
-  const baseWinScore = Math.max(4, asNumber(input.winScore, (isTeamType ? teamSettings?.winScore : gameConfig?.winScore) || (isTeamType ? 31 : 11)));
-  const baseSetsToWin = Math.max(1, asNumber(input.setsToWin, (isTeamType ? teamSettings?.setsToWin : gameConfig?.setsToWin) || (isTeamType ? 1 : 2)));
-  // 본선 세트 수 (finalsConfig가 있으면 사용)
-  const finalsWinScore = finalsConfig?.scoringRules?.winScore || baseWinScore;
-  const finalsSetsToWin = finalsConfig?.scoringRules?.setsToWin || baseSetsToWin;
-  // 라운드 오버라이드
-  const overrideFromRound = finalsConfig?.roundScoringOverride?.fromRound || 0;
-  const overrideSetsToWin = finalsConfig?.roundScoringOverride?.scoringRules?.setsToWin || finalsSetsToWin;
-  const overrideWinScore = finalsConfig?.roundScoringOverride?.scoringRules?.winScore || finalsWinScore;
+  // 경기 점수 규칙은 경기마다 대회 규칙 단일 설정원에서 읽는다 (resolveMatchScoring:
+  // 경기 → 순위결정전/라운드별 → 스테이지 → 대회 → 레거시 필드 → 기본). 입력 winScore/setsToWin/timeLimitSeconds는 시뮬레이션 전용 덮어쓰기.
+  const inputWinScore = typeof input.winScore === "number" && input.winScore > 0 ? input.winScore : undefined;
+  const inputSetsToWin = typeof input.setsToWin === "number" && input.setsToWin > 0 ? input.setsToWin : undefined;
+  const inputTimeLimit = typeof input.timeLimitSeconds === "number" && input.timeLimitSeconds >= 0 ? input.timeLimitSeconds : undefined;
 
   const matchesSnap = await db.ref(`matches/${tid}`).once("value");
   if (!matchesSnap.exists()) return JSON.stringify({ error: "경기가 없습니다." });
@@ -111,25 +102,15 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
   const results: Array<{ match: string; score: string; winner: string }> = [];
 
   for (const [mid, match] of matchList) {
-    const matchStageId = asString(match.stageId);
-    // 본선 브라켓 경기 vs 순위결정전 구분
-    const isMainBracket = matchStageId.includes("finals") && !matchStageId.includes("class") && !matchStageId.includes("5to8") && !matchStageId.includes("9to16") && !matchStageId.includes("3rd");
-    // 순위결정전은 예선 설정(3세트) 사용
-    // 순위결정전 세트 수: rankingMatchConfig.rankingSetsToWin (기본=예선 세트 수)
-    const rankingConfig = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-    const rankingSetsToWin = asNumber(rankingConfig?.rankingSetsToWin, baseSetsToWin);
-    const rankingWinScore = asNumber(rankingConfig?.rankingWinScore, baseWinScore);
-    // 본선 브라켓: 본선 세트 수 + 오버라이드, 순위결정전: 커스텀 또는 예선 세트 수
-    const bracketRoundStr = asString(match.bracketRound);
-    const bracketRoundMatch = bracketRoundStr.match(/(\d+)/);
-    const bracketRoundNum = bracketRoundMatch ? parseInt(bracketRoundMatch[1]) : (bracketRoundStr === "결승" ? 2 : 0);
-    let matchWinScore = isMainBracket ? finalsWinScore : (matchStageId.includes("class") || matchStageId.includes("5to8") || matchStageId.includes("9to16") || matchStageId.includes("3rd") ? rankingWinScore : baseWinScore);
-    let matchSetsToWin = isMainBracket ? finalsSetsToWin : (matchStageId.includes("class") || matchStageId.includes("5to8") || matchStageId.includes("9to16") || matchStageId.includes("3rd") ? rankingSetsToWin : baseSetsToWin);
-    // 라운드 오버라이드: 본선 브라켓에만 적용
-    if (isMainBracket && overrideFromRound > 0 && bracketRoundNum > 0 && bracketRoundNum <= overrideFromRound) {
-      matchSetsToWin = overrideSetsToWin;
-      matchWinScore = overrideWinScore;
-    }
+    const resolved = resolveMatchScoring({ ...match, type: isTeamType ? "team" : match.type }, tourData);
+    const rules = {
+      ...resolved,
+      ...(inputWinScore ? { winScore: Math.max(4, inputWinScore) } : {}),
+      ...(inputSetsToWin ? { setsToWin: inputSetsToWin, maxSets: inputSetsToWin * 2 - 1 } : {}),
+    };
+    const matchSetsToWin = rules.setsToWin;
+    const timeLimitSeconds = Math.max(0, inputTimeLimit ?? rules.timeLimitSeconds ?? 0);
+    const kind = isTeamType || match.type === "team" ? "team" as const : "individual" as const;
 
     const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
     const p1Id3 = getSideId(match, 1);
@@ -191,7 +172,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             scoreAfter: { player1: s1, player2: s2 },
             serverSide: "",
           });
-          if ((s1 >= matchWinScore || s2 >= matchWinScore) && Math.abs(s1 - s2) >= 2) break;
+          if (setWinnerByRules(s1, s2, rules)) break;
           // 시간 제한 도달 → 골든골: 다음 득점자(현 +pts)가 매치 승자
           if (timeLimitSeconds > 0 && (lwTime - lwStartTime) / 1000 >= timeLimitSeconds) {
             lwGoldenGoal = true;
@@ -205,12 +186,13 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             break;
           }
         }
-        const sw = lwGoldenGoal ? lwGoldenWinnerId : (s1 > s2 ? p1Id3 : p2Id3);
+        const lwSide = setWinnerByRules(s1, s2, rules);
+        const sw = lwGoldenGoal ? lwGoldenWinnerId : (lwSide === 2 ? p2Id3 : p1Id3);
         sets.push({ player1Score: s1, player2Score: s2, winnerId: sw });
         if (lwGoldenGoal) {
           if (lwGoldenWinnerId === p1Id3) lw1 = matchSetsToWin; else lw2 = matchSetsToWin;
         } else {
-          if (s1 > s2) lw1++; else lw2++;
+          if (lwSide === 2) lw2++; else lw1++;
         }
         lwSi++;
       }
@@ -264,7 +246,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
       const t2m = getMembers(match, 2);
       const c1 = getCoach(match, 1);
       const c2 = getCoach(match, 2);
-      const maxActive = 3;
+      const maxActive = playersOnCourtOf(resolveMatchScoring({ type: "team" }, tourData));
       const fmtLineup = (members: string[]) => {
         const active = members.slice(0, maxActive).map((n, i) => `${i + 1}.${n}`).join(", ");
         const reserve = members.slice(maxActive).map(n => n).join(", ");
@@ -284,8 +266,9 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
 
     // 경기 시작
     history.push({ time: fmt(t), set: 1, scoringPlayer: "", actionPlayer: "", actionType: "match_start", actionLabel: `경기 시작`, points: 0, server: "", serveNumber: 0, serverSide: firstServer });
-    const sideChangePoint = isTeamMatch ? 16 : 6;
-    const maxServesPerPerson = isTeamMatch ? 3 : 2;
+    const sideChangePoint = sideChangePointOf(rules);
+    const maxServesPerPerson = servesPerTurnOf(rules, kind);
+    const onCourt = playersOnCourtOf(rules);
     let serveCount = 0;
     let currentServer = firstServer;
     let serveNum = 1;
@@ -326,16 +309,16 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
         history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "", actionType: "side_change", actionLabel: `세트${si + 1} 시작 — 사이드 체인지`, points: 0, server: getServerLabel(), serveNumber: 1, scoreBefore: { player1: 0, player2: 0 }, scoreAfter: { player1: 0, player2: 0 }, serverSide: currentServer });
       }
 
-      // 결정세트: 양측 세트 승수가 matchSetsToWin-1로 동점일 때만
-      const isDecidingSet = !isTeamMatch && p1SetWins === matchSetsToWin - 1 && p2SetWins === matchSetsToWin - 1;
-      const doSideChange = isTeamMatch || isDecidingSet;
+      // 결정 세트(단판 포함)에서만 세트 중 사이드 체인지 (그 외 세트는 세트 뒤에 바꾼다, IBSA)
+      const isDecidingSet = p1SetWins === matchSetsToWin - 1 && p2SetWins === matchSetsToWin - 1;
+      const doSideChange = isDecidingSet;
 
       while (true) {
-        // 세트 종료 조건: winScore 이상 + 2점 차이
-        if ((sc1 >= matchWinScore || sc2 >= matchWinScore) && Math.abs(sc1 - sc2) >= 2) break;
+        // 세트 종료 조건: 대회 규칙(목표 점수·점수 차·듀스 캡)
+        if (setWinnerByRules(sc1, sc2, rules)) break;
         t += 10000 + Math.floor(Math.random() * 20000);
 
-        // 사이드 체인지: 팀전=매 세트 16점, 개인전=결정세트만 6점 (득점 후 체크)
+        // 사이드 체인지: 결정 세트에서 규칙의 사이드 체인지 점수 (기본 ceil(목표/2): 11점 → 6, 31점 → 16)
         const maxScNow = Math.max(sc1, sc2);
         if (doSideChange && !sideChanged && maxScNow >= sideChangePoint) {
           sideChanged = true;
@@ -416,9 +399,9 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             const servingTeam = currentServer;
             const servingTeamName = servingTeam === "player1" ? p1n : p2n;
             if (servingTeam === "player1" && team1Members && team1Members.length > 0) {
-              p1MemberIdx = (p1MemberIdx + 1) % team1Members.length;
+              p1MemberIdx = (p1MemberIdx + 1) % Math.min(onCourt, team1Members.length);
             } else if (servingTeam === "player2" && team2Members && team2Members.length > 0) {
-              p2MemberIdx = (p2MemberIdx + 1) % team2Members.length;
+              p2MemberIdx = (p2MemberIdx + 1) % Math.min(onCourt, team2Members.length);
             }
             history.push({ time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: servingTeamName, actionType: "substitution", actionLabel: `${servingTeamName} 선수 교체`, points: 0, server: "", serveNumber: 0, scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
           }
@@ -430,12 +413,13 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
       }
 
       // 세트 종료 → 결과 저장
-      const setWinnerId = goldenGoalEntered ? goldenGoalWinnerId : (sc1 > sc2 ? p1Id3 : p2Id3);
+      const setSide = setWinnerByRules(sc1, sc2, rules);
+      const setWinnerId = goldenGoalEntered ? goldenGoalWinnerId : (setSide === 2 ? p2Id3 : p1Id3);
       sets.push({ player1Score: sc1, player2Score: sc2, winnerId: setWinnerId });
       if (goldenGoalEntered) {
         if (goldenGoalWinnerId === p1Id3) p1SetWins = matchSetsToWin; else p2SetWins = matchSetsToWin;
       } else {
-        if (sc1 > sc2) p1SetWins++; else p2SetWins++;
+        if (setSide === 2) p2SetWins++; else p1SetWins++;
       }
       si++;
     }
@@ -536,12 +520,9 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             return sid && sid.includes("finals");
           });
           if (!finalsExist) {
-            // 진출 인원·와일드카드는 대회 규칙(rules / finalsConfig)에서 generate_finals가 직접 읽는다
+            // 진출 인원·와일드카드·3/4위전·5~8위전·순위 결정전은 대회 규칙에서 generate_finals가 직접 읽는다 (강제하지 않음)
             const genResult = await executeTool("generate_finals", {
               tournamentId: tid,
-              includeThirdPlace: true,
-              includeFifthToEighth: true,
-              includeClassification: true,
               resolveTiesByLot: true,
             });
             const genParsed = JSON.parse(genResult);

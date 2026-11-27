@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   checkSetWinner,
-  DEFAULT_GAME_CONFIG,
-  TEAM_GAME_CONFIG,
+  checkMatchWinner,
+  matchSetWins,
+  getEffectiveTimeLimitSeconds,
   isGoldenGoalActive,
   applyGoldenGoalEvent,
   getPenaltyAction,
@@ -93,17 +94,31 @@ describe('checkSetWinner', () => {
   });
 });
 
-describe('상수 검증', () => {
-  it('DEFAULT_GAME_CONFIG는 11점 2점차 2세트 선승', () => {
-    expect(DEFAULT_GAME_CONFIG.POINTS_TO_WIN).toBe(11);
-    expect(DEFAULT_GAME_CONFIG.MIN_POINT_DIFF).toBe(2);
-    expect(DEFAULT_GAME_CONFIG.SETS_TO_WIN).toBe(2);
+describe('practice adapter delegates to the rules module', () => {
+  it('checkMatchWinner needs more set wins than the opponent', () => {
+    const sets = [{ player1Score: 11, player2Score: 5 }, { player1Score: 5, player2Score: 11 }].map(x => ({ ...x, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: null }));
+    expect(checkMatchWinner(sets)).toBe(null);
+    expect(checkMatchWinner([...sets, { ...sets[0] }])).toBe(1);
   });
+});
 
-  it('TEAM_GAME_CONFIG는 31점 단일 세트', () => {
-    expect(TEAM_GAME_CONFIG.POINTS_TO_WIN).toBe(31);
-    expect(TEAM_GAME_CONFIG.SETS_TO_WIN).toBe(1);
-    expect(TEAM_GAME_CONFIG.MAX_SETS).toBe(1);
+describe('tournament match helpers read the resolver', () => {
+  it('matchSetWins honours the deuce cap of the tournament rules', () => {
+    // 15점 캡: 15:14는 1점 차라도 세트 승리
+    const tour = { rules: { scoring: { individual: { winScore: 11, setsToWin: 2, deuceCap: 15 } } } };
+    const m = { type: 'individual', sets: [{ player1Score: 15, player2Score: 14 }, { player1Score: 11, player2Score: 3 }] };
+    expect(matchSetWins(m, tour)).toEqual({ player1: 2, player2: 0 });
+    expect(matchSetWins(m, {})).toEqual({ player1: 1, player2: 0 });
+  });
+  it('matchSetWins uses the team target (31)', () => {
+    expect(matchSetWins({ type: 'team', sets: [{ player1Score: 31, player2Score: 20 }] }, {})).toEqual({ player1: 1, player2: 0 });
+  });
+  it('getEffectiveTimeLimitSeconds comes from resolveMatchScoring and a stage 0 clears it', () => {
+    const tour = { scoringRules: { winScore: 11, setsToWin: 2, timeLimitSeconds: 600 }, stages: [{ id: 'f', scoringRules: { winScore: 11, setsToWin: 2, timeLimitSeconds: 0 } }, { id: 'q', rules: { scoring: { individual: { timeLimitSeconds: 300 } } } }] };
+    expect(getEffectiveTimeLimitSeconds({ type: 'individual' }, tour)).toBe(600);
+    expect(getEffectiveTimeLimitSeconds({ type: 'individual', stageId: 'f' }, tour)).toBe(0);
+    expect(getEffectiveTimeLimitSeconds({ type: 'individual', stageId: 'q' }, tour)).toBe(300);
+    expect(getEffectiveTimeLimitSeconds({ type: 'individual', appliedScoringRules: { winScore: 11, setsToWin: 2, timeLimitSeconds: 120 } }, tour)).toBe(120);
   });
 });
 

@@ -5,6 +5,8 @@ import { showWarning } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
 import { CLEARED_SCHEDULE_FIELDS, buildManualScheduleUpdate, combineWriteResults, notifyWriteOutcome, scheduleKeepMatchIds, type WriteResult } from '@shared/utils/dataWrites';
 import type { Match, MatchStatus, MatchUpdate, ScheduleSlot, Tournament } from '@shared/types';
+import { resolveCompetitionRules, type TournamentLike } from '@shared/rules/competitionRules';
+import { allocateMatches, toAllocMatch, toFixedMatches } from '@shared/rules/scheduling';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -33,7 +35,8 @@ const STATUS_COLORS: Record<MatchStatus, string> = {
 };
 
 export interface ScheduleTabProps {
-  tournament: Pick<Tournament, 'stages' | 'qualifyingConfig' | 'finalsConfig' | 'rankingMatchConfig'>;
+  /** 대회 규칙(단계별 최소 휴식)과 예상 경기 수 계산에 쓴다 */
+  tournament: Pick<Tournament, 'stages' | 'qualifyingConfig' | 'finalsConfig' | 'rankingMatchConfig'> & TournamentLike;
   matches: Match[];
   courts: { id: string; name: string }[];
   referees: { id: string; name: string }[];
@@ -59,7 +62,9 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
   const [startTime, setStartTime] = useState('09:00');
   const [interval, setInterval_] = useState(30);
   const [endTime, setEndTime] = useState('19:00');
-  const [restInterval, setRestInterval] = useState(60);
+  /** 이번 배정에만 쓰는 최소 휴식(분). '' = 대회 규칙(단계별 schedule.minRestMinutes) */
+  const [restOverride, setRestOverride] = useState<string>('');
+  const rulesRest = resolveCompetitionRules(tournament).schedule.minRestMinutes;
   const [nextDayStartTime, setNextDayStartTime] = useState('09:00');
   const [generating, setGenerating] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
@@ -259,114 +264,51 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
         : matches.filter(m => m.status === 'pending' || m.status === 'in_progress');
       const newSlots: Omit<ScheduleSlot, 'id'>[] = [];
 
-      // Track per-court: { courtId, courtName, date, timeMinutes }
-      const courtSlots = courts.map(c => {
-        const [h, m] = startTime.split(':').map(Number);
-        return { courtId: c.id, courtName: c.name, date: scheduleDate, timeMinutes: h * 60 + m };
-      });
-
-      // Track per-player last end time: { date, timeMinutes }
-      const playerLastEnd = new Map<string, { date: string; time: number }>();
-
-      const getPlayerIds = (match: Match): string[] => {
-        const ids: string[] = [];
-        if (match.player1Id) ids.push(match.player1Id);
-        if (match.player2Id) ids.push(match.player2Id);
-        if (match.team1Id) ids.push(match.team1Id);
-        if (match.team2Id) ids.push(match.team2Id);
-        return ids;
-      };
-
-      const dayStartMinutes = (() => { const [h, m] = startTime.split(':').map(Number); return h * 60 + m; })();
-      const dayEndMinutes = (() => { const [h, m] = endTime.split(':').map(Number); return h * 60 + m; })();
-      const nextDayStart = (() => { const [h, m] = nextDayStartTime.split(':').map(Number); return h * 60 + m; })();
-      const breakStartMin = breakStart ? (() => { const [h, m] = breakStart.split(':').map(Number); return h * 60 + m; })() : -1;
-      const breakEndMin = breakEnd ? (() => { const [h, m] = breakEnd.split(':').map(Number); return h * 60 + m; })() : -1;
-
-      // 휴식 시간 스킵
-      const skipBreak = (time: number): number => {
-        if (breakStartMin >= 0 && breakEndMin > breakStartMin && time >= breakStartMin && time < breakEndMin) {
-          return breakEndMin;
-        }
-        return time;
-      };
-
-      const formatTime = (minutes: number): string => {
-        const hh = Math.floor(minutes / 60).toString().padStart(2, '0');
-        const mm = (minutes % 60).toString().padStart(2, '0');
-        return `${hh}:${mm}`;
-      };
-
-      const addDays = (dateStr: string, days: number): string => {
-        const d = new Date(dateStr);
-        d.setDate(d.getDate() + days);
-        return d.toISOString().split('T')[0];
-      };
+      // 배정은 서버 generate_schedule과 같은 shared/rules/scheduling.ts를 쓴다:
+      // 휴식 = 앞 경기 종료(시작 + 경기 시간) → 다음 경기 시작, 최소값 = 경기 스테이지의 대회 규칙(schedule.minRestMinutes) 또는 이번 지정값.
+      // 단체전은 팀원 전원, 대진 경기는 원천 경기(sourceMatch1/2) 종료 + 휴식 이후.
+      const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+      const asRaw = (m: Match) => m as unknown as Record<string, unknown> & { id: string };
+      const targetIds = new Set(targetMatches.map(m => m.id));
+      const allocation = allocateMatches(
+        targetMatches.map(m => toAllocMatch(asRaw(m), tournament, restOverride === '' ? null : Number(restOverride))),
+        courts.map(c => ({ id: c.id, name: c.name })),
+        {
+          dayStart: toMin(startTime),
+          dayEnd: toMin(endTime),
+          nextDayStartMin: toMin(nextDayStartTime),
+          breakStart: breakStart ? toMin(breakStart) : -1,
+          breakEnd: breakEnd ? toMin(breakEnd) : -1,
+          matchDuration: interval,
+          scheduleDates: [],
+          effectiveStartDate: scheduleDate,
+        },
+        toFixedMatches(matches.map(asRaw), targetIds),
+      );
+      const byId = new Map(matches.map(m => [m.id, m]));
 
       let refereeIndex = 0;
       const batchUpdates: Array<{ matchId: string; data: Partial<Match> }> = [];
-      for (const match of targetMatches) {
-        const playerIds = getPlayerIds(match);
-
-        let bestCourtIdx = 0;
-        let bestDate = scheduleDate;
-        let bestTime = Infinity;
-
-        for (let ci = 0; ci < courtSlots.length; ci++) {
-          const court = courtSlots[ci];
-          let candidateDate = court.date;
-          let candidateTime = skipBreak(court.timeMinutes);
-
-          for (const pid of playerIds) {
-            const last = playerLastEnd.get(pid);
-            if (last) {
-              if (last.date === candidateDate && last.time > candidateTime) {
-                candidateTime = skipBreak(last.time);
-              } else if (last.date > candidateDate) {
-                candidateDate = last.date;
-                candidateTime = skipBreak(Math.max(dayStartMinutes, last.time));
-              }
-            }
-          }
-
-          candidateTime = skipBreak(candidateTime);
-
-          const candidateTotal = new Date(candidateDate).getTime() + candidateTime;
-          const bestTotal = new Date(bestDate).getTime() + bestTime;
-          if (ci === 0 || candidateTotal < bestTotal) {
-            bestCourtIdx = ci;
-            bestDate = candidateDate;
-            bestTime = candidateTime;
-          }
-        }
-
-        if (bestTime >= dayEndMinutes) {
-          bestDate = addDays(bestDate, 1);
-          bestTime = skipBreak(nextDayStart);
-        }
-
-        const court = courtSlots[bestCourtIdx];
-        const timeStr = formatTime(bestTime);
-
+      for (const slot of allocation.slots) {
+        const match = byId.get(slot.matchId);
+        if (!match) continue;
         const label = match.type === 'individual'
           ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
           : `${match.team1Name ?? ''} vs ${match.team2Name ?? ''}`;
-
         newSlots.push({
           matchId: match.id,
-          courtId: court.courtId,
-          courtName: court.courtName,
-          scheduledTime: timeStr,
-          scheduledDate: bestDate,
+          courtId: slot.courtId,
+          courtName: slot.courtName,
+          scheduledTime: slot.scheduledTime,
+          scheduledDate: slot.scheduledDate,
           label,
           status: match.status,
         });
-
         const matchUpdate: Partial<Match> = {
-          scheduledTime: timeStr,
-          scheduledDate: bestDate,
-          courtId: court.courtId,
-          courtName: court.courtName,
+          scheduledTime: slot.scheduledTime,
+          scheduledDate: slot.scheduledDate,
+          courtId: slot.courtId,
+          courtName: slot.courtName,
         };
         if (!match.refereeId && referees.length > 0) {
           const ref = referees[refereeIndex % referees.length];
@@ -375,17 +317,6 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
           refereeIndex++;
         }
         batchUpdates.push({ matchId: match.id, data: matchUpdate });
-
-        const courtEndTime = bestTime + interval;
-        court.date = bestDate;
-        court.timeMinutes = courtEndTime >= dayEndMinutes ? (court.date = addDays(bestDate, 1), nextDayStart) : courtEndTime;
-
-        // TODO(B6): 시작~시작으로 휴식을 잰다. rules.schedule.minRestMinutes(종료~시작, 기본 30분)로 바꾸는 작업은 M4a/M7.
-        const playerEndTime = bestTime + restInterval;
-        const playerEnd = playerEndTime >= dayEndMinutes ? { date: addDays(bestDate, 1), time: nextDayStart } : { date: bestDate, time: playerEndTime };
-        for (const pid of playerIds) {
-          playerLastEnd.set(pid, playerEnd);
-        }
       }
 
       // 배치 업데이트: 모든 매치를 한번에 저장
@@ -398,7 +329,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
     } finally {
       setGenerating(false);
     }
-  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, setScheduleBulk, updateMatchesBulk, expectedMatchCount.total, t, breakStart, breakEnd]);
+  }, [matches, courts, referees, tournament, startTime, interval, endTime, restOverride, nextDayStartTime, scheduleDate, onlyUnassigned, setScheduleBulk, updateMatchesBulk, expectedMatchCount.total, t, breakStart, breakEnd]);
 
   // Group schedule by date, then by time
   const dates = useMemo(() => {
@@ -519,13 +450,15 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
               <select
                 id="rest-interval"
                 className="input"
-                value={restInterval}
-                onChange={e => setRestInterval(Number(e.target.value))}
-                aria-label={t('admin.tournamentDetail.scheduleTab.restIntervalLabel')}
+                value={restOverride}
+                onChange={e => setRestOverride(e.target.value)}
+                aria-describedby="rest-interval-help"
               >
-                {[10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 110, 120, 150, 180, 210, 240].map(m => <option key={m} value={m}>{m}</option>)}
+                <option value="">{t('admin.tournamentDetail.scheduleTab.restFromRules', { minutes: rulesRest })}</option>
+                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 110, 120, 150, 180, 210, 240].map(m => <option key={m} value={String(m)}>{m}</option>)}
               </select>
             </div>
+            <p id="rest-interval-help" className="text-xs text-gray-400 mt-1 max-w-xs">{t('admin.tournamentDetail.scheduleTab.restIntervalHelp')}</p>
           </div>
           <div>
             <label htmlFor="next-day-start" className="block text-sm text-gray-300 mb-1">{t('admin.tournamentDetail.scheduleTab.nextDayStartLabel')}</label>

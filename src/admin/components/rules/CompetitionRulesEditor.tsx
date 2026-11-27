@@ -28,6 +28,7 @@ import {
   type RuleIssue,
   type RulesDraft,
 } from './rulesEditorModel';
+import { defaultServeRotation, defaultSideChangePoint, DEFAULT_SERVES_PER_TURN, DEFAULT_PLAYERS_ON_COURT } from '@shared/rules/serve';
 
 /**
  * 대회 규칙 편집기 (M0b). 대회 생성 마법사의 '경기 규칙' 단계와 대회 상세의 '경기 규칙' 탭에서 쓴다.
@@ -124,7 +125,9 @@ export default function CompetitionRulesEditor({
 
   /** 대회 값을 읽기 쉬운 말로 (덮어쓰기 표시용) */
   const formatValue = (path: string, v: unknown): string => {
+    if ((v === null || v === undefined) && /\.(servesPerTurn|sideChangeAt|playersOnCourt|serveRotation)$/.test(path)) return t('admin.rulesEditor.valueAuto');
     if (v === null || v === undefined) return t('admin.rulesEditor.valueNone');
+    if (Array.isArray(v)) return v.join(',');
     if (typeof v === 'boolean') return v ? t('admin.rulesEditor.valueOn') : t('admin.rulesEditor.valueOff');
     if (path.endsWith('.maxSets') || path.endsWith('.setsToWin')) {
       const max = getPath(baseEff, path.replace(/setsToWin$/, 'maxSets')) as number;
@@ -206,6 +209,36 @@ export default function CompetitionRulesEditor({
         />
         {help && <p id={`${fid}-help`} className="text-gray-400 text-sm mt-1">{help}</p>}
         {renderError({ issue: issue, forId: fid })}
+        {renderOverride({ paths: [path], focusId: fid })}
+      </div>
+    );
+  };
+
+  /** 비우면 기본값(자동)을 쓰는 숫자 (서브 수·사이드 체인지 점수·코트 위 선수 수). 기본값은 자리 표시와 도움말로 알린다. */
+  const renderAutoNumber = ({ path, label, help, autoValue, min, max }: { path: string; label: string; help: string; autoValue: number; min: number; max: number }) => {
+    if (!shown(path)) return null;
+    const fid = id(path);
+    const raw = value(path);
+    const issue = issueFor(path);
+    return (
+      <div>
+        <label htmlFor={fid} className="block font-semibold mb-1">{label}</label>
+        <input
+          id={fid}
+          type="number"
+          inputMode="numeric"
+          className={`input w-32 ${issue ? 'border-red-500 border-2' : ''}`}
+          value={typeof raw === 'number' && Number.isFinite(raw) && raw !== 0 ? String(raw) : ''}
+          placeholder={t('admin.rulesEditor.scoring.autoPlaceholder', { value: autoValue })}
+          min={min}
+          max={max}
+          step={1}
+          onChange={e => set(path, e.target.value === '' ? null : Number(e.target.value))}
+          aria-invalid={issue ? true : undefined}
+          aria-describedby={describedBy(`${fid}-help`, issue && `${fid}-error`)}
+        />
+        <p id={`${fid}-help`} className="text-gray-400 text-sm mt-1">{help} {t('admin.rulesEditor.scoring.autoHelp', { value: autoValue })}</p>
+        {renderError({ issue, forId: fid })}
         {renderOverride({ paths: [path], focusId: fid })}
       </div>
     );
@@ -429,6 +462,40 @@ export default function CompetitionRulesEditor({
           checked: (value(`${sp}.minLead`) as number) >= 2,
           onToggle: v => set(`${sp}.minLead`, v ? 2 : 1),
         })}
+        {renderAutoNumber({
+          path: `${sp}.servesPerTurn`,
+          label: t('admin.rulesEditor.scoring.servesPerTurn'),
+          help: t('admin.rulesEditor.scoring.servesPerTurnHelp'),
+          autoValue: DEFAULT_SERVES_PER_TURN[kind],
+          min: 1, max: 10,
+        })}
+        {renderAutoNumber({
+          path: `${sp}.sideChangeAt`,
+          label: t('admin.rulesEditor.scoring.sideChangeAt'),
+          help: t('admin.rulesEditor.scoring.sideChangeAtHelp'),
+          autoValue: defaultSideChangePoint(scoring.winScore),
+          min: 1, max: Math.max(1, scoring.winScore - 1),
+        })}
+        {kind === 'team' && renderAutoNumber({
+          path: 'scoring.team.playersOnCourt',
+          label: t('admin.rulesEditor.scoring.playersOnCourt'),
+          help: t('admin.rulesEditor.scoring.playersOnCourtHelp'),
+          autoValue: DEFAULT_PLAYERS_ON_COURT,
+          min: 1, max: 9,
+        })}
+        {kind === 'team' && shown('scoring.team.serveRotation') && (
+          <RotationField
+            fid={id('scoring.team.serveRotation')}
+            label={t('admin.rulesEditor.scoring.serveRotation')}
+            help={t('admin.rulesEditor.scoring.serveRotationHelp', { example: defaultServeRotation(scoring.playersOnCourt ?? DEFAULT_PLAYERS_ON_COURT).join(',') })}
+            placeholder={defaultServeRotation(scoring.playersOnCourt ?? DEFAULT_PLAYERS_ON_COURT).join(',')}
+            value={toList<string>(value('scoring.team.serveRotation')).join(',')}
+            onCommit={tokens => set('scoring.team.serveRotation', tokens.length > 0 ? tokens : null)}
+            error={renderError({ issue: issueFor('scoring.team.serveRotation'), forId: id('scoring.team.serveRotation') })}
+            invalid={!!issueFor('scoring.team.serveRotation')}
+            override={renderOverride({ paths: ['scoring.team.serveRotation'], focusId: id('scoring.team.serveRotation') })}
+          />
+        )}
 
         {/* 라운드별 세트 수 */}
         <div className="border-t border-gray-700 pt-4 space-y-3">
@@ -655,4 +722,52 @@ export default function CompetitionRulesEditor({
       {footer}
     </div>
   );
+}
+
+/**
+ * 단체전 서브 순서 입력 (예: A1,B1,A2,B2,A3,B3). 입력 중에는 글자를 그대로 두고, 바뀔 때마다 토큰 목록으로 저장한다.
+ * 비우면 기본 순서. 잘못된 순서는 검증 오류로 알린다(aria-invalid + 오류 문장).
+ */
+function RotationField({ fid, label, help, placeholder, value, onCommit, error, invalid, override }: {
+  fid: string;
+  label: string;
+  help: string;
+  placeholder: string;
+  value: string;
+  onCommit: (tokens: string[]) => void;
+  error: ReactNode;
+  invalid: boolean;
+  override: ReactNode;
+}) {
+  const [text, setText] = useState(value);
+  const [prevValue, setPrevValue] = useState(value);
+  // 바깥 값이 바뀌면(범위 전환·되돌리기) 입력란도 맞춘다 (입력 중인 글자와 같은 값이면 그대로 둔다)
+  if (value !== prevValue) {
+    setPrevValue(value);
+    if (tokensOf(text).join(',') !== value) setText(value);
+  }
+  return (
+    <div>
+      <label htmlFor={fid} className="block font-semibold mb-1">{label}</label>
+      <input
+        id={fid}
+        type="text"
+        className={`input w-full max-w-md ${invalid ? 'border-red-500 border-2' : ''}`}
+        value={text}
+        placeholder={placeholder}
+        autoCapitalize="characters"
+        spellCheck={false}
+        onChange={e => { setText(e.target.value); onCommit(tokensOf(e.target.value)); }}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={`${fid}-help${invalid ? ` ${fid}-error` : ''}`}
+      />
+      <p id={`${fid}-help`} className="text-gray-400 text-sm mt-1">{help}</p>
+      {error}
+      {override}
+    </div>
+  );
+}
+
+function tokensOf(text: string): string[] {
+  return text.split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
 }

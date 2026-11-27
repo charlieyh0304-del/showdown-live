@@ -152,3 +152,37 @@ describe("planFinals bracket", () => {
     expect((bye.match.sets as Data[]).map(s => (s.player1Score as number) + (s.player2Score as number))).toEqual([31]);
   });
 });
+
+describe("planFinals placement matches come from the rules (M0g)", () => {
+  const eight = () => groups(["A", "B", "C", "D"]);
+  const labels = (p: FinalsPlan) => p.matches.map(m => String(m.match.roundLabel));
+  it("no 5-8 matches unless the rules (or input) ask for them", () => {
+    expect(labels(plan(tour(), eight())).some(l => l.includes("5"))).toBe(false);
+  });
+  it("legacy rankingMatchConfig.fifthToEighth full → cross matches with loser links from the quarterfinals", () => {
+    const p = plan(tour({ rankingMatchConfig: { fifthToEighth: true, fifthToEighthFormat: "full" } }), eight());
+    const qf = p.matches.filter(m => m.match.roundLabel === "8강").map(m => m.key);
+    const cross = p.matches.filter(m => m.match.roundLabel === "5-8위 결정전");
+    expect(cross).toHaveLength(2);
+    expect(cross.map(c => [c.match.sourceMatch1, c.match.sourceMatch2])).toEqual([[qf[0], qf[1]], [qf[2], qf[3]]]);
+    expect(cross.every(c => c.match.sourceType === "loser" && c.match.stageId === "f_5to8")).toBe(true);
+    const m56 = p.matches.find(m => m.match.roundLabel === "5/6위 결정전")!;
+    const m78 = p.matches.find(m => m.match.roundLabel === "7/8위 결정전")!;
+    expect(m56.match.sourceType).toBe("winner");
+    expect(m78.match.sourceType).toBe("loser");
+    expect([m56.match.sourceMatch1, m56.match.sourceMatch2]).toEqual(cross.map(c => c.key));
+  });
+  it("rules.finalRanking.fifthToEighthMatches simple → 2 cross matches only; round_robin → 6 league matches", () => {
+    expect(labels(plan(tour({ rules: { finalRanking: { fifthToEighthMatches: "simple" } } }), eight())).filter(l => l.startsWith("5-8"))).toHaveLength(2);
+    expect(labels(plan(tour({ rules: { finalRanking: { fifthToEighthMatches: "round_robin" } } }), eight())).filter(l => l.startsWith("5~8"))).toHaveLength(6);
+  });
+  it("classification tiers use the rules group size (default 4)", () => {
+    const ms = groups(["A", "B", "C", "D"]); // 조 3위 4명 탈락
+    const p = plan(tour({ rules: { finalRanking: { classificationGroups: true } } }), ms);
+    const tier = p.matches.filter(m => String(m.match.roundLabel).includes("순위 결정전"));
+    expect(tier).toHaveLength(6); // 4명 풀리그
+    expect(tier[0].match.roundLabel).toBe("9~12위 순위 결정전");
+    const p2 = plan(tour({ rules: { finalRanking: { classificationGroups: true, classificationGroupSize: 2 } } }), ms);
+    expect(p2.matches.filter(m => String(m.match.roundLabel).includes("순위 결정전")).map(m => m.match.roundLabel)).toEqual(["9~10위 순위 결정전", "11~12위 순위 결정전"]);
+  });
+});

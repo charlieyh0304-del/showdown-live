@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Match } from '@shared/types';
 import type { useNavigate } from 'react-router-dom';
+import { participantStats, type RankingTournament } from '@shared/utils/ranking';
 
 export interface PlayersTabProps {
   matches: Match[];
@@ -11,52 +12,21 @@ export interface PlayersTabProps {
   toggleFavorite: (id: string, name?: string) => void;
   tournamentId: string;
   navigate: ReturnType<typeof useNavigate>;
+  /** 대회 규칙(세트 승자·부전승 집계·동률 순서)을 읽는다 */
+  tournament?: Partial<RankingTournament> | null;
 }
 
-export default function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggleFavorite, tournamentId, navigate }: PlayersTabProps) {
+export default function PlayersTab({ matches, onSelectPlayer, isTeam = false, isFavorite, toggleFavorite, tournamentId, navigate, tournament }: PlayersTabProps) {
   const { t } = useTranslation();
   const [playerSearch, setPlayerSearch] = useState('');
 
-  const playerList = useMemo(() => {
-    const stats = new Map<string, {
-      id: string; name: string; wins: number; losses: number;
-      setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number;
-    }>();
-
-    for (const m of matches) {
-      const p1Id = m.player1Id || m.team1Id || '';
-      const p2Id = m.player2Id || m.team2Id || '';
-      const p1Name = m.player1Name || m.team1Name || '';
-      const p2Name = m.player2Name || m.team2Name || '';
-
-      if (p1Id && p1Name && !stats.has(p1Id)) {
-        stats.set(p1Id, { id: p1Id, name: p1Name, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-      }
-      if (p2Id && p2Name && !stats.has(p2Id)) {
-        stats.set(p2Id, { id: p2Id, name: p2Name, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-      }
-
-      if (m.status === 'completed' && p1Id && p2Id) {
-        const s1 = stats.get(p1Id);
-        const s2 = stats.get(p2Id);
-        if (s1 && s2) {
-          if (m.winnerId === p1Id) { s1.wins++; s2.losses++; }
-          else if (m.winnerId === p2Id) { s2.wins++; s1.losses++; }
-
-          (Array.isArray(m.sets) ? m.sets : []).forEach(set => {
-            if (set.player1Score > set.player2Score) { s1.setsWon++; s2.setsLost++; }
-            else if (set.player2Score > set.player1Score) { s2.setsWon++; s1.setsLost++; }
-            s1.pointsFor += set.player1Score; s1.pointsAgainst += set.player2Score;
-            s2.pointsFor += set.player2Score; s2.pointsAgainst += set.player1Score;
-          });
-        }
-      }
-    }
-
-    return Array.from(stats.values()).sort((a, b) =>
-      b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || a.name.localeCompare(b.name)
-    );
-  }, [matches]);
+  // 전적: 대회 규칙의 'stats' 문맥(세트 승자 = 그 경기의 유효 점수 규칙, 부전승 개인 전적 반영 규칙), 순서는 동률 규칙
+  const playerList = useMemo(
+    () => participantStats(matches, tournament, { includeUnplayed: true })
+      .filter(r => !!r.playerId && !!r.playerName)
+      .map(r => ({ id: r.playerId, name: r.playerName, wins: r.wins, losses: r.losses, setsWon: r.setsWon, setsLost: r.setsLost, pointsFor: r.pointsFor, pointsAgainst: r.pointsAgainst })),
+    [matches, tournament],
+  );
 
   const filteredPlayers = useMemo(() => {
     if (!playerSearch.trim()) return playerList;

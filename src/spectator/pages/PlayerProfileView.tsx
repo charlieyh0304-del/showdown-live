@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatches, useTournament, useTournamentLocalPlayers } from '@shared/hooks/useFirebase';
-import { countSetWins, getEffectiveScoringRules } from '@shared/utils/scoring';
+import { matchSetWins } from '@shared/utils/scoring';
 import { normalizeResult, resultContextFor } from '@shared/rules/standings';
 import { walkoverKind } from '@shared/rules/walkover';
 import type { Match, Tournament, TournamentStage } from '@shared/types';
@@ -322,7 +322,7 @@ function CompletedMatchCard({
   const { t } = useTranslation();
   const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
   // 세트 승수는 그 경기의 유효 규칙(팀 31점 등)으로 센다
-  const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? countSetWins(m.sets, getEffectiveScoringRules(m, tournament)) : { player1: 0, player2: 0 };
+  const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? matchSetWins(m, tournament) : { player1: 0, player2: 0 };
   const wo = walkoverKind(m);
   const mySetWins = isP1 ? setWins.player1 : setWins.player2;
   const oppSetWins = isP1 ? setWins.player2 : setWins.player1;

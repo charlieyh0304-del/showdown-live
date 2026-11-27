@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Match, Tournament } from '../types';
-import { computeFinalsSeeding, slotSourceInfo, walkoverSetsFor, isUndecidedSide, byeSetsFactory } from './competition';
-import { finalRankingRows, calculateIndividualRanking } from './ranking';
-import { getEffectiveScoringRules } from './scoring';
+import { computeFinalsSeeding, correctionResult, slotSourceInfo, walkoverSetsFor, isUndecidedSide, byeSetsFactory } from './competition';
+import { finalRankingRows, participantStats } from './ranking';
+import { resolveMatchScoring } from '../rules/competitionRules';
 
 const tour = (extra: Partial<Tournament> = {}): Tournament => ({
   id: 't', name: 'T', date: '', type: 'individual', format: 'group_league', status: 'in_progress',
@@ -28,8 +28,7 @@ describe('walkover sets from tournament rules', () => {
     expect(byeSetsFactory(tour({ rules: { walkover: { byeCountsAsWalkover: false } } }), 'f', 'individual')(1, 'a')).toEqual([]);
   });
   it('score correction uses the match rules (B12: team 31 winner is not null)', () => {
-    const cfg = getEffectiveScoringRules({ type: 'team' }, tour({ type: 'team' }));
-    expect(cfg.POINTS_TO_WIN).toBe(31);
+    expect(resolveMatchScoring({ type: 'team' }, tour({ type: 'team' })).winScore).toBe(31);
   });
 });
 
@@ -65,7 +64,7 @@ describe('finalRankingRows (B4: champion is the final winner, not the most wins)
       win('b', 'x', 'b', { groupId: 'B' }),
       win('a', 'b', 'b', { stageId: 'f', roundLabel: '결승', bracketRound: '결승' }),
     ];
-    expect(calculateIndividualRanking(ms)[0].playerId).toBe('a'); // 총 승수로는 a
+    expect(participantStats(ms)[0].playerId).toBe('a'); // 총 승수로는 a
     const rows = finalRankingRows(ms, tour());
     expect(rows.slice(0, 2).map(r => [r.id, r.place])).toEqual([['b', 1], ['a', 2]]);
     expect(rows.find(r => r.id === 'x')?.place).toBeNull();
@@ -79,5 +78,24 @@ describe('slot placeholders', () => {
     expect(isUndecidedSide(f, 1)).toBe(true);
     expect(slotSourceInfo(f, 1, new Map([['sf1', sf]]))).toEqual({ roundLabel: '4강', matchNumber: 1, outcome: 'winner' });
     expect(slotSourceInfo(f, 2, new Map([['sf1', sf]]))).toBeNull();
+  });
+});
+
+describe('correctionResult (StatusTab score correction, one winner function)', () => {
+  const s = (a: number, b: number) => ({ player1Score: a, player2Score: b, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: null });
+  it('honours the deuce cap of the match rules', () => {
+    const t = tour({ rules: { scoring: { individual: { deuceCap: 15 } } } });
+    const r = correctionResult({ type: 'individual', player1Id: 'a', player2Id: 'b' }, [s(15, 14), s(11, 5)], t);
+    expect(r.winnerId).toBe('a');
+    expect(r.sets.map(x => x.winnerId)).toEqual(['a', 'a']);
+  });
+  it('needs more set wins than the opponent (no winner on 1:1)', () => {
+    const r = correctionResult({ type: 'individual', player1Id: 'a', player2Id: 'b' }, [s(11, 5), s(5, 11)], tour());
+    expect(r.winner).toBe(null);
+    expect(r.winnerId).toBe(null);
+  });
+  it('team match uses the 31 point target', () => {
+    const r = correctionResult({ type: 'team', team1Id: 'x', team2Id: 'y' }, [s(25, 31)], tour({ type: 'team' }));
+    expect(r.winnerId).toBe('y');
   });
 });

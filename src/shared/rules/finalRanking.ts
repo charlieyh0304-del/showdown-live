@@ -15,9 +15,9 @@
  *
  * 순수 모듈. functions/src/shared/rules/finalRanking.ts는 이 파일의 사본이다.
  */
-import type { CompetitionRules } from './competitionRules';
+import { isObject, toList, type CompetitionRules, type TournamentLike } from './competitionRules';
 import { rankMatches } from './qualification';
-import { normalizeResult, sideOf, type MatchLike, type ResultContext } from './standings';
+import { normalizeResult, resultContextFor, sideOf, type MatchLike, type ResultContext } from './standings';
 import { isRealParticipantId } from './walkover';
 
 export type PlacementBasis =
@@ -158,10 +158,30 @@ export function computeFinalPlacements(input: FinalRankingInput): Placement[] {
       if (d?.winner) put({ id: d.winner.id, name: d.winner.name, place: range[0], joint: false, basis: 'placement_match' });
       if (d?.loser) put({ id: d.loser.id, name: d.loser.name, place: range[1], joint: false, basis: 'placement_match' });
     }
-    // "5-8위 결정전"처럼 범위로 묶인 결정전 대진(준결승)도 그 범위를 덮는다
+    // "5-8위 결정전"처럼 범위로 묶인 결정전 대진(교차전)도 그 범위를 덮는다.
+    // 그 범위 안에 X/Y위 결정전이 없으면(간단 방식: 교차전 2경기만) 승자는 공동 X위, 패자는 공동 X+승자 수 위.
+    const rangeMatches = new Map<string, { range: [number, number]; matches: MatchLike[] }>();
     for (const m of matches) {
       const mm = /^(\d+)\s*[-~]\s*(\d+)\s*위\s*결정전/.exec(labelOf(m));
-      if (mm) coveredRanges.push([Number(mm[1]), Number(mm[2])]);
+      if (!mm) continue;
+      const range: [number, number] = [Number(mm[1]), Number(mm[2])];
+      coveredRanges.push(range);
+      const key = `${range[0]}-${range[1]}`;
+      if (!rangeMatches.has(key)) rangeMatches.set(key, { range, matches: [] });
+      rangeMatches.get(key)!.matches.push(m);
+    }
+    for (const { range, matches: rm } of rangeMatches.values()) {
+      const hasPairInside = matches.some(m => {
+        const pr = pairPlacementRange(labelOf(m));
+        return !!pr && pr[0] >= range[0] && pr[1] <= range[1];
+      });
+      if (hasPairInside) continue;
+      const results = rm.map(m => decided(m, ctx));
+      if (results.some(d => !d)) continue; // 교차전이 다 끝나야 정한다
+      const winners = results.map(d => d!.winner).filter((x): x is { id: string; name: string } => !!x);
+      const losers = results.map(d => d!.loser).filter((x): x is { id: string; name: string } => !!x);
+      for (const w of winners) put({ id: w.id, name: w.name, place: range[0], joint: winners.length > 1, basis: 'placement_match' });
+      for (const l of losers) put({ id: l.id, name: l.name, place: range[0] + winners.length, joint: losers.length > 1, basis: 'placement_match' });
     }
     const leagues = new Map<string, { range: [number, number]; matches: MatchLike[] }>();
     for (const m of matches) {
@@ -239,4 +259,17 @@ export function qualifyingOrderFrom(matches: ReadonlyArray<MatchLike>, ctx: Resu
   }
   entries.sort((a, b) => a.groupRank - b.groupRank || b.points - a.points || b.sd - a.sd || b.pd - a.pd || b.pf - a.pf);
   return entries.map(e => e.id);
+}
+
+/**
+ * 대회 노드로 최종 순위를 계산한다 (관리자·관전·챗봇·시뮬레이션 공통).
+ * - 최종 순위 정책·순위결정전 판정: 대회 규칙
+ * - 예선 성적순(qualifying_record)·대진 없는 리그 순위: 예선 스테이지 규칙(동률 기준·승점·부전승 집계)
+ */
+export function finalPlacementsFor(matches: ReadonlyArray<MatchLike>, tournament: TournamentLike | null | undefined): Placement[] {
+  const qual = toList<unknown>(tournament?.stages).filter(isObject).find(s => s.type === 'qualifying');
+  const qualCtx = resultContextFor(tournament, 'standings', typeof qual?.id === 'string' ? qual.id : undefined);
+  const ctx = resultContextFor(tournament);
+  const hasBracket = matches.some(isMainBracket);
+  return computeFinalPlacements({ matches, ctx: hasBracket ? ctx : qualCtx, qualifyingOrder: qualifyingOrderFrom(matches, qualCtx) });
 }

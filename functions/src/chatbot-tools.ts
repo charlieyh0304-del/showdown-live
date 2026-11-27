@@ -105,8 +105,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
         endDate: { type: "string", description: "YYYY-MM-DD (선택)" },
         type: { type: "string", enum: ["individual", "team", "randomTeamLeague"], description: "대회 유형" },
         formatType: { type: "string", enum: ["round_robin", "single_elimination", "group_knockout", "manual"], description: "대진 방식" },
-        winScore: { type: "number", description: "승리 점수 (기본 11)" },
-        setsToWin: { type: "number", description: "승리 세트 수 (기본 3)" },
+        winScore: { type: "number", description: "세트 목표 점수 (기본: 개인 11, 단체 31)" },
+        setsToWin: { type: "number", description: "이겨야 하는 세트 수 (3세트제=2, 5세트제=3. 기본: 개인 2, 단체 1)" },
       },
       required: ["name", "date", "type"],
     },
@@ -252,7 +252,9 @@ export const TOOL_DEFINITIONS: Tool[] = [
         status: { type: "string", enum: ["pending", "in_progress", "completed"] },
         refereeId: { type: "string" },
         refereeName: { type: "string" },
-        winnerId: { type: "string", description: "부전승 처리 시 승자 ID" },
+        winnerId: { type: "string", description: "승자 ID. 세트 점수(sets)가 규칙상 다른 승자를 가리키면 거절된다" },
+        walkover: { type: "boolean", description: "부전승(불참·기권) 처리. winnerId 필수. 대회 규칙의 부전승 세트(기본 목표 점수:0 × 이겨야 하는 세트 수)와 부전승 표시가 함께 기록된다" },
+        walkoverReason: { type: "string", description: "부전승 사유 (예: 불참)" },
       },
       required: ["tournamentId", "matchId"],
     },
@@ -290,15 +292,15 @@ export const TOOL_DEFINITIONS: Tool[] = [
   /* INTERNAL - called by workflow tools
   {
     name: "generate_schedule",
-    description: "고급 스케줄 자동 생성. 지원: 선수 휴식(playerRestMinutes, 기본60분), 점심시간 제외(breakStart/End), 일일 마감(endTime)+다음날(nextDayStartTime), 코트별 배정, 심판 자동 라운드로빈 배정, 미배정만(onlyUnassigned), 스테이지 필터(stageFilter).",
+    description: "고급 스케줄 자동 생성. 선수 최소 휴식은 앞 경기 종료(시작+경기 시간)부터 다음 경기 시작까지이며 기본은 대회 규칙(schedule.minRestMinutes, 기본 30분, 단계별)이다. 단체전은 팀원 전원에 적용. 대진 경기는 원천 경기(sourceMatch) 종료 + 휴식 이후에 배정. 점심시간 제외(breakStart/End), 일일 마감(endTime)+다음날(nextDayStartTime), 미배정만(onlyUnassigned), 스테이지 필터(stageFilter).",
     input_schema: {
       type: "object" as const,
       properties: {
         tournamentId: { type: "string" },
         startTime: { type: "string", description: "HH:MM (기본 09:00)" },
         endTime: { type: "string", description: "HH:MM (기본 19:00)" },
-        intervalMinutes: { type: "number", description: "코트별 경기 간격 (기본 30분). 경기 시간에 맞춰 설정 (예: 경기 60분이면 60 이상)" },
-        playerRestMinutes: { type: "number", description: "팀/선수 최소 휴식 시간 (기본 60분). 경기 종료 후 다음 경기까지 최소 간격. 예: 경기 60분 + 팀당 간격 30분이면 90 입력" },
+        intervalMinutes: { type: "number", description: "경기 시간(분) = 같은 코트 다음 경기까지 간격 (기본 30분)" },
+        minRestMinutes: { type: "number", description: "이번 배정에만 쓰는 최소 휴식(분): 앞 경기 종료 → 다음 경기 시작. 지정하지 않으면 대회 규칙(기본 30분, 단계별)" },
         scheduleDate: { type: "string", description: "YYYY-MM-DD 시작 날짜" },
         nextDayStartTime: { type: "string", description: "다음날 시작 시간 HH:MM (기본 09:00)" },
         breakStart: { type: "string", description: "휴식 시작 HH:MM (예: 12:00 점심)" },
@@ -330,15 +332,15 @@ export const TOOL_DEFINITIONS: Tool[] = [
   /* INTERNAL - called by workflow tools
   {
     name: "generate_finals",
-    description: "예선 완료 후 호출. 조별 순위 자동 계산(승→세트득실→점수득실)→진출자 추출→교차 시드(A1위 vs B2위)→전체 브라켓(16강→8강→4강→결승) + 3/4위/5-8위/하위순위 결정전. 팀전도 지원(team1Id/team2Id 자동 설정). 빈 슬롯에 sourceMatch 참조로 승자 자동 진출.",
+    description: "예선 완료 후 호출. 조별 순위(대회 동률 규칙)→진출자(조당 인원 + 명시적 와일드카드)→표준 시드·같은 조 회피→전체 브라켓 + 대회 규칙이 정한 3/4위·5-8위(8강 패자 링크)·하위 순위 결정전. 팀전도 지원. 빈 슬롯은 sourceMatch 링크로 자동 진출.",
     input_schema: {
       type: "object" as const,
       properties: {
         tournamentId: { type: "string" },
         advancePerGroup: { type: "number", description: "조당 진출자 수 (기본: 대회 설정값)" },
         includeThirdPlace: { type: "boolean", description: "3/4위 결정전 (기본: 대회 규칙 finalRanking.thirdPlace, 지정 안 하면 3/4위전 있음)" },
-        includeFifthToEighth: { type: "boolean", description: "5-8위 결정전 (기본 false)" },
-        includeClassification: { type: "boolean", description: "하위 순위 결정전 (기본 false)" },
+        includeFifthToEighth: { type: "boolean", description: "5-8위 결정전 (기본: 대회 규칙 finalRanking.fifthToEighthMatches)" },
+        includeClassification: { type: "boolean", description: "하위 순위 결정전 (기본: 대회 규칙 finalRanking.classificationGroups)" },
       },
       required: ["tournamentId"],
     },
@@ -541,7 +543,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
         endTime: { type: "string", description: "종료 시간 (기본 18:00)" },
         nextDayStartTime: { type: "string", description: "다음날 시작 시간 (선택)" },
         matchDurationMinutes: { type: "number", description: "경기 시간 분 (기본 60)" },
-        teamRestMinutes: { type: "number", description: "팀당 경기 간격 분 (기본 30)" },
+        teamRestMinutes: { type: "number", description: "팀 최소 휴식 분: 앞 경기 종료 → 다음 경기 시작, 팀원 전원 적용 (기본: 대회 규칙 30분). 대회 규칙에 저장된다" },
         breakStart: { type: "string", description: "휴식(점심) 시작 시간 HH:MM (예: 12:00)" },
         breakEnd: { type: "string", description: "휴식(점심) 종료 시간 HH:MM (예: 13:00)" },
         // 팀 세부 설정
@@ -557,15 +559,20 @@ export const TOOL_DEFINITIONS: Tool[] = [
         bracketArrangement: { type: "string", enum: ["cross_group", "sequential", "custom"], description: "대진 배정 방식 (기본 cross_group)" },
         // 순위 결정전
         thirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
-        fifthToEighth: { type: "boolean", description: "5~8위 결정전 (기본 true)" },
+        fifthToEighth: { type: "boolean", description: "5~8위 결정전. 사용자가 요청한 경우에만 true (기본 false)" },
         fifthToEighthFormat: { type: "string", enum: ["simple", "full", "round_robin"], description: "5~8위 결정전 방식 (기본 simple)" },
         classificationGroups: { type: "boolean", description: "하위 순위 결정전 (기본 false)" },
         classificationGroupSize: { type: "number", description: "하위 순위 그룹 크기 (기본 4)" },
         rankingUpTo: { type: "number", description: "순위 결정전 범위. N위까지만 순위 산출 (예: 6이면 6위까지만). 0이면 제한 없음." },
         // 득점 설정
-        qualifyingWinScore: { type: "number", description: "예선 승리 점수 (기본 31)" },
+        qualifyingWinScore: { type: "number", description: "세트 목표 점수 (기본 31)" },
+        setsToWin: { type: "number", description: "이겨야 하는 세트 수 (기본 1 = 단판, 3세트제=2)" },
+        finalsSetsToWin: { type: "number", description: "본선 세트 수 (예선과 다를 경우)" },
+        servesPerTurn: { type: "number", description: "한 번에 넣는 서브 수 (기본 3. 예: 21점 2서브 대회면 2)" },
+        sideChangeAt: { type: "number", description: "결정 세트 사이드 체인지 점수 (기본: 목표 점수의 절반 올림, 31→16, 21→11)" },
+        playersOnCourt: { type: "number", description: "코트 위 선수 수 (기본 teamSize 또는 3)" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 팀명 목록" },
-        tiebreakerRules: { type: "array", items: { type: "string", enum: ["head_to_head", "set_difference", "point_difference", "points_for"] }, description: "타이브레이커 우선순위 (기본 ['set_difference','point_difference'])" },
+        tiebreakerRules: { type: "array", items: { type: "string", enum: ["points", "wins", "head_to_head", "set_difference", "point_difference", "points_for", "points_scored", "set_ratio", "point_ratio", "lot"] }, description: "동률 기준 순서. 사용자가 정한 경우에만 전달. 승점(points)은 항상 첫 기준. 지정하지 않으면 대회 규칙 기본값: 승점 → 상대 전적 → 세트 득실 → 점수 득실 → 득점, 그래도 같으면 관리자 결정" },
       },
       required: ["name", "date", "teams"],
     },
@@ -591,12 +598,14 @@ export const TOOL_DEFINITIONS: Tool[] = [
         endTime: { type: "string", description: "종료 시간 (기본 18:00)" },
         nextDayStartTime: { type: "string", description: "다음날 시작 시간 (선택)" },
         matchDurationMinutes: { type: "number", description: "경기 시간 분 (기본 30)" },
-        playerRestMinutes: { type: "number", description: "선수 경기 간격 분 (기본 30)" },
+        playerRestMinutes: { type: "number", description: "선수 최소 휴식 분: 앞 경기 종료 → 다음 경기 시작 (기본: 대회 규칙 30분). 대회 규칙에 저장된다" },
         breakStart: { type: "string", description: "휴식(점심) 시작 시간 HH:MM (예: 12:00)" },
         breakEnd: { type: "string", description: "휴식(점심) 종료 시간 HH:MM (예: 13:00)" },
         // 득점 설정
         setsToWin: { type: "number", description: "예선 세트 수 (3세트=2, 5세트=3, 기본 2)" },
-        winScore: { type: "number", description: "승리 점수 (기본 11)" },
+        winScore: { type: "number", description: "세트 목표 점수 (기본 11)" },
+        servesPerTurn: { type: "number", description: "한 번에 넣는 서브 수 (기본 2)" },
+        sideChangeAt: { type: "number", description: "결정 세트 사이드 체인지 점수 (기본: 목표 점수의 절반 올림, 11→6)" },
         // 본선 설정
         finalsFormat: { type: "string", enum: ["single_elimination", "double_elimination", "round_robin"], description: "본선 방식 (기본 single_elimination)" },
         finalsStartRound: { type: "number", description: "본선 시작 라운드 (4/8/16/32)" },
@@ -605,7 +614,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
         bracketArrangement: { type: "string", enum: ["cross_group", "sequential", "custom"], description: "대진 배정 방식 (기본 cross_group)" },
         // 순위 결정전
         thirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
-        fifthToEighth: { type: "boolean", description: "5~8위 결정전 (기본 false)" },
+        fifthToEighth: { type: "boolean", description: "5~8위 결정전. 사용자가 요청한 경우에만 true (기본 false)" },
         fifthToEighthFormat: { type: "string", enum: ["simple", "full", "round_robin"], description: "5~8위 결정전 방식 (기본 simple)" },
         classificationGroups: { type: "boolean", description: "하위 순위 결정전 (기본 false)" },
         classificationGroupSize: { type: "number", description: "하위 순위 그룹 크기 (기본 4)" },
@@ -613,7 +622,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
         rankingSetsToWin: { type: "number", description: "순위 결정전 세트 수 (3세트=2, 5세트=3). 미지정 시 예선과 동일" },
         rankingWinScore: { type: "number", description: "순위 결정전 승리 점수. 미지정 시 예선과 동일" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 선수명 목록" },
-        tiebreakerRules: { type: "array", items: { type: "string", enum: ["head_to_head", "set_difference", "point_difference", "points_for"] }, description: "타이브레이커 우선순위 (기본 ['set_difference','point_difference'])" },
+        tiebreakerRules: { type: "array", items: { type: "string", enum: ["points", "wins", "head_to_head", "set_difference", "point_difference", "points_for", "points_scored", "set_ratio", "point_ratio", "lot"] }, description: "동률 기준 순서. 사용자가 정한 경우에만 전달. 승점(points)은 항상 첫 기준. 지정하지 않으면 대회 규칙 기본값: 승점 → 상대 전적 → 세트 득실 → 점수 득실 → 득점, 그래도 같으면 관리자 결정" },
         // 라운드별 세트 오버라이드
         roundOverrideFromRound: { type: "number", description: "세트 수 변경 시작 라운드 (4강=4, 결승=2)" },
         roundOverrideSetsToWin: { type: "number", description: "변경될 세트 수 (5세트=3)" },
@@ -623,7 +632,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "run_full_simulation",
-    description: "전체 시뮬레이션 (완전 자동). tournamentId만 전달하면 예선→본선 16강~결승→3/4위전→5~8위 결정전(8강 패자)→9~16위 순위결정전(16강 패자 라운드로빈)→17~24위, 25~32위 하위순위결정전까지 모든 경기를 자동 생성+시뮬레이션+순위 계산. 수동 추가 불필요. 결과에 전체 순위(1위~최하위), 본선 결과, 조별 순위 포함.",
+    description: "전체 시뮬레이션 (완전 자동). tournamentId만 전달하면 예선→본선→대회 규칙이 정한 순위결정전(3/4위전, 5~8위 결정전, 예선 탈락자 순위 결정전 리그)까지 생성+시뮬레이션+최종 순위 계산. 규칙에 없는 순위결정전은 만들지 않는다. 결과에 최종 순위, 본선 결과, 조별 순위 포함.",
     input_schema: {
       type: "object" as const,
       properties: {

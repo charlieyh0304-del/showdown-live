@@ -30,18 +30,21 @@
  * - 쓰기는 isBye만 한다(구 클라이언트 필드 bye는 읽기만 하고, 되돌릴 때 함께 지운다).
  */
 import {
+  isObject,
+  isTeamType,
+  matchWinnerByRules,
   resolveCompetitionRules,
   resolveMatchScoring,
   type CompetitionRules,
+  type ScoringRuleSet,
 } from "../shared/rules/competitionRules";
-import { buildByeSets, BYE_WALKOVER_REASON } from "../shared/rules/walkover";
+import { buildByeSets, BYE_ID, BYE_WALKOVER_REASON, isByeMatch, isRealParticipantId } from "../shared/rules/walkover";
+
+export { BYE_ID, isByeMatch };
 
 export type MatchData = Record<string, unknown>;
 export type Side = 1 | 2;
 export type Outcome = "winner" | "loser";
-
-/** 서버 생성 BYE 슬롯의 ID 표기 */
-export const BYE_ID = "BYE";
 
 export interface Participant {
   id: string;
@@ -50,11 +53,8 @@ export interface Participant {
   team?: Record<string, unknown>;
 }
 
-export interface ScoringRulesLite {
-  setsToWin: number;
-  winScore: number;
-  minLead: number;
-}
+/** 경기 판정 규칙 (대회 규칙 단일 설정원의 ScoringRuleSet). maxSets는 판정에 쓰지 않으므로 생략 가능. */
+export type ScoringRulesLite = Pick<ScoringRuleSet, "setsToWin" | "winScore" | "minLead"> & Partial<ScoringRuleSet>;
 
 export type MatchResult =
   | { decided: false }
@@ -93,21 +93,9 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-function num(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-export function isByeMatch(m: MatchData): boolean {
-  return m.isBye === true || m.bye === true;
-}
-
 /** 실제 참가자 ID인가 (빈 값과 "BYE"는 아님) */
 export function isRealId(id: string): boolean {
-  return !!id && id !== BYE_ID;
+  return isRealParticipantId(id);
 }
 
 /**
@@ -144,18 +132,14 @@ function sideMatchesId(m: MatchData, side: Side, id: string): boolean {
 
 // ===== 점수 규칙 =====
 
-function isTeamType(type: unknown): boolean {
-  return type === "team" || type === "randomTeamLeague";
-}
-
 /**
  * 경기의 유효 점수 규칙. 대회 규칙 단일 설정원(shared/rules resolveMatchScoring)을 쓴다:
  * match.appliedScoringRules > stage.rules/scoringRules > tournament.rules/scoringRules
  * > (팀전이면 teamMatchSettings 또는 31점 1게임) > tournament.gameConfig > 11점 2세트선승
  */
-export function resolveScoringRules(match: MatchData, tournament: MatchData | null | undefined): ScoringRulesLite {
-  const r = resolveMatchScoring(match, tournament);
-  return { setsToWin: r.setsToWin, winScore: r.winScore, minLead: r.minLead };
+export function resolveScoringRules(match: MatchData, tournament: MatchData | null | undefined): ScoringRuleSet {
+  // 듀스 캡·최대 세트 수 등 모든 필드를 그대로 쓴다 (setWinnerByRules / matchWinnerByRules)
+  return resolveMatchScoring(match, tournament);
 }
 
 /** 자동 부전승(BYE) 경기에 기록할 세트. 빈 배열이면 점수 없음. */
@@ -169,21 +153,7 @@ export function walkoverSetsForTournament(tournament: MatchData | null | undefin
   };
 }
 
-/** 점수 규칙만 아는 호출부용 기본값 (부전승 점수 = 세트 목표 점수) */
-function defaultWalkoverSets(rulesFor: RulesFor): WalkoverSetsFor {
-  return (m, winnerSide, winnerId) => {
-    const r = rulesFor(m);
-    return buildByeSets({ ...r, maxSets: r.setsToWin * 2 - 1 }, resolveCompetitionRules(null), winnerSide, winnerId);
-  };
-}
-
 const EMPTY_SET = { player1Score: 0, player2Score: 0, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: null };
-
-function setWinner(p1: number, p2: number, rules: ScoringRulesLite): 1 | 2 | null {
-  if (p1 >= rules.winScore && p1 - p2 >= rules.minLead) return 1;
-  if (p2 >= rules.winScore && p2 - p1 >= rules.minLead) return 2;
-  return null;
-}
 
 // ===== 결과 판정 =====
 
@@ -218,17 +188,11 @@ export function determineResult(m: MatchData | null | undefined, rules: ScoringR
   if (!p1 || !p2) return { decided: false };
 
   const rawSets = m.sets;
-  const sets = Array.isArray(rawSets) ? rawSets : isObject(rawSets) ? Object.values(rawSets) : [];
-  let w1 = 0;
-  let w2 = 0;
-  for (const s of sets) {
-    if (!isObject(s)) continue;
-    const w = setWinner(num(s.player1Score), num(s.player2Score), rules);
-    if (w === 1) w1++;
-    else if (w === 2) w2++;
-  }
-  if (w1 >= rules.setsToWin && w1 > w2) return { decided: true, winner: p1, loser: p2 };
-  if (w2 >= rules.setsToWin && w2 > w1) return { decided: true, winner: p2, loser: p1 };
+  const sets = (Array.isArray(rawSets) ? rawSets : isObject(rawSets) ? Object.values(rawSets) : []).filter(isObject);
+  // 단일 승자 판정 함수 (듀스 캡 포함): shared/rules matchWinnerByRules
+  const w = matchWinnerByRules(sets, { maxSets: rules.setsToWin * 2 - 1, ...rules });
+  if (w === 1) return { decided: true, winner: p1, loser: p2 };
+  if (w === 2) return { decided: true, winner: p2, loser: p1 };
   return { decided: false };
 }
 
@@ -433,7 +397,7 @@ export function planDownstreamUpdate(
   desired: Participant | null | undefined,
   all: Record<string, MatchData>,
   rulesFor: RulesFor,
-  walkoverSets: WalkoverSetsFor = defaultWalkoverSets(rulesFor),
+  walkoverSets: WalkoverSetsFor,
 ): { next: MatchData; decision: SlotDecision } {
   const decision = resolveSlot(downstream, link.side, link, desired);
   let next = decision.kind === "patch" ? applyPatch(downstream, decision.patch) : downstream;
@@ -467,7 +431,7 @@ export function diffPatch(before: MatchData, after: MatchData): Record<string, u
 export function sweepAdvancement(
   all: Record<string, MatchData>,
   rulesFor: RulesFor,
-  walkoverSets: WalkoverSetsFor = defaultWalkoverSets(rulesFor),
+  walkoverSets: WalkoverSetsFor,
 ): Record<string, Record<string, unknown>> {
   const out: Record<string, Record<string, unknown>> = {};
   for (const [id, m] of Object.entries(all)) {

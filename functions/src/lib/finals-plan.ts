@@ -13,10 +13,12 @@
  * - not_enough_qualifiers: 진출자 2명 미만.
  *
  * 규칙은 모두 대회 규칙 단일 설정원(shared/rules)에서 읽는다: 진출 인원·와일드카드(명시적일 때만)·
- * 동률·시드(표준 시드 위치 + 조별 교차, 같은 조 1라운드 회피)·부전승 점수(BYE = 11:0).
+ * 동률·시드(표준 시드 위치 + 조별 교차, 같은 조 1라운드 회피)·부전승 점수(BYE = 11:0)·
+ * 3/4위전·5~8위 결정전 방식·순위 결정전 리그(티어 크기)·순위 표시 범위(finalRanking).
+ * 5~8위 결정전은 8강 경기에서 패자 링크(sourceType 'loser')로 만들고, 진출 트리거가 8강 결과로 채운다.
  * 랜덤팀 리그도 경기 type은 'team'으로 쓴다(DB 규칙은 individual/team만 허용).
  */
-import { resolveCompetitionRules, resolveMatchScoring, isTeamType, toList, tiebreakDecisionKey, type TiebreakDecision } from "../shared/rules/competitionRules";
+import { resolveCompetitionRules, resolveMatchScoring, isTeamType, toList, tiebreakDecisionKey, type FifthToEighthFormat, type TiebreakDecision } from "../shared/rules/competitionRules";
 import { resultContextFor, type MatchLike } from "../shared/rules/standings";
 import { selectQualifiers, type Qualifier } from "../shared/rules/qualification";
 import { crossGroupSeedOrder, placeSeeds, nextPowerOfTwo, findDuplicateSlot } from "../shared/rules/seeding";
@@ -28,9 +30,15 @@ type Data = Record<string, unknown>;
 export interface FinalsPlanInput {
   advancePerGroup?: number;
   wildcardCount?: number;
+  /** 없으면 대회 규칙(finalRanking.thirdPlace) */
   includeThirdPlace?: boolean;
+  /** 없으면 대회 규칙(finalRanking.fifthToEighthMatches). true인데 규칙이 'none'이면 'full'. */
   includeFifthToEighth?: boolean;
+  /** 5~8위 결정전 방식 지정 (includeFifthToEighth보다 우선) */
+  fifthToEighthFormat?: FifthToEighthFormat;
+  /** 없으면 대회 규칙(finalRanking.classificationGroups) */
   includeClassification?: boolean;
+  /** 없으면 대회 규칙(finalRanking.rankingUpTo) */
   rankingUpTo?: number;
   /** 예선 미완료여도 생성 */
   force?: boolean;
@@ -209,6 +217,7 @@ export function planFinals(
   summary.push(`[ ${firstLabel} ] ${realCount}경기${size / 2 - realCount > 0 ? ` (부전승 ${size / 2 - realCount})` : ""}`, ...r1Lines);
 
   let semifinalKeys: string[] = size === 4 ? [...prevKeys] : [];
+  let quarterKeys: string[] = size === 8 ? [...prevKeys] : [];
   const rounds = Math.log2(size);
   for (let round = 2; round <= rounds; round++) {
     const participants = size / Math.pow(2, round - 1);
@@ -223,6 +232,7 @@ export function planFinals(
     }
     summary.push(`[ ${rLabel} ] ${keys.length}경기`);
     if (participants === 4) semifinalKeys = [...keys];
+    if (participants === 8) quarterKeys = [...keys];
     prevKeys = keys;
   }
 
@@ -237,14 +247,48 @@ export function planFinals(
     summary.push("[ 3/4위 결정전 ] 1경기");
   }
 
+  // 5~8위 결정전: 8강 패자 (패자 링크, 진출 트리거가 채운다)
+  const fr = finalsRules.finalRanking;
+  const fifthFormat: FifthToEighthFormat = input.fifthToEighthFormat
+    ?? (input.includeFifthToEighth === false ? "none"
+      : input.includeFifthToEighth === true ? (fr.fifthToEighthMatches === "none" ? "full" : fr.fifthToEighthMatches)
+        : fr.fifthToEighthMatches);
+  if (fifthFormat !== "none" && quarterKeys.length === 4) {
+    const stage58 = `${finalsStageId}_5to8`;
+    const placement = (round: number, pos: number, lbl: string, s1: string, s2: string, type: "winner" | "loser"): string => {
+      const m = base(round, pos, lbl, stage58);
+      m.bracketRound = lbl.replace(/\s*결정전$/, "");
+      Object.assign(m, { sourceMatch1: s1, sourceMatch2: s2, sourceType: type });
+      const key = deps.makeKey();
+      out.push({ key, match: m });
+      return key;
+    };
+    if (fifthFormat === "round_robin") {
+      let n = 0;
+      for (let i = 0; i < 4; i++) {
+        for (let j = i + 1; j < 4; j++) placement(rounds + 1, n++, "5~8위 순위 결정전", quarterKeys[i], quarterKeys[j], "loser");
+      }
+      summary.push("[ 5~8위 순위 결정전 ] 8강 패자 4명, 6경기");
+    } else {
+      const c1 = placement(rounds + 1, 0, "5-8위 결정전", quarterKeys[0], quarterKeys[1], "loser");
+      const c2 = placement(rounds + 1, 1, "5-8위 결정전", quarterKeys[2], quarterKeys[3], "loser");
+      if (fifthFormat === "full") {
+        placement(rounds + 2, 0, "5/6위 결정전", c1, c2, "winner");
+        placement(rounds + 2, 1, "7/8위 결정전", c1, c2, "loser");
+        summary.push("[ 5~8위 결정전 ] 교차전 2경기 → 5/6위전·7/8위전");
+      } else {
+        summary.push("[ 5~8위 결정전 ] 교차전 2경기 (승자 공동 5위, 패자 공동 7위)");
+      }
+    }
+  }
+
   // 하위 순위 결정전: 예선 탈락자를 티어별 풀리그로 (classificationGroups 또는 rankingUpTo만 설정)
-  const rmc = (tour.rankingMatchConfig || {}) as Data;
-  const rankingUpTo = typeof input.rankingUpTo === "number" ? input.rankingUpTo : (typeof rmc.rankingUpTo === "number" ? rmc.rankingUpTo : 0);
-  const includeClassification = input.includeClassification === true || (input.includeClassification === undefined && rmc.classificationGroups === true);
-  const includeFifth = input.includeFifthToEighth === true;
+  const rankingUpTo = typeof input.rankingUpTo === "number" ? input.rankingUpTo : fr.rankingUpTo;
+  const includeClassification = typeof input.includeClassification === "boolean" ? input.includeClassification : fr.classificationGroups;
+  const includeFifth = fifthFormat !== "none";
   const eliminated = [...qual.eliminated].sort((x, y) => x.groupRank - y.groupRank || (x.groupId < y.groupId ? -1 : 1));
   if ((includeClassification || (rankingUpTo > 0 && !includeFifth)) && eliminated.length >= 2) {
-    const tierSize = Math.max(4, typeof rmc.classificationGroupSize === "number" ? rmc.classificationGroupSize : 8);
+    const tierSize = Math.max(2, fr.classificationGroupSize);
     const maxSlots = rankingUpTo > 0 ? Math.max(0, rankingUpTo - qualifiers.length) : eliminated.length;
     let remaining = eliminated.slice(0, Math.min(maxSlots, eliminated.length));
     let tierStart = qualifiers.length + 1;

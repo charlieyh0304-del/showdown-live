@@ -13,6 +13,7 @@ import RankingTab from '../components/tournament/RankingTab';
 import PlayersTab from '../components/tournament/PlayersTab';
 import HistoryTab from '../components/tournament/HistoryTab';
 import RefereesTab from '../components/tournament/RefereesTab';
+import { participantStats } from '@shared/utils/ranking';
 
 /** URL-based tab: mapped from the route path segment after tournament/:id */
 type ViewTab = 'overview' | 'players' | 'standings' | 'schedule' | 'referees';
@@ -137,36 +138,17 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
     );
   }, [selectedPlayer, matches]);
 
+  // 선수 상세 전적: 대회 규칙의 'stats' 문맥으로 정규화한 결과 (세트 승자 = 그 경기의 유효 점수 규칙, 부전승 반영 규칙)
   const playerStats = useMemo(() => {
     if (!playerMatches.length || !selectedPlayer) return null;
-    let wins = 0, losses = 0;
-    let setsWon = 0, setsLost = 0;
-    let pointsFor = 0, pointsAgainst = 0;
-
-    playerMatches.filter(m => m.status === 'completed').forEach(m => {
-      const isP1 = m.player1Name === selectedPlayer || m.team1Name === selectedPlayer;
-      const winnerId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
-
-      if (m.winnerId === winnerId) wins++;
-      else losses++;
-
-      (Array.isArray(m.sets) ? m.sets : []).forEach(s => {
-        const myScore = isP1 ? s.player1Score : s.player2Score;
-        const oppScore = isP1 ? s.player2Score : s.player1Score;
-        pointsFor += myScore;
-        pointsAgainst += oppScore;
-        if (myScore > oppScore) setsWon++;
-        else if (oppScore > myScore) setsLost++;
-      });
-    });
-
+    const row = participantStats(playerMatches, tournament).find(r => r.playerName === selectedPlayer);
     return {
       total: playerMatches.length,
-      wins, losses,
-      setsWon, setsLost,
-      pointsFor, pointsAgainst,
+      wins: row?.wins ?? 0, losses: row?.losses ?? 0,
+      setsWon: row?.setsWon ?? 0, setsLost: row?.setsLost ?? 0,
+      pointsFor: row?.pointsFor ?? 0, pointsAgainst: row?.pointsAgainst ?? 0,
     };
-  }, [playerMatches, selectedPlayer]);
+  }, [playerMatches, selectedPlayer, tournament]);
 
   const loading = tLoading || mLoading;
 
@@ -401,10 +383,10 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
       {/* View content based on bottom nav tab */}
       <div role="region" aria-label={t(`spectator.layout.tournamentTab.${viewTab}`)}>
         {viewTab === 'overview' && (
-          <LiveTab matches={matches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} />
+          <LiveTab matches={matches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} tournament={tournament} />
         )}
         {viewTab === 'players' && (
-          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} tournamentId={id!} navigate={navigate} />
+          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} tournamentId={id!} navigate={navigate} tournament={tournament} />
         )}
         {viewTab === 'standings' && (
           <>
@@ -420,7 +402,7 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
           </>
         )}
         {viewTab === 'schedule' && (
-          <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} />
+          <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} tournament={tournament} />
         )}
         {viewTab === 'referees' && (
           <RefereesTab referees={referees} assignments={assignments} matches={matches} />

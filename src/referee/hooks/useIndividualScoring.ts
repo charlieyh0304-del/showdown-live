@@ -1,23 +1,22 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
-  checkSetWinner,
-  checkMatchWinner,
   createEmptySet,
-  getEffectiveGameConfig,
-  getEffectiveScoringRules,
-  countSetWins,
-  advanceServe,
-  revertServe,
-  shouldSideChange,
   createScoreHistoryEntry,
-  getMaxServes,
   getEffectiveTimeLimitSeconds,
   applyGoldenGoalEvent,
   getPenaltyAction,
   computePenaltyCounts,
 } from '@shared/utils/scoring';
+import {
+  DEFAULT_INDIVIDUAL_SCORING,
+  matchWinnerByRules,
+  resolveMatchScoring,
+  setWinnerByRules,
+  setWinsByRules,
+} from '@shared/rules/competitionRules';
+import { advanceServeTurn, revertServeTurn, servesPerTurnOf, shouldChangeSidesMidSet } from '@shared/rules/serve';
 import { useGoldenGoalTimer } from './useGoldenGoalTimer';
 import { formatTime, speak, preWarmSpeech } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
@@ -26,6 +25,7 @@ import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import { useCountdownTimer, playWarningBeep } from './useCountdownTimer';
 import { useDoubleClickGuard } from './useDoubleClickGuard';
 import { useFocusTrap } from './useFocusTrap';
+import { setEndOutcome } from './teamScoringModel';
 import { useWhistle } from '@shared/hooks/useWhistle';
 import { useTimerAlerts } from './useTimerAlerts';
 import { useTimerSync } from './useTimerSync';
@@ -88,10 +88,13 @@ export function useIndividualScoring(
   const toggleSection = (key: string) => setExpandedSection(prev => prev === key ? null : key);
   const [foulClassify, setFoulClassify] = useState<{ player: 1 | 2 } | null>(null);
 
-  const gameConfig = match && tournament
-    ? getEffectiveScoringRules(match, tournament)
-    : getEffectiveGameConfig(tournament?.scoringRules || tournament?.gameConfig);
-  const timeLimitSeconds = match && tournament ? getEffectiveTimeLimitSeconds(match, tournament) : 0;
+  // 경기 판정 규칙: 대회 규칙 단일 설정원(경기 → 라운드/순위결정전 → 스테이지 → 대회 → 기본), 듀스 캡·서브 수·사이드 체인지 포함
+  const rules = useMemo(
+    () => (match ? resolveMatchScoring({ ...match, type: 'individual' }, tournament) : DEFAULT_INDIVIDUAL_SCORING),
+    [match, tournament],
+  );
+  const maxServes = servesPerTurnOf(rules, 'individual');
+  const timeLimitSeconds = match ? getEffectiveTimeLimitSeconds(match, tournament) : 0;
   const goldenGoal = useGoldenGoalTimer(match?.matchStartedAt, timeLimitSeconds);
   useNavigationGuard(match?.status === 'in_progress');
   const setEndTrapRef = useFocusTrap(showSetEndConfirm);
@@ -437,7 +440,7 @@ export function useIndividualScoring(
     const cs = { ...sets[ci] };
 
     // Guard: prevent scoring if current set already has a winner
-    if (cs.winnerId || checkSetWinner(cs.player1Score, cs.player2Score, gameConfig)) return;
+    if (cs.winnerId || setWinnerByRules(cs.player1Score, cs.player2Score, rules)) return;
 
     const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
     const scoringPlayer = toOpponent ? (actingPlayer === 1 ? 2 : 1) : actingPlayer;
@@ -468,9 +471,7 @@ export function useIndividualScoring(
     const prevHistory: ScoreHistoryEntry[] = match.scoreHistory ?? [];
     const newHistory = [historyEntry, ...prevHistory];
 
-    const { currentServe: nextServe, serveCount: nextCount } = advanceServe(
-      currentServe, serveCount, 'individual',
-    );
+    const { currentServe: nextServe, serveCount: nextCount } = advanceServeTurn(currentServe, serveCount, maxServes);
 
     setScoreFlash(f => f + 1);
 
@@ -490,16 +491,16 @@ export function useIndividualScoring(
     const serverScore = nextServe === 'player1' ? scoreAfter.player1 : scoreAfter.player2;
     const receiverScore = nextServe === 'player1' ? scoreAfter.player2 : scoreAfter.player1;
     setAnnouncement(
-      `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${getMaxServes('individual')}`
+      `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${maxServes}`
     );
 
     // Set winner check with confirmation dialog
-    const setWinner = checkSetWinner(cs.player1Score, cs.player2Score, gameConfig);
+    const setWinner = setWinnerByRules(cs.player1Score, cs.player2Score, rules);
     if (setWinner) {
       cs.winnerId = setWinner === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
       sets[ci] = cs;
 
-      const matchWinner = checkMatchWinner(sets, gameConfig);
+      const matchWinner = matchWinnerByRules(sets, rules);
       if (matchWinner) setTimeout(() => longWhistle(), 500); // match end whistle after score sound
 
       // Block scoring IMMEDIATELY to prevent race condition during 500ms delay
@@ -517,7 +518,7 @@ export function useIndividualScoring(
         const setWinnerName = setWinner === 1 ? p1Name : p2Name;
         const winScore = setWinner === 1 ? cs.player1Score : cs.player2Score;
         const loseScore = setWinner === 1 ? cs.player2Score : cs.player1Score;
-        const setWinsCalc = countSetWins(sets, gameConfig);
+        const setWinsCalc = setWinsByRules(sets, rules);
 
         if (matchWinner) {
           setSetEndMessage(`🏆 ${setWinnerName}!\n${t('common.matchHistory.score')}: ${winScore} - ${loseScore}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
@@ -531,7 +532,8 @@ export function useIndividualScoring(
     }
 
     // Side change check
-    if (shouldSideChange('individual', cs, match.sideChangeUsed ?? false, sets, gameConfig) && !match.activeTimeout) {
+    // 사이드 체인지: 결정 세트에서 규칙의 사이드 체인지 점수(기본 ceil(목표/2))에 닿으면
+    if (shouldChangeSidesMidSet(cs, sets.slice(0, ci), rules, match.sideChangeUsed ?? false) && !match.activeTimeout) {
       const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
@@ -549,7 +551,7 @@ export function useIndividualScoring(
     if (tournamentId) autoBackupDebounced(tournamentId);
 
     } finally { done(); }
-  }, [match, gameConfig, updateMatch, canAct, startProcessing, done, sideChangeTimer, tournamentId, showSetEndConfirm, showSideChange, showWarmup, warmupTimer, goalWhistle, shortWhistle]);
+  }, [match, rules, maxServes, updateMatch, canAct, startProcessing, done, sideChangeTimer, tournamentId, showSetEndConfirm, showSideChange, showWarmup, warmupTimer, goalWhistle, shortWhistle]);
 
   // Confirm set end
   const handleConfirmSetEnd = useCallback(async () => {
@@ -557,56 +559,32 @@ export function useIndividualScoring(
     const sets = [...match.sets.map(s => ({ ...s }))];
     const ci = match.currentSet ?? 0;
 
-    const matchWinner = checkMatchWinner(sets, gameConfig);
-    if (matchWinner) {
-      const winnerId = matchWinner === 1 ? (match.player1Id ?? 'player1') : (match.player2Id ?? 'player2');
-      await updateMatch({ sets, status: 'completed', winnerId });
+    // 세트 끝 → 경기 완료 또는 다음 세트 (단체전과 같은 순수 함수: 코트 체인지 + 서브권 교대)
+    // IBSA: 이전 세트 첫 서브의 반대 선수가 다음 세트 첫 서브
+    const setEnd = setEndOutcome(match, sets, ci, rules, {
+      sideIds: [match.player1Id ?? 'player1', match.player2Id ?? 'player2'],
+      serverName: side => (side === 'player1' ? match.player1Name ?? '' : match.player2Name ?? ''),
+      time: formatTime(),
+      sideChangeLabel: t('common.matchHistory.sideChange'),
+    });
+    if (setEnd?.kind === 'completed') {
+      await updateMatch({ sets: setEnd.sets, status: 'completed', winnerId: setEnd.winnerId });
       longWhistle(); // match end whistle
       if (tournamentId) autoBackupToLocal(tournamentId);
-    } else {
-      // 세트 전환: 코트 체인지 + 1분 휴식 + 서브권 교대
-      sets.push(createEmptySet());
-      const p1Name = match.player1Name ?? '';
-      const p2Name = match.player2Name ?? '';
-      // IBSA: 이전 세트 첫 서브의 반대 선수가 다음 세트 첫 서브
-      const nextSetIndex = ci + 1;
-      let nextSetServe: 'player1' | 'player2';
-      if (match.coinTossWinner && match.coinTossChoice) {
-        const firstSetServer: 'player1' | 'player2' = match.coinTossChoice === 'serve'
-          ? (match.coinTossWinner === 'team1' ? 'player1' : 'player2')
-          : (match.coinTossWinner === 'team1' ? 'player2' : 'player1');
-        nextSetServe = nextSetIndex % 2 === 0 ? firstSetServer : (firstSetServer === 'player1' ? 'player2' : 'player1');
-      } else {
-        nextSetServe = (match.currentServe ?? 'player1') === 'player1' ? 'player2' : 'player1';
-      }
-      const nextServerName = nextSetServe === 'player1' ? p1Name : p2Name;
-      const sideChangeEntry: ScoreHistoryEntry = {
-        time: formatTime(),
-        set: ci + 2,
-        scoringPlayer: '',
-        actionPlayer: '',
-        actionType: 'side_change' as ScoreActionType,
-        actionLabel: t('common.matchHistory.sideChange'),
-        points: 0,
-        scoreBefore: { player1: 0, player2: 0 },
-        scoreAfter: { player1: 0, player2: 0 },
-        server: nextServerName,
-        serveNumber: 1,
-        serverSide: nextSetServe,
-      };
+    } else if (setEnd?.kind === 'next_set') {
       const prevHistory = match.scoreHistory ?? [];
       await updateMatch({
-        sets, currentSet: ci + 1,
-        currentServe: nextSetServe, serveCount: 0,
+        sets: setEnd.sets, currentSet: setEnd.currentSet,
+        currentServe: setEnd.currentServe, serveCount: setEnd.serveCount,
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
-        sideChangeUsed: false,
-        scoreHistory: [sideChangeEntry, ...prevHistory],
+        sideChangeUsed: setEnd.sideChangeUsed,
+        scoreHistory: [setEnd.setStartEntry, ...prevHistory],
       });
       longWhistle(); // court change whistle
       setPendingSideChange(true);
     }
     setShowSetEndConfirm(false);
-  }, [match, gameConfig, updateMatch, tournamentId, longWhistle, t]);
+  }, [match, rules, updateMatch, tournamentId, longWhistle, t]);
 
   // Undo
   const handleUndo = useCallback(async () => {
@@ -624,9 +602,7 @@ export function useIndividualScoring(
     cs.winnerId = null;
     sets[ci] = cs;
 
-    const { currentServe, serveCount } = revertServe(
-      match.currentServe ?? 'player1', match.serveCount ?? 0, 'individual',
-    );
+    const { currentServe, serveCount } = revertServeTurn(match.currentServe ?? 'player1', match.serveCount ?? 0, maxServes);
 
     await updateMatch({
       sets, currentServe, serveCount, scoreHistory: history.slice(1),
@@ -638,7 +614,7 @@ export function useIndividualScoring(
     const msg = `${p1Name} ${cs.player1Score}, ${p2Name} ${cs.player2Score}. ${undoServerName} ${t('common.matchHistory.serve')}`;
     setAnnouncement(msg);
     setLastAction(`↩️ ${msg}`);
-  }, [match, updateMatch]);
+  }, [match, updateMatch, maxServes]);
 
   const handleCancelSetEnd = useCallback(async () => {
     setShowSetEndConfirm(false);
@@ -856,11 +832,10 @@ export function useIndividualScoring(
   const sets = Array.isArray(match?.sets) && match!.sets!.length > 0 ? match!.sets! : [createEmptySet()];
   const currentSetIndex = match?.currentSet ?? 0;
   const currentSet = sets[currentSetIndex] ?? createEmptySet();
-  const setWins = countSetWins(sets, gameConfig);
+  const setWins = setWinsByRules(sets, rules);
   const currentServe = match?.currentServe ?? 'player1';
   const serveCountVal = match?.serveCount ?? 0;
   const serverName = currentServe === 'player1' ? player1Name : player2Name;
-  const maxServes = getMaxServes('individual');
   const history: ScoreHistoryEntry[] = match?.scoreHistory ?? [];
 
   const p1TimeoutsUsed = match?.player1Timeouts ?? 0;
@@ -882,8 +857,8 @@ export function useIndividualScoring(
     // data
     match, matchLoading, tournament, updateMatch,
     player1Name, player2Name,
-    // game config
-    gameConfig,
+    // 경기 규칙 (resolveMatchScoring)
+    rules,
     // state + setters
     announcement, lastAction, setLastAction,
     scoreFlash,

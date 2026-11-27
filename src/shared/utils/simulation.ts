@@ -1,5 +1,14 @@
 import type { Tournament, Match, SetScore, Team, ScoreHistoryEntry, ScoreActionType, ScheduleSlot } from '../types';
 import { formatTime, formatTimeShort } from '@shared/utils/locale';
+import { resolveCompetitionRules, resolveMatchScoring, setWinnerByRules, type ScoringRuleSet } from '../rules/competitionRules';
+import { servesPerTurnOf, sideChangePointOf } from '../rules/serve';
+import { computeFinalsSeeding } from './competition';
+
+/*
+ * 관리자 시뮬레이션 (실제 DB에 기록된다). 판정·진출·시드·순위결정전 여부는 모두 대회 규칙 단일 설정원을 쓴다:
+ * 경기 점수 = resolveMatchScoring(경기, 대회), 진출자·시드 = computeFinalsSeeding(서버 generate_finals와 같은 규칙),
+ * 3/4위전·5~8위 결정전 = resolveCompetitionRules(대회, 본선).finalRanking, 서브 수·사이드 체인지 = shared/rules/serve.
+ */
 
 // 가상 이름 생성용
 const LAST_NAMES = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권', '황'];
@@ -29,11 +38,11 @@ function simulateScoreHistory(
   _p2Id: string,
   sets: SetScore[],
   matchType: 'individual' | 'team',
-  teamServeOrders?: { team1: string[]; team2: string[] },
-  setsToWinParam?: number,
+  teamServeOrders: { team1: string[]; team2: string[] } | undefined,
+  rules: ScoringRuleSet,
 ): ScoreHistoryEntry[] {
   const history: ScoreHistoryEntry[] = [];
-  const maxServes = matchType === 'team' ? 3 : 2;
+  const maxServes = servesPerTurnOf(rules, matchType);
   // 경기 시작 기준 시각 (현재 시각에서 역산)
   const baseTime = Date.now() - sets.length * 10 * 60 * 1000;
 
@@ -99,7 +108,7 @@ function simulateScoreHistory(
     let entryIndex = 0;
     let sideChanged = false;
     // 결정 세트 판별: 양쪽 모두 setsToWin - 1 세트를 이겼을 때만 결정 세트
-    const setsToWin = matchType === 'team' ? 1 : (setsToWinParam ?? Math.ceil(sets.length / 2));
+    const setsToWin = rules.setsToWin;
     let p1SetWins = 0, p2SetWins = 0;
     for (let si = 0; si < setIdx; si++) {
       if (sets[si].player1Score > sets[si].player2Score) p1SetWins++;
@@ -209,13 +218,9 @@ function simulateScoreHistory(
 
       entryIndex++;
 
-      // 사이드 체인지 체크 (개인전: 마지막 세트에서 6점, 팀전: 매 세트 16점)
+      // 사이드 체인지: 결정 세트(단판 포함)에서 규칙의 사이드 체인지 점수(기본 ceil(목표/2))
       if (!sideChanged) {
-        const sideChangePoint = matchType === 'team' ? 16 : 6;
-        const maxScore = Math.max(p1, p2);
-        const shouldChange = matchType === 'individual'
-          ? (isDecidingSet && maxScore >= sideChangePoint)
-          : (maxScore >= sideChangePoint);
+        const shouldChange = isDecidingSet && Math.max(p1, p2) >= sideChangePointOf(rules);
         if (shouldChange) {
           sideChanged = true;
           const scTime = new Date(baseTime + setIdx * 10 * 60 * 1000 + entryIndex * 30000);
@@ -318,10 +323,12 @@ function simulateScoreHistory(
 }
 
 // 랜덤 세트 점수 생성
-function simulateSet(winScore: number, minLead: number): SetScore {
+function simulateSet(rules: ScoringRuleSet): SetScore {
   const winner = Math.random() < 0.5 ? 1 : 2;
-  const loserScore = Math.floor(Math.random() * winScore);
-  const winnerScore = Math.max(winScore, loserScore + minLead);
+  const loserScore = Math.floor(Math.random() * rules.winScore);
+  let winnerScore = Math.max(rules.winScore, loserScore + rules.minLead);
+  // 규칙(듀스 캡 포함)으로 끝난 세트가 될 때까지 올린다
+  while (!setWinnerByRules(winnerScore, loserScore, rules)) winnerScore++;
 
   return {
     player1Score: winner === 1 ? winnerScore : loserScore,
@@ -336,9 +343,7 @@ function simulateSet(winScore: number, minLead: number): SetScore {
 
 // 경기 결과 시뮬레이션 (Best of N 세트)
 function simulateMatchResult(
-  setsToWin: number,
-  winScore: number,
-  minLead: number,
+  rules: ScoringRuleSet,
   p1Id: string,
   p2Id: string,
 ): {
@@ -349,9 +354,9 @@ function simulateMatchResult(
   let p1Wins = 0;
   let p2Wins = 0;
 
-  while (p1Wins < setsToWin && p2Wins < setsToWin) {
-    const set = simulateSet(winScore, minLead);
-    const setWinner = set.player1Score > set.player2Score ? 1 : 2;
+  while (p1Wins < rules.setsToWin && p2Wins < rules.setsToWin) {
+    const set = simulateSet(rules);
+    const setWinner = setWinnerByRules(set.player1Score, set.player2Score, rules) ?? 1;
     // winnerId를 실제 승자 ID로 설정
     set.winnerId = setWinner === 1 ? p1Id : p2Id;
     if (setWinner === 1) p1Wins++;
@@ -359,107 +364,7 @@ function simulateMatchResult(
     sets.push(set);
   }
 
-  return { sets, winner: p1Wins >= setsToWin ? 1 : 2 };
-}
-
-// ===== 조별 순위 계산 =====
-interface ParticipantStats {
-  id: string;
-  wins: number;
-  losses: number;
-  setsWon: number;
-  setsLost: number;
-  pointsFor: number;
-  pointsAgainst: number;
-}
-
-function calculateGroupRanking(groupMatches: Omit<Match, 'id'>[], participantKey: 'player' | 'team'): string[] {
-  const stats = new Map<string, ParticipantStats>();
-
-  const getId = (match: Omit<Match, 'id'>, side: 1 | 2): string | undefined => {
-    if (participantKey === 'team') {
-      return side === 1 ? match.team1Id : match.team2Id;
-    }
-    return side === 1 ? match.player1Id : match.player2Id;
-  };
-
-  for (const match of groupMatches) {
-    const p1Id = getId(match, 1);
-    const p2Id = getId(match, 2);
-    if (!p1Id || !p2Id || !match.sets) continue;
-
-    if (!stats.has(p1Id)) stats.set(p1Id, { id: p1Id, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-    if (!stats.has(p2Id)) stats.set(p2Id, { id: p2Id, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-
-    const s1 = stats.get(p1Id)!;
-    const s2 = stats.get(p2Id)!;
-
-    // 승/패
-    if (match.winnerId === p1Id) {
-      s1.wins++;
-      s2.losses++;
-    } else {
-      s2.wins++;
-      s1.losses++;
-    }
-
-    // 세트/점수 집계
-    for (const set of match.sets) {
-      if (set.player1Score > set.player2Score) {
-        s1.setsWon++;
-        s2.setsLost++;
-      } else {
-        s2.setsWon++;
-        s1.setsLost++;
-      }
-      s1.pointsFor += set.player1Score;
-      s1.pointsAgainst += set.player2Score;
-      s2.pointsFor += set.player2Score;
-      s2.pointsAgainst += set.player1Score;
-    }
-  }
-
-  // 정렬: 승수 내림차순 → 세트득실 → 점수득실
-  const sorted = Array.from(stats.values()).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    const setDiffA = a.setsWon - a.setsLost;
-    const setDiffB = b.setsWon - b.setsLost;
-    if (setDiffB !== setDiffA) return setDiffB - setDiffA;
-    const ptDiffA = a.pointsFor - a.pointsAgainst;
-    const ptDiffB = b.pointsFor - b.pointsAgainst;
-    return ptDiffB - ptDiffA;
-  });
-
-  return sorted.map(s => s.id);
-}
-
-function selectAdvancingParticipants(
-  groupRankings: Map<string, string[]>,
-  advancePerGroup: number,
-  finalsSlots: number,
-): string[] {
-  const advanced: string[] = [];
-  const wildcardCandidates: string[] = [];
-
-  for (const [, ranking] of groupRankings) {
-    // 각 조 상위 advancePerGroup명 직접 진출
-    for (let i = 0; i < Math.min(advancePerGroup, ranking.length); i++) {
-      advanced.push(ranking[i]);
-    }
-    // 와일드카드 후보: advancePerGroup위 다음 선수
-    if (ranking.length > advancePerGroup) {
-      wildcardCandidates.push(ranking[advancePerGroup]);
-    }
-  }
-
-  // 와일드카드 선발 (부족한 인원만큼)
-  const wildcardNeeded = Math.max(0, finalsSlots - advanced.length);
-  // 와일드카드 후보는 이미 성적순으로 조별 랭킹에서 나왔으므로 그대로 사용
-  for (let i = 0; i < Math.min(wildcardNeeded, wildcardCandidates.length); i++) {
-    advanced.push(wildcardCandidates[i]);
-  }
-
-  return advanced;
+  return { sets, winner: p1Wins >= rules.setsToWin ? 1 : 2 };
 }
 
 // 다음 2의 거듭제곱으로 올림
@@ -491,12 +396,9 @@ function getParticipantName(id: string, nameMap: Map<string, string>): string {
 
 // 본선 싱글엘리미네이션 경기 생성
 function generateFinalsMatches(
-  advancedIds: string[],
+  slots: ReadonlyArray<{ id: string } | null>,
   nameMap: Map<string, string>,
   tournament: Tournament,
-  setsToWin: number,
-  winScore: number,
-  minLead: number,
   matchType: 'individual' | 'team',
   stageId: string,
   referees: { id: string; name: string }[],
@@ -511,14 +413,12 @@ function generateFinalsMatches(
   const semifinalLosers: string[] = [];
   const quarterFinalLosers: string[] = [];
 
-  const bracketSize = nextPowerOf2(advancedIds.length);
+  const bracketSize = nextPowerOf2(slots.length);
   const totalRounds = Math.log2(bracketSize);
 
-  // 시드 배치 (BYE 포함)
+  // 시드 배치 (computeFinalsSeeding: 표준 시드 위치 + 같은 조 회피, null = BYE)
   const seeded: (string | null)[] = [];
-  for (let i = 0; i < bracketSize; i++) {
-    seeded.push(i < advancedIds.length ? advancedIds[i] : null);
-  }
+  for (let i = 0; i < bracketSize; i++) seeded.push(slots[i]?.id ?? null);
 
   let currentParticipants = seeded;
   let finalMatch: Omit<Match, 'id'> | undefined;
@@ -545,8 +445,9 @@ function generateFinalsMatches(
         continue;
       }
 
-      // 실제 경기 시뮬레이션
-      const result = simulateMatchResult(setsToWin, winScore, minLead, p1, p2);
+      // 실제 경기 시뮬레이션 (그 라운드의 규칙: 라운드별 세트 수 등)
+      const rules = resolveMatchScoring({ type: matchType, stageId, roundLabel, bracketRound: roundLabel }, tournament);
+      const result = simulateMatchResult(rules, p1, p2);
       const winnerId = result.winner === 1 ? p1 : p2;
       const loserId = result.winner === 1 ? p2 : p1;
       nextRoundParticipants.push(winnerId);
@@ -572,7 +473,7 @@ function generateFinalsMatches(
           team2: t2?.memberNames || [p2Name],
         };
       })() : undefined;
-      const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1, p2, result.sets, matchType, teamServeOrders, setsToWin);
+      const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1, p2, result.sets, matchType, teamServeOrders, rules);
       const refIndex = matchCounter.value % referees.length;
       const courtIndex = matchCounter.value % courts.length;
       const matchId = `sim_match_${matchCounter.value}`;
@@ -653,9 +554,6 @@ function createRankingMatch(
   p2Id: string,
   nameMap: Map<string, string>,
   tournament: Tournament,
-  setsToWin: number,
-  winScore: number,
-  minLead: number,
   matchType: 'individual' | 'team',
   stageId: string,
   roundLabel: string,
@@ -668,7 +566,9 @@ function createRankingMatch(
 ): { match: Omit<Match, 'id'>; slot: Omit<ScheduleSlot, 'id'> } {
   const p1Name = getParticipantName(p1Id, nameMap);
   const p2Name = getParticipantName(p2Id, nameMap);
-  const result = simulateMatchResult(setsToWin, winScore, minLead, p1Id, p2Id);
+  // 순위결정전 규칙(placementScoring) 또는 3/4위전(결승 라운드 규칙)
+  const rules = resolveMatchScoring({ type: matchType, stageId, roundLabel, bracketRound: roundLabel }, tournament);
+  const result = simulateMatchResult(rules, p1Id, p2Id);
   const winnerId = result.winner === 1 ? p1Id : p2Id;
   // 팀전 서브 순서 생성
   const teamServeOrders = isTeam && teamsMap ? (() => {
@@ -679,7 +579,7 @@ function createRankingMatch(
       team2: t2?.memberNames || [p2Name],
     };
   })() : undefined;
-  const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1Id, p2Id, result.sets, matchType, teamServeOrders, setsToWin);
+  const scoreHistory = simulateScoreHistory(p1Name, p2Name, p1Id, p2Id, result.sets, matchType, teamServeOrders, rules);
   const refIndex = matchCounter.value % referees.length;
   const courtIndex = matchCounter.value % courts.length;
   const matchId = `sim_match_${matchCounter.value}`;
@@ -761,37 +661,15 @@ export interface SimulationOptions {
 export function simulateTournament(tournament: Tournament, participantCount: number, options?: SimulationOptions): SimulationResult {
   const isTeam = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
 
-  // 대회 설정에서 스코어링 규칙 읽기 (scoringRules > gameConfig > teamMatchSettings > 기본값)
-  const scoringRules = tournament.scoringRules || (tournament.gameConfig
-    ? {
-        winScore: tournament.gameConfig.winScore,
-        setsToWin: tournament.gameConfig.setsToWin,
-        maxSets: (tournament.gameConfig.setsToWin * 2 - 1),
-        minLead: 2,
-        deuceEnabled: true,
-      }
-    : {
-        winScore: isTeam ? 31 : 11,
-        setsToWin: isTeam ? 1 : 2,
-        maxSets: isTeam ? 1 : 3,
-        minLead: 2,
-        deuceEnabled: true,
-      });
-  const winScore = scoringRules.winScore || (isTeam ? (tournament.teamMatchSettings?.winScore || 31) : 11);
-  const setsToWin = scoringRules.setsToWin || (isTeam ? (tournament.teamMatchSettings?.setsToWin || 1) : 2);
-  const minLead = scoringRules.minLead || tournament.teamMatchSettings?.minLead || 2;
   const matchType: 'individual' | 'team' = isTeam ? 'team' : 'individual';
 
   // stageId 결정
   const qualifyingStageId = tournament.stages?.find(s => s.type === 'qualifying')?.id || 'qualifying';
   const finalsStageId = tournament.stages?.find(s => s.type === 'finals')?.id || 'finals';
-  const rankingStageId = tournament.stages?.find(s => s.type === 'ranking_match')?.id || 'ranking_match';
 
   // 본선 설정
   const hasFinalsStage = !!(tournament.stages?.some(s => s.type === 'finals') || tournament.finalsConfig);
-  const finalsStage = tournament.stages?.find(s => s.type === 'finals');
-  const advanceCount = finalsStage?.advanceCount || tournament.finalsConfig?.advanceCount || 0;
-  const rankingMatchConfig = tournament.rankingMatchConfig || tournament.stages?.find(s => s.type === 'ranking_match')?.rankingMatchConfig;
+  const finalRankingRules = resolveCompetitionRules(tournament, finalsStageId).finalRanking;
 
   // 1. 참가자: 기존 등록 선수 → 샘플 이름 → 가상 이름 순으로 사용
   const samplePlayers = options?.samplePlayerNames || [];
@@ -946,7 +824,8 @@ export function simulateTournament(tournament: Tournament, participantCount: num
         const p1Id = p1.id;
         const p2Id = p2.id;
 
-        const result = simulateMatchResult(setsToWin, winScore, minLead, p1Id, p2Id);
+        const qualRules = resolveMatchScoring({ type: matchType, stageId: qualifyingStageId }, tournament);
+        const result = simulateMatchResult(qualRules, p1Id, p2Id);
         const refIndex = matchCounter.value % referees.length;
         const courtIndex = matchCounter.value % courts.length;
         const matchId = `sim_match_${matchCounter.value}`;
@@ -974,7 +853,7 @@ export function simulateTournament(tournament: Tournament, participantCount: num
         // scoreHistory 생성
         const scoreHistory = simulateScoreHistory(
           p1Name, p2Name, p1Id, p2Id,
-          result.sets, matchType, teamServeOrders, setsToWin,
+          result.sets, matchType, teamServeOrders, qualRules,
         );
 
         // 스케줄 시간 계산 (20분 간격)
@@ -1040,165 +919,63 @@ export function simulateTournament(tournament: Tournament, participantCount: num
   }
 
   // ===== 7. 본선 진출자 선정 + 본선 경기 =====
-  if (hasFinalsStage && hasGroupStage && advanceCount > 0) {
-    const participantKey: 'player' | 'team' = isTeam ? 'team' : 'player';
+  // 진출자·시드는 서버 generate_finals와 같은 규칙(computeFinalsSeeding: 조당 인원 + 명시적 와일드카드 + 동률 규칙 + 표준 시드)
+  if (hasFinalsStage && hasGroupStage) {
+    const qualMatches = matches.map((m, i) => ({ ...m, id: `sim_match_${i}` }) as Match).filter(m => m.stageId === qualifyingStageId);
+    const seeding = computeFinalsSeeding(tournament, qualMatches, qualifyingStageId, finalsStageId);
+    const realCount = seeding.slots.filter(Boolean).length;
+    if (realCount >= 2) {
+      const finalsResult = generateFinalsMatches(
+        seeding.slots,
+        nameMap,
+        tournament,
+        matchType,
+        finalsStageId,
+        referees,
+        courts,
+        matchCounter,
+        scheduleBaseTime,
+        isTeam,
+        teamsMap.size > 0 ? teamsMap : undefined,
+      );
 
-    // 조별 순위 계산
-    const groupRankings = new Map<string, string[]>();
-    for (const group of groups) {
-      const groupMatches = matches.filter(m => m.stageId === qualifyingStageId && m.groupId === group.id);
-      const ranking = calculateGroupRanking(groupMatches, participantKey);
-      groupRankings.set(group.id, ranking);
-    }
+      matches.push(...finalsResult.matches);
+      schedule.push(...finalsResult.schedule);
 
-    // 진출자 선정
-    const advancePerGroup = finalsStage?.advanceConfig?.advancePerGroup
-      || Math.floor(advanceCount / groupCount);
-    const finalsSlots = nextPowerOf2(advanceCount);
-    const advancedIds = selectAdvancingParticipants(groupRankings, advancePerGroup, Math.min(finalsSlots, advanceCount));
+      const tm = teamsMap.size > 0 ? teamsMap : undefined;
+      const addRanking = (a: string, b: string, stageId: string, label: string) => {
+        const r = createRankingMatch(a, b, nameMap, tournament, matchType, stageId, label, referees, courts, matchCounter, scheduleBaseTime, isTeam, tm);
+        matches.push(r.match);
+        schedule.push(r.slot);
+        return r.match;
+      };
+      const loserOf = (m: Omit<Match, 'id'>) => {
+        const a = isTeam ? m.team1Id : m.player1Id;
+        const b = isTeam ? m.team2Id : m.player2Id;
+        return m.winnerId === a ? b! : a!;
+      };
 
-    // 본선 경기 생성
-    const finalsResult = generateFinalsMatches(
-      advancedIds,
-      nameMap,
-      tournament,
-      setsToWin,
-      winScore,
-      minLead,
-      matchType,
-      finalsStageId,
-      referees,
-      courts,
-      matchCounter,
-      scheduleBaseTime,
-      isTeam,
-      teamsMap.size > 0 ? teamsMap : undefined,
-    );
-
-    matches.push(...finalsResult.matches);
-    schedule.push(...finalsResult.schedule);
-
-    // ===== 8. 순위결정전 =====
-    if (rankingMatchConfig?.enabled) {
-      // 3/4위 결정전
-      if (rankingMatchConfig.thirdPlace && finalsResult.semifinalLosers.length === 2) {
-        const { match, slot } = createRankingMatch(
-          finalsResult.semifinalLosers[0],
-          finalsResult.semifinalLosers[1],
-          nameMap,
-          tournament,
-          setsToWin,
-          winScore,
-          minLead,
-          matchType,
-          rankingStageId,
-          '3위결정전',
-          referees,
-          courts,
-          matchCounter,
-          scheduleBaseTime,
-          isTeam,
-          teamsMap.size > 0 ? teamsMap : undefined,
-        );
-        matches.push(match);
-        schedule.push(slot);
+      // ===== 8. 순위결정전 (대회 규칙의 최종 순위 설정) =====
+      // 3/4위 결정전: finalRanking.thirdPlace = 'match'
+      if (finalRankingRules.thirdPlace === 'match' && finalsResult.semifinalLosers.length === 2) {
+        addRanking(finalsResult.semifinalLosers[0], finalsResult.semifinalLosers[1], `${finalsStageId}_3rd`, '3/4위 결정전');
       }
 
-      // 5~8위 결정전
-      if (rankingMatchConfig.fifthToEighth && finalsResult.quarterFinalLosers.length >= 2) {
-        const losers = finalsResult.quarterFinalLosers;
-        const format = rankingMatchConfig.fifthToEighthFormat || 'simple';
-
-        if (format === 'simple' && losers.length >= 2) {
-          // 2경기: 0 vs 3, 1 vs 2 (있는 만큼)
-          const pairs: [number, number][] = losers.length >= 4
-            ? [[0, 3], [1, 2]]
-            : [[0, 1]];
-          for (const [a, b] of pairs) {
-            if (losers[a] && losers[b]) {
-              const { match, slot } = createRankingMatch(
-                losers[a], losers[b], nameMap, tournament,
-                setsToWin, winScore, minLead, matchType,
-                rankingStageId, '5-8위결정전', referees, courts,
-                matchCounter, scheduleBaseTime, isTeam,
-                teamsMap.size > 0 ? teamsMap : undefined,
-              );
-              matches.push(match);
-              schedule.push(slot);
-            }
-          }
-        } else if (format === 'full' && losers.length >= 4) {
-          // 교차전 2경기
-          const semi1 = createRankingMatch(
-            losers[0], losers[3], nameMap, tournament,
-            setsToWin, winScore, minLead, matchType,
-            rankingStageId, '5-8위결정전', referees, courts,
-            matchCounter, scheduleBaseTime, isTeam,
-            teamsMap.size > 0 ? teamsMap : undefined,
-          );
-          matches.push(semi1.match);
-          schedule.push(semi1.slot);
-
-          const semi2 = createRankingMatch(
-            losers[1], losers[2], nameMap, tournament,
-            setsToWin, winScore, minLead, matchType,
-            rankingStageId, '5-8위결정전', referees, courts,
-            matchCounter, scheduleBaseTime, isTeam,
-            teamsMap.size > 0 ? teamsMap : undefined,
-          );
-          matches.push(semi2.match);
-          schedule.push(semi2.slot);
-
-          // 순위전 2경기 (승자끼리 5/6위, 패자끼리 7/8위)
-          const semi1Winner = semi1.match.winnerId!;
-          const semi1Loser = semi1.match.player1Id === semi1Winner ? semi1.match.player2Id! : semi1.match.player1Id!;
-          const semi2Winner = semi2.match.winnerId!;
-          const semi2Loser = semi2.match.player1Id === semi2Winner ? semi2.match.player2Id! : semi2.match.player1Id!;
-
-          // 팀전일 경우 team1Id/team2Id 사용
-          const getSide = (m: Omit<Match, 'id'>, winnerId: string) => {
-            if (isTeam) {
-              return m.team1Id === winnerId ? m.team2Id! : m.team1Id!;
-            }
-            return m.player1Id === winnerId ? m.player2Id! : m.player1Id!;
-          };
-
-          const actualSemi1Loser = isTeam ? getSide(semi1.match, semi1Winner) : semi1Loser;
-          const actualSemi2Loser = isTeam ? getSide(semi2.match, semi2Winner) : semi2Loser;
-
-          const final56 = createRankingMatch(
-            semi1Winner, semi2Winner, nameMap, tournament,
-            setsToWin, winScore, minLead, matchType,
-            rankingStageId, '5-8위결정전', referees, courts,
-            matchCounter, scheduleBaseTime, isTeam,
-            teamsMap.size > 0 ? teamsMap : undefined,
-          );
-          matches.push(final56.match);
-          schedule.push(final56.slot);
-
-          const final78 = createRankingMatch(
-            actualSemi1Loser, actualSemi2Loser, nameMap, tournament,
-            setsToWin, winScore, minLead, matchType,
-            rankingStageId, '5-8위결정전', referees, courts,
-            matchCounter, scheduleBaseTime, isTeam,
-            teamsMap.size > 0 ? teamsMap : undefined,
-          );
-          matches.push(final78.match);
-          schedule.push(final78.slot);
-        } else if (format === 'round_robin' && losers.length >= 2) {
-          // 풀리그: 모든 조합
-          for (let i = 0; i < losers.length; i++) {
-            for (let j = i + 1; j < losers.length; j++) {
-              const { match, slot } = createRankingMatch(
-                losers[i], losers[j], nameMap, tournament,
-                setsToWin, winScore, minLead, matchType,
-                rankingStageId, '5-8위결정전', referees, courts,
-                matchCounter, scheduleBaseTime, isTeam,
-                teamsMap.size > 0 ? teamsMap : undefined,
-              );
-              matches.push(match);
-              schedule.push(slot);
-            }
+      // 5~8위 결정전: finalRanking.fifthToEighthMatches (8강 패자)
+      const losers = finalsResult.quarterFinalLosers;
+      const format = finalRankingRules.fifthToEighthMatches;
+      const stage58 = `${finalsStageId}_5to8`;
+      if (format !== 'none' && losers.length >= 4 && (format === 'simple' || format === 'full')) {
+        const semi1 = addRanking(losers[0], losers[1], stage58, '5-8위 결정전');
+        const semi2 = addRanking(losers[2], losers[3], stage58, '5-8위 결정전');
+        if (format === 'full') {
+          addRanking(semi1.winnerId!, semi2.winnerId!, stage58, '5/6위 결정전');
+          addRanking(loserOf(semi1), loserOf(semi2), stage58, '7/8위 결정전');
+        }
+      } else if (format === 'round_robin' && losers.length >= 2) {
+        for (let i = 0; i < losers.length; i++) {
+          for (let j = i + 1; j < losers.length; j++) {
+            addRanking(losers[i], losers[j], stage58, '5~8위 순위 결정전');
           }
         }
       }

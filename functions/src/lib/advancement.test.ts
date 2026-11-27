@@ -5,6 +5,7 @@ import {
   needsAdvancementCheck,
   processMatchWrite,
   sweepAdvancement,
+  walkoverSetsForTournament,
   findDownstreamLinks,
   type AdvancementStore,
   type ConflictRecord,
@@ -150,7 +151,7 @@ describe('determineResult', () => {
     expect(resolveScoringRules({ type: 'individual' }, tour).winScore).toBe(21);
     expect(resolveScoringRules({ type: 'individual', stageId: 's1' }, tour).winScore).toBe(31);
     expect(resolveScoringRules({ type: 'individual', stageId: 's1', appliedScoringRules: { winScore: 11, setsToWin: 3, minLead: 2 } }, tour).setsToWin).toBe(3);
-    expect(resolveScoringRules({ type: 'individual' }, {})).toEqual({ setsToWin: 2, winScore: 11, minLead: 2 });
+    expect(resolveScoringRules({ type: 'individual' }, {})).toMatchObject({ setsToWin: 2, winScore: 11, minLead: 2 });
   });
 });
 
@@ -461,7 +462,7 @@ describe('sweepAdvancement (시뮬레이션)', () => {
       f: pending({ sourceMatch1: 'sf1', sourceMatch2: 'sf2' }),
       third: pending({ sourceMatch1: 'sf1', sourceMatch2: 'sf2', sourceType: 'loser' }),
     };
-    const patches = sweepAdvancement(all, () => ({ setsToWin: 2, winScore: 11, minLead: 2 }));
+    const patches = sweepAdvancement(all, () => ({ setsToWin: 2, winScore: 11, minLead: 2 }), walkoverSetsForTournament(null));
     expect(patches.f).toMatchObject({ player1Id: 'a', player2Id: 'c' });
     expect(patches.third.player1Id).toBeUndefined();
     expect(patches.third).toMatchObject({ player2Id: 'd', status: 'completed', winnerId: 'd', autoWalkover: true });
@@ -470,5 +471,16 @@ describe('sweepAdvancement (시뮬레이션)', () => {
 
   it('자기 자신을 참조하는 링크는 무시한다', () => {
     expect(findDownstreamLinks({ x: pending({ sourceMatch1: 'x' }) }, 'x')).toEqual([]);
+  });
+});
+
+describe('determineResult honours the deuce cap (single winner function)', () => {
+  it('15:14 under a 15 cap is a set win', () => {
+    const m = { status: 'completed', player1Id: 'a', player2Id: 'b', player1Name: 'A', player2Name: 'B', sets: [{ player1Score: 15, player2Score: 14 }, { player1Score: 11, player2Score: 3 }] };
+    expect(determineResult(m, { setsToWin: 2, winScore: 11, minLead: 2, deuceCap: 15 })).toMatchObject({ decided: true, winner: { id: 'a' } });
+    expect(determineResult(m, { setsToWin: 2, winScore: 11, minLead: 2 }).decided).toBe(false);
+  });
+  it('resolveScoringRules keeps the tournament deuce cap', () => {
+    expect(resolveScoringRules({ type: 'individual' }, { rules: { scoring: { individual: { deuceCap: 15 } } } }).deuceCap).toBe(15);
   });
 });

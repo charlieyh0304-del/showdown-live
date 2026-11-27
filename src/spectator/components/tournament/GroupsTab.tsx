@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calculateGroupRanking, groupStageIdOf, type RankingTournament } from '@shared/utils/ranking';
-import { resolveCompetitionRules } from '@shared/rules/competitionRules';
+import { qualifierMarks, type RankingTournament } from '@shared/utils/ranking';
 import type { Match } from '@shared/types';
+import GroupRankingTable from './GroupRankingTable';
 
 export interface GroupsTabProps {
   matches: Match[];
@@ -26,6 +26,8 @@ export default function GroupsTab({ matches, onSelectPlayer, isTeam = false, isF
     });
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [groupMatches]);
+  // 진출 표시: 본선 생성기와 같은 진출자 선정(조당 인원 + 와일드카드 + 동률 규칙)
+  const marks = useMemo(() => qualifierMarks(groupMatches, tournament), [groupMatches, tournament]);
 
   if (groups.length === 0) {
     return (
@@ -59,102 +61,10 @@ export default function GroupsTab({ matches, onSelectPlayer, isTeam = false, isF
                 )}
               </span>
             </div>
-            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} />
+            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} marks={marks} />
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function formatDiff(value: number): { text: string; color: string } {
-  if (value > 0) return { text: `+${value}`, color: '#22c55e' };
-  if (value < 0) return { text: `${value}`, color: '#ef4444' };
-  return { text: '0', color: '#9ca3af' };
-}
-
-function GroupRankingTable({ matches, onSelectPlayer, isTeam = false, tournament, scope = '' }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; tournament?: Partial<RankingTournament> | null; scope?: string }) {
-  const { t } = useTranslation();
-  // 진출 인원은 예선 스테이지 규칙까지 반영한다 (본선 진출자 선정과 같은 규칙)
-  const perGroup = resolveCompetitionRules(tournament, groupStageIdOf(matches, tournament)).qualification.perGroup;
-  // 단일 소스: shared/utils/ranking.ts의 calculateGroupRanking (대회 규칙의 동률 기준)
-  const rankings = useMemo(() => {
-    const r = calculateGroupRanking(matches, undefined, tournament, scope);
-    return r.map(p => ({
-      rank: p.rank,
-      tied: !!p.tied,
-      name: p.playerName || '',
-      played: p.played,
-      wins: p.wins,
-      losses: p.losses,
-      setsWon: p.setsWon,
-      setsLost: p.setsLost,
-      pointsFor: p.pointsFor,
-      pointsAgainst: p.pointsAgainst,
-    }));
-  }, [matches, tournament, scope]);
-
-  if (rankings.length === 0) return null;
-
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.875rem' }}>
-        <caption className="sr-only">{t('spectator.tournament.tabs.groups')}</caption>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #374151' }}>
-            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.rankLabel')}</th>
-            <th scope="col" style={{ textAlign: 'left', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.nameLabel')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.matchesLabel')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.winsLabel')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.lossesLabel')}</th>
-            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.setWinsLosses')}</th>}
-            {!isTeam && <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.setDiff')}</th>}
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.pointsDiff')}</th>
-            <th scope="col" style={{ textAlign: 'center', padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1 }}>{t('spectator.tournament.view.goalDiff')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rankings.map((r, i) => (
-            <tr
-              key={r.name}
-              style={{
-                borderBottom: '1px solid #1f2937',
-                backgroundColor: i < perGroup ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-              }}
-            >
-              <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{r.tied ? t('common.competitionRules.jointPlace', { place: r.rank }) : r.rank}</td>
-              <td style={{ padding: '0.5rem', fontWeight: 600, color: '#fff' }}>
-                <button
-                  className="text-left hover:underline hover:text-yellow-400"
-                  onClick={() => onSelectPlayer(r.name)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 600, padding: 0 }}
-                >
-                  {r.name}
-                </button>
-                {i < perGroup && (
-                  <span style={{
-                    marginLeft: '0.5rem',
-                    fontSize: '0.75rem',
-                    backgroundColor: '#15803d',
-                    color: '#fff',
-                    padding: '0.125rem 0.375rem',
-                    borderRadius: '0.25rem',
-                  }}>
-                    {t('spectator.tournament.view.advanceBadge')}
-                  </span>
-                )}
-              </td>
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.played}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#22c55e' }}><span className="sr-only">{t('spectator.tournament.view.srWins')}</span>{r.wins}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: '#ef4444' }}><span className="sr-only">{t('spectator.tournament.view.srLosses')}</span>{r.losses}</td>
-              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem' }}>{t('spectator.tournament.view.setWL', { w: r.setsWon, l: r.setsLost })}</td>}
-              {!isTeam && <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.setsWon - r.setsLost).color, fontWeight: 'bold' }}>{(r.setsWon - r.setsLost) !== 0 && <span className="sr-only">{(r.setsWon - r.setsLost) > 0 ? t('spectator.tournament.view.srDiffPositive') : t('spectator.tournament.view.srDiffNegative')}</span>}{formatDiff(r.setsWon - r.setsLost).text}</td>}
-              <td style={{ textAlign: 'center', padding: '0.5rem' }}>{r.pointsFor}-{r.pointsAgainst}</td>
-              <td style={{ textAlign: 'center', padding: '0.5rem', color: formatDiff(r.pointsFor - r.pointsAgainst).color, fontWeight: 'bold' }}>{(r.pointsFor - r.pointsAgainst) !== 0 && <span className="sr-only">{(r.pointsFor - r.pointsAgainst) > 0 ? t('spectator.tournament.view.srDiffPositive') : t('spectator.tournament.view.srDiffNegative')}</span>}{formatDiff(r.pointsFor - r.pointsAgainst).text}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
