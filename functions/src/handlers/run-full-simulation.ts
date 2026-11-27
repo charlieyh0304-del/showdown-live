@@ -4,12 +4,12 @@
  */
 import { db } from "../db-helpers";
 import {
-  computeGroupRankings,
-  computeFinalRanking,
-  computeRankingDisplayCount,
   splitIntoRankingTiers,
   type MatchLike,
 } from "../lib/rankings-compute";
+import { resultContextFor } from "../shared/rules/standings";
+import { rankMatches, splitByGroup } from "../shared/rules/qualification";
+import { computeFinalPlacements } from "../shared/rules/finalRanking";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
@@ -40,15 +40,14 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
     const hasFinals = allM.some(m => ((m.stageId as string) || "").includes("finals") || ((m.stageId as string) || "").includes("ranking"));
 
     if (!hasFinals) {
-      const fc = tourData.finalsConfig as Record<string, unknown> | undefined;
       const rc = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
       const genR = await executeTool("generate_finals", {
         tournamentId: tid,
-        advancePerGroup: (fc?.advancePerGroup as number) || 2,
-        wildcardCount: (fc?.wildcardCount as number) || 0,
-        includeThirdPlace: rc?.thirdPlace !== false,
+        // 3/4위전 여부는 대회 규칙(finalRanking.thirdPlace)에서 generate_finals가 읽는다
         includeFifthToEighth: rc?.fifthToEighth || false,
         includeClassification: rc?.classificationGroups || false,
+        // 시뮬레이션: 진출 경계 동률은 seed 추첨으로 정하고 그 결정을 기록한다
+        resolveTiesByLot: true,
       });
       const genP = JSON.parse(genR);
       if (genP.success) {
@@ -428,17 +427,20 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
   // 3. 대회 완료
   await db.ref(`tournaments/${tid}/status`).set("completed");
 
-  // 4. 조별 순위 계산 — lib/rankings-compute의 순수 함수 위임
+  // 4. 조별 순위 계산 — 대회 규칙 단일 설정원(shared/rules)의 순위·동률 규칙
   const finalSnap = await db.ref(`matches/${tid}`).once("value");
   const finalM = finalSnap.exists() ? Object.entries(finalSnap.val() as Record<string, Record<string, unknown>>) : [];
   const matchList: MatchLike[] = finalM.map(([, m]) => m);
-  const groupRankingsMap = computeGroupRankings(matchList);
-  const groupRankings = [...groupRankingsMap.entries()].map(([gid, sorted]) => {
-    const header = gid === "full_league" ? "최종 순위" : `${gid} 순위`;
+  const latestTourSnap = await db.ref(`tournaments/${tid}`).once("value");
+  const latestTour = (latestTourSnap.exists() ? latestTourSnap.val() : tourData) as Record<string, unknown>;
+  const rankCtx = resultContextFor(latestTour);
+  const leagueMatches = matchList.filter(m => !/finals|ranking|3rd|5to8|class/.test(typeof m.stageId === "string" ? m.stageId : ""));
+  const groupRankings = splitByGroup(leagueMatches).filter(g => g.matches.some(m => m.status === "completed")).map(({ groupId, matches }) => {
+    const header = !groupId || groupId === "full_league" ? "최종 순위" : `${groupId} 순위`;
     const tableHeader = "순위 | 이름 | 승 | 패 | 세트(승-패) | 득점-실점";
     const separator = "---|---|---|---|---|---";
-    const rows = sorted.map((s, i) =>
-      `${i + 1}위 | ${s.name} | ${s.wins}승 | ${s.losses}패 | ${s.setsWon}-${s.setsLost} | ${s.pointsFor}-${s.pointsAgainst}`
+    const rows = rankMatches(matches, rankCtx, groupId).ranked.map(({ row: s, rank, tied }) =>
+      `${rank}위${tied ? "(공동)" : ""} | ${s.name} | ${s.wins}승 | ${s.losses}패 | ${s.setsWon}-${s.setsLost} | ${s.pointsFor}-${s.pointsAgainst}`
     ).join("\n");
     return `${header}:\n${tableHeader}\n${separator}\n${rows}`;
   }).join("\n\n");
@@ -475,14 +477,9 @@ export async function runFullSimulation(input: Record<string, unknown>, executeT
   }
 
   // 7. 최종 전체 순위 산출 — lib/rankings-compute의 순수 함수 위임
-  const finalRanking: string[] = [];
-  const sortedPlayers = computeFinalRanking(matchList);
-  const rkCfg = tourData.rankingMatchConfig as Record<string, unknown> | undefined;
-  const displayCount = computeRankingDisplayCount(sortedPlayers.length, rkCfg);
-  for (let i = 0; i < displayCount; i++) {
-    const p = sortedPlayers[i];
-    finalRanking.push(`${i + 1}위: ${p.name} (${p.wins}승 ${p.losses}패, 세트 ${p.setsWon}-${p.setsLost})`);
-  }
+  // 총 승수가 아니라 대진 결과(결승 → 3/4위전 → 순위결정전 → 라운드)로 정한다 (B4)
+  const finalRanking = computeFinalPlacements({ matches: matchList, ctx: rankCtx })
+    .map(p => `${p.place}위${p.joint ? "(공동)" : ""}: ${p.name}`);
 
   return JSON.stringify({
     success: true, steps: allSteps, groupRankings, finalsResults, teamRoster,

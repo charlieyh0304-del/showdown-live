@@ -7,8 +7,10 @@ import {
   thirdPlaceStageId,
   type SkeletonEntrant,
 } from './bracketSkeleton';
+import { createEmptySet } from './scoring';
+import type { SetScore } from '../types';
 
-function build(n: number, opts: { thirdPlace?: boolean; entrants?: SkeletonEntrant[]; team?: boolean } = {}) {
+function build(n: number, opts: { thirdPlace?: boolean; entrants?: SkeletonEntrant[]; team?: boolean; byeSets?: (side: 1 | 2, id: string) => SetScore[] } = {}) {
   let seq = 0;
   return buildSingleEliminationSkeleton({
     tournamentId: 't1',
@@ -19,6 +21,7 @@ function build(n: number, opts: { thirdPlace?: boolean; entrants?: SkeletonEntra
     makeKey: () => `k${seq++}`,
     now: 1000,
     labels: { undecided: '미정', bye: '부전승' },
+    byeSets: opts.byeSets,
   });
 }
 
@@ -43,7 +46,7 @@ describe('buildSingleEliminationSkeleton', () => {
 
       // BYE 경기 수 = size - n, 실제 1라운드 경기 = n - size/2
       const r1 = main.filter(e => e.match.round === 1);
-      expect(r1.filter(e => e.match.bye)).toHaveLength(size - n);
+      expect(r1.filter(e => e.match.isBye)).toHaveLength(size - n);
 
       const byKey = new Map(entries.map(e => [e.key, e.match]));
       const usedAsWinnerSource = new Map<string, number>();
@@ -102,10 +105,11 @@ describe('buildSingleEliminationSkeleton', () => {
     const r1 = entries.filter(e => e.match.round === 1);
     // 8강 크기: 실제 1경기(p1 vs p2), BYE 3경기(p3, p4, p5)
     expect(r1[0].match).toMatchObject({ player1Id: 'p1', player2Id: 'p2', status: 'pending' });
-    const byes = r1.filter(e => e.match.bye);
+    const byes = r1.filter(e => e.match.isBye);
     expect(byes.map(e => e.match.player1Id)).toEqual(['p3', 'p4', 'p5']);
     for (const b of byes) {
-      expect(b.match).toMatchObject({ status: 'completed', isBye: true, player2Id: '', player2Name: '부전승', sets: [] });
+      expect(b.match).toMatchObject({ status: 'completed', isBye: true, walkover: true, walkoverReason: 'bye', player2Id: '', player2Name: '부전승', sets: [] });
+      expect(b.match.bye).toBeUndefined();
       expect(b.match.winnerId).toBe(b.match.player1Id);
     }
     // 같은 선수가 두 번 배치되지 않음 (자기 자신과의 대전 없음)
@@ -113,11 +117,20 @@ describe('buildSingleEliminationSkeleton', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it('BYE 경기는 대회 규칙의 부전승 점수(11:0)를 기록한다', () => {
+    const entries = build(3, {
+      entrants: entrants(3),
+      byeSets: (side: 1 | 2, id: string) => [1, 2].map(() => ({ ...createEmptySet(), player1Score: side === 1 ? 11 : 0, player2Score: side === 2 ? 11 : 0, winnerId: id })),
+    });
+    const bye = entries.find(e => e.match.isBye)!;
+    expect(bye.match.sets?.map(s => [s.player1Score, s.player2Score])).toEqual([[11, 0], [11, 0]]);
+  });
+
   it('참가자 없이 만들면 1라운드는 모두 미정, BYE 경기는 실제 쪽이 배정될 때까지 pending', () => {
     const entries = build(6);
     const r1 = entries.filter(e => e.match.round === 1);
     expect(r1.every(e => e.match.player1Id === '')).toBe(true);
-    expect(r1.filter(e => e.match.bye).every(e => e.match.status === 'pending')).toBe(true);
+    expect(r1.filter(e => e.match.isBye).every(e => e.match.status === 'pending')).toBe(true);
   });
 
   it('팀전은 team 필드도 채운다', () => {

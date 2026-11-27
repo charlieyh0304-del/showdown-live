@@ -1,5 +1,11 @@
 import type { Match, Tournament, Player, Team } from '../types';
-import { calculateIndividualRanking, calculateTeamRanking } from './ranking';
+import { finalRankingRows, type FinalRankingRow } from './ranking';
+
+/** 최종 순위 표기: 공동 순위는 '=N', 미정은 '-' */
+function placeText(r: FinalRankingRow): string {
+  if (r.place === null) return '-';
+  return r.joint ? `=${r.place}` : String(r.place);
+}
 import type { TFunction } from 'i18next';
 
 export function exportResultsCSV(tournament: Tournament, matches: Match[], players: Player[], _teams: Team[], t?: TFunction): string {
@@ -14,18 +20,18 @@ export function exportResultsCSV(tournament: Tournament, matches: Match[], playe
 
   // Rankings
   lines.push(`=== ${tr('rankingTable', 'Rankings')} ===`);
+  // 순위: 대진 결과 기준 최종 순위(대진이 없으면 순위표 + 동률 규칙), 대회 규칙을 따른다
+  const rankRows = finalRankingRows(matches, tournament);
   if (isTeam) {
-    const rankings = calculateTeamRanking(matches);
     lines.push(`${tr('rank', 'Rank')},${tr('teamName', 'Team')},${tr('wins', 'W')},${tr('losses', 'L')},${tr('pointsFor', 'PF')},${tr('pointsAgainst', 'PA')},${tr('pointDiff', 'Diff')}`);
-    for (const r of rankings) {
-      lines.push(`${r.rank},${r.teamName || r.teamId},${r.wins},${r.losses},${r.pointsFor},${r.pointsAgainst},${r.pointsFor - r.pointsAgainst}`);
+    for (const r of rankRows) {
+      lines.push(`${placeText(r)},${r.name || r.id},${r.wins},${r.losses},${r.pointsFor},${r.pointsAgainst},${r.pointsFor - r.pointsAgainst}`);
     }
   } else {
-    const rankings = calculateIndividualRanking(matches, ['set_difference', 'point_difference']);
     lines.push(`${tr('rank', 'Rank')},${tr('playerName', 'Player')},${tr('wins', 'W')},${tr('losses', 'L')},${tr('setsWon', 'SW')},${tr('setsLost', 'SL')},${tr('pointsFor', 'PF')},${tr('pointsAgainst', 'PA')}`);
-    for (const r of rankings) {
-      const player = players.find(p => p.id === r.playerId);
-      lines.push(`${r.rank},${player?.name || r.playerId},${r.wins},${r.losses},${r.setsWon},${r.setsLost},${r.pointsFor},${r.pointsAgainst}`);
+    for (const r of rankRows) {
+      const player = players.find(p => p.id === r.id);
+      lines.push(`${placeText(r)},${player?.name || r.name || r.id},${r.wins},${r.losses},${r.setsWon},${r.setsLost},${r.pointsFor},${r.pointsAgainst}`);
     }
   }
 
@@ -68,8 +74,8 @@ export function exportPrintableHTML(tournament: Tournament, matches: Match[], pl
   const lang = t ? (t('common.appName') === '쇼다운' ? 'ko' : 'en') : 'ko';
 
   let rankingHTML = '';
+  const rankings = finalRankingRows(matches, tournament);
   if (isTeam) {
-    const rankings = calculateTeamRanking(matches);
     rankingHTML = `
       <h2>${tr('teamRankingTitle', 'Team Rankings')}</h2>
       <table>
@@ -80,9 +86,9 @@ export function exportPrintableHTML(tournament: Tournament, matches: Match[], pl
         </thead>
         <tbody>
           ${rankings.map(r => `
-            <tr${r.rank <= 3 ? ' class="top-rank"' : ''}>
-              <td class="center">${r.rank}</td>
-              <td>${r.teamName || r.teamId}</td>
+            <tr${r.place !== null && r.place <= 3 ? ' class="top-rank"' : ''}>
+              <td class="center">${placeText(r)}</td>
+              <td>${r.name || r.id}</td>
               <td class="center">${r.wins}</td>
               <td class="center">${r.losses}</td>
               <td class="center">${r.pointsFor}</td>
@@ -94,7 +100,6 @@ export function exportPrintableHTML(tournament: Tournament, matches: Match[], pl
       </table>
     `;
   } else {
-    const rankings = calculateIndividualRanking(matches, ['set_difference', 'point_difference']);
     rankingHTML = `
       <h2>${tr('individualRankingTitle', 'Individual Rankings')}</h2>
       <table>
@@ -105,11 +110,11 @@ export function exportPrintableHTML(tournament: Tournament, matches: Match[], pl
         </thead>
         <tbody>
           ${rankings.map(r => {
-            const player = players.find(p => p.id === r.playerId);
+            const player = players.find(p => p.id === r.id);
             return `
-              <tr${r.rank <= 3 ? ' class="top-rank"' : ''}>
-                <td class="center">${r.rank}</td>
-                <td>${player?.name || r.playerId}</td>
+              <tr${r.place !== null && r.place <= 3 ? ' class="top-rank"' : ''}>
+                <td class="center">${placeText(r)}</td>
+                <td>${player?.name || r.name || r.id}</td>
                 <td class="center">${r.wins}</td>
                 <td class="center">${r.losses}</td>
                 <td class="center">${r.setsWon}</td>

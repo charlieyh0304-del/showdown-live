@@ -1,6 +1,18 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Match, MatchStatus } from '@shared/types';
+import { useSlotLabel, type SlotLabel } from '@shared/hooks/useSlotLabel';
+
+/** 미정 슬롯은 흐린 기울임꼴 '미정' + 스크린리더용 출처 경기 설명 */
+function SlotName({ slot }: { slot: SlotLabel }) {
+  if (!slot.undecided) return <>{slot.text}</>;
+  return (
+    <span className="text-gray-400 italic font-normal">
+      <span aria-hidden="true">{slot.text}</span>
+      <span className="sr-only">{slot.srText}</span>
+    </span>
+  );
+}
 
 const MATCHES_PER_PAGE = 30;
 
@@ -66,6 +78,7 @@ export default function MatchListSection({
   handleEditMatch,
 }: MatchListSectionProps) {
   const { t } = useTranslation();
+  const slotLabel = useSlotLabel(matches);
   const [visibleCount, setVisibleCount] = useState(MATCHES_PER_PAGE);
 
   return (
@@ -114,14 +127,14 @@ export default function MatchListSection({
                   <span className="font-bold text-lg">
                     {match.type === 'team' ? (
                       <div>
-                        <span>{match.team1Name ?? '?'} vs {match.team2Name ?? '?'}</span>
+                        <span><SlotName slot={slotLabel(match, 1)} /> vs <SlotName slot={slotLabel(match, 2)} /></span>
                         <div className="text-xs text-gray-400 mt-1 font-normal">
                           {match.team1Name}: {match.team1?.memberNames?.join(', ') || ''}
                           {' | '}
                           {match.team2Name}: {match.team2?.memberNames?.join(', ') || ''}
                         </div>
                       </div>
-                    ) : `${match.player1Name ?? '?'} vs ${match.player2Name ?? '?'}`}
+                    ) : <><SlotName slot={slotLabel(match, 1)} /> vs <SlotName slot={slotLabel(match, 2)} /></>}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

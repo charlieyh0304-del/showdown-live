@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calculateGroupRanking } from '@shared/utils/ranking';
+import { calculateGroupRanking, groupStageIdOf, type RankingTournament } from '@shared/utils/ranking';
+import { resolveCompetitionRules } from '@shared/rules/competitionRules';
 import type { Match } from '@shared/types';
 
 export interface GroupsTabProps {
@@ -8,9 +9,11 @@ export interface GroupsTabProps {
   onSelectPlayer: (name: string) => void;
   isTeam?: boolean;
   isFullLeague?: boolean;
+  /** 대회 규칙(점수·부전승·동률·진출 인원)을 읽는다 */
+  tournament?: Partial<RankingTournament> | null;
 }
 
-export default function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = false }: GroupsTabProps) {
+export default function GroupsTab({ matches, onSelectPlayer, isTeam = false, isFullLeague = false, tournament }: GroupsTabProps) {
   const { t } = useTranslation();
   const groupMatches = useMemo(() => matches.filter(m => m.groupId), [matches]);
 
@@ -56,7 +59,7 @@ export default function GroupsTab({ matches, onSelectPlayer, isTeam = false, isF
                 )}
               </span>
             </div>
-            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
+            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} />
           </div>
         );
       })}
@@ -70,12 +73,16 @@ function formatDiff(value: number): { text: string; color: string } {
   return { text: '0', color: '#9ca3af' };
 }
 
-function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+function GroupRankingTable({ matches, onSelectPlayer, isTeam = false, tournament, scope = '' }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; tournament?: Partial<RankingTournament> | null; scope?: string }) {
   const { t } = useTranslation();
-  // 단일 소스: shared/utils/ranking.ts의 calculateGroupRanking 사용
+  // 진출 인원은 예선 스테이지 규칙까지 반영한다 (본선 진출자 선정과 같은 규칙)
+  const perGroup = resolveCompetitionRules(tournament, groupStageIdOf(matches, tournament)).qualification.perGroup;
+  // 단일 소스: shared/utils/ranking.ts의 calculateGroupRanking (대회 규칙의 동률 기준)
   const rankings = useMemo(() => {
-    const r = calculateGroupRanking(matches);
+    const r = calculateGroupRanking(matches, undefined, tournament, scope);
     return r.map(p => ({
+      rank: p.rank,
+      tied: !!p.tied,
       name: p.playerName || '',
       played: p.played,
       wins: p.wins,
@@ -85,7 +92,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
       pointsFor: p.pointsFor,
       pointsAgainst: p.pointsAgainst,
     }));
-  }, [matches]);
+  }, [matches, tournament, scope]);
 
   if (rankings.length === 0) return null;
 
@@ -112,10 +119,10 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
               key={r.name}
               style={{
                 borderBottom: '1px solid #1f2937',
-                backgroundColor: i < 2 ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
+                backgroundColor: i < perGroup ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
               }}
             >
-              <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{i + 1}</td>
+              <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{r.tied ? t('common.competitionRules.jointPlace', { place: r.rank }) : r.rank}</td>
               <td style={{ padding: '0.5rem', fontWeight: 600, color: '#fff' }}>
                 <button
                   className="text-left hover:underline hover:text-yellow-400"
@@ -124,7 +131,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                 >
                   {r.name}
                 </button>
-                {i < 2 && (
+                {i < perGroup && (
                   <span style={{
                     marginLeft: '0.5rem',
                     fontSize: '0.75rem',

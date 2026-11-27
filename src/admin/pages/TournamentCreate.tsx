@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTournaments } from '@shared/hooks/useFirebase';
 import { WIZARD_PRESETS } from '@shared/constants/presets';
-import { buildStagesFromWizard, mapToLegacyFormat } from '@shared/utils/tournament';
+import { buildStagesFromWizard, calculateWildcard, mapToLegacyFormat } from '@shared/utils/tournament';
 import type { TournamentType, BracketFormatType, ScoringRules, MatchRules, TeamRules, TiebreakerRule, RankingMatchConfig } from '@shared/types';
 import StepIndicator from '../components/tournament-create/StepIndicator';
 import WizardStep4Finals from '../components/tournament-create/WizardStep4Finals';
@@ -447,6 +447,9 @@ export default function TournamentCreate() {
       });
 
       const legacyFormat = mapToLegacyFormat(state.hasGroupStage, hasFinalsStage);
+      const wizardWildcards = state.wildcardCount > 0
+        ? state.wildcardCount
+        : (state.hasGroupStage ? calculateWildcard(state.finalsStartRound || 0, state.advancePerGroup, state.groupCount).wildcardCount : 0);
 
       const id = await addTournament({
         name: state.name.trim(),
@@ -492,7 +495,8 @@ export default function TournamentCreate() {
             startingRound: state.finalsStartRound,
             seedMethod: state.tournamentMode === 'manual' ? 'manual' : (state.bracketArrangement === 'custom' ? 'custom' : state.seedMethod),
             advancePerGroup: state.advancePerGroup,
-            ...(state.wildcardCount && state.wildcardCount > 0 ? { wildcardCount: state.wildcardCount } : {}),
+            // 와일드카드는 명시적일 때만 쓴다(자동 추가 없음): 위저드가 보여준 값(본선 시작 라운드 - 조당 진출 × 조 수)을 그대로 저장
+            ...(wizardWildcards > 0 ? { wildcardCount: wizardWildcards } : {}),
             avoidSameGroup: true,
             bracketArrangement: state.bracketArrangement,
             scoringRules: state.sameRulesAsQualifying ? state.qualifyingScoringRules : state.finalsScoringRules,

@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatches, useTournament, useTournamentLocalPlayers } from '@shared/hooks/useFirebase';
-import { countSetWins } from '@shared/utils/scoring';
-import type { Match, TournamentStage } from '@shared/types';
+import { countSetWins, getEffectiveScoringRules } from '@shared/utils/scoring';
+import { normalizeResult, resultContextFor } from '@shared/rules/standings';
+import { walkoverKind } from '@shared/rules/walkover';
+import type { Match, Tournament, TournamentStage } from '@shared/types';
 
 export default function PlayerProfileView() {
   const { tournamentId: rawTournamentId, playerName } = useParams<{ tournamentId: string; playerName: string }>();
@@ -27,36 +29,35 @@ export default function PlayerProfileView() {
     );
   }, [matches, decodedName]);
 
-  // BYE(부전승 슬롯)와 자동 부전승 경기는 실제로 치른 경기가 아니므로 결과 목록과 전적에서 뺀다
-  const completedMatches = useMemo(() => {
+  // 전적/통계는 대회 규칙을 따른다: 부전승(기권승·BYE)은 기본으로 기록된 점수(11:0)대로 일반 승리처럼 센다
+  // (walkover.countInPlayerStats / byeCountsAsWalkover로 끌 수 있다). 양쪽 다 빈 BYE는 경기 없음.
+  const statsCtx = useMemo(() => resultContextFor(tournament, 'stats'), [tournament]);
+  const counted = useMemo(() => {
     return playerMatches
-      .filter(m => m.status === 'completed' && !m.bye && !m.isBye && !m.autoWalkover)
-      .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
-  }, [playerMatches]);
+      .map(m => ({ m, r: normalizeResult(m, statsCtx) }))
+      .filter((x): x is { m: Match; r: NonNullable<ReturnType<typeof normalizeResult>> } => x.r !== null)
+      .sort((a, b) => (b.m.updatedAt || b.m.createdAt) - (a.m.updatedAt || a.m.createdAt));
+  }, [playerMatches, statsCtx]);
+  const completedMatches = useMemo(() => counted.map(x => x.m), [counted]);
 
   const stats = useMemo(() => {
     let wins = 0, losses = 0;
     let setsWon = 0, setsLost = 0;
     let pointsFor = 0, pointsAgainst = 0;
 
-    completedMatches.forEach(m => {
+    counted.forEach(({ m, r }) => {
       const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
-      const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
-      if (m.winnerId === myId) wins++;
-      else losses++;
-
-      (Array.isArray(m.sets) ? m.sets : []).forEach(s => {
-        const myScore = isP1 ? s.player1Score : s.player2Score;
-        const oppScore = isP1 ? s.player2Score : s.player1Score;
-        pointsFor += myScore;
-        pointsAgainst += oppScore;
-        if (myScore > oppScore) setsWon++;
-        else if (oppScore > myScore) setsLost++;
-      });
+      const myId = isP1 ? r.a : r.b;
+      if (r.winner && r.winner === myId) wins++;
+      else if (r.winner) losses++;
+      setsWon += isP1 ? r.setsA : r.setsB;
+      setsLost += isP1 ? r.setsB : r.setsA;
+      pointsFor += isP1 ? r.ptsA : r.ptsB;
+      pointsAgainst += isP1 ? r.ptsB : r.ptsA;
     });
 
     return { wins, losses, setsWon, setsLost, pointsFor, pointsAgainst };
-  }, [completedMatches, decodedName]);
+  }, [counted, decodedName]);
 
   const loading = tLoading || mLoading || pLoading;
 
@@ -159,6 +160,7 @@ export default function PlayerProfileView() {
       <PlayerMatchesByStage
         playerMatches={playerMatches}
         stages={tournament.stages}
+        tournament={tournament}
         decodedName={decodedName}
         tournamentId={tournamentId!}
         navigate={navigate}
@@ -170,10 +172,11 @@ export default function PlayerProfileView() {
 }
 
 function PlayerMatchesByStage({
-  playerMatches, stages, decodedName, tournamentId, navigate, getOpponent, getMatchResult,
+  playerMatches, stages, tournament, decodedName, tournamentId, navigate, getOpponent, getMatchResult,
 }: {
   playerMatches: Match[];
   stages?: TournamentStage[];
+  tournament: Tournament;
   decodedName: string;
   tournamentId: string;
   navigate: ReturnType<typeof import('react-router-dom').useNavigate>;
@@ -277,6 +280,7 @@ function PlayerMatchesByStage({
                     <CompletedMatchCard
                       key={m.id}
                       match={m}
+                      tournament={tournament}
                       decodedName={decodedName}
                       opponent={getOpponent(m)}
                       result={getMatchResult(m)}
@@ -310,14 +314,16 @@ function PlayerMatchesByStage({
 }
 
 function CompletedMatchCard({
-  match: m, decodedName, opponent, result, navigate, tournamentId,
+  match: m, tournament, decodedName, opponent, result, navigate, tournamentId,
 }: {
-  match: Match; decodedName: string; opponent: string; result: string | null;
+  match: Match; tournament: Tournament | null; decodedName: string; opponent: string; result: string | null;
   navigate: ReturnType<typeof import('react-router-dom').useNavigate>; tournamentId: string;
 }) {
   const { t } = useTranslation();
   const isP1 = m.player1Name === decodedName || m.team1Name === decodedName;
-  const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? countSetWins(m.sets) : { player1: 0, player2: 0 };
+  // 세트 승수는 그 경기의 유효 규칙(팀 31점 등)으로 센다
+  const setWins = Array.isArray(m.sets) && m.sets.length > 0 ? countSetWins(m.sets, getEffectiveScoringRules(m, tournament)) : { player1: 0, player2: 0 };
+  const wo = walkoverKind(m);
   const mySetWins = isP1 ? setWins.player1 : setWins.player2;
   const oppSetWins = isP1 ? setWins.player2 : setWins.player1;
 
@@ -335,6 +341,7 @@ function CompletedMatchCard({
           <span style={{ fontWeight: 'bold' }}>vs {opponent}</span>
           {m.roundLabel && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#d1d5db' }}>{m.roundLabel}</span>}
           {m.groupId && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#60a5fa' }}>{m.groupId}{t('common.units.group')}</span>}
+          {wo && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#fb923c' }}>{wo === 'bye' ? t('common.competitionRules.byeBadge') : t('admin.tournamentDetail.bracketTab.walkoverBadge')}</span>}
         </div>
         <span style={{ fontWeight: 'bold', color: result === t('spectator.playerProfile.win') ? '#22c55e' : '#ef4444' }}>
           {result} ({mySetWins}-{oppSetWins})

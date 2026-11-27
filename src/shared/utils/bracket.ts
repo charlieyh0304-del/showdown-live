@@ -1,4 +1,6 @@
 import type { Match, MatchType, BracketFormatType } from '../types';
+import { resolveCompetitionRules, resolveMatchScoring } from '../rules/competitionRules';
+import { buildByeSets } from '../rules/walkover';
 
 interface Participant {
   id: string;
@@ -125,7 +127,11 @@ export function generateSingleElimination(
       }
       m.status = 'completed';
       m.winnerId = p1.id;
-      m.bye = true;
+      m.isBye = true;
+      m.walkover = true;
+      m.walkoverReason = 'bye';
+      // 부전승 = 기본 규칙의 11:0 (팀 31:0) × 이겨야 하는 세트 수
+      m.sets = buildByeSets(resolveMatchScoring({ type: matchType }, null), resolveCompetitionRules(null), 1, p1.id);
     }
 
     matches.push(m);

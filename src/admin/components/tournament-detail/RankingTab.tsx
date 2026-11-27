@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calculateIndividualRanking, calculateTeamRanking } from '@shared/utils/ranking';
+import { finalRankingRows, type FinalRankingRow } from '@shared/utils/ranking';
 import { exportResultsCSV, downloadCSV } from '@shared/utils/export';
 import type { Match, Tournament } from '@shared/types';
 
@@ -16,29 +16,12 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
   const completedMatches = matches.filter(m => m.status === 'completed');
 
 
-  // 본선/순위결정전에 참가한 인원만 최종 순위로 인정 (예: 5-8위전까지만 → 9위 이하 숨김)
-  // 본선/순위결정전이 없으면(풀리그 등) 전체 표시
-  const finalsParticipantIds = (() => {
-    const ids = new Set<string>();
-    for (const m of matches) {
-      const isFinals = (m.stageId?.includes('finals') || m.stageId?.includes('ranking') || m.roundLabel?.includes('결정전'));
-      if (!isFinals) continue;
-      const a = m.player1Id || m.team1Id;
-      const b = m.player2Id || m.team2Id;
-      if (a) ids.add(a);
-      if (b) ids.add(b);
-    }
-    return ids;
-  })();
-  const hasFinalsStage = finalsParticipantIds.size > 0;
-  // 본선 진출자만 순위 산출(1..k), 미진출자는 rank=0(미산출)으로 두고 뒤에 배치
-  const assignRanks = <T extends { rank: number }>(arr: T[], idOf: (r: T) => string): T[] => {
-    if (!hasFinalsStage) return arr;
-    const ranked = arr.filter(r => finalsParticipantIds.has(idOf(r)));
-    const unranked = arr.filter(r => !finalsParticipantIds.has(idOf(r)));
-    ranked.forEach((r, i) => { r.rank = i + 1; });
-    unranked.forEach(r => { r.rank = 0; });
-    return [...ranked, ...unranked];
+  // 최종 순위는 총 승수가 아니라 대진 결과(결승 → 3/4위전 → 순위결정전 → 라운드)로, 대진이 없으면 순위표 + 동률 규칙으로 정한다.
+  // 모두 대회 규칙(tournament.rules 등)에서 계산하므로 규칙을 바꾸면 바로 다시 계산된다. 정해지지 않은 순위는 '—'.
+  const rows: FinalRankingRow[] = finalRankingRows(matches, tournament);
+  const placeLabel = (r: FinalRankingRow): string => {
+    if (r.place === null) return '\u2014';
+    return r.joint ? t('common.competitionRules.jointPlace', { place: r.place }) : String(r.place);
   };
   const totalPoints = completedMatches.reduce((sum, m) => {
     return sum + (m.sets || []).reduce((s, set) => s + set.player1Score + set.player2Score, 0);
@@ -63,17 +46,11 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
     lines.push(`${isTeamType ? t('admin.tournamentDetail.rankingTab.typeTeam') : t('admin.tournamentDetail.rankingTab.typeIndividual')}`);
     lines.push('');
 
-    if (isTeamType) {
-      const teamRankings = assignRanks(calculateTeamRanking(matches), r => r.teamId);
-      teamRankings.forEach(r => {
-        lines.push(`${r.rank > 0 ? r.rank : '\u2014'}: ${r.teamName || r.teamId} (${r.wins}W ${r.losses}L, ${formatDiff(r.pointsFor - r.pointsAgainst)})`);
-      });
-    } else {
-      const indivRankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
-      indivRankings.forEach(r => {
-        lines.push(`${r.rank > 0 ? r.rank : '\u2014'}: ${r.playerName || r.playerId} (${r.wins}W ${r.losses}L)`);
-      });
-    }
+    rows.forEach(r => {
+      lines.push(isTeamType
+        ? `${placeLabel(r)}: ${r.name} (${r.wins}W ${r.losses}L, ${formatDiff(r.pointsFor - r.pointsAgainst)})`
+        : `${placeLabel(r)}: ${r.name} (${r.wins}W ${r.losses}L)`);
+    });
 
     lines.push('');
     lines.push(t('admin.tournamentDetail.rankingTab.totalCompleted', { completed: completedMatches.length, total: matches.length }));
@@ -118,7 +95,7 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
   );
 
   if (isTeamType) {
-    const rankings = assignRanks(calculateTeamRanking(matches), r => r.teamId);
+    const rankings = rows;
     return (
       <div className="space-y-6">
 
@@ -155,9 +132,9 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
               </thead>
               <tbody>
                 {rankings.map(r => (
-                  <tr key={r.teamId} className={r.rank > 0 && r.rank <= 3 ? 'bg-gray-800' : ''}>
-                    <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank > 0 ? r.rank : '\u2014'}</td>
-                    <td className="border border-gray-600 p-3 font-semibold">{r.teamName}</td>
+                  <tr key={r.id} className={r.place !== null && r.place <= 3 ? 'bg-gray-800' : ''}>
+                    <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{placeLabel(r)}{r.unresolved && <span className="block text-xs text-orange-400">{t('common.competitionRules.tiedUnresolved')}</span>}</td>
+                    <td className="border border-gray-600 p-3 font-semibold">{r.name}</td>
                     <td className="border border-gray-600 p-3 text-center">{r.played}</td>
                     <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
                     <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>
@@ -197,24 +174,7 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
     );
   }
 
-  const allRankings = assignRanks(calculateIndividualRanking(matches), r => r.playerId);
-  // 1차: rank=0 (본선/순위결정전 미참가자) 제외 → 본선 진출자만
-  // 2차: 대회 설정에 따라 추가 제한
-  const rankedOnly = hasFinalsStage ? allRankings.filter(r => r.rank > 0) : allRankings;
-  const rankCfg = tournament.rankingMatchConfig as { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } | undefined;
-  let maxRank = rankedOnly.length; // 기본: 본선 참가자 전체
-  if (rankCfg) {
-    if (rankCfg.rankingUpTo && rankCfg.rankingUpTo > 0) {
-      maxRank = rankCfg.rankingUpTo;
-    } else if (rankCfg.classificationGroups) {
-      maxRank = rankedOnly.length;
-    } else if (rankCfg.fifthToEighth) {
-      maxRank = 8;
-    } else if (rankCfg.thirdPlace) {
-      maxRank = 4;
-    }
-  }
-  const rankings = rankedOnly.slice(0, maxRank);
+  const rankings = rows;
   return (
     <div className="space-y-6">
 
@@ -253,9 +213,9 @@ export default function RankingTab({ tournament, matches, isTeamType }: RankingT
             </thead>
             <tbody>
               {rankings.map(r => (
-                <tr key={r.playerId} className={r.rank > 0 && r.rank <= 3 ? 'bg-gray-800' : ''}>
-                  <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{r.rank > 0 ? r.rank : '\u2014'}</td>
-                  <td className="border border-gray-600 p-3 font-semibold">{r.playerName}</td>
+                <tr key={r.id} className={r.place !== null && r.place <= 3 ? 'bg-gray-800' : ''}>
+                  <td className="border border-gray-600 p-3 text-center font-bold text-yellow-400">{placeLabel(r)}{r.unresolved && <span className="block text-xs text-orange-400">{t('common.competitionRules.tiedUnresolved')}</span>}</td>
+                  <td className="border border-gray-600 p-3 font-semibold">{r.name}</td>
                   <td className="border border-gray-600 p-3 text-center">{r.played}</td>
                   <td className="border border-gray-600 p-3 text-center text-green-400">{r.wins}</td>
                   <td className="border border-gray-600 p-3 text-center text-red-400">{r.losses}</td>

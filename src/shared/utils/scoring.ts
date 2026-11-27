@@ -1,5 +1,6 @@
 import type { SetScore, GameConfig, MatchType, ScoringRules, ScoreActionType, ScoreHistoryEntry, Match, Tournament, TournamentStage } from '../types';
 import { formatTime } from '@shared/utils/locale';
+import { resolveMatchScoring } from '../rules/competitionRules';
 
 export const DEFAULT_GAME_CONFIG = {
   SETS_TO_WIN: 2,
@@ -222,26 +223,14 @@ export function createScoreHistoryEntry(opts: {
 }
 
 // ===== 스코어링 규칙 우선순위 체인 =====
-// match.appliedScoringRules > stage.scoringRules > tournament.scoringRules > gameConfig
+// 대회 규칙 단일 설정원(shared/rules/competitionRules.ts resolveMatchScoring)을 그대로 쓴다:
+// match.appliedScoringRules > stage(rules/scoringRules) > tournament(rules/scoringRules) > 팀 31점·teamMatchSettings / gameConfig > 기본
 export function getEffectiveScoringRules(
-  match: Match,
-  tournament: Tournament,
+  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules'>,
+  tournament: Tournament | null | undefined,
 ): ReturnType<typeof getEffectiveGameConfig> {
-  if (match.appliedScoringRules) {
-    return getEffectiveGameConfig(match.appliedScoringRules);
-  }
-  if (match.stageId && tournament.stages) {
-    // Defensive: tournament.stages may still be a Firebase object if not normalized
-    const stages = Array.isArray(tournament.stages) ? tournament.stages : Object.values(tournament.stages) as TournamentStage[];
-    const stage = stages.find((s: TournamentStage) => s.id === match.stageId);
-    if (stage?.scoringRules) {
-      return getEffectiveGameConfig(stage.scoringRules);
-    }
-  }
-  if (tournament.scoringRules) {
-    return getEffectiveGameConfig(tournament.scoringRules);
-  }
-  return getEffectiveGameConfig(tournament.gameConfig, match.type);
+  const r = resolveMatchScoring(match, tournament);
+  return { SETS_TO_WIN: r.setsToWin, MAX_SETS: r.maxSets, POINTS_TO_WIN: r.winScore, MIN_POINT_DIFF: r.minLead };
 }
 
 /**

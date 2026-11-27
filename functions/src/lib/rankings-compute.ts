@@ -145,6 +145,8 @@ export function computeGroupRankings(matches: ReadonlyArray<MatchLike>): Map<str
 /**
  * 매치 배열로부터 전체(통합) 순위 산출.
  * BYE 제외, 본선 포함 모든 완료 경기 사용.
+ * @deprecated 승수 합산 순위다(감사 B4). 최종 순위는 shared/rules/finalRanking computeFinalPlacements,
+ * 순위표는 shared/rules/qualification rankMatches(대회 규칙·동률·부전승 설정 반영)를 쓴다. 앱 코드에서 쓰지 않는다.
  */
 export function computeFinalRanking(matches: ReadonlyArray<MatchLike>): PlayerStats[] {
   const stats = accumulatePlayerStats(matches, { excludeBye: true });

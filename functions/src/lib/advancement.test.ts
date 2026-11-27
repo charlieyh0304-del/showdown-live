@@ -222,12 +222,30 @@ describe('processMatchWrite (트리거)', () => {
 
     await write(db, 'sf2', winBy('c'));
     expect(db.matches.f).toMatchObject({ player1Id: 'a', player2Id: 'c' });
-    // 3/4위전: d만 남음 → 자동 부전승 (가짜 점수 없음, isBye로 통계 제외)
+    // 3/4위전: d만 남음 → 자동 부전승 11:0 (3세트제 → 11:0 두 세트), isBye + 사유 'bye'
     expect(db.matches.third).toMatchObject({
       player2Id: 'd', player1Id: '', status: 'completed', winnerId: 'd',
-      walkover: true, autoWalkover: true, isBye: true,
+      walkover: true, walkoverReason: 'bye', autoWalkover: true, isBye: true,
     });
-    expect(db.matches.third.sets).toEqual([{ player1Score: 0, player2Score: 0 }]);
+    expect(db.matches.third.bye).toBeUndefined(); // 쓰기는 isBye만
+    expect((db.matches.third.sets as Array<{ player1Score: number; player2Score: number }>).map(s => [s.player1Score, s.player2Score]))
+      .toEqual([[0, 11], [0, 11]]);
+  });
+
+  it('자동 부전승 점수는 대회 규칙을 따른다 (5세트제 11:0 ×3, 팀 31:0, 설정 점수, BYE 미집계 설정)', async () => {
+    const run = async (tournament: MatchData, type = 'individual') => {
+      const db = semifinalDb();
+      db.tournament = tournament;
+      for (const m of Object.values(db.matches)) m.type = type;
+      delete db.matches.sf1;
+      await write(db, 'sf1', { tournamentId: 't', type, status: 'completed', isBye: true, player1Id: 'a', player1Name: 'A', player2Id: 'BYE', winnerId: 'a', sets: [] });
+      await write(db, 'sf2', { ...winBy('c'), type, sets: type === 'team' ? [{ player1Score: 31, player2Score: 20 }] : winBy('c').sets });
+      return (db.matches.third.sets as Array<{ player1Score: number; player2Score: number }>).map(s => [s.player1Score, s.player2Score]);
+    };
+    expect(await run({ gameConfig: { winScore: 11, setsToWin: 3 } })).toEqual([[0, 11], [0, 11], [0, 11]]);
+    expect(await run({ type: 'team' }, 'team')).toEqual([[0, 31]]);
+    expect(await run({ rules: { walkover: { setScore: 7 } } })).toEqual([[0, 7], [0, 7]]);
+    expect(await run({ rules: { walkover: { byeCountsAsWalkover: false } } })).toEqual([]);
   });
 
   it('BYE 연쇄: 양쪽이 영구히 빈 경기는 자동 처리되고 다음 라운드로 이어진다', async () => {
@@ -368,6 +386,8 @@ describe('processMatchWrite (트리거)', () => {
     expect(db.matches.third.winnerId ?? null).toBeNull();
     expect(db.matches.third.autoWalkover).toBeUndefined();
     expect(db.matches.third.isBye).toBeUndefined();
+    // 부전승 점수(11:0)도 지워지고 빈 세트로 돌아간다
+    expect((db.matches.third.sets as Array<{ player1Score: number }>).map(x => x.player1Score)).toEqual([0]);
     expect(db.matches.next).toMatchObject({ player1Id: '', player1Name: '3위' });
     expect(Object.keys(db.conflicts)).toHaveLength(0);
   });

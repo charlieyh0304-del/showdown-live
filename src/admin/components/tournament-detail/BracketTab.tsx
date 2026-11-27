@@ -615,6 +615,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
         expectedMatchCount={expectedMatchCount}
         setMatchesBulk={setMatchesBulk}
         updateMatch={updateMatch}
+        updateTournament={updateTournament}
       />
 
       {/* 경기 목록 + 수정 모달 */}

@@ -2,11 +2,14 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { push, update, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
-import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
+import { checkMatchWinner, checkSetWinner, getEffectiveScoringRules } from '@shared/utils/scoring';
+import { byeSetsFactory, computeFinalsSeeding, walkoverSetsFor } from '@shared/utils/competition';
 import { showSuccess, showError } from '@shared/utils/toast';
 import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, toFirebaseValue, type WriteResult } from '@shared/utils/dataWrites';
-import { buildFirstRoundSlots, buildSingleEliminationSkeleton, thirdPlaceStageId } from '@shared/utils/bracketSkeleton';
+import { buildSingleEliminationSkeleton, thirdPlaceStageId } from '@shared/utils/bracketSkeleton';
+import { resolveCompetitionRules } from '@shared/rules/competitionRules';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
+import TieDecisionPanel from './TieDecisionPanel';
 import type { Match, MatchUpdate, Team, Player, MatchStatus, SetScore, ScoreHistoryEntry, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -154,6 +157,25 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     notifyTournamentWrite(await updateTournament({ status: newStatus }), t);
   }, [updateTournament, t]);
 
+  // 진출 경계 미해결 동률 (예선 완료 후 관리자가 순서를 정한다)
+  const qualifyingTies = useMemo(() => {
+    const qs = toArray(tournament.stages).find(s => s.type === 'qualifying');
+    const qm = matches.filter(m => m.groupId || (qs && m.stageId === qs.id));
+    if (qm.length === 0) return [];
+    return computeFinalsSeeding(tournament, qm, qs?.id, toArray(tournament.stages).find(s => s.type === 'finals')?.id || 'finals').qualification.blockingTies;
+  }, [tournament, matches]);
+  const participantName = useMemo(() => {
+    const map = new Map<string, string>();
+    tournamentPlayers.forEach(p => map.set(p.id, p.name));
+    teams.forEach(tm => map.set(tm.id, tm.name));
+    return map;
+  }, [tournamentPlayers, teams]);
+  const qualifyingGroupNames = useMemo(() => {
+    const map = new Map<string, string>();
+    toArray(toArray(tournament.stages).find(s => s.type === 'qualifying')?.groups).forEach(g => map.set(g.id, g.name));
+    return map;
+  }, [tournament.stages]);
+
   const handleAdvanceToFinals = async () => {
     if (creatingFinalsRef.current) return;
     const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id || 'finals';
@@ -174,66 +196,42 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
   };
 
   const createFinalsBracket = async (finalsStageId: string) => {
-    // 1. 조별 순위 계산
-    const qualifyingMatches = matches.filter(m => m.groupId);
-    const groupMap = new Map<string, typeof matches>();
-    qualifyingMatches.forEach(m => {
-      const gid = m.groupId!;
-      if (!groupMap.has(gid)) groupMap.set(gid, []);
-      groupMap.get(gid)!.push(m);
-    });
-
-    const qualifyingGroupCount = tournament.qualifyingConfig?.groupCount || 1;
-    const totalAdvance = tournament.finalsConfig?.advanceCount || 2;
-    const advancePerGroup = qualifyingGroupCount > 1 ? Math.floor(totalAdvance / qualifyingGroupCount) : totalAdvance;
-    const advancedIds: string[] = [];
-
-    groupMap.forEach((groupMatches) => {
-      const stats = new Map<string, { wins: number; setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number }>();
-      groupMatches.filter(m => m.status === 'completed').forEach(m => {
-        const p1 = m.player1Id || m.team1Id || '';
-        const p2 = m.player2Id || m.team2Id || '';
-        if (!stats.has(p1)) stats.set(p1, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-        if (!stats.has(p2)) stats.set(p2, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-
-        if (m.winnerId === p1) stats.get(p1)!.wins++;
-        else if (m.winnerId === p2) stats.get(p2)!.wins++;
-
-        (m.sets || []).forEach(s => {
-          stats.get(p1)!.pointsFor += s.player1Score;
-          stats.get(p1)!.pointsAgainst += s.player2Score;
-          stats.get(p2)!.pointsFor += s.player2Score;
-          stats.get(p2)!.pointsAgainst += s.player1Score;
-          if (s.player1Score > s.player2Score) { stats.get(p1)!.setsWon++; stats.get(p2)!.setsLost++; }
-          else { stats.get(p2)!.setsWon++; stats.get(p1)!.setsLost++; }
-        });
-      });
-
-      const sorted = Array.from(stats.entries())
-        .sort(([,a], [,b]) => b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst));
-
-      sorted.slice(0, advancePerGroup).forEach(([id]) => advancedIds.push(id));
-    });
+    // 1. 진출자와 시드: 대회 규칙(진출 인원·동률·조 교차·같은 조 회피)으로 계산 (서버 generate_finals와 같은 모듈)
+    const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
+    const qualifyingMatches = matches.filter(m => m.groupId || (qualifyingStage && m.stageId === qualifyingStage.id));
+    const seeding = computeFinalsSeeding(tournament, qualifyingMatches, qualifyingStage?.id, finalsStageId);
+    if (!seeding.qualification.complete) {
+      showError(t('common.competitionRules.finals.incomplete', { count: seeding.qualification.incompleteCount }));
+      return;
+    }
+    if (seeding.qualification.blockingTies.length > 0) {
+      showError(t('common.competitionRules.finals.tieBlocking'));
+      return;
+    }
+    const advancedCount = seeding.qualification.qualifiers.length;
 
     // 2. 본선 Match 생성 (싱글엘리미네이션 전체 골격: 1라운드 ~ 결승 + 3/4위전, 진출 링크 포함)
     const idToName = new Map<string, string>();
     tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
     teams.forEach(t => idToName.set(t.id, t.name));
 
-    if (advancedIds.length < 2) {
+    if (advancedCount < 2) {
       showError(t(isTeamType ? 'admin.tournamentDetail.bracketTab.needMoreTeams' : 'admin.tournamentDetail.bracketTab.needMorePlayers'));
       return;
     }
 
     const matchesPath = `matches/${tournament.id}`;
 
-    // 1라운드는 기존처럼 진출 순서대로 둘씩 짝짓고, 2의 거듭제곱이 아니면 남는 선수는 BYE(부전승)로 둔다
+    // 1라운드: 표준 시드 위치(1·2번 시드는 결승에서만) + 조 교차. BYE는 상위 시드가 받고 부전승 점수(기본 11:0)로 완료된다
+    const matchType = isTeamType ? 'team' : 'individual';
     const entries = buildSingleEliminationSkeleton({
       tournamentId: tournament.id,
       stageId: finalsStageId,
-      matchType: isTeamType ? 'team' : 'individual',
-      slots: buildFirstRoundSlots(advancedIds.length, advancedIds.map(id => ({ id, name: idToName.get(id) || id }))),
-      thirdPlace: tournament.rankingMatchConfig?.thirdPlace === true,
+      matchType,
+      slots: seeding.slots.map(q => (q ? { id: q.id, name: idToName.get(q.id) || q.name || q.id } : null)),
+      byeSets: byeSetsFactory(tournament, finalsStageId, matchType),
+      // 3/4위전 여부는 대회 규칙(finalRanking.thirdPlace, 레거시 rankingMatchConfig.thirdPlace 포함)에서 읽는다
+      thirdPlace: resolveCompetitionRules(tournament, finalsStageId).finalRanking.thirdPlace === 'match',
       makeKey: () => push(ref(database, matchesPath)).key!,
       now: Date.now(),
       labels: {
@@ -241,7 +239,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
         bye: t('admin.tournamentDetail.bracketTab.byeSlot'),
       },
     });
-    const finalsMatches = entries.filter(e => !e.match.bye);
+    const finalsMatches = entries.filter(e => !e.match.isBye);
 
     // Firebase에 본선 경기를 한 번에 추가 (링크된 경기가 일부만 저장되지 않도록 multi-path update)
     const bulk: Record<string, unknown> = {};
@@ -275,20 +273,22 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
   };
 
   const correctionWinner = useMemo(() => {
-    if (correctionSets.length === 0) return null;
-    return checkMatchWinner(correctionSets);
-  }, [correctionSets]);
+    if (correctionSets.length === 0 || !correctionMatch) return null;
+    // 그 경기의 유효 규칙(스테이지·팀 31점 등)으로 판정한다 (B12)
+    return checkMatchWinner(correctionSets, getEffectiveScoringRules(correctionMatch, tournament));
+  }, [correctionSets, correctionMatch, tournament]);
 
   const handleSaveCorrection = async () => {
     if (!correctionMatch || !correctionReason.trim()) return;
     setCorrectionSaving(true);
     try {
+      const rulesConfig = getEffectiveScoringRules(correctionMatch, tournament);
       const newSets: SetScore[] = correctionSets.map(s => {
-        const winner = checkSetWinner(s.player1Score, s.player2Score);
+        const winner = checkSetWinner(s.player1Score, s.player2Score, rulesConfig);
         return { ...s, winnerId: winner === 1 ? (correctionMatch.player1Id || correctionMatch.team1Id || null) : winner === 2 ? (correctionMatch.player2Id || correctionMatch.team2Id || null) : null };
       });
 
-      const matchWinner = checkMatchWinner(newSets);
+      const matchWinner = checkMatchWinner(newSets, rulesConfig);
       let newWinnerId: string | null = null;
       if (matchWinner === 1) newWinnerId = correctionMatch.player1Id || correctionMatch.team1Id || null;
       if (matchWinner === 2) newWinnerId = correctionMatch.player2Id || correctionMatch.team2Id || null;
@@ -369,16 +369,9 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
 
       const existingHistory = toArray(walkoverMatch.scoreHistory);
 
-      // setsToWin 만큼 부전승 세트 생성 (3세트→2세트, 5세트→3세트)
-      const gameConfig = getEffectiveGameConfig(tournament?.gameConfig, walkoverMatch.type);
-      const winScore = gameConfig.POINTS_TO_WIN;
+      // 부전승 = 대회 규칙의 부전승 점수 × 이겨야 하는 세트 수 (기본 11:0, 3세트제 → 2세트, 팀 31:0)
       const isP1Winner = walkoverWinnerId === (walkoverMatch.player1Id || walkoverMatch.team1Id || 'player1');
-      const walkoverSets = Array.from({ length: gameConfig.SETS_TO_WIN }, () => ({
-        ...createEmptySet(),
-        player1Score: isP1Winner ? winScore : 0,
-        player2Score: isP1Winner ? 0 : winScore,
-        winnerId: walkoverWinnerId,
-      }));
+      const walkoverSets = walkoverSetsFor(walkoverMatch, tournament, isP1Winner ? 1 : 2, walkoverWinnerId);
 
       const result = await updateMatch(walkoverMatch.id, {
         status: 'completed',
@@ -497,6 +490,12 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
                 {allDone && stage.type === 'qualifying' && (
                   <div className="mt-3 space-y-2">
                     <p className="text-green-400 text-sm font-semibold">{t('admin.tournamentDetail.statusTab.qualifyingDone')}</p>
+                    <TieDecisionPanel
+                      ties={qualifyingTies}
+                      nameOf={id => participantName.get(id) || id}
+                      groupLabel={scope => qualifyingGroupNames.get(scope) || scope || t('common.competitionRules.tie.league')}
+                      updateTournament={updateTournament}
+                    />
                     {tournament.type !== 'randomTeamLeague' && (
                       <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} disabled={creatingFinals} aria-busy={creatingFinals} aria-label={t('admin.tournamentDetail.statusTab.createFinalsBracket')}>
                         {t('admin.tournamentDetail.statusTab.createFinalsBracket')}

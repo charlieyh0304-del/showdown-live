@@ -1,5 +1,77 @@
 {
   "common": {
+    "competitionRules": {
+      "presets": {
+        "ibsa": "IBSA default",
+        "simple": "Simple"
+      },
+      "undecided": "TBD",
+      "undecidedFrom": "TBD ({{outcome}} of {{round}} match {{num}})",
+      "outcomeWinner": "winner",
+      "outcomeLoser": "loser",
+      "byeBadge": "Bye (no opponent)",
+      "walkoverScoreNote": "Walkover {{score}}",
+      "place": "#{{place}}",
+      "jointPlace": "Joint #{{place}}",
+      "placeHeader": "Final place",
+      "finalRankingTitle": "Final standings (by bracket result)",
+      "pendingPlace": "TBD",
+      "tiedUnresolved": "Tied — admin decision needed",
+      "decidedBy": {
+        "points": "Decided by: points",
+        "wins": "Decided by: wins",
+        "head_to_head": "Decided by: head-to-head",
+        "set_difference": "Decided by: set difference",
+        "point_difference": "Decided by: point difference",
+        "points_scored": "Decided by: points scored",
+        "set_ratio": "Decided by: set ratio",
+        "point_ratio": "Decided by: point ratio",
+        "lot": "Decided by: draw of lots",
+        "admin_decision": "Decided by: admin decision"
+      },
+      "tie": {
+        "title": "Tie at the qualification cutoff",
+        "explain": "Places {{from}}-{{to}} in {{group}} cannot be separated by the tiebreak rules. Set the order below and confirm; the decision is recorded and used immediately.",
+        "league": "League",
+        "position": "Position {{pos}}",
+        "moveUp": "Move {{name}} up",
+        "moveDown": "Move {{name}} down",
+        "save": "Confirm this order",
+        "saveAria": "Confirm tie order for {{group}}: {{order}}",
+        "saved": "Recorded tie order for {{group}}: {{order}}",
+        "saveFailed": "Could not save the tie decision."
+      },
+      "finals": {
+        "incomplete": "{{count}} qualifying matches are not finished, so the finals bracket cannot be created.",
+        "tieBlocking": "There is a tie at the qualification cutoff. Confirm the order under ‘Tie at the qualification cutoff’ first.",
+        "seededArrangement": "Seeded arrangement (standard seeding + group cross-over)",
+        "seededArrangementAria": "Apply standard seeding and group cross-over from qualifying ranks",
+        "noQualifiers": "At least 2 qualifiers are needed to arrange the bracket.",
+        "qualifierSeed": "Seed {{seed}}",
+        "seededArrangementStarted": "Some first-round matches have already started or finished, so the seeded arrangement cannot be reapplied to the whole round (a player could be placed twice). Assign the remaining matches manually below.",
+        "duplicateSlot": "Not applied: the arrangement would place the same player twice."
+      },
+      "conflicts": {
+        "title": "Auto-advance conflicts",
+        "intro": "The app tried to fill the next match from a result, but left these slots unchanged. Review them, then apply or keep the current value.",
+        "side1": "slot 1",
+        "side2": "slot 2",
+        "empty": "empty",
+        "explainStarted": "{{match}} {{side}}: the result says {{expected}}, but the match is already {{status}}, so it was not changed automatically. Current: {{current}}.",
+        "explainManual": "{{match}} {{side}}: an admin entered {{current}} manually, so it was not replaced with {{expected}}.",
+        "apply": "Apply: {{expected}} to {{match}} {{side}}",
+        "dismiss": "Keep: {{match}} {{side}} stays {{current}}",
+        "cannotApply": "This match has already started or finished, so the derived value cannot be applied. Correct the score if needed, then dismiss this record.",
+        "applied": "Applied {{expected}} to {{match}} {{side}}.",
+        "dismissed": "Dismissed the conflict for {{match}} {{side}}. The current value is kept.",
+        "failed": "Could not resolve the conflict.",
+        "matchName": "{{round}} match {{num}}"
+      },
+      "draw": {
+        "seed": "Draw seed: {{seed}} (the same seed gives the same draw)",
+        "unassigned": "{{count}} players could not be placed in a team: {{names}}"
+      }
+    },
     "appName": "Showdown",
     "appDescription": "Tournament Management for Visually Impaired Table Sport",
     "loading": "Loading...",

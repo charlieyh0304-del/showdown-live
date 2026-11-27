@@ -1,3 +1,7 @@
+import type { CompetitionRulesInput } from '../rules/competitionRules';
+
+export type { CompetitionRulesInput } from '../rules/competitionRules';
+
 // ===== 대회 유형 =====
 export type TournamentType = 'individual' | 'team' | 'randomTeamLeague';
 export type TournamentFormat = 'full_league' | 'tournament' | 'group_league';
@@ -86,6 +90,8 @@ export interface TournamentStage {
   rankingMatchConfig?: RankingMatchConfig;
   seeds?: SeedEntry[];
   advancedParticipantIds?: string[];
+  /** 이 스테이지만의 규칙 덮어쓰기 (shared/rules/competitionRules.ts) */
+  rules?: CompetitionRulesInput;
   status: 'pending' | 'in_progress' | 'completed';
 }
 
@@ -212,8 +218,27 @@ export interface Tournament {
   finalsConfig?: FinalsStageConfig;
   rankingMatchConfig?: RankingMatchConfig;
   seeds?: SeedEntry[];
+  /** 대회 규칙 단일 설정원 (shared/rules/competitionRules.ts resolveCompetitionRules로 읽는다) */
+  rules?: CompetitionRulesInput;
+  /** 레거시 동률 규칙 (위저드/챗봇). rules.tiebreak가 있으면 그것이 우선한다. */
+  tiebreakerRules?: TiebreakerRule[];
+  /** 랜덤 팀 추첨 기록: 같은 seed와 같은 선수 목록이면 같은 결과가 나온다 */
+  randomTeamDraw?: RandomTeamDraw;
+  /** false면 서버 진출 트리거를 쓰지 않는다 */
+  autoAdvance?: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface RandomTeamDraw {
+  seed: string;
+  drawnAt: number;
+  teamSize: number;
+  /** 추첨에 쓴 선수 ID 순서 (재현용) */
+  playerIds: string[];
+  teams: { id: string; memberIds: string[] }[];
+  /** 팀에 들어가지 못한 선수 (인원이 팀 크기로 나누어떨어지지 않을 때) */
+  unassignedIds?: string[];
 }
 
 // ===== 게임 설정 =====
@@ -426,8 +451,11 @@ export interface Match {
   roundLabel?: string;
   player1Seed?: number;
   player2Seed?: number;
+  /** @deprecated 구 클라이언트 BYE 표시. 읽기만 한다(새 코드는 isBye를 쓴다). */
   bye?: boolean;
+  /** 부전승(기권승·BYE). 점수는 규칙의 부전승 점수(기본 11:0 × 이겨야 하는 세트 수)로 기록된다. */
   walkover?: boolean;
+  /** 부전승 사유. BYE는 'bye', 기권은 사람이 쓴 사유 */
   walkoverReason?: string;
   // 진출 링크 (서버·클라이언트 공통 표준): 이 경기의 1/2번 슬롯을 채울 상위 경기 ID.
   // sourceType은 두 슬롯 모두에 적용된다: 'winner'(기본) = 승자, 'loser' = 패자(3/4위전).
@@ -541,6 +569,12 @@ export interface PlayerRanking {
   pointsFor: number;
   pointsAgainst: number;
   rank: number;
+  /** 승점 (규칙의 standingsPoints) */
+  points?: number;
+  /** 동률 규칙으로 풀리지 않은 공동 순위 */
+  tied?: boolean;
+  /** 순위를 정한 기준 (예: 'head_to_head') */
+  decidedBy?: string | null;
 }
 
 export interface TeamRanking {
@@ -552,6 +586,9 @@ export interface TeamRanking {
   pointsFor: number;
   pointsAgainst: number;
   rank: number;
+  points?: number;
+  tied?: boolean;
+  decidedBy?: string | null;
 }
 
 // ===== 앱 설정 =====

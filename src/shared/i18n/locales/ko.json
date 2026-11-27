@@ -1,5 +1,77 @@
 {
   "common": {
+    "competitionRules": {
+      "presets": {
+        "ibsa": "IBSA 기본",
+        "simple": "간단"
+      },
+      "undecided": "미정",
+      "undecidedFrom": "미정 ({{round}} {{num}}경기 {{outcome}})",
+      "outcomeWinner": "승자",
+      "outcomeLoser": "패자",
+      "byeBadge": "부전승 (상대 없음)",
+      "walkoverScoreNote": "부전승 {{score}}",
+      "place": "{{place}}위",
+      "jointPlace": "공동 {{place}}위",
+      "placeHeader": "최종 순위",
+      "finalRankingTitle": "최종 순위 (대진 결과 기준)",
+      "pendingPlace": "미정",
+      "tiedUnresolved": "동률 — 관리자 결정 필요",
+      "decidedBy": {
+        "points": "결정 기준: 승점",
+        "wins": "결정 기준: 승수",
+        "head_to_head": "결정 기준: 상대 전적",
+        "set_difference": "결정 기준: 세트 득실",
+        "point_difference": "결정 기준: 점수 득실",
+        "points_scored": "결정 기준: 득점",
+        "set_ratio": "결정 기준: 세트 득실률",
+        "point_ratio": "결정 기준: 점수 득실률",
+        "lot": "결정 기준: 추첨",
+        "admin_decision": "결정 기준: 관리자 결정"
+      },
+      "tie": {
+        "title": "진출 경계 동률",
+        "explain": "{{group}} {{from}}~{{to}}위가 동률 규칙으로 갈리지 않습니다. 아래에서 순서를 정해 확정하면 결정이 기록되고 순위 계산에 바로 반영됩니다.",
+        "league": "리그",
+        "position": "{{pos}}번째",
+        "moveUp": "{{name}} 한 칸 위로",
+        "moveDown": "{{name}} 한 칸 아래로",
+        "save": "이 순서로 확정",
+        "saveAria": "{{group}} 동률 순서 확정: {{order}}",
+        "saved": "{{group}} 동률 순서를 기록했습니다: {{order}}",
+        "saveFailed": "동률 결정을 저장하지 못했습니다."
+      },
+      "finals": {
+        "incomplete": "예선 경기 {{count}}건이 아직 끝나지 않아 본선 대진을 만들 수 없습니다.",
+        "tieBlocking": "진출 경계에 동률이 있습니다. ‘진출 경계 동률’에서 순서를 먼저 확정해 주세요.",
+        "seededArrangement": "시드 배치 (표준 시드 + 조 교차)",
+        "seededArrangementAria": "예선 순위로 표준 시드와 조 교차 배치를 적용",
+        "noQualifiers": "진출자가 2명 이상 정해져야 배치할 수 있습니다.",
+        "qualifierSeed": "{{seed}}번 시드",
+        "seededArrangementStarted": "1라운드에 이미 시작했거나 끝난 경기가 있어 시드 배치를 전체에 다시 적용할 수 없습니다. 같은 선수가 두 번 배치될 수 있기 때문입니다. 남은 경기는 아래에서 직접 배정하세요.",
+        "duplicateSlot": "같은 선수가 두 번 배치되는 대진이라 적용하지 않았습니다."
+      },
+      "conflicts": {
+        "title": "자동 진출 충돌",
+        "intro": "앞 경기 결과로 다음 경기 자리를 자동으로 채우려 했지만, 아래 자리는 바꾸지 않았습니다. 확인 후 적용하거나 현재 값을 유지하세요.",
+        "side1": "1번 자리",
+        "side2": "2번 자리",
+        "empty": "빈 자리",
+        "explainStarted": "{{match}} {{side}}: 결과대로라면 {{expected}}(이)어야 하지만, 경기가 이미 {{status}} 상태라 자동으로 바꾸지 않았습니다. 지금 값: {{current}}.",
+        "explainManual": "{{match}} {{side}}: 관리자가 직접 넣은 {{current}}이(가) 있어 결과대로 {{expected}}(으)로 바꾸지 않았습니다.",
+        "apply": "적용: {{match}} {{side}}에 {{expected}}",
+        "dismiss": "유지: {{match}} {{side}}는 {{current}} 그대로",
+        "cannotApply": "이 경기는 이미 시작되었거나 끝나서 자동 값을 적용할 수 없습니다. 필요하면 점수 정정으로 바로잡은 뒤 이 기록을 닫으세요.",
+        "applied": "{{match}} {{side}}에 {{expected}}을(를) 적용했습니다.",
+        "dismissed": "{{match}} {{side}} 충돌 기록을 닫았습니다. 현재 값을 유지합니다.",
+        "failed": "충돌을 처리하지 못했습니다.",
+        "matchName": "{{round}} {{num}}경기"
+      },
+      "draw": {
+        "seed": "추첨 seed: {{seed}} (같은 seed로 다시 추첨하면 같은 결과)",
+        "unassigned": "{{count}}명은 팀에 들어가지 못했습니다: {{names}}"
+      }
+    },
     "appName": "쇼다운",
     "appDescription": "시각장애인 테이블 스포츠 대회 관리",
     "loading": "로딩 중...",

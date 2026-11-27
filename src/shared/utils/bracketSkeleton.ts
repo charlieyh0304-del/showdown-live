@@ -4,13 +4,17 @@
  * - 2라운드 이후 경기는 sourceMatch1/sourceMatch2(sourceType 'winner')로 이전 라운드 두 경기를 가리킨다.
  * - 3/4위전은 4강 두 경기를 sourceType 'loser'로 가리킨다.
  * - 서버 트리거(functions advanceOnMatchResult)가 이 링크를 읽어 승자/패자를 자동으로 채운다.
- * - 1라운드 배치(시드)는 호출부가 정한다. 시드 정확도는 M0c 범위다.
+ * - 1라운드 배치(시드)는 호출부가 정한다. 표준 시드 배치는 shared/rules/seeding.ts의 placeSeeds를 쓴다(M0c).
+ * - BYE 경기는 isBye + walkoverReason 'bye'로 쓰고(구 필드 bye는 쓰지 않음), 실제 선수 쪽 부전승 점수는
+ *   호출부가 대회 규칙으로 만든 byeSets(기본 11:0 × 이겨야 하는 세트 수)를 기록한다.
+ * - 미정 슬롯은 빈 ID + labels.undecided(현지화된 '미정')이다. 화면은 빈 ID 쪽을 미정 스타일로 그린다.
  *
  * roundLabel/bracketRound는 화면 문구가 아니라 저장 데이터다. 서버(getRoundName)와
  * 관전/관리자 대진표가 라운드 정렬·분류에 쓰는 표준 값("8강", "4강", "결승", "3/4위 결정전")을 그대로 쓴다.
  * ("결정전"이 들어간 roundLabel은 관전/현황 화면에서 순위결정전으로 분류된다.)
  */
-import type { Match, MatchType } from '../types';
+import type { Match, MatchType, SetScore } from '../types';
+import { BYE_WALKOVER_REASON } from '../rules/walkover';
 import { createEmptySet } from './scoring';
 
 export interface SkeletonEntrant {
@@ -36,6 +40,8 @@ export interface SkeletonOptions {
   makeKey: () => string;
   now: number;
   labels: { undecided: string; bye: string };
+  /** BYE 경기에서 실제 선수가 받는 부전승 세트. 없으면 점수 없이 완료한다. */
+  byeSets?: (winnerSide: 1 | 2, winnerId: string) => SetScore[];
 }
 
 /** 표준 라운드 이름 (서버 functions/src/lib/bracket-seeding.ts ROUND_NAMES와 같은 값) */
@@ -84,7 +90,7 @@ function sideFields(side: 1 | 2, matchType: MatchType, id: string, name: string)
 }
 
 export function buildSingleEliminationSkeleton(opts: SkeletonOptions): SkeletonEntry[] {
-  const { tournamentId, stageId, matchType, slots, thirdPlace, makeKey, now, labels } = opts;
+  const { tournamentId, stageId, matchType, slots, thirdPlace, makeKey, now, labels, byeSets } = opts;
   const size = nextPowerOfTwo(Math.max(2, slots.length));
   const totalRounds = Math.log2(size);
   const entries: SkeletonEntry[] = [];
@@ -124,13 +130,14 @@ export function buildSingleEliminationSkeleton(opts: SkeletonOptions): SkeletonE
       // BYE 경기: 실제 선수 쪽이 자동 진출. BYE 쪽 ID는 빈 값으로 둬서 통계에 가짜 선수가 생기지 않게 한다.
       if (s1 === null) Object.assign(match, sideFields(1, matchType, '', labels.bye));
       if (s2 === null) Object.assign(match, sideFields(2, matchType, '', labels.bye));
-      match.bye = true;
       match.isBye = true;
       const realSide = s1 || s2;
       if (realSide) {
         match.status = 'completed';
         match.winnerId = realSide.id;
-        match.sets = [];
+        match.walkover = true;
+        match.walkoverReason = BYE_WALKOVER_REASON;
+        match.sets = byeSets ? byeSets(s1 ? 1 : 2, realSide.id) : [];
       }
     }
     const key = makeKey();

@@ -23,8 +23,18 @@
  *   하위 경기를 부전승(autoWalkover)으로 완료한다. 양쪽 모두 영구히 비면 승자 없는 BYE로 완료한다.
  *   이 완료가 다시 트리거를 불러 다음 라운드로 연쇄 진출한다(BYE 연쇄).
  *   autoWalkover 경기는 트리거 소유이므로, 상위 결과가 정정되면 다시 pending으로 되돌릴 수 있다.
- * - BYE/부전승은 가짜 점수를 만들지 않는다(sets 변경 없음, isBye 표시 → 통계에서 제외).
+ * - BYE/부전승은 11:0 승리다(M0c, 소유자 요구). 자동 부전승은 대회 규칙(shared/rules)의 부전승 점수를
+ *   이겨야 하는 세트 수만큼 기록하고(개인 3세트제 11:0 ×2, 팀 31:0), isBye + walkoverReason 'bye'로 표시한다.
+ *   집계 여부는 규칙(walkover.countInStandings/countInPlayerStats/byeCountsAsWalkover)이 정한다.
+ *   BYE를 부전승으로 보지 않는 규칙이면 점수를 쓰지 않는다. 양쪽 다 빈 BYE는 점수 없음.
+ * - 쓰기는 isBye만 한다(구 클라이언트 필드 bye는 읽기만 하고, 되돌릴 때 함께 지운다).
  */
+import {
+  resolveCompetitionRules,
+  resolveMatchScoring,
+  type CompetitionRules,
+} from "../shared/rules/competitionRules";
+import { buildByeSets, BYE_WALKOVER_REASON } from "../shared/rules/walkover";
 
 export type MatchData = Record<string, unknown>;
 export type Side = 1 | 2;
@@ -134,42 +144,40 @@ function sideMatchesId(m: MatchData, side: Side, id: string): boolean {
 
 // ===== 점수 규칙 =====
 
-function rulesFrom(obj: unknown): ScoringRulesLite | null {
-  if (!isObject(obj)) return null;
-  const setsToWin = num(obj.setsToWin);
-  const winScore = num(obj.winScore);
-  if (setsToWin <= 0 || winScore <= 0) return null;
-  return { setsToWin, winScore, minLead: num(obj.minLead) || 2 };
-}
-
-const INDIVIDUAL_DEFAULT: ScoringRulesLite = { setsToWin: 2, winScore: 11, minLead: 2 };
-const TEAM_DEFAULT: ScoringRulesLite = { setsToWin: 1, winScore: 31, minLead: 2 };
-
 function isTeamType(type: unknown): boolean {
   return type === "team" || type === "randomTeamLeague";
 }
 
 /**
- * 경기의 유효 점수 규칙. 클라이언트 getEffectiveScoringRules와 같은 우선순위다.
- * match.appliedScoringRules > stage.scoringRules > tournament.scoringRules
- * > (팀전이면 31점 1게임) > tournament.gameConfig > 11점 2세트선승
+ * 경기의 유효 점수 규칙. 대회 규칙 단일 설정원(shared/rules resolveMatchScoring)을 쓴다:
+ * match.appliedScoringRules > stage.rules/scoringRules > tournament.rules/scoringRules
+ * > (팀전이면 teamMatchSettings 또는 31점 1게임) > tournament.gameConfig > 11점 2세트선승
  */
 export function resolveScoringRules(match: MatchData, tournament: MatchData | null | undefined): ScoringRulesLite {
-  const applied = rulesFrom(match.appliedScoringRules);
-  if (applied) return applied;
-  const t = tournament || {};
-  const stageId = str(match.stageId);
-  if (stageId && t.stages) {
-    const stages = Array.isArray(t.stages) ? t.stages : isObject(t.stages) ? Object.values(t.stages) : [];
-    const stage = stages.find(s => isObject(s) && s.id === stageId) as MatchData | undefined;
-    const stageRules = stage ? rulesFrom(stage.scoringRules) : null;
-    if (stageRules) return stageRules;
-  }
-  const tourRules = rulesFrom(t.scoringRules);
-  if (tourRules) return tourRules;
-  if (isTeamType(match.type)) return TEAM_DEFAULT;
-  return rulesFrom(t.gameConfig) || INDIVIDUAL_DEFAULT;
+  const r = resolveMatchScoring(match, tournament);
+  return { setsToWin: r.setsToWin, winScore: r.winScore, minLead: r.minLead };
 }
+
+/** 자동 부전승(BYE) 경기에 기록할 세트. 빈 배열이면 점수 없음. */
+export type WalkoverSetsFor = (m: MatchData, winnerSide: Side, winnerId: string) => unknown[];
+
+/** 대회 규칙으로 부전승 세트를 만든다 (기본: 세트 목표 점수 : 0 × 이겨야 하는 세트 수) */
+export function walkoverSetsForTournament(tournament: MatchData | null | undefined): WalkoverSetsFor {
+  return (m, winnerSide, winnerId) => {
+    const rules: CompetitionRules = resolveCompetitionRules(tournament, m.stageId);
+    return buildByeSets(resolveMatchScoring(m, tournament), rules, winnerSide, winnerId);
+  };
+}
+
+/** 점수 규칙만 아는 호출부용 기본값 (부전승 점수 = 세트 목표 점수) */
+function defaultWalkoverSets(rulesFor: RulesFor): WalkoverSetsFor {
+  return (m, winnerSide, winnerId) => {
+    const r = rulesFor(m);
+    return buildByeSets({ ...r, maxSets: r.setsToWin * 2 - 1 }, resolveCompetitionRules(null), winnerSide, winnerId);
+  };
+}
+
+const EMPTY_SET = { player1Score: 0, player2Score: 0, player1Faults: 0, player2Faults: 0, player1Violations: 0, player2Violations: 0, winnerId: null };
 
 function setWinner(p1: number, p2: number, rules: ScoringRulesLite): 1 | 2 | null {
   if (p1 >= rules.winScore && p1 - p2 >= rules.minLead) return 1;
@@ -362,26 +370,32 @@ export function resolveSlot(
  * 영구히 빈 슬롯이 있는 하위 경기를 부전승으로 완료(또는 자동 부전승을 되돌림)하는 패치.
  * 바꿀 것이 없으면 null.
  */
-export function computeAutoWalkover(m: MatchData, permanentlyEmpty: Record<Side, boolean>): Record<string, unknown> | null {
+export function computeAutoWalkover(
+  m: MatchData,
+  permanentlyEmpty: Record<Side, boolean>,
+  walkoverSets?: WalkoverSetsFor,
+): Record<string, unknown> | null {
   const owned = m.autoWalkover === true;
   if (m.status !== "pending" && !owned) return null;
   const p1 = getSideParticipant(m, 1);
   const p2 = getSideParticipant(m, 2);
-  let want: { winnerId: string | null } | null = null;
-  if (permanentlyEmpty[1] && permanentlyEmpty[2] && !p1 && !p2) want = { winnerId: null };
-  else if (permanentlyEmpty[1] && !p1 && p2) want = { winnerId: p2.id };
-  else if (permanentlyEmpty[2] && !p2 && p1) want = { winnerId: p1.id };
+  let want: { winnerId: string | null; side: Side } | null = null;
+  if (permanentlyEmpty[1] && permanentlyEmpty[2] && !p1 && !p2) want = { winnerId: null, side: 1 };
+  else if (permanentlyEmpty[1] && !p1 && p2) want = { winnerId: p2.id, side: 2 };
+  else if (permanentlyEmpty[2] && !p2 && p1) want = { winnerId: p1.id, side: 1 };
 
   if (want) {
-    if (owned && m.status === "completed" && (str(m.winnerId) || null) === want.winnerId) return null;
+    const sets = want.winnerId && walkoverSets ? walkoverSets(m, want.side, want.winnerId) : [];
+    if (owned && m.status === "completed" && (str(m.winnerId) || null) === want.winnerId &&
+      JSON.stringify(m.sets ?? []) === JSON.stringify(sets)) return null;
     return {
-      status: "completed", winnerId: want.winnerId,
-      walkover: true, walkoverReason: "bye", autoWalkover: true, isBye: true, bye: true,
+      status: "completed", winnerId: want.winnerId, sets,
+      walkover: true, walkoverReason: BYE_WALKOVER_REASON, autoWalkover: true, isBye: true, bye: null,
     };
   }
   if (owned) {
     return {
-      status: "pending", winnerId: null,
+      status: "pending", winnerId: null, sets: [{ ...EMPTY_SET }],
       walkover: null, walkoverReason: null, autoWalkover: null, isBye: null, bye: null,
     };
   }
@@ -419,6 +433,7 @@ export function planDownstreamUpdate(
   desired: Participant | null | undefined,
   all: Record<string, MatchData>,
   rulesFor: RulesFor,
+  walkoverSets: WalkoverSetsFor = defaultWalkoverSets(rulesFor),
 ): { next: MatchData; decision: SlotDecision } {
   const decision = resolveSlot(downstream, link.side, link, desired);
   let next = decision.kind === "patch" ? applyPatch(downstream, decision.patch) : downstream;
@@ -426,7 +441,7 @@ export function planDownstreamUpdate(
     1: link.side === 1 ? desired === null : isSlotPermanentlyEmpty(next, downstreamId, 1, all, rulesFor),
     2: link.side === 2 ? desired === null : isSlotPermanentlyEmpty(next, downstreamId, 2, all, rulesFor),
   };
-  const wo = computeAutoWalkover(next, perm);
+  const wo = computeAutoWalkover(next, perm, walkoverSets);
   if (wo) next = applyPatch(next, wo);
   return { next, decision };
 }
@@ -449,7 +464,11 @@ export function diffPatch(before: MatchData, after: MatchData): Record<string, u
  * 미정인 상위 결과로 슬롯을 비우지는 않는다(시뮬레이션은 결과를 쌓기만 한다).
  * 반환: { [matchId]: { field: value } }
  */
-export function sweepAdvancement(all: Record<string, MatchData>, rulesFor: RulesFor): Record<string, Record<string, unknown>> {
+export function sweepAdvancement(
+  all: Record<string, MatchData>,
+  rulesFor: RulesFor,
+  walkoverSets: WalkoverSetsFor = defaultWalkoverSets(rulesFor),
+): Record<string, Record<string, unknown>> {
   const out: Record<string, Record<string, unknown>> = {};
   for (const [id, m] of Object.entries(all)) {
     if (!isObject(m) || !isModifiable(m)) continue;
@@ -461,7 +480,7 @@ export function sweepAdvancement(all: Record<string, MatchData>, rulesFor: Rules
       if (!src) continue;
       const desired = participantFor(determineResult(src, rulesFor(src)), link.outcome);
       if (desired === undefined) continue;
-      next = planDownstreamUpdate(next, id, link, desired, all, rulesFor).next;
+      next = planDownstreamUpdate(next, id, link, desired, all, rulesFor, walkoverSets).next;
     }
     const patch = diffPatch(m, next);
     if (Object.keys(patch).length > 0) out[id] = patch;
@@ -543,6 +562,7 @@ export async function processMatchWrite(
   const tournament = await store.getTournament();
   if (tournament?.autoAdvance === false) return { ...report, skipped: "opt_out" };
   const rulesFor: RulesFor = m => resolveScoringRules(m, tournament);
+  const walkoverSets = walkoverSetsForTournament(tournament);
 
   const resBefore = before ? determineResult(before, rulesFor(before)) : { decided: false as const };
   const resAfter = after ? determineResult(after, rulesFor(after)) : { decided: false as const };
@@ -565,7 +585,7 @@ export async function processMatchWrite(
     await store.transactMatch(link.downstreamId, cur => {
       // RTDB는 첫 호출에 캐시가 없으면 null을 준다. null을 돌려주면 서버 값으로 다시 호출된다.
       if (cur === null) { decision = null; wrote = false; return null; }
-      const plan = planDownstreamUpdate(cur, link.downstreamId, link, desired, { ...all, [link.downstreamId]: cur }, rulesFor);
+      const plan = planDownstreamUpdate(cur, link.downstreamId, link, desired, { ...all, [link.downstreamId]: cur }, rulesFor, walkoverSets);
       decision = plan.decision;
       downstreamStatus = str(cur.status);
       wrote = plan.next !== cur;

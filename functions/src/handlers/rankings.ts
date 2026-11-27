@@ -3,6 +3,8 @@
  * chatbot-tools.ts에서 분리됨 (모듈화의 첫 단계)
  */
 import { db, asString } from "../db-helpers";
+import { aggregateStandings, normalizeResults, resultContextFor } from "../shared/rules/standings";
+import { computeFinalPlacements } from "../shared/rules/finalRanking";
 
 export interface RankingEntry {
   rank: number;
@@ -10,6 +12,8 @@ export interface RankingEntry {
   wins: number;
   losses: number;
   sets: string;
+  /** 공동 순위 */
+  joint?: boolean;
 }
 
 export interface TournamentRankingsResponse {
@@ -24,8 +28,8 @@ export interface TournamentRankingsResponse {
 
 /**
  * 대회 순위 조회
- * - 본선 결과(1-4위)를 우선 사용
- * - 5위 이하는 통합 순위 (승수 → 세트득실 → 점수득실)
+ * - 본선이 있으면 대진 결과로 (shared/rules/finalRanking)
+ * - 대진이 없으면 순위표 + 대회 동률 규칙
  */
 export async function getTournamentRankings(
   tid: string,
@@ -43,86 +47,21 @@ export async function getTournamentRankings(
   if (!mSnap.exists()) return { tournamentName: tName, rankings: [], message: "경기 정보 없음" };
   const allMatches = Object.values(mSnap.val() as Record<string, Record<string, unknown>>);
 
-  // 1) 본선 결승/3-4위 결과 → 1-4위
-  const finalsResults: Map<number, { id: string; name: string }> = new Map();
-  for (const m of allMatches) {
-    if (m.status !== "completed" || m.isBye) continue;
-    const sid = asString(m.stageId);
-    const rl = asString(m.roundLabel);
-    const br = asString(m.bracketRound);
-    const wId = asString(m.winnerId);
-    const p1Id = asString(m.player1Id ?? m.team1Id);
-    const wName = wId === p1Id ? asString(m.player1Name ?? m.team1Name) : asString(m.player2Name ?? m.team2Name);
-    const lId = wId === p1Id ? asString(m.player2Id ?? m.team2Id) : p1Id;
-    const lName = wId === p1Id ? asString(m.player2Name ?? m.team2Name) : asString(m.player1Name ?? m.team1Name);
-
-    if ((br === "결승" || rl === "결승") && sid.includes("finals") && !sid.includes("class") && !sid.includes("3rd")) {
-      finalsResults.set(1, { id: wId, name: wName });
-      finalsResults.set(2, { id: lId, name: lName });
-    }
-    if (br === "3/4위" || sid.includes("3rd")) {
-      finalsResults.set(3, { id: wId, name: wName });
-      finalsResults.set(4, { id: lId, name: lName });
-    }
-  }
-
-  // 2) 전체 통합 순위 (모든 경기 기반)
-  const stats = new Map<string, { name: string; wins: number; losses: number; setsWon: number; setsLost: number; pf: number; pa: number }>();
-  for (const m of allMatches) {
-    if (m.status !== "completed" || m.isBye) continue;
-    const id1 = asString(m.player1Id ?? m.team1Id);
-    const id2 = asString(m.player2Id ?? m.team2Id);
-    const n1 = asString(m.player1Name ?? m.team1Name);
-    const n2 = asString(m.player2Name ?? m.team2Name);
-    if (!id1 || !id2 || id1 === "BYE" || id2 === "BYE") continue;
-    if (!stats.has(id1)) stats.set(id1, { name: n1, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
-    if (!stats.has(id2)) stats.set(id2, { name: n2, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pf: 0, pa: 0 });
-    const s1 = stats.get(id1)!, s2 = stats.get(id2)!;
-    if (m.winnerId === id1) { s1.wins++; s2.losses++; }
-    else if (m.winnerId === id2) { s2.wins++; s1.losses++; }
-    for (const s of ((m.sets || []) as Array<{ player1Score: number; player2Score: number }>)) {
-      if (s.player1Score > s.player2Score) { s1.setsWon++; s2.setsLost++; }
-      else if (s.player2Score > s.player1Score) { s2.setsWon++; s1.setsLost++; }
-      s1.pf += s.player1Score; s1.pa += s.player2Score;
-      s2.pf += s.player2Score; s2.pa += s.player1Score;
-    }
-  }
-  const sorted = [...stats.values()].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    const aSD = a.setsWon - a.setsLost, bSD = b.setsWon - b.setsLost;
-    if (bSD !== aSD) return bSD - aSD;
-    return (b.pf - b.pa) - (a.pf - a.pa);
+  // 최종 순위: 대진 결과(결승 → 3/4위전 → 순위결정전 → 라운드), 대진이 없으면 순위표 + 동률 규칙.
+  // 순위표/통계는 대회 규칙(shared/rules)의 점수 규칙·부전승 집계 설정을 따른다.
+  const ctx = resultContextFor(tData, "stats");
+  const statRows = aggregateStandings(normalizeResults(allMatches, ctx), ctx.rules);
+  const rankings: RankingEntry[] = computeFinalPlacements({ matches: allMatches, ctx: resultContextFor(tData) }).map(p => {
+    const st = statRows.get(p.id);
+    return {
+      rank: p.place,
+      name: p.name,
+      wins: st?.wins || 0,
+      losses: st?.losses || 0,
+      sets: st ? `${st.setsWon}-${st.setsLost}` : "",
+      ...(p.joint ? { joint: true } : {}),
+    };
   });
-
-  // 본선 순위가 있으면 그것을 우선 (1-4위), 없으면 통합 순위 사용
-  const rankings: RankingEntry[] = [];
-  if (finalsResults.size > 0) {
-    for (let r = 1; r <= 4; r++) {
-      const entry = finalsResults.get(r);
-      if (entry) {
-        const st = stats.get(entry.id);
-        rankings.push({
-          rank: r,
-          name: entry.name,
-          wins: st?.wins || 0,
-          losses: st?.losses || 0,
-          sets: st ? `${st.setsWon}-${st.setsLost}` : "",
-        });
-      }
-    }
-    const finalsIds = new Set([...finalsResults.values()].map(v => v.id));
-    const rest = sorted.filter(s => {
-      const id = [...stats.entries()].find(([, v]) => v === s)?.[0];
-      return id && !finalsIds.has(id);
-    });
-    rest.forEach((s, i) => {
-      rankings.push({ rank: 5 + i, name: s.name, wins: s.wins, losses: s.losses, sets: `${s.setsWon}-${s.setsLost}` });
-    });
-  } else {
-    sorted.forEach((s, i) => {
-      rankings.push({ rank: i + 1, name: s.name, wins: s.wins, losses: s.losses, sets: `${s.setsWon}-${s.setsLost}` });
-    });
-  }
 
   const finalRankings = topN ? rankings.slice(0, topN) : rankings;
   return {

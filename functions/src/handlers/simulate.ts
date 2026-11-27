@@ -5,7 +5,7 @@
  * - 예선 완료 시 결승 자동 생성/시뮬레이션 지원 (executeTool 콜백)
  */
 import { db, asString, asNumber, asBoolean } from "../db-helpers";
-import { resolveScoringRules, sweepAdvancement, type MatchData as AdvMatchData } from "../lib/advancement";
+import { resolveScoringRules, sweepAdvancement, walkoverSetsForTournament, type MatchData as AdvMatchData } from "../lib/advancement";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
@@ -43,7 +43,7 @@ function getSideName(match: MatchData, side: 1 | 2, isTeam: boolean): string {
 function buildAdvanceBulk(
   tid: string, allM: Record<string, AdvMatchData>, tourData: Record<string, unknown>,
 ): { bulk: Record<string, unknown>; count: number } {
-  const patches = sweepAdvancement(allM, m => resolveScoringRules(m, tourData));
+  const patches = sweepAdvancement(allM, m => resolveScoringRules(m, tourData), walkoverSetsForTournament(tourData));
   const bulk: Record<string, unknown> = {};
   for (const [nextId, patch] of Object.entries(patches)) {
     for (const [field, value] of Object.entries(patch)) bulk[`matches/${tid}/${nextId}/${field}`] = value;
@@ -536,15 +536,13 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             return sid && sid.includes("finals");
           });
           if (!finalsExist) {
-            // 대회 설정에서 파라미터 추출
-            const simFc = tourData.finalsConfig as Record<string, unknown> | undefined;
+            // 진출 인원·와일드카드는 대회 규칙(rules / finalsConfig)에서 generate_finals가 직접 읽는다
             const genResult = await executeTool("generate_finals", {
               tournamentId: tid,
-              advancePerGroup: asNumber(simFc?.advancePerGroup, 2),
-              wildcardCount: asNumber(simFc?.wildcardCount, 0),
               includeThirdPlace: true,
               includeFifthToEighth: true,
               includeClassification: true,
+              resolveTiesByLot: true,
             });
             const genParsed = JSON.parse(genResult);
             if (genParsed.success) {

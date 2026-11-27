@@ -1,16 +1,55 @@
-import { useMemo } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { countSetWins, getSetScoresByServer } from '@shared/utils/scoring';
+import { countSetWins, getEffectiveScoringRules, getSetScoresByServer } from '@shared/utils/scoring';
 import { calculateGroupRanking } from '@shared/utils/ranking';
-import type { Match } from '@shared/types';
+import { useSlotLabel, type SlotLabel } from '@shared/hooks/useSlotLabel';
+import type { Match, Tournament } from '@shared/types';
 
 export interface BracketTabProps {
   matches: Match[];
   tournamentType: string;
   onSelectPlayer: (name: string) => void;
+  /** 대회 규칙(점수 규칙·동률)을 읽는다 */
+  tournament?: Tournament | null;
+  /** 진출 링크의 출처 경기를 찾기 위한 전체 경기 (matches가 필터된 목록일 때) */
+  allMatches?: Match[];
 }
 
-export default function BracketTab({ matches, tournamentType, onSelectPlayer }: BracketTabProps) {
+interface BracketContextValue {
+  tournament: Tournament | null;
+  slotLabel: (m: Match, side: 1 | 2) => SlotLabel;
+}
+
+const BracketContext = createContext<BracketContextValue>({
+  tournament: null,
+  slotLabel: (m, side) => {
+    const text = (side === 1 ? m.player1Name || m.team1Name : m.player2Name || m.team2Name) || '';
+    return { text, srText: text, undecided: false };
+  },
+});
+
+/** 미정 슬롯: 화면에는 '미정', 스크린리더에는 출처 경기까지 읽어 준다 */
+function SlotText({ slot }: { slot: SlotLabel }) {
+  if (!slot.undecided || slot.srText === slot.text) return <>{slot.text}</>;
+  return (
+    <>
+      <span aria-hidden="true">{slot.text}</span>
+      <span className="sr-only">{slot.srText}</span>
+    </>
+  );
+}
+
+export default function BracketTab(props: BracketTabProps) {
+  const slotLabel = useSlotLabel(props.allMatches ?? props.matches);
+  const value = useMemo(() => ({ tournament: props.tournament ?? null, slotLabel }), [props.tournament, slotLabel]);
+  return (
+    <BracketContext.Provider value={value}>
+      <BracketTabContent {...props} />
+    </BracketContext.Provider>
+  );
+}
+
+function BracketTabContent({ matches, tournamentType, onSelectPlayer }: BracketTabProps) {
   const { t } = useTranslation();
   const isTeam = tournamentType === 'team' || tournamentType === 'randomTeamLeague';
   const hasGroups = matches.some(m => m.groupId);
@@ -89,9 +128,10 @@ export default function BracketTab({ matches, tournamentType, onSelectPlayer }: 
 // ===== Finals View =====
 function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   const { t } = useTranslation();
-  const roundOrder = ['128\uac15', '64\uac15', '32\uac15', '16\uac15', '8\uac15', '4\uac15', '\uacb0\uc2b9'];
+  const { tournament, slotLabel } = useContext(BracketContext);
 
   const rounds = useMemo(() => {
+    const roundOrder = ['128강', '64강', '32강', '16강', '8강', '4강', '결승'];
     const map = new Map<string, Match[]>();
     matches.forEach(m => {
       const label = m.roundLabel || t('spectator.tournament.view.roundLabel', { round: m.round || '?' });
@@ -106,7 +146,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
       if (bi !== -1) return 1;
       return a.localeCompare(b);
     });
-  }, [matches]);
+  }, [matches, t]);
 
   if (matches.length === 0) {
     return (
@@ -165,14 +205,17 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
               paddingBottom: '0.75rem',
             }}>
               {roundMatches.map((m, matchIdx) => {
-                const p1 = m.player1Name || m.team1Name || 'TBD';
-                const p2 = m.player2Name || m.team2Name || 'TBD';
+                const s1 = slotLabel(m, 1);
+                const s2 = slotLabel(m, 2);
+                const p1 = s1.text;
+                const p2 = s2.text;
                 const isP1Winner = m.winnerId === (m.player1Id || m.team1Id);
                 const isP2Winner = m.winnerId === (m.player2Id || m.team2Id);
                 const isCompleted = m.status === 'completed';
                 const isInProgress = m.status === 'in_progress';
                 const sets = Array.isArray(m.sets) ? m.sets : [];
-                const setWins = sets.length > 0 ? countSetWins(sets) : null;
+                // 세트 승수는 그 경기의 유효 규칙(스테이지·팀 31점)으로 센다
+                const setWins = sets.length > 0 ? countSetWins(sets, getEffectiveScoringRules(m, tournament)) : null;
 
                 return (
                   <div
@@ -226,7 +269,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                               flexShrink: 0,
                             }} />
                           )}
-                          {onSelectPlayer ? (
+                          {!s1.undecided ? (
                             <button
                               onClick={() => onSelectPlayer(p1)}
                               style={{
@@ -235,7 +278,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                                 cursor: 'pointer',
                                 padding: 0,
                                 fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
-                                color: p1 === 'TBD' ? '#9ca3af' : isCompleted ? (isP1Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
+                                color: s1.undecided ? '#9ca3af' : isCompleted ? (isP1Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                                 fontSize: '0.9375rem',
                                 textAlign: 'left',
                                 overflow: 'hidden',
@@ -249,10 +292,11 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           ) : (
                             <span style={{
                               fontWeight: isCompleted && isP1Winner ? 'bold' : 'normal',
-                              color: p1 === 'TBD' ? '#9ca3af' : isCompleted ? (isP1Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
+                              color: s1.undecided ? '#9ca3af' : isCompleted ? (isP1Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                               fontSize: '0.9375rem',
+                              fontStyle: s1.undecided ? 'italic' : 'normal',
                             }}>
-                              {p1}
+                              <SlotText slot={s1} />
                             </span>
                           )}
                         </div>
@@ -287,7 +331,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                               flexShrink: 0,
                             }} />
                           )}
-                          {onSelectPlayer ? (
+                          {!s2.undecided ? (
                             <button
                               onClick={() => onSelectPlayer(p2)}
                               style={{
@@ -296,7 +340,7 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                                 cursor: 'pointer',
                                 padding: 0,
                                 fontWeight: isCompleted && isP2Winner ? 'bold' : 'normal',
-                                color: p2 === 'TBD' ? '#9ca3af' : isCompleted ? (isP2Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
+                                color: s2.undecided ? '#9ca3af' : isCompleted ? (isP2Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                                 fontSize: '0.9375rem',
                                 textAlign: 'left',
                                 overflow: 'hidden',
@@ -310,10 +354,11 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
                           ) : (
                             <span style={{
                               fontWeight: isCompleted && isP2Winner ? 'bold' : 'normal',
-                              color: p2 === 'TBD' ? '#9ca3af' : isCompleted ? (isP2Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
+                              color: s2.undecided ? '#9ca3af' : isCompleted ? (isP2Winner ? '#22c55e' : '#d1d5db') : '#d1d5db',
                               fontSize: '0.9375rem',
+                              fontStyle: s2.undecided ? 'italic' : 'normal',
                             }}>
-                              {p2}
+                              <SlotText slot={s2} />
                             </span>
                           )}
                         </div>
@@ -417,18 +462,24 @@ function FinalsView({ matches, onSelectPlayer }: { matches: Match[]; onSelectPla
 
 function MatchResultCard({ match, onSelectPlayer }: { match: Match; onSelectPlayer?: (name: string) => void }) {
   const { t } = useTranslation();
-  const p1 = match.player1Name || match.team1Name || '?';
-  const p2 = match.player2Name || match.team2Name || '?';
+  const { slotLabel } = useContext(BracketContext);
+  const s1 = slotLabel(match, 1);
+  const s2 = slotLabel(match, 2);
+  const p1 = s1.text || '?';
+  const p2 = s2.text || '?';
   const isP1Winner = match.winnerId === (match.player1Id || match.team1Id);
   const isCompleted = match.status === 'completed';
   const sets = Array.isArray(match.sets) ? match.sets : [];
 
   const nameButton = (name: string, isWinner: boolean, align: 'left' | 'right') => {
+    const slot = name === p1 ? s1 : s2;
     const style: React.CSSProperties = {
       fontSize: '1.125rem',
       fontWeight: 'bold',
-      color: isCompleted ? (isWinner ? '#22c55e' : '#d1d5db') : '#d1d5db',
+      color: slot.undecided ? '#9ca3af' : isCompleted ? (isWinner ? '#22c55e' : '#d1d5db') : '#d1d5db',
+      fontStyle: slot.undecided ? 'italic' : 'normal',
     };
+    if (slot.undecided) return <span style={style}><SlotText slot={slot} /></span>;
     if (onSelectPlayer) {
       return (
         <button
@@ -504,7 +555,7 @@ function RankingMatchesView({ matches, onSelectPlayer }: { matches: Match[]; onS
       map.get(label)!.push(m);
     });
     return Array.from(map.entries());
-  }, [matches]);
+  }, [matches, t]);
 
   if (matches.length === 0) {
     return (
@@ -587,8 +638,9 @@ function formatDiff(value: number): { text: string; color: string } {
 
 function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
   const { t } = useTranslation();
+  const { tournament } = useContext(BracketContext);
   const rankings = useMemo(() => {
-    const r = calculateGroupRanking(matches);
+    const r = calculateGroupRanking(matches, undefined, tournament, matches[0]?.groupId || '');
     return r.map(p => ({
       name: p.playerName || '',
       played: p.played,
@@ -599,7 +651,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
       pointsFor: p.pointsFor,
       pointsAgainst: p.pointsAgainst,
     }));
-  }, [matches]);
+  }, [matches, tournament]);
 
   if (rankings.length === 0) return null;
 
@@ -731,6 +783,7 @@ function MatchResultRow({ match, onSelectPlayer }: { match: Match; onSelectPlaye
 
 function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
   const { t } = useTranslation();
+  const { tournament } = useContext(BracketContext);
   // Collect unique players
   const players = useMemo(() => {
     const playerMap = new Map<string, string>();
@@ -762,7 +815,7 @@ function IndividualBracket({ matches, onSelectPlayer }: { matches: Match[]; onSe
     const isP1 = match.player1Id === p1Id;
     const won = match.winnerId === p1Id;
     if (Array.isArray(match.sets) && match.sets.length > 0) {
-      const setWins = countSetWins(match.sets);
+      const setWins = countSetWins(match.sets, getEffectiveScoringRules(match, tournament));
       const myWins = isP1 ? setWins.player1 : setWins.player2;
       const oppWins = isP1 ? setWins.player2 : setWins.player1;
       return {

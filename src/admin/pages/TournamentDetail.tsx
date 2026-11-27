@@ -21,6 +21,7 @@ import BracketTab from '../components/tournament-detail/BracketTab';
 import ScheduleTab from '../components/tournament-detail/ScheduleTab';
 import StatusTab from '../components/tournament-detail/StatusTab';
 import RankingTab from '../components/tournament-detail/RankingTab';
+import AdvancementConflictsPanel from '../components/tournament-detail/AdvancementConflictsPanel';
 
 import type { Match } from '@shared/types';
 
@@ -400,6 +401,8 @@ export default function TournamentDetail() {
           </button>
         </div>
       )}
+
+      <AdvancementConflictsPanel tournamentId={tournament.id} matches={matches} updateMatch={updateMatch} teams={teams} />
 
       <div className="flex gap-2 flex-wrap justify-center border-b border-gray-700 pb-2" role="tablist" aria-label={t('admin.tournamentDetail.tabListAriaLabel')} onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const idx = TAB_KEYS.findIndex(tk => tk.key === activeTab); const next = e.key === 'ArrowRight' ? (idx + 1) % TAB_KEYS.length : (idx - 1 + TAB_KEYS.length) % TAB_KEYS.length; setActiveTab(TAB_KEYS[next].key); e.currentTarget.querySelector<HTMLElement>(`#tab-${TAB_KEYS[next].key}`)?.focus(); } }}>
         {TAB_KEYS.map(tab => (

@@ -1,7 +1,19 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calculateIndividualRanking, calculateTeamRanking, calculateGroupRanking } from '@shared/utils/ranking';
-import type { Match, PlayerRanking, TeamRanking } from '@shared/types';
+import { calculateGroupRanking, finalRankingRows, groupStageIdOf, type FinalRankingRow, type RankingTournament } from '@shared/utils/ranking';
+import { resolveCompetitionRules } from '@shared/rules/competitionRules';
+import type { Match } from '@shared/types';
+
+type RulesTournament = Partial<RankingTournament> | null | undefined;
+
+/** 최종 순위 표기 (공동 순위·미정 포함, 스크린리더도 같은 문장을 읽는다) */
+function usePlaceLabel() {
+  const { t } = useTranslation();
+  return (r: FinalRankingRow): string => {
+    if (r.place === null) return t('common.competitionRules.pendingPlace');
+    return r.joint ? t('common.competitionRules.jointPlace', { place: r.place }) : String(r.place);
+  };
+}
 
 export interface RankingTabProps {
   matches: Match[];
@@ -9,7 +21,8 @@ export interface RankingTabProps {
   isFavorite: (id: string) => boolean;
   onSelectPlayer: (name: string) => void;
   stageFilter: 'all' | 'qualifying' | 'finals' | 'ranking';
-  tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
+  /** 대회 규칙(점수·부전승·동률·최종 순위 정책)을 읽는다 */
+  tournament?: RulesTournament;
 }
 
 function formatDiff(value: number): { text: string; color: string } {
@@ -48,8 +61,8 @@ export default function RankingTab({
     return (
       <div>
 
-        <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
-        <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} isTeam={tournamentType === 'team' || tournamentType === 'randomTeamLeague'} />
+        <TournamentResultsSummary matches={matches} tournamentType={tournamentType} tournament={tournament} />
+        <GroupRankingView matches={matches} onSelectPlayer={onSelectPlayer} isTeam={tournamentType === 'team' || tournamentType === 'randomTeamLeague'} tournament={tournament} />
       </div>
     );
   }
@@ -60,8 +73,8 @@ export default function RankingTab({
     return (
       <div>
 
-        <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
-        <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} />
+        <TournamentResultsSummary matches={matches} tournamentType={tournamentType} tournament={tournament} />
+        <TeamRankingTable matches={matches} onSelectPlayer={onSelectPlayer} tournament={tournament} />
       </div>
     );
   }
@@ -69,13 +82,13 @@ export default function RankingTab({
   return (
     <div>
 
-      <TournamentResultsSummary matches={matches} tournamentType={tournamentType} />
+      <TournamentResultsSummary matches={matches} tournamentType={tournamentType} tournament={tournament} />
       <IndividualRankingTable matches={matches} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} tournament={tournament} />
     </div>
   );
 }
 
-function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+function GroupRankingView({ matches, onSelectPlayer, isTeam = false, tournament }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; tournament?: RulesTournament }) {
   const { t } = useTranslation();
   const groups = useMemo(() => {
     const map = new Map<string, Match[]>();
@@ -102,18 +115,22 @@ function GroupRankingView({ matches, onSelectPlayer, isTeam = false }: { matches
           <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.75rem', textAlign: 'center' }}>
             {groupId === 'default' ? t('spectator.tournament.view.overallRanking') : t('spectator.tournament.view.groupRanking', { id: groupId })}
           </h3>
-          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} />
+          <GroupRankingTable matches={groupMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} />
         </div>
       ))}
     </div>
   );
 }
 
-function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean }) {
+function GroupRankingTable({ matches, onSelectPlayer, isTeam = false, tournament, scope = '' }: { matches: Match[]; onSelectPlayer: (name: string) => void; isTeam?: boolean; tournament?: RulesTournament; scope?: string }) {
   const { t } = useTranslation();
+  // 진출 인원은 대회 규칙(조당 진출 인원)에서 읽는다
+  const perGroup = resolveCompetitionRules(tournament, groupStageIdOf(matches, tournament)).qualification.perGroup;
   const rankings = useMemo(() => {
-    const r = calculateGroupRanking(matches);
+    const r = calculateGroupRanking(matches, undefined, tournament, scope);
     return r.map(p => ({
+      rank: p.rank,
+      tied: !!p.tied,
       name: p.playerName || '',
       played: p.played,
       wins: p.wins,
@@ -123,7 +140,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
       pointsFor: p.pointsFor,
       pointsAgainst: p.pointsAgainst,
     }));
-  }, [matches]);
+  }, [matches, tournament, scope]);
 
   if (rankings.length === 0) return null;
 
@@ -150,10 +167,10 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
               key={r.name}
               style={{
                 borderBottom: '1px solid #1f2937',
-                backgroundColor: i < 2 ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
+                backgroundColor: i < perGroup ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
               }}
             >
-              <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{i + 1}</td>
+              <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{r.tied ? t('common.competitionRules.jointPlace', { place: r.rank }) : r.rank}</td>
               <td style={{ padding: '0.5rem', fontWeight: 600, color: '#fff' }}>
                 <button
                   className="text-left hover:underline hover:text-yellow-400"
@@ -162,7 +179,7 @@ function GroupRankingTable({ matches, onSelectPlayer, isTeam = false }: { matche
                 >
                   {r.name}
                 </button>
-                {i < 2 && (
+                {i < perGroup && (
                   <span style={{
                     marginLeft: '0.5rem',
                     fontSize: '0.75rem',
@@ -199,37 +216,12 @@ function IndividualRankingTable({
   matches: Match[];
   isFavorite: (id: string) => boolean;
   onSelectPlayer: (name: string) => void;
-  tournament?: { rankingMatchConfig?: { thirdPlace?: boolean; fifthToEighth?: boolean; classificationGroups?: boolean; rankingUpTo?: number } };
+  tournament?: RulesTournament;
 }) {
   const { t } = useTranslation();
-  const allRankingsRaw: PlayerRanking[] = useMemo(() => calculateIndividualRanking(matches), [matches]);
-  // 본선/순위결정전 참가자만 추출
-  const finalsParticipantIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const m of matches) {
-      const isFinals = (m.stageId?.includes('finals') || m.stageId?.includes('ranking') || m.roundLabel?.includes('\uacb0\uc815\uc804'));
-      if (!isFinals) continue;
-      const a = m.player1Id || m.team1Id;
-      const b = m.player2Id || m.team2Id;
-      if (a) ids.add(a);
-      if (b) ids.add(b);
-    }
-    return ids;
-  }, [matches]);
-  const hasFinalsStage = finalsParticipantIds.size > 0;
-  // 본선 참가자만 1~N위 (본선 없으면 전체)
-  const rankedOnly = hasFinalsStage
-    ? allRankingsRaw.filter(r => finalsParticipantIds.has(r.playerId)).map((r, i) => ({ ...r, rank: i + 1 }))
-    : allRankingsRaw;
-  const rkCfg = tournament?.rankingMatchConfig;
-  let maxRankSpec = rankedOnly.length;
-  if (rkCfg) {
-    if (rkCfg.rankingUpTo && rkCfg.rankingUpTo > 0) maxRankSpec = rkCfg.rankingUpTo;
-    else if (rkCfg.classificationGroups) maxRankSpec = rankedOnly.length;
-    else if (rkCfg.fifthToEighth) maxRankSpec = 8;
-    else if (rkCfg.thirdPlace) maxRankSpec = 4;
-  }
-  const rankings: PlayerRanking[] = rankedOnly.slice(0, maxRankSpec);
+  const placeLabel = usePlaceLabel();
+  // 최종 순위: 대진 결과(결승 → 3/4위전 → 순위결정전 → 라운드), 대진이 없으면 순위표 + 동률 규칙 (총 승수 아님)
+  const rankings: FinalRankingRow[] = useMemo(() => finalRankingRows(matches, tournament), [matches, tournament]);
 
   if (rankings.length === 0) {
     return (
@@ -259,20 +251,20 @@ function IndividualRankingTable({
         <tbody>
           {rankings.map((r) => (
             <tr
-              key={r.playerId}
+              key={r.id}
               style={{
-                backgroundColor: isFavorite(r.playerId) ? '#1e3a5f' : 'transparent',
+                backgroundColor: isFavorite(r.id) ? '#1e3a5f' : 'transparent',
                 borderBottom: '1px solid #1f2937',
               }}
             >
-              <td style={tdStyle}>{r.rank}</td>
+              <td style={tdStyle}>{placeLabel(r)}{r.unresolved && <span style={{ display: 'block', fontSize: '0.75rem', color: '#fb923c' }}>{t('common.competitionRules.tiedUnresolved')}</span>}</td>
               <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 'bold' }}>
-                {isFavorite(r.playerId) && <span style={{ color: 'var(--color-primary)', marginRight: '0.25rem' }}>{'\u2605'}</span>}
+                {isFavorite(r.id) && <span style={{ color: 'var(--color-primary)', marginRight: '0.25rem' }}>{'\u2605'}</span>}
                 <button
-                  onClick={() => onSelectPlayer(r.playerName)}
+                  onClick={() => onSelectPlayer(r.name)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' }}
                 >
-                  {r.playerName}
+                  {r.name}
                 </button>
               </td>
               <td style={tdStyle}>{r.played}</td>
@@ -290,9 +282,10 @@ function IndividualRankingTable({
   );
 }
 
-function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSelectPlayer: (name: string) => void }) {
+function TeamRankingTable({ matches, onSelectPlayer, tournament }: { matches: Match[]; onSelectPlayer: (name: string) => void; tournament?: RulesTournament }) {
   const { t } = useTranslation();
-  const rankings: TeamRanking[] = useMemo(() => calculateTeamRanking(matches), [matches]);
+  const placeLabel = usePlaceLabel();
+  const rankings: FinalRankingRow[] = useMemo(() => finalRankingRows(matches, tournament), [matches, tournament]);
 
   if (rankings.length === 0) {
     return (
@@ -318,14 +311,14 @@ function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSel
         </thead>
         <tbody>
           {rankings.map((r) => (
-            <tr key={r.teamId} style={{ borderBottom: '1px solid #1f2937' }}>
-              <td style={tdStyle}>{r.rank}</td>
+            <tr key={r.id} style={{ borderBottom: '1px solid #1f2937' }}>
+              <td style={tdStyle}>{placeLabel(r)}{r.unresolved && <span style={{ display: 'block', fontSize: '0.75rem', color: '#fb923c' }}>{t('common.competitionRules.tiedUnresolved')}</span>}</td>
               <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 'bold' }}>
                 <button
-                  onClick={() => onSelectPlayer(r.teamName)}
+                  onClick={() => onSelectPlayer(r.name)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' }}
                 >
-                  {r.teamName}
+                  {r.name}
                 </button>
               </td>
               <td style={{ ...tdStyle, color: 'var(--color-success)' }}><span className="sr-only">{t('spectator.tournament.view.srWins')}</span>{r.wins}</td>
@@ -344,13 +337,15 @@ function TeamRankingTable({ matches, onSelectPlayer }: { matches: Match[]; onSel
 function TournamentResultsSummary({
   matches,
   tournamentType,
+  tournament,
 }: {
   matches: Match[];
   tournamentType: string;
+  tournament?: RulesTournament;
 }) {
   const { t } = useTranslation();
   const summary = useMemo((): {
-    top3: { name: string; rank: number }[];
+    top3: { name: string; rank: number; joint: boolean }[];
     totalMatches: number;
     completedCount: number;
     totalSets: number;
@@ -363,15 +358,10 @@ function TournamentResultsSummary({
     const completedCount = completedMatches.length;
     const isFinished = totalMatches > 0 && completedCount === totalMatches;
 
-    // Calculate rankings to find top 3
-    let top3: { name: string; rank: number }[] = [];
-    if (isTeam) {
-      const rankings = calculateTeamRanking(matches);
-      top3 = rankings.slice(0, 3).map(r => ({ name: r.teamName, rank: r.rank }));
-    } else {
-      const rankings = calculateIndividualRanking(matches);
-      top3 = rankings.slice(0, 3).map(r => ({ name: r.playerName, rank: r.rank }));
-    }
+    // 시상대: 최종 순위 3위까지 (대진 결과 기준, 공동 3위 포함). 결승이 끝나기 전에는 정해진 순위만 보인다.
+    const top3 = finalRankingRows(matches, tournament)
+      .filter(r => r.place !== null && r.place <= 3)
+      .map(r => ({ name: r.name, rank: r.place as number, joint: r.joint }));
 
     // Total sets played
     let totalSets = 0;
@@ -391,7 +381,7 @@ function TournamentResultsSummary({
     }, null);
 
     return { top3, totalMatches, completedCount, totalSets, highestMatch, isFinished };
-  }, [matches, tournamentType]);
+  }, [matches, tournamentType, tournament]);
 
   if (summary.top3.length === 0) return null;
 
@@ -431,19 +421,19 @@ function TournamentResultsSummary({
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
-            backgroundColor: medalStyles[i].bg,
-            border: `1px solid ${medalStyles[i].border}`,
+            backgroundColor: medalStyles[Math.min(entry.rank, 3) - 1].bg,
+            border: `1px solid ${medalStyles[Math.min(entry.rank, 3) - 1].border}`,
             borderRadius: '0.5rem',
             padding: i === 0 ? '0.75rem 1rem' : '0.5rem 1rem',
           }}>
             <span style={{
               fontSize: i === 0 ? '1.5rem' : '1.125rem',
               fontWeight: 'bold',
-              color: medalStyles[i].text,
+              color: medalStyles[Math.min(entry.rank, 3) - 1].text,
               minWidth: '2rem',
               textAlign: 'center',
             }}>
-              {medalStyles[i].label}
+              {medalStyles[Math.min(entry.rank, 3) - 1].label}{entry.joint && <span className="sr-only"> {t('common.competitionRules.jointPlace', { place: entry.rank })}</span>}
             </span>
             <span style={{
               fontSize: i === 0 ? '1.375rem' : '1rem',

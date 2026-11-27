@@ -11,6 +11,7 @@ import {
   createScoreHistoryEntry,
   getMaxServes,
   getEffectiveGameConfig,
+  getEffectiveScoringRules,
   getEffectiveTimeLimitSeconds,
   applyGoldenGoalEvent,
   getPenaltyAction,
@@ -19,6 +20,7 @@ import {
 import { useGoldenGoalTimer } from './useGoldenGoalTimer';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { useCountdownTimer, playWarningBeep } from './useCountdownTimer';
+import { walkoverSetsFor } from '@shared/utils/competition';
 import { useDoubleClickGuard } from './useDoubleClickGuard';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import { useWhistle } from '@shared/hooks/useWhistle';
@@ -43,9 +45,12 @@ export function useTeamMatchScoring(
   const { t } = useTranslation();
   const { match, loading: matchLoading, updateMatch } = useMatch(tournamentId ?? null, matchId ?? null);
   const { tournament } = useTournament(tournamentId ?? null);
-  const gameConfig = tournament
-    ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
-    : DEFAULT_TEAM_CONFIG;
+  // 서버 진출·순위와 같은 규칙 해석기(경기 → 스테이지 → 대회 규칙 → teamMatchSettings → 31점)를 쓴다
+  const gameConfig = match && tournament
+    ? getEffectiveScoringRules({ ...match, type: 'team' }, tournament)
+    : tournament
+      ? getEffectiveGameConfig(tournament.scoringRules || tournament.gameConfig)
+      : DEFAULT_TEAM_CONFIG;
   const timeLimitSeconds = match && tournament ? getEffectiveTimeLimitSeconds(match, tournament) : 0;
   const goldenGoal = useGoldenGoalTimer(match?.matchStartedAt, timeLimitSeconds);
   const { canAct, startProcessing, done } = useDoubleClickGuard();
@@ -295,14 +300,8 @@ export function useTeamMatchScoring(
 
     const prevHistory = match.scoreHistory ?? [];
 
-    const woGameConfig = getEffectiveGameConfig(tournament?.gameConfig, 'team');
-    const winScore = woGameConfig.POINTS_TO_WIN;
-    const walkoverSets = Array.from({ length: woGameConfig.SETS_TO_WIN }, () => ({
-      ...createEmptySet(),
-      player1Score: winnerTeam === 1 ? winScore : 0,
-      player2Score: winnerTeam === 2 ? winScore : 0,
-      winnerId,
-    }));
+    // 부전승 점수: 대회 규칙의 팀 목표 점수 : 0 (기본 31:0)
+    const walkoverSets = walkoverSetsFor({ ...match, type: 'team' }, tournament, winnerTeam, winnerId);
 
     const updateData: Record<string, unknown> = {
       status: 'completed',
@@ -319,7 +318,7 @@ export function useTeamMatchScoring(
 
     setLastAction(`${t('common.scoreActions.walkover')}: ${winnerName} (${reason})`);
     setAnnouncement(`${loserName} ${reason}. ${winnerName} ${t('common.scoreActions.walkover')}`);
-  }, [match, updateMatch, tournament?.gameConfig, t]);
+  }, [match, updateMatch, tournament, t]);
 
   const handleIBSAScore = useCallback(async (
     actingTeam: 1 | 2,

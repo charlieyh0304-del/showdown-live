@@ -411,11 +411,11 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
             <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} tournament={tournament} />
             {hasGroupStage && (
               <div style={{ marginTop: '1.5rem' }}>
-                <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} />
+                <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} tournament={tournament} />
               </div>
             )}
             <div style={{ marginTop: '1.5rem' }}>
-              <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} />
+              <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} tournament={tournament} allMatches={matches} />
             </div>
           </>
         )}

@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Player, Team, SeedEntry, Tournament } from '@shared/types';
+import type { Player, Team, SeedEntry, Tournament, RandomTeamDraw } from '@shared/types';
+import { drawTeams } from '@shared/rules/teamDraw';
+import { makeSeed } from '@shared/rules/rng';
 import { showWarning } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
 import { notifyTournamentWrite } from '@shared/utils/dataWrites';
@@ -237,68 +239,56 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
     try {
       const teamSize = tournament.teamRules?.teamSize || 3;
       const genderRatio = tournament.teamRules?.genderRatio;
+      const configuredRatio = genderRatio && (genderRatio.male > 0 || genderRatio.female > 0) ? genderRatio : null;
 
       const males = tournamentPlayers.filter(p => p.gender === 'male');
       const females = tournamentPlayers.filter(p => p.gender === 'female');
-      const hasBothGenders = males.length > 0 && females.length > 0;
-
-      // 성별 비율 결정: 설정값 > 자동 계산 (혼성이면 균등 배분)
-      const effectiveRatio = (genderRatio && (genderRatio.male > 0 || genderRatio.female > 0))
-        ? genderRatio
-        : hasBothGenders
-          ? { male: Math.min(males.length, Math.ceil(teamSize / 2)), female: Math.max(1, teamSize - Math.min(males.length, Math.ceil(teamSize / 2))) }
-          : null;
-
-      if (effectiveRatio && hasBothGenders) {
+      if (configuredRatio && males.length > 0 && females.length > 0) {
         const teamCount = Math.floor(tournamentPlayers.length / teamSize);
-        const requiredMales = effectiveRatio.male * teamCount;
-        const requiredFemales = effectiveRatio.female * teamCount;
-
+        const requiredMales = configuredRatio.male * teamCount;
+        const requiredFemales = configuredRatio.female * teamCount;
         if (males.length < requiredMales || females.length < requiredFemales) {
           showWarning(t('admin.tournamentDetail.playersTabInline.genderShortageAlert', { requiredMale: requiredMales, requiredFemale: requiredFemales, currentMale: males.length, currentFemale: females.length }));
-          setGenerating(false);
           return;
         }
+      }
 
-        const shuffledMales = [...males].sort(() => Math.random() - 0.5);
-        const shuffledFemales = [...females].sort(() => Math.random() - 0.5);
-
-        const newTeams: Team[] = [];
-        for (let i = 0; i < teamCount; i++) {
-          const members = [
-            ...shuffledMales.splice(0, effectiveRatio.male),
-            ...shuffledFemales.splice(0, effectiveRatio.female),
-          ];
-          newTeams.push({
-            id: `team_${i + 1}`,
-            name: t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: i + 1 }),
-            memberIds: members.map(m => m.id),
-            memberNames: members.map(m => m.name),
-          });
-        }
-        await setTeamsBulk(newTeams);
-      } else {
-        // 성별 정보 없는 경우에만 단순 랜덤
-        const shuffled = [...tournamentPlayers].sort(() => Math.random() - 0.5);
-        const newTeams: Team[] = [];
-        let teamIdx = 1;
-        for (let i = 0; i < shuffled.length; i += teamSize) {
-          const members = shuffled.slice(i, i + teamSize);
-          if (members.length === 0) continue;
-          newTeams.push({
-            id: `team_${teamIdx}`,
-            name: t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: teamIdx }),
-            memberIds: members.map(m => m.id),
-            memberNames: members.map(m => m.name),
-          });
-          teamIdx++;
-        }
-        await setTeamsBulk(newTeams);
+      // 재현 가능한 추첨(shared/rules/teamDraw): seed와 결과를 대회에 기록한다.
+      // 성별 비율 설정이 없으면 여자 선수를 팀에 고르게 나눈다. 팀에 못 들어간 선수는 알려 준다(조용히 빠뜨리지 않음).
+      const seed = makeSeed(Date.now(), Math.random());
+      const draw = drawTeams({
+        players: tournamentPlayers.map(p => ({ id: p.id, gender: p.gender })),
+        teamSize,
+        seed,
+        genderRatio: configuredRatio,
+      });
+      const byId = new Map(tournamentPlayers.map(p => [p.id, p]));
+      const newTeams: Team[] = draw.teams.map((ids, i) => ({
+        id: `team_${i + 1}`,
+        name: t('admin.tournamentDetail.playersTabInline.defaultTeamName', { idx: i + 1 }),
+        memberIds: ids,
+        memberNames: ids.map(id => byId.get(id)?.name || id),
+      }));
+      await setTeamsBulk(newTeams);
+      const record: RandomTeamDraw = {
+        seed,
+        drawnAt: Date.now(),
+        teamSize,
+        playerIds: tournamentPlayers.map(p => p.id),
+        teams: newTeams.map(tm => ({ id: tm.id, memberIds: tm.memberIds })),
+        ...(draw.unassigned.length > 0 ? { unassignedIds: draw.unassigned } : {}),
+      };
+      notifyTournamentWrite(await updateTournament({ randomTeamDraw: record }), t);
+      if (draw.unassigned.length > 0) {
+        showWarning(t('common.competitionRules.draw.unassigned', {
+          count: draw.unassigned.length,
+          names: draw.unassigned.map(id => byId.get(id)?.name || id).join(', '),
+        }));
       }
     } finally {
       setGenerating(false);
     }
-  }, [tournamentPlayers, tournament.teamRules, setTeamsBulk]);
+  }, [tournamentPlayers, tournament.teamRules, setTeamsBulk, updateTournament, t]);
 
   return (
     <div className="space-y-6">
@@ -441,6 +431,10 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
               </button>
             </div>
           </div>
+
+          {tournament.type === 'randomTeamLeague' && tournament.randomTeamDraw?.seed && (
+            <p className="text-sm text-gray-400">{t('common.competitionRules.draw.seed', { seed: tournament.randomTeamDraw.seed })}</p>
+          )}
 
           {/* 팀 카드 목록 */}
           {teams.length === 0 ? (

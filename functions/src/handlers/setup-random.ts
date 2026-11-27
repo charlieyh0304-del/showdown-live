@@ -4,6 +4,8 @@
  * - 시드 분산 + 성별 균등 배분 + 조별 편성 지원
  */
 import { db } from "../db-helpers";
+import { drawTeams } from "../shared/rules/teamDraw";
+import { makeSeed } from "../shared/rules/rng";
 
 export async function setupRandomTeamLeague(input: Record<string, unknown>): Promise<string> {
   // 코드 레벨 가드: 사전 구성 팀 정보가 넘어오면 잘못된 도구 선택 → 에러
@@ -77,54 +79,27 @@ export async function setupRandomTeamLeague(input: Record<string, unknown>): Pro
     rtPlayerMap.set(p.name, key);
   }
 
-  // 3. 팀 구성 (탑시드 분산 + 성별 균등 배분)
-  const males = rtPlayers.filter(p => p.gender === "male" || p.gender === "남");
-  const females = rtPlayers.filter(p => p.gender === "female" || p.gender === "여");
-  const rtTeams: Array<{ id: string; name: string; memberIds: string[]; memberNames: string[] }> = [];
-  for (let i = 0; i < teamCount; i++) {
-    const tName = rtCustomNames[i] || `${i + 1}팀`;
-    rtTeams.push({ id: `team_${i + 1}`, name: tName, memberIds: [], memberNames: [] });
-  }
-
-  // 3a. 시드 배치: 각 팀에 1명씩
-  const rtSeedSet = new Set<string>();
-  for (let i = 0; i < Math.min(rtSeeds.length, teamCount); i++) {
-    const sid = rtPlayerMap.get(rtSeeds[i]);
-    if (sid) {
-      rtTeams[i].memberIds.push(sid);
-      rtTeams[i].memberNames.push(rtSeeds[i]);
-      rtSeedSet.add(rtSeeds[i]);
-    }
-  }
-
-  // 3b. 성별 균등 배분: 여자 먼저 배분 → 남자 채우기
-  const remainFemales = females.filter(p => !rtSeedSet.has(p.name)).sort(() => Math.random() - 0.5);
-  const remainMales = males.filter(p => !rtSeedSet.has(p.name)).sort(() => Math.random() - 0.5);
-  const remainOthers = rtPlayers.filter(p => !rtSeedSet.has(p.name) && p.gender !== "male" && p.gender !== "남" && p.gender !== "female" && p.gender !== "여").sort(() => Math.random() - 0.5);
-
-  // 여자 1명씩 각 팀에 배정
-  for (const f of remainFemales) {
-    const team = rtTeams.find(t => t.memberIds.length < rtTeamSize && !t.memberNames.some(n => {
-      const pl = rtPlayers.find(p => p.name === n);
-      return pl && (pl.gender === "female" || pl.gender === "여");
-    }));
-    if (team) {
-      const fid = rtPlayerMap.get(f.name)!;
-      team.memberIds.push(fid);
-      team.memberNames.push(f.name);
-    }
-  }
-
-  // 남자로 나머지 채우기
-  for (const m of [...remainMales, ...remainOthers]) {
-    const team = rtTeams.reduce((a, b) => a.memberIds.length <= b.memberIds.length ? a : b);
-    if (team.memberIds.length >= rtTeamSize) break;
-    const mid = rtPlayerMap.get(m.name)!;
-    if (mid && !rtTeams.some(t => t.memberIds.includes(mid))) {
-      team.memberIds.push(mid);
-      team.memberNames.push(m.name);
-    }
-  }
+  // 3. 팀 구성 (탑시드 분산 + 성별 균등 배분) — 재현 가능한 seed 추첨, 선수를 조용히 빠뜨리지 않는다
+  const drawSeed = typeof input.seed === "string" && input.seed ? input.seed : makeSeed(now, Math.random());
+  const draw = drawTeams({
+    players: rtPlayers.map(p => ({ id: rtPlayerMap.get(p.name)!, gender: p.gender })),
+    teamSize: rtTeamSize,
+    seed: drawSeed,
+    seedIds: rtSeeds.map(n => rtPlayerMap.get(n)!).filter(Boolean),
+  });
+  const nameById = new Map([...rtPlayerMap.entries()].map(([n, id]) => [id, n]));
+  const rtTeams: Array<{ id: string; name: string; memberIds: string[]; memberNames: string[] }> = draw.teams.map((ids, i) => ({
+    id: `team_${i + 1}`,
+    name: rtCustomNames[i] || `${i + 1}팀`,
+    memberIds: ids,
+    memberNames: ids.map(id => nameById.get(id) || id),
+  }));
+  rtBulk[`tournaments/${rtTid}/randomTeamDraw`] = {
+    seed: drawSeed, drawnAt: now, teamSize: rtTeamSize,
+    playerIds: rtPlayers.map(p => rtPlayerMap.get(p.name)!),
+    teams: rtTeams.map(t => ({ id: t.id, memberIds: t.memberIds })),
+    ...(draw.unassigned.length > 0 ? { unassignedIds: draw.unassigned } : {}),
+  };
 
   // 팀 저장
   for (const team of rtTeams) {
@@ -195,6 +170,8 @@ export async function setupRandomTeamLeague(input: Record<string, unknown>): Pro
     groupCount: rtGroupCount,
     matchCount: rtMatchCount,
     seeds: rtSeeds,
+    drawSeed,
+    unassigned: draw.unassigned.map(id => nameById.get(id) || id),
     teamAssignment: rtTeamSummary,
     groupAssignment: rtGroupSummary,
     message: `랜덤 팀 리그 "${input.name}" 생성 완료\n${rtPlayers.length}명 → ${teamCount}팀 (${rtTeamSize}인)${rtGroupCount > 1 ? `, ${rtGroupCount}개 조` : ""}\n시드 ${rtSeeds.length}명 분산, 성별 균등 배분\n${rtMatchCount}경기 ${rtGroupCount > 1 ? "조별 " : ""}라운드로빈\n\n${rtTeamSummary}${rtGroupSummary}`,

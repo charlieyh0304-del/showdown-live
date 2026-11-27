@@ -336,7 +336,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
       properties: {
         tournamentId: { type: "string" },
         advancePerGroup: { type: "number", description: "조당 진출자 수 (기본: 대회 설정값)" },
-        includeThirdPlace: { type: "boolean", description: "3/4위 결정전 (기본 true)" },
+        includeThirdPlace: { type: "boolean", description: "3/4위 결정전 (기본: 대회 규칙 finalRanking.thirdPlace, 지정 안 하면 3/4위전 있음)" },
         includeFifthToEighth: { type: "boolean", description: "5-8위 결정전 (기본 false)" },
         includeClassification: { type: "boolean", description: "하위 순위 결정전 (기본 false)" },
       },

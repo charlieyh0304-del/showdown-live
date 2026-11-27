@@ -827,6 +827,73 @@ export function useNotifications(tournamentId: string | null) {
   return { notifications, addNotification };
 }
 
+// ===== 자동 진출 충돌 (서버 advanceOnMatchResult가 기록, 관리자 전용 읽기) =====
+/** advancementConflicts/{tid}/{downstreamMatchId}/player{1|2} 기록 (functions/src/lib/advancement.ts ConflictRecord) */
+export interface AdvancementConflict {
+  downstreamMatchId: string;
+  side: 1 | 2;
+  sourceMatchId: string;
+  outcome: 'winner' | 'loser';
+  reason: 'downstream_started' | 'manual_override';
+  downstreamStatus: string;
+  currentId: string;
+  currentName: string;
+  expectedId: string;
+  expectedName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function useAdvancementConflicts(tournamentId: string | null) {
+  const [conflicts, setConflicts] = useState<AdvancementConflict[]>([]);
+
+  useEffect(() => {
+    if (!tournamentId) { setConflicts([]); return; }
+    let isMounted = true;
+    const unsub = subscribeToPath(`advancementConflicts/${tournamentId}`, (snap) => {
+      if (!isMounted) return;
+      const data = (snap.val() || {}) as Record<string, Record<string, Partial<AdvancementConflict>>>;
+      const list: AdvancementConflict[] = [];
+      for (const [did, sides] of Object.entries(data)) {
+        for (const side of [1, 2] as const) {
+          const rec = sides?.[`player${side}`];
+          if (!rec) continue;
+          list.push({
+            downstreamMatchId: did,
+            side,
+            sourceMatchId: rec.sourceMatchId || '',
+            outcome: rec.outcome === 'loser' ? 'loser' : 'winner',
+            reason: rec.reason === 'manual_override' ? 'manual_override' : 'downstream_started',
+            downstreamStatus: rec.downstreamStatus || '',
+            currentId: rec.currentId || '',
+            currentName: rec.currentName || '',
+            expectedId: rec.expectedId || '',
+            expectedName: rec.expectedName || '',
+            createdAt: rec.createdAt || 0,
+            updatedAt: rec.updatedAt || 0,
+          });
+        }
+      }
+      setConflicts(list.sort((a, b) => a.createdAt - b.createdAt));
+    });
+    return () => { isMounted = false; unsub(); };
+  }, [tournamentId]);
+
+  /** 충돌 기록을 지운다 (현재 값 유지 또는 적용 후 정리) */
+  const dismissConflict = useCallback(async (downstreamMatchId: string, side: 1 | 2): Promise<boolean> => {
+    if (!tournamentId) return false;
+    try {
+      await remove(ref(database, `advancementConflicts/${tournamentId}/${downstreamMatchId}/player${side}`));
+      return true;
+    } catch (err) {
+      console.error('[useAdvancementConflicts] dismiss failed', err);
+      return false;
+    }
+  }, [tournamentId]);
+
+  return { conflicts, dismissConflict };
+}
+
 // ===== 즐겨찾기 (localStorage 기반, 기기별 독립) =====
 export interface FavoriteEntry { id: string; name: string }
 

@@ -26,7 +26,8 @@ export async function generateRoundRobin(input: Record<string, unknown>): Promis
 
   // 대회 타입 자동 감지
   const rrTourSnap = await db.ref(`tournaments/${tid}/type`).once("value");
-  const isTeamTour = rrTourSnap.val() === "team";
+  // 랜덤팀 리그도 팀전이다 (경기 type은 team)
+  const isTeamTour = rrTourSnap.val() === "team" || rrTourSnap.val() === "randomTeamLeague";
 
   const now = Date.now();
   const matches: Record<string, unknown>[] = [];

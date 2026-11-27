@@ -2,7 +2,12 @@ import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
 import { showWarning } from '@shared/utils/toast';
 import { combineWriteResults, notifyWriteOutcome, replaceStagesFor, type MatchesBulkOptions, type WriteResult } from '@shared/utils/dataWrites';
-import { buildFirstRoundSlots, buildSingleEliminationSkeleton, nextPowerOfTwo } from '@shared/utils/bracketSkeleton';
+import { buildFirstRoundSlots, buildSingleEliminationSkeleton, nextPowerOfTwo, type FirstRoundSlot } from '@shared/utils/bracketSkeleton';
+import { byeSetsFactory, computeFinalsSeeding } from '@shared/utils/competition';
+import { resolveCompetitionRules } from '@shared/rules/competitionRules';
+import { isByeMatch } from '@shared/rules/walkover';
+import { findDuplicateSlot } from '@shared/rules/seeding';
+import TieDecisionPanel from './TieDecisionPanel';
 import { newMatchKey } from '@shared/hooks/useFirebase';
 import { countPlayableMatches } from '@shared/utils/tournament';
 import type { Match, MatchUpdate, Team, Player, Tournament } from '@shared/types';
@@ -20,53 +25,9 @@ function hasSourceLinks(m: Match): boolean {
   return !!(m.sourceMatch1 || m.sourceMatch2 || m.sourceMatch1Id || m.sourceMatch2Id);
 }
 
-/** BYE(부전승) 경기 */
-function isByeMatch(m: Match): boolean {
-  return m.bye === true || m.isBye === true;
-}
-
 /** BYE 경기에서 실제 선수가 들어가는 쪽 (서버 생성 BYE는 'BYE' ID의 반대쪽, 클라이언트 생성은 항상 1번) */
 function byeRealSide(m: Match): 'player1' | 'player2' {
   return (m.player1Id || m.team1Id) === 'BYE' ? 'player2' : 'player1';
-}
-
-/** Compute group rankings from qualifying matches */
-function computeGroupRankings(
-  qualifyingMatches: Match[],
-  groupIdToName: Map<string, string>,
-) {
-  const groupRankings = new Map<string, { groupId: string; groupName: string; rank: number }>();
-  const groupMap = new Map<string, Match[]>();
-  qualifyingMatches.forEach(m => {
-    const gid = m.groupId!;
-    if (!groupMap.has(gid)) groupMap.set(gid, []);
-    groupMap.get(gid)!.push(m);
-  });
-  groupMap.forEach((gMatches, gid) => {
-    const stats = new Map<string, { wins: number; setsWon: number; setsLost: number; pointsFor: number; pointsAgainst: number }>();
-    gMatches.filter(m => m.status === 'completed').forEach(m => {
-      const p1 = m.player1Id || m.team1Id || '';
-      const p2 = m.player2Id || m.team2Id || '';
-      if (!stats.has(p1)) stats.set(p1, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-      if (!stats.has(p2)) stats.set(p2, { wins: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0 });
-      if (m.winnerId === p1) stats.get(p1)!.wins++;
-      else if (m.winnerId === p2) stats.get(p2)!.wins++;
-      (m.sets || []).forEach(s => {
-        stats.get(p1)!.pointsFor += s.player1Score;
-        stats.get(p1)!.pointsAgainst += s.player2Score;
-        stats.get(p2)!.pointsFor += s.player2Score;
-        stats.get(p2)!.pointsAgainst += s.player1Score;
-        if (s.player1Score > s.player2Score) { stats.get(p1)!.setsWon++; stats.get(p2)!.setsLost++; }
-        else { stats.get(p2)!.setsWon++; stats.get(p1)!.setsLost++; }
-      });
-    });
-    const sorted = Array.from(stats.entries())
-      .sort(([,a], [,b]) => b.wins - a.wins || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost) || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst));
-    sorted.forEach(([id], idx) => {
-      groupRankings.set(id, { groupId: gid, groupName: groupIdToName.get(gid) || gid, rank: idx + 1 });
-    });
-  });
-  return groupRankings;
 }
 
 export interface FinalsSectionProps {
@@ -79,6 +40,7 @@ export interface FinalsSectionProps {
   expectedMatchCount: { total: number };
   setMatchesBulk: (matches: Omit<Match, 'id'>[], options: MatchesBulkOptions) => Promise<string[] | void>;
   updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
+  updateTournament: (data: Record<string, unknown>) => Promise<boolean | void>;
 }
 
 export default function FinalsSection({
@@ -91,6 +53,7 @@ export default function FinalsSection({
   expectedMatchCount,
   setMatchesBulk,
   updateMatch,
+  updateTournament,
 }: FinalsSectionProps) {
   const { t } = useTranslation();
 
@@ -103,25 +66,34 @@ export default function FinalsSection({
   const finalsMatches = matches.filter(m => m.stageId === finalsStage.id || (m.stageId && m.stageId.includes('finals')));
 
   // Shared data
-  const qualifyingGroups = (() => {
-    const qualifying = toArray(tournament.stages).find(s => s.type === 'qualifying');
-    return qualifying ? toArray(qualifying.groups) : [];
-  })();
+  const qualifyingStage = toArray(tournament.stages).find(s => s.type === 'qualifying');
+  const qualifyingGroups = qualifyingStage ? toArray(qualifyingStage.groups) : [];
   const qualifyingMatches = matches.filter(m => m.groupId);
   const groupIdToName = new Map<string, string>();
   qualifyingGroups.forEach(g => { groupIdToName.set(g.id, g.name); });
-  const groupRankings = computeGroupRankings(qualifyingMatches, groupIdToName);
 
   const idToName = new Map<string, string>();
   tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
   teams.forEach(t => idToName.set(t.id, t.name));
 
-  const fc = tournament.finalsConfig as Record<string, unknown> | undefined;
-  const advancePerGroup = typeof fc?.advancePerGroup === 'number' ? fc.advancePerGroup : 2;
+  // 진출 인원·동률·시드는 대회 규칙 단일 설정원(shared/rules)에서 읽는다
+  const firstRound = finalsMatches.filter(m => !hasSourceLinks(m) && m.stageId === finalsStage.id);
+  const seeding = computeFinalsSeeding(tournament, qualifyingMatches, qualifyingStage?.id, finalsStage.id, { size: firstRound.length * 2 || undefined });
+  const advancePerGroup = resolveCompetitionRules(tournament, qualifyingStage?.id).qualification.perGroup;
   const totalAdvance = finalsStage.advanceCount || advancePerGroup * (tournament.qualifyingConfig?.groupCount || 2);
+  // 조별 순위 (규칙의 동률 기준 반영): 선수 ID → 조/순위
+  const groupRankings = new Map<string, { groupId: string; groupName: string; rank: number }>();
+  seeding.qualification.groups.forEach(g => {
+    g.ranking.ranked.forEach(r => {
+      groupRankings.set(r.row.id, { groupId: g.groupId, groupName: groupIdToName.get(g.groupId) || g.groupId, rank: r.rank });
+    });
+  });
+  const blockingTies = seeding.qualification.blockingTies;
+  const matchType = isTeamType ? 'team' as const : 'individual' as const;
+  const byeSets = byeSetsFactory(tournament, finalsStage.id, matchType);
 
-  // 3/4위전 사용 여부 (대회 생성 위저드의 3/4위 결정전 설정)
-  const includeThirdPlace = tournament.rankingMatchConfig?.thirdPlace === true;
+  // 3/4위전 사용 여부: 대회 규칙(finalRanking.thirdPlace, 레거시 rankingMatchConfig.thirdPlace 포함)
+  const includeThirdPlace = resolveCompetitionRules(tournament, finalsStage.id).finalRanking.thirdPlace === 'match';
 
   // --- Finals Creation (no finals matches yet) ---
   if (finalsMatches.length === 0) {
@@ -149,6 +121,13 @@ export default function FinalsSection({
             <div className="text-sm text-gray-400">
               {t('admin.tournamentDetail.bracketTab.finalsProgress', { completed: completedCount, total: totalCount, advancePerGroup, totalAdvance, matchCount })}
             </div>
+
+            <TieDecisionPanel
+              ties={blockingTies}
+              nameOf={id => idToName.get(id) || id}
+              groupLabel={scope => groupIdToName.get(scope) || scope || t('common.competitionRules.tie.league')}
+              updateTournament={updateTournament}
+            />
 
             {/* 조별 순위 현황 */}
             {completedCount > 0 && (
@@ -200,12 +179,20 @@ export default function FinalsSection({
                   return;
                 }
                 const now = Date.now(); // eslint-disable-line react-hooks/purity
-                // 1라운드는 빈 슬롯(이후 수동 편성), 2라운드~결승과 3/4위전은 진출 링크로 연결
+                // 예선이 끝났고 진출자가 확정됐으면 1라운드를 표준 시드 + 조 교차로 바로 채운다.
+                // 아니면 빈 슬롯(이후 수동 편성/시드 배치). 2라운드~결승과 3/4위전은 진출 링크로 연결
+                const q = seeding.qualification;
+                const ready = q.complete && q.blockingTies.length === 0 && q.qualifiers.length >= 2;
+                const slots: FirstRoundSlot[] = ready
+                  ? computeFinalsSeeding(tournament, qualifyingMatches, qualifyingStage?.id, finalsStage.id).slots
+                    .map(e => (e ? { id: e.id, name: idToName.get(e.id) || e.name || e.id } : null))
+                  : buildFirstRoundSlots(entrantCount);
                 const entries = buildSingleEliminationSkeleton({
                   tournamentId: tournament.id,
                   stageId: finalsStage.id,
-                  matchType: isTeamType ? 'team' : 'individual',
-                  slots: buildFirstRoundSlots(entrantCount),
+                  matchType,
+                  slots,
+                  byeSets,
                   thirdPlace: includeThirdPlace,
                   makeKey: () => newMatchKey(tournament.id),
                   now,
@@ -234,8 +221,8 @@ export default function FinalsSection({
   // 수동 편성 대상: 진출 링크가 없는 경기(1라운드). 링크가 있는 경기는 앞 경기 결과로 자동으로 채워진다.
   const arrangeableMatches = finalsMatches.filter(m => !hasSourceLinks(m));
   const hasLinkedMatches = arrangeableMatches.length < finalsMatches.length;
-  // All advanced player IDs from finals matches
-  const advancedIds = new Set<string>();
+  // 배정 후보: 규칙으로 정한 진출자 + 이미 1라운드에 들어간 선수 (빈 골격에서도 선택지가 보이도록)
+  const advancedIds = new Set<string>(seeding.qualification.qualifiers.map(q => q.id));
   arrangeableMatches.forEach(m => {
     const p1 = isTeamType ? m.team1Id : m.player1Id;
     const p2 = isTeamType ? m.team2Id : m.player2Id;
@@ -267,71 +254,63 @@ export default function FinalsSection({
     ...slotData(byeRealSide(m), newId),
     status: newId ? 'completed' : 'pending',
     winnerId: newId || null,
-    sets: newId ? [] : [createEmptySet()],
+    isBye: true,
+    bye: null,
+    walkover: newId ? true : null,
+    walkoverReason: newId ? 'bye' : null,
+    // 부전승 = 대회 규칙의 부전승 점수(기본 11:0 × 이겨야 하는 세트 수)
+    sets: newId ? byeSets(byeRealSide(m) === 'player1' ? 1 : 2, newId) : [createEmptySet()],
   });
 
-  const applyArrangement = async (mode: 'cross' | 'sequential') => {
-    const withInfo = advancedList.map(id => ({ id, ...(groupRankings.get(id) || { groupId: '', groupName: '', rank: 0 }) }));
-    const groupIds = [...new Set(withInfo.map(w => w.groupId))].sort();
-    const byGroup = new Map<string, typeof withInfo>();
-    withInfo.forEach(w => {
-      if (!byGroup.has(w.groupId)) byGroup.set(w.groupId, []);
-      byGroup.get(w.groupId)!.push(w);
-    });
-    byGroup.forEach(arr => arr.sort((a, b) => a.rank - b.rank));
-
-    const pairs: [string, string][] = [];
-
-    if (mode === 'cross') {
-      for (let i = 0; i < groupIds.length; i += 2) {
-        const gA = byGroup.get(groupIds[i]) || [];
-        const gB = byGroup.get(groupIds[i + 1] || groupIds[i]) || [];
-        if (gA[0] && gB[1]) pairs.push([gA[0].id, gB[1].id]);
-        if (gB[0] && gA[1]) pairs.push([gB[0].id, gA[1].id]);
-        for (let k = 2; k < Math.max(gA.length, gB.length); k++) {
-          // 짝이 없는 선수는 자기 자신과 짝짓지 않는다 (아래에서 BYE 자리 또는 남은 선수끼리 배치)
-          if (gA[k] && gB[k]) pairs.push([gA[k].id, gB[k].id]);
-        }
-      }
-    } else if (mode === 'sequential') {
-      groupIds.forEach(gid => {
-        const arr = byGroup.get(gid) || [];
-        for (let k = 0; k < arr.length; k += 2) {
-          if (arr[k + 1]) pairs.push([arr[k].id, arr[k + 1].id]);
-        }
-      });
+  /** 1라운드 한 경기를 시드 배치 결과로 바꾸는 데이터 (BYE 여부도 다시 정한다) */
+  const seededMatchData = (a: { id: string } | null, b: { id: string } | null): MatchUpdate => {
+    const name = (id: string) => idToName.get(id) || id;
+    const side = (n: 1 | 2, id: string, label: string): MatchUpdate => {
+      const player: MatchUpdate = n === 1 ? { player1Id: id, player1Name: label } : { player2Id: id, player2Name: label };
+      if (!isTeamType) return player;
+      return { ...player, ...(n === 1 ? { team1Id: id, team1Name: label } : { team2Id: id, team2Name: label }) };
+    };
+    const byeLabel = t('admin.tournamentDetail.bracketTab.byeSlot');
+    const base: MatchUpdate = {
+      ...(a ? side(1, a.id, name(a.id)) : side(1, '', byeLabel)),
+      ...(b ? side(2, b.id, name(b.id)) : side(2, '', byeLabel)),
+    };
+    if (a && b) {
+      return { ...base, status: 'pending', winnerId: null, isBye: null, bye: null, walkover: null, walkoverReason: null, sets: [createEmptySet()] };
     }
+    const real = a || b;
+    return {
+      ...base,
+      status: 'completed',
+      winnerId: real ? real.id : null,
+      isBye: true,
+      bye: null,
+      walkover: real ? true : null,
+      walkoverReason: real ? 'bye' : null,
+      sets: real ? byeSets(a ? 1 : 2, real.id) : [],
+    };
+  };
 
-    // 한 선수가 두 번 배치되거나 자기 자신과 대전하지 않도록 정리
-    const placed = new Set<string>();
-    const cleanPairs = pairs.filter(([a, b]) => {
-      if (a === b || placed.has(a) || placed.has(b)) return false;
-      placed.add(a);
-      placed.add(b);
-      return true;
-    });
-    const sorted = [...arrangeableMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
-    const realSlots = sorted.filter(m => !isByeMatch(m));
-    const byeSlots = sorted.filter(m => isByeMatch(m));
-    const usedPairs = cleanPairs.slice(0, realSlots.length);
-    const usedIds = new Set(usedPairs.flat());
-    // 짝을 못 지은 선수: 먼저 BYE 자리에, 그래도 남으면 남은 실제 경기에 둘씩
-    const leftovers = advancedList.filter(id => !usedIds.has(id));
-
-    const pairData = (p1: string, p2: string): MatchUpdate => ({ ...slotData('player1', p1), ...slotData('player2', p2) });
+  /** 예선 순위로 표준 시드 + 조 교차 배치를 1라운드 전체에 적용한다 (같은 선수 중복·자기 자신 대전 없음) */
+  const applySeededArrangement = async () => {
+    const q = seeding.qualification;
+    if (q.blockingTies.length > 0) { showWarning(t('common.competitionRules.finals.tieBlocking')); return; }
+    if (q.qualifiers.length < 2) { showWarning(t('common.competitionRules.finals.noQualifiers')); return; }
+    const sorted = [...firstRound].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+    if (seeding.size > sorted.length * 2) {
+      showWarning(t('common.competitionRules.finals.noQualifiers'));
+      return;
+    }
+    // 시드 배치는 1라운드 전체를 처음부터 다시 정한다. 이미 시작/완료된 실제 경기가 있으면 그 선수가
+    // 다른 경기에 또 배치될 수 있으므로(같은 선수 중복) 전체 적용을 거절한다.
+    if (sorted.some(m => m.status !== 'pending' && !isByeMatch(m))) {
+      showWarning(t('common.competitionRules.finals.seededArrangementStarted'));
+      return;
+    }
+    if (findDuplicateSlot(seeding.slots)) { showWarning(t('common.competitionRules.finals.duplicateSlot')); return; }
     const results: WriteResult[] = [];
-    for (let i = 0; i < usedPairs.length; i++) {
-      results.push(await updateMatch(realSlots[i].id, pairData(usedPairs[i][0], usedPairs[i][1])));
-    }
-    for (const byeMatch of byeSlots) {
-      const id = leftovers.shift();
-      if (!id) break;
-      results.push(await updateMatch(byeMatch.id, byeSlotData(byeMatch, id)));
-    }
-    for (let i = usedPairs.length; i < realSlots.length && leftovers.length >= 2; i++) {
-      const p1 = leftovers.shift()!;
-      const p2 = leftovers.shift()!;
-      results.push(await updateMatch(realSlots[i].id, pairData(p1, p2)));
+    for (let k = 0; k < sorted.length; k++) {
+      results.push(await updateMatch(sorted[k].id, seededMatchData(seeding.slots[2 * k] ?? null, seeding.slots[2 * k + 1] ?? null)));
     }
     notifyWriteOutcome(combineWriteResults(results), t, t('admin.tournamentDetail.bracketTab.finalsArranged'));
   };
@@ -362,15 +341,27 @@ export default function FinalsSection({
     <div className="card space-y-4 border-yellow-600">
       <h3 className="text-lg font-bold text-yellow-400">{t('admin.tournamentDetail.bracketTab.finalsArrangement')}</h3>
 
-      {/* Preset buttons (자동 모드만) */}
+      <TieDecisionPanel
+        ties={blockingTies}
+        nameOf={id => idToName.get(id) || id}
+        groupLabel={scope => groupIdToName.get(scope) || scope || t('common.competitionRules.tie.league')}
+        updateTournament={updateTournament}
+      />
+
+      {/* 시드 배치 (자동 모드만): 예선 순위 → 표준 시드 위치 + 조 교차(같은 조 1라운드 회피). 진출자가 정해져야 동작한다 */}
       {!isManualMode && (
-        <div className="flex gap-2 flex-wrap">
-          <button className="btn btn-primary" onClick={() => applyArrangement('cross')} aria-label={t('admin.tournamentDetail.bracketTab.crossArrangementAriaLabel')}>
-            {t('admin.tournamentDetail.bracketTab.crossArrangement')}
+        <div className="flex gap-2 flex-wrap items-center">
+          <button
+            className="btn btn-primary"
+            onClick={applySeededArrangement}
+            disabled={seeding.qualification.qualifiers.length < 2 || blockingTies.length > 0}
+            aria-label={t('common.competitionRules.finals.seededArrangementAria')}
+          >
+            {t('common.competitionRules.finals.seededArrangement')}
           </button>
-          <button className="btn btn-secondary" onClick={() => applyArrangement('sequential')} aria-label={t('admin.tournamentDetail.bracketTab.sequentialArrangementAriaLabel')}>
-            {t('admin.tournamentDetail.bracketTab.sequentialArrangement')}
-          </button>
+          {seeding.qualification.qualifiers.length < 2 && (
+            <p className="text-gray-400 text-sm">{t('common.competitionRules.finals.noQualifiers')}</p>
+          )}
         </div>
       )}
       {isManualMode && (

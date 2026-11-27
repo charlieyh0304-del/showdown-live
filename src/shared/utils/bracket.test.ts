@@ -101,3 +101,16 @@ describe('generateSingleElimination', () => {
     expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('generateSingleElimination BYE (부전승 11:0)', () => {
+  it('BYE is a completed walkover with 11:0 sets (team 31:0)', () => {
+    const players = [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }, { id: 'p3', name: 'C' }];
+    const bye = generateSingleElimination(players, 't1', 'individual').find(m => m.isBye);
+    expect(bye).toBeDefined();
+    expect(bye!.walkover).toBe(true);
+    expect(bye!.winnerId).toBe(bye!.player1Id);
+    expect((bye!.sets ?? []).map(s => [s.player1Score, s.player2Score])).toEqual([[11, 0], [11, 0]]);
+    const teamBye = generateSingleElimination(players, 't1', 'team').find(m => m.isBye);
+    expect((teamBye!.sets ?? []).map(s => [s.player1Score, s.player2Score])).toEqual([[31, 0]]);
+  });
+});

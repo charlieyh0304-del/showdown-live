@@ -32,6 +32,7 @@ import { useTimerSync } from './useTimerSync';
 import { useGoldenGoalAnnouncement } from './useGoldenGoalAnnouncement';
 import { useActiveMatchRecovery } from './useActiveMatchRecovery';
 import { showConfirm, showPrompt } from '@shared/utils/confirm';
+import { walkoverSetsFor } from '@shared/utils/competition';
 
 type PenaltyDropdownKey = 'player1' | 'player2' | null;
 
@@ -344,15 +345,8 @@ export function useIndividualScoring(
 
     const prevHistory = match.scoreHistory ?? [];
 
-    // 부전승 세트 점수: setsToWin 만큼 세트 생성 (예: 3세트→2세트, 5세트→3세트)
-    const woGameConfig = getEffectiveGameConfig(tournament?.gameConfig);
-    const winScore = woGameConfig.POINTS_TO_WIN;
-    const walkoverSets = Array.from({ length: woGameConfig.SETS_TO_WIN }, () => ({
-      ...createEmptySet(),
-      player1Score: winnerPlayer === 1 ? winScore : 0,
-      player2Score: winnerPlayer === 2 ? winScore : 0,
-      winnerId,
-    }));
+    // 부전승 세트 점수: 대회 규칙(스테이지 포함)의 부전승 점수 × 이겨야 하는 세트 수 (기본 11:0, 3세트제 → 2세트)
+    const walkoverSets = walkoverSetsFor(match, tournament, winnerPlayer, winnerId);
 
     const updateData: Record<string, unknown> = {
       status: 'completed',
@@ -369,7 +363,7 @@ export function useIndividualScoring(
 
     setLastAction(`${t('common.scoreActions.walkover')}: ${winnerName} (${reason})`);
     setAnnouncement(`${loserName} ${reason}. ${winnerName} ${t('common.scoreActions.walkover')}`);
-  }, [match, updateMatch]);
+  }, [match, updateMatch, tournament]);
 
   // IBSA score
   const handleIBSAScore = useCallback(async (

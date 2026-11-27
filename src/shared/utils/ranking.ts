@@ -1,176 +1,151 @@
-import type { Match, PlayerRanking, TeamRanking, TiebreakerRule, SetScore } from '../types';
-import { checkSetWinner } from './scoring';
+/**
+ * 화면용 순위표. 계산은 모두 대회 규칙 단일 설정원(shared/rules)을 거친다.
+ * - 세트 승자: 경기의 유효 점수 규칙 (팀 31점 포함)
+ * - 부전승/BYE: 규칙에 따라 기록된 점수(기본 11:0)로 집계 (BYE-vs-BYE 제외)
+ * - 정렬: 규칙의 동률 기준(기본 승점 → 상대 전적 → 세트 득실 → 점수 득실 → 득점). 이름순 금지.
+ *   풀리지 않는 동률은 같은 순위 + tied 표시.
+ * tournament를 주지 않으면 기본 규칙(IBSA 기본)을 쓴다.
+ */
+import type { Match, PlayerRanking, TeamRanking, TiebreakerRule, Tournament } from '../types';
+import { criteriaFromLegacy, isTeamType, toList } from '../rules/competitionRules';
+import { resultContextFor, type ResultContext } from '../rules/standings';
+import { rankMatches } from '../rules/qualification';
+import { computeFinalPlacements } from '../rules/finalRanking';
+import type { RankingResult } from '../rules/tiebreak';
+import type { CountPurpose } from '../rules/walkover';
 
-function applyTiebreaker(rule: TiebreakerRule, a: PlayerRanking, b: PlayerRanking, matches?: Match[]): number {
-  switch (rule) {
-    case 'set_difference': return (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost);
-    case 'point_difference': return (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst);
-    case 'points_for': return b.pointsFor - a.pointsFor;
-    case 'head_to_head': {
-      if (!matches) return 0;
-      // Find direct completed match(es) between a and b
-      let aWins = 0, bWins = 0;
-      for (const m of matches) {
-        if (m.status !== 'completed') continue;
-        const pair =
-          (m.player1Id === a.playerId && m.player2Id === b.playerId) ||
-          (m.player1Id === b.playerId && m.player2Id === a.playerId);
-        if (!pair) continue;
-        if (m.winnerId === a.playerId) aWins++;
-        else if (m.winnerId === b.playerId) bWins++;
-      }
-      if (aWins === bWins) return 0; // didn't play, drew, or split — fall through
-      return bWins - aWins;
-    }
-    default: return 0;
-  }
+export type RankingTournament = Pick<Tournament, 'type' | 'gameConfig' | 'scoringRules' | 'stages' | 'rules' | 'rankingMatchConfig' | 'finalsConfig'> & {
+  teamMatchSettings?: unknown;
+  tiebreakerRules?: unknown;
+};
+
+/**
+ * 순위 문맥. stageId를 주면 그 스테이지 규칙(stages[i].rules: 동률 기준·승점·부전승 집계)을 반영한다.
+ * 레거시 tiebreakers 인자를 주면 동률 기준만 그것으로 바꾼다.
+ */
+export function rankingContext(tournament?: Partial<RankingTournament> | null, tiebreakers?: TiebreakerRule[], purpose: CountPurpose = 'standings', stageId?: string): ResultContext {
+  const ctx = resultContextFor(tournament ?? null, purpose, stageId);
+  const legacy = tiebreakers ? criteriaFromLegacy(tiebreakers) : null;
+  if (!legacy) return ctx;
+  return { ...ctx, rules: { ...ctx.rules, tiebreak: { ...ctx.rules.tiebreak, criteria: legacy } } };
 }
 
-// 개인전 풀리그 순위 산출
+function toPlayerRankings(result: RankingResult, onlyPlayed: boolean): PlayerRanking[] {
+  return result.ranked
+    .filter(r => !onlyPlayed || r.row.played > 0)
+    .map(r => ({
+      playerId: r.row.id,
+      playerName: r.row.name,
+      played: r.row.played,
+      wins: r.row.wins,
+      losses: r.row.losses,
+      setsWon: r.row.setsWon,
+      setsLost: r.row.setsLost,
+      pointsFor: r.row.pointsFor,
+      pointsAgainst: r.row.pointsAgainst,
+      rank: r.rank,
+      points: r.row.points,
+      tied: r.tied,
+      decidedBy: r.decidedBy,
+    }));
+}
+
+/** 개인전 순위 (완료 경기가 있는 선수만) */
 export function calculateIndividualRanking(
   matches: Match[],
   tiebreakers?: TiebreakerRule[],
+  tournament?: Partial<RankingTournament> | null,
 ): PlayerRanking[] {
-  const map = new Map<string, PlayerRanking>();
-
-  const getOrCreate = (id: string, name: string): PlayerRanking => {
-    let r = map.get(id);
-    if (!r) {
-      r = { playerId: id, playerName: name, played: 0, wins: 0, losses: 0, setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0, rank: 0 };
-      map.set(id, r);
-    }
-    return r;
-  };
-
-  for (const match of matches) {
-    if (match.status !== 'completed' || !match.player1Id || !match.player2Id) continue;
-
-    const r1 = getOrCreate(match.player1Id, match.player1Name || '');
-    const r2 = getOrCreate(match.player2Id, match.player2Name || '');
-    r1.played++;
-    r2.played++;
-
-    // Defensive: match.sets may be a Firebase object if not normalized
-    const sets: SetScore[] = match.sets ? (Array.isArray(match.sets) ? match.sets : Object.values(match.sets) as SetScore[]) : [];
-    for (const set of sets) {
-      const w = checkSetWinner(set.player1Score, set.player2Score);
-      if (w === 1) { r1.setsWon++; r2.setsLost++; }
-      else if (w === 2) { r2.setsWon++; r1.setsLost++; }
-      r1.pointsFor += set.player1Score;
-      r1.pointsAgainst += set.player2Score;
-      r2.pointsFor += set.player2Score;
-      r2.pointsAgainst += set.player1Score;
-    }
-
-    if (match.winnerId === match.player1Id) { r1.wins++; r2.losses++; }
-    else if (match.winnerId === match.player2Id) { r2.wins++; r1.losses++; }
-  }
-
-  const defaultTiebreakers: TiebreakerRule[] = ['set_difference', 'point_difference'];
-  const rules = tiebreakers || defaultTiebreakers;
-
-  const rankings = Array.from(map.values()).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    for (const rule of rules) {
-      const diff = applyTiebreaker(rule, a, b, matches);
-      if (diff !== 0) return diff;
-    }
-    return 0;
-  });
-
-  rankings.forEach((r, i) => { r.rank = i + 1; });
-  return rankings;
+  return toPlayerRankings(rankMatches(matches, rankingContext(tournament, tiebreakers)), true);
 }
 
 /**
- * 그룹/조별 순위 계산
- * - 완료된 경기만 포함 (calculateIndividualRanking과 동일)
- * - 추가: pending 경기에 등장하는 선수도 포함 (zero-stat 행)
- *   조 편성만 되고 아직 경기 안 한 선수도 표에 표시되어야 하기 때문
+ * 조 경기들이 속한 스테이지 ID: 경기의 stageId, 없으면 대회의 예선 스테이지.
+ * 조별 순위표와 진출 표시가 서버 진출자 선정(예선 스테이지 규칙)과 같은 규칙을 쓰게 한다.
+ */
+export function groupStageIdOf(matches: ReadonlyArray<Pick<Match, 'stageId'>>, tournament?: Partial<RankingTournament> | null): string | undefined {
+  const fromMatch = matches.find(m => !!m.stageId)?.stageId;
+  if (fromMatch) return fromMatch;
+  const stages = toList<{ id?: unknown; type?: unknown }>(tournament?.stages);
+  const q = stages.find(s => s && s.type === 'qualifying');
+  return q && typeof q.id === 'string' ? q.id : undefined;
+}
+
+/**
+ * 그룹/조별 순위. pending 경기에만 나오는 선수도 0전 행으로 넣는다
+ * (조 편성만 되고 아직 경기 안 한 선수도 표에 보여야 한다).
+ * stageId를 주지 않으면 경기(또는 대회 예선)의 스테이지 규칙을 쓴다.
  */
 export function calculateGroupRanking(
   matches: Match[],
   tiebreakers?: TiebreakerRule[],
+  tournament?: Partial<RankingTournament> | null,
+  scope = '',
+  stageId?: string,
 ): PlayerRanking[] {
-  const rankings = calculateIndividualRanking(matches, tiebreakers);
-  const seen = new Set(rankings.map(r => r.playerId));
-
-  // pending 경기 참가자 추가 (zero-stat)
-  for (const m of matches) {
-    if (m.player1Id && !seen.has(m.player1Id)) {
-      rankings.push({
-        playerId: m.player1Id, playerName: m.player1Name || '',
-        played: 0, wins: 0, losses: 0,
-        setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0,
-        rank: 0,
-      });
-      seen.add(m.player1Id);
-    }
-    if (m.player2Id && !seen.has(m.player2Id)) {
-      rankings.push({
-        playerId: m.player2Id, playerName: m.player2Name || '',
-        played: 0, wins: 0, losses: 0,
-        setsWon: 0, setsLost: 0, pointsFor: 0, pointsAgainst: 0,
-        rank: 0,
-      });
-      seen.add(m.player2Id);
-    }
-  }
-
-  // 재정렬 + 순위 부여
-  rankings.sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    const aSD = a.setsWon - a.setsLost, bSD = b.setsWon - b.setsLost;
-    if (bSD !== aSD) return bSD - aSD;
-    return (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst);
-  });
-  rankings.forEach((r, i) => { r.rank = i + 1; });
-  return rankings;
+  const ctx = rankingContext(tournament, tiebreakers, 'standings', stageId ?? groupStageIdOf(matches, tournament));
+  return toPlayerRankings(rankMatches(matches, ctx, scope), false);
 }
 
-// 팀전 순위 산출 (31점 단일 세트 기준)
-export function calculateTeamRanking(matches: Match[]): TeamRanking[] {
-  const map = new Map<string, TeamRanking>();
+/** 팀전 순위 */
+export function calculateTeamRanking(matches: Match[], tournament?: Partial<RankingTournament> | null): TeamRanking[] {
+  const ctx = rankingContext(tournament ?? { type: 'team' });
+  const teamMatches = matches.filter(m => isTeamType(m.type) || !!(m.team1Id || m.team2Id));
+  return rankMatches(teamMatches, ctx).ranked
+    .filter(r => r.row.played > 0)
+    .map(r => ({
+      teamId: r.row.id,
+      teamName: r.row.name,
+      played: r.row.played,
+      wins: r.row.wins,
+      losses: r.row.losses,
+      pointsFor: r.row.pointsFor,
+      pointsAgainst: r.row.pointsAgainst,
+      rank: r.rank,
+      points: r.row.points,
+      tied: r.tied,
+      decidedBy: r.decidedBy,
+    }));
+}
 
-  const getOrCreate = (id: string, name: string): TeamRanking => {
-    let r = map.get(id);
-    if (!r) {
-      r = { teamId: id, teamName: name, played: 0, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, rank: 0 };
-      map.set(id, r);
-    }
-    return r;
+export interface FinalRankingRow {
+  id: string;
+  name: string;
+  played: number;
+  wins: number;
+  losses: number;
+  setsWon: number;
+  setsLost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  /** 최종 순위 (아직 정해지지 않았으면 null) */
+  place: number | null;
+  joint: boolean;
+  /** 동률 규칙으로 풀리지 않아 관리자 결정이 필요 */
+  unresolved: boolean;
+}
+
+/**
+ * 최종 순위표 행: 순위는 대진 결과(shared/rules/finalRanking — 결승 → 3/4위전 → 순위결정전 → 라운드),
+ * 대진이 없으면 순위표 + 동률 규칙. 전적 숫자는 규칙대로 집계한 순위표에서 가져온다.
+ * 순위가 정해진 사람이 먼저(순위순), 나머지는 순위 없음(null)으로 뒤에 둔다.
+ */
+export function finalRankingRows(matches: Match[], tournament?: Partial<RankingTournament> | null): FinalRankingRow[] {
+  const ctx = rankingContext(tournament);
+  const placements = computeFinalPlacements({ matches, ctx });
+  const ranking = rankMatches(matches, ctx).ranked.filter(r => r.row.played > 0);
+  const statsOf = new Map(ranking.map(r => [r.row.id, r.row]));
+  const toRow = (id: string, name: string, place: number | null, joint: boolean, unresolved: boolean): FinalRankingRow => {
+    const s = statsOf.get(id);
+    return {
+      id, name: name || s?.name || id,
+      played: s?.played ?? 0, wins: s?.wins ?? 0, losses: s?.losses ?? 0,
+      setsWon: s?.setsWon ?? 0, setsLost: s?.setsLost ?? 0, pointsFor: s?.pointsFor ?? 0, pointsAgainst: s?.pointsAgainst ?? 0,
+      place, joint, unresolved,
+    };
   };
-
-  for (const match of matches) {
-    if (match.status !== 'completed' || !match.team1Id || !match.team2Id) continue;
-
-    const r1 = getOrCreate(match.team1Id, match.team1Name || '');
-    const r2 = getOrCreate(match.team2Id, match.team2Name || '');
-    r1.played++;
-    r2.played++;
-
-    if (match.winnerId === match.team1Id) { r1.wins++; r2.losses++; }
-    else if (match.winnerId === match.team2Id) { r2.wins++; r1.losses++; }
-
-    // 31점 단일 세트: sets[0]에서 점수 집계
-    // Defensive: match.sets may be a Firebase object if not normalized
-    const teamSets: SetScore[] = match.sets ? (Array.isArray(match.sets) ? match.sets : Object.values(match.sets) as SetScore[]) : [];
-    if (teamSets.length > 0) {
-      const set = teamSets[0];
-      r1.pointsFor += set.player1Score;
-      r1.pointsAgainst += set.player2Score;
-      r2.pointsFor += set.player2Score;
-      r2.pointsAgainst += set.player1Score;
-    }
-  }
-
-  const rankings = Array.from(map.values()).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    const aPtDiff = a.pointsFor - a.pointsAgainst;
-    const bPtDiff = b.pointsFor - b.pointsAgainst;
-    return bPtDiff - aPtDiff;
-  });
-
-  rankings.forEach((r, i) => { r.rank = i + 1; });
-  return rankings;
+  const rows = placements.map(p => toRow(p.id, p.name, p.place, p.joint, !!p.unresolved));
+  const placed = new Set(rows.map(r => r.id));
+  for (const r of ranking) if (!placed.has(r.row.id)) rows.push(toRow(r.row.id, r.row.name, null, false, false));
+  return rows;
 }
