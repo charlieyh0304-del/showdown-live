@@ -126,8 +126,6 @@ export default function SpectatorHome() {
         <TournamentList tournaments={tournaments} query={query} />
       )}
 
-      <p style={{ color: '#9ca3af', fontSize: '0.875rem', textAlign: 'center', margin: '1rem 0' }}>{t('spectator.home.a11yHint')}</p>
-
       <Link
         to="/spectator/practice"
         className="card"

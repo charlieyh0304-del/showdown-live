@@ -1882,7 +1882,6 @@
       "searchPlaceholder": "Tournament name or venue",
       "searchCount_one": "{{count}} tournament found",
       "searchCount_other": "{{count}} tournaments found",
-      "a11yHint": "Use headings (H2) to move between live, upcoming and finished tournaments. The button at the bottom right changes text size and colors.",
       "venue": "Venue: {{venue}}",
       "liveMatchCount_one": "{{count}} match in progress",
       "liveMatchCount_other": "{{count}} matches in progress",
