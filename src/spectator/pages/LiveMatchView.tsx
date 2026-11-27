@@ -7,6 +7,7 @@ import { matchKindOf, resolveMatchScoring } from '@shared/rules/competitionRules
 import { servesPerTurnOf } from '@shared/rules/serve';
 import { parseTimeDisplay } from '@shared/utils/locale';
 import { useWhistle } from '@shared/hooks/useWhistle';
+import MatchClockDisplay from '@shared/components/MatchClockDisplay';
 import type { ScoreHistoryEntry, Tournament } from '@shared/types';
 
 export default function LiveMatchView() {
@@ -25,7 +26,6 @@ export default function LiveMatchView() {
   const prevStatusRef = useRef('');
   const prevActiveTimeoutRef = useRef<boolean>(false);
   const prevWarmupRef = useRef<boolean>(false);
-  const prevGoldenGoalRef = useRef<boolean>(false);
   const { shortWhistle, longWhistle, goalWhistle } = useWhistle();
 
   const loading = mLoading || tLoading;
@@ -80,13 +80,7 @@ export default function LiveMatchView() {
       }
     }
     prevStatusAnnounceRef.current = status;
-
-    // 골든골 진입 감지 → assertive 음성 안내
-    const isGolden = !!match.goldenGoalActive;
-    if (isGolden && !prevGoldenGoalRef.current) {
-      setUrgentAnnouncement(t('spectator.liveMatch.goldenGoalActivated'));
-    }
-    prevGoldenGoalRef.current = isGolden;
+    // 골든골·남은 시간 알림은 MatchClockDisplay가 정해진 시점에만 polite로 알린다 (M0f)
   }, [match, t]);
 
   // Whistle sounds based on match events (via Firebase real-time)
@@ -171,10 +165,14 @@ export default function LiveMatchView() {
       <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
       <div aria-live="assertive" aria-atomic="true" className="sr-only" role="alert">{urgentAnnouncement}</div>
 
-      {match.goldenGoalActive && match.status === 'in_progress' && (
-        <div className="card" style={{ background: '#b91c1c', color: 'white', textAlign: 'center', padding: '0.75rem', marginBottom: '0.75rem', fontWeight: 'bold' }} role="status">
-          <span aria-hidden="true">⏱️ </span>{t('spectator.liveMatch.goldenGoalBanner')}
+      {/* 경기 시계 (시간 제한 경기): 남은 시간·상태·골든골. 5분·1분·30초·종료·골든골 때만 알린다 */}
+      {match.clock && match.status === 'in_progress' && (
+        <div className="card" style={{ marginBottom: '0.75rem' }}>
+          <MatchClockDisplay clock={match.clock} goldenGoalMode={resolveMatchScoring(match, tournament).goldenGoalMode} size="medium" announce />
         </div>
+      )}
+      {match.decidedBy && isCompleted && (
+        <p style={{ textAlign: 'center', color: '#fde047', fontWeight: 'bold', marginBottom: '0.75rem' }}>{t(`common.matchClock.decidedBy.${match.decidedBy}`)}</p>
       )}
 
       <button className="btn" onClick={() => navigate(`/spectator/tournament/${tournamentId}`)}
@@ -261,7 +259,7 @@ function ScoreHistorySection({
   const META_ACTION_TYPES = new Set([
     'pause', 'resume', 'timeout', 'timeout_player', 'timeout_medical', 'timeout_referee',
     'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start',
-    'match_start', 'player_rotation', 'serve', 'lineup'
+    'match_start', 'player_rotation', 'serve', 'lineup', 'time_expired'
   ]);
   // Keep scoring entries AND meaningful meta events, filter out noise
   const meaningfulHistory = useMemo(() => {

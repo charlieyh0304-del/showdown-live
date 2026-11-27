@@ -3,7 +3,7 @@
  * 단체전·개인전 심판 훅이 같이 쓴다. Firebase·React에 의존하지 않아 단위 테스트한다.
  */
 import type { Match, ScoreHistoryEntry, SetScore } from '@shared/types';
-import { matchWinnerByRules, setWinnerByRules, setWinsByRules, type ScoringRuleSet } from '@shared/rules/competitionRules';
+import { matchWinnerByRules, setWinnerOf, setWinsByRules, type ScoringRuleSet } from '@shared/rules/competitionRules';
 import { createEmptySet } from '@shared/utils/scoring';
 
 type Side = 'player1' | 'player2';
@@ -84,7 +84,8 @@ export function undoSetTransition(
 
 export type SetEndOutcome =
   /** 이 세트로 경기가 끝났다 */
-  | { kind: 'completed'; setWinner: 1 | 2; winnerId: string; sets: SetScore[]; wins: { player1: number; player2: number } }
+  /** 이 세트로 경기가 끝났다. setWinner가 null이면 경기 시간 만료 때 동점 세트로 끝났다(세트 승수로 결정). */
+  | { kind: 'completed'; setWinner: 1 | 2 | null; winnerId: string; sets: SetScore[]; wins: { player1: number; player2: number } }
   /** 경기가 아직 안 끝났다: 다음 세트(0:0)를 붙이고 코트를 바꾼다 */
   | {
     kind: 'next_set';
@@ -114,14 +115,15 @@ export function setEndOutcome(
 ): SetEndOutcome | null {
   const cs = sets[ci];
   if (!cs) return null;
-  const setWinner = setWinnerByRules(cs.player1Score, cs.player2Score, rules);
-  if (!setWinner) return null;
+  // 시간 제한으로 끝난 세트(decidedBy)도 세트 승자로 본다 (shared/rules/timeLimit.ts)
+  const setWinner = setWinnerOf(cs, rules);
   const next = sets.map(s => ({ ...s }));
-  next[ci] = { ...cs, winnerId: opts.sideIds[setWinner - 1] };
+  if (setWinner) next[ci] = { ...cs, winnerId: opts.sideIds[setWinner - 1] };
   const matchWinner = matchWinnerByRules(next, rules);
   if (matchWinner) {
     return { kind: 'completed', setWinner, winnerId: opts.sideIds[matchWinner - 1], sets: next, wins: setWinsByRules(next, rules) };
   }
+  if (!setWinner) return null;
   const wins = setWinsByRules(next, rules);
   const nextFirst = other(firstServerOfSet(match, ci));
   next.push(createEmptySet());

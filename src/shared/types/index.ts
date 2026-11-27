@@ -1,4 +1,5 @@
 import type { CompetitionRulesInput } from '../rules/competitionRules';
+import type { MatchClock } from '../rules/timeLimit';
 
 export type { CompetitionRulesInput } from '../rules/competitionRules';
 
@@ -300,6 +301,12 @@ export interface SetScore {
   player1Violations: number;
   player2Violations: number;
   winnerId?: string | null;
+  /** 시간 제한으로 끝난 세트 (shared/rules/timeLimit.ts): 시간 만료 시 앞선 쪽 / 골든골 */
+  decidedBy?: 'time_limit' | 'golden_goal';
+  /** 시간 제한 세트의 승자 쪽 (골만 인정 골든골은 점수로 정해지지 않을 수 있다) */
+  decidedWinner?: 1 | 2;
+  /** 경기 전체 시간 제한(per_match)이 이 세트에서 끝났다 → 경기 종료 */
+  matchTimeUp?: boolean;
 }
 
 // ===== IBSA 득점 액션 타입 =====
@@ -335,6 +342,7 @@ export type ScoreActionType =
   | 'match_start'       // 경기 시작
   | 'player_rotation'   // 선수 교체/로테이션
   | 'side_change'       // 사이드 체인지
+  | 'time_expired'      // 시간 제한 만료 (M0f)
   | 'serve'             // 서브 진행 (메타)
   | 'lineup';           // 팀 라인업 공개
 
@@ -426,6 +434,10 @@ export interface Match {
   // 시간 제한 + 골든골
   matchStartedAt?: number;          // 경기 실제 시작 시각 (timeLimit 카운트다운 기준)
   goldenGoalActive?: boolean;       // 시간 만료 후 골든골 모드 활성화 여부
+  /** 경기 시계 (시간 제한 경기, shared/rules/timeLimit.ts MatchClock). 새로고침·다른 기기에서도 이어진다. */
+  clock?: MatchClock | null;
+  /** 경기를 끝낸 방식: 시간 만료 / 골든골 (표시·기록용) */
+  decidedBy?: 'time_limit' | 'golden_goal' | null;
   // 사이드체인지 타이머 동기화
   sideChangeStartTime?: number | null;    // 사이드체인지 시작 시각 (null = Firebase에서 삭제)
   // 선수 교체 사용 여부

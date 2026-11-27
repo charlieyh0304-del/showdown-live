@@ -40,3 +40,19 @@ it('rules editor, wizard steps and rules tab render (SSR smoke)', () => {
   expect(draftFromTournament(t).tournament.presetId).toBe('ibsa');
   renderToString(h(RulesTab, { tournament: t, matches: [], updateTournament: async () => true }));
 });
+
+it('rules editor renders the time limit section with the IBSA warning (M0f)', () => {
+  const t = { type: 'individual', stages: [{ id: 'f', type: 'finals' }] };
+  let d = setFieldValue({ tournament: {}, stages: {} }, '__tournament__', 'ibsaSanctioned', true);
+  d = setFieldValue(d, '__tournament__', 'scoring.individual.timeLimitSeconds', 1800);
+  const html = renderToString(h(CompetitionRulesEditor, { tournament: t, draft: d, onChange: () => {}, stageOptions: [{ id: 'f', label: 'F' }], idPrefix: 'p', issues: [], showIssues: false }));
+  expect(html).toContain('p-scoring-individual-timeLimitSeconds-toggle');
+  expect(html).toContain('p-scoring-individual-timeLimitUnit');
+  expect(html).toContain('p-scoring-individual-goldenGoalMode');
+  expect(html).toContain('p-ibsaSanctioned');
+  expect(html).toContain('admin.rulesEditor.timeLimit.ibsaWarning');
+  // 시간 제한이 꺼져 있으면 분·단위 입력은 없다
+  const off = renderToString(h(CompetitionRulesEditor, { tournament: t, draft: { tournament: {}, stages: {} }, onChange: () => {}, stageOptions: [], idPrefix: 'p', issues: [], showIssues: false }));
+  expect(off).not.toContain('p-scoring-individual-timeLimitUnit');
+  expect(off).not.toContain('admin.rulesEditor.timeLimit.ibsaWarning');
+});

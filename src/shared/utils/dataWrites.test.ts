@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   stripUndefined,
+  monotonicUpdatedAt,
   toSafeKey,
   CLEARED_SCHEDULE_FIELDS,
   buildManualScheduleUpdate,
@@ -353,5 +354,14 @@ describe('notifyWriteOutcome / notifyTournamentWrite', () => {
     unsub();
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ type: 'error', message: 'common.write.tournamentConflict' });
+  });
+});
+
+describe('monotonicUpdatedAt (M0f: device clock skew must not make the DB rule reject match writes)', () => {
+  it('uses now when it is newer, otherwise stored + 1', () => {
+    expect(monotonicUpdatedAt(2_000, 1_000)).toBe(2_000);
+    expect(monotonicUpdatedAt(1_000, 5_000)).toBe(5_001);
+    expect(monotonicUpdatedAt(5_000, 5_000)).toBe(5_001);
+    expect(monotonicUpdatedAt(3, undefined)).toBe(3);
   });
 });

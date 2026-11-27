@@ -15,7 +15,7 @@ import {
   matchWinnerByRules,
   resolveCompetitionRules,
   resolveMatchScoring,
-  setWinnerByRules,
+  setWinnerOf,
   toList,
   type CompetitionRules,
   type ScoringRuleSet,
@@ -120,7 +120,8 @@ export function normalizeResult(m: MatchLike, ctx: ResultContext): ResultRecord 
     const p2 = num(s.player2Score);
     ptsA += p1;
     ptsB += p2;
-    const w = setWinnerByRules(p1, p2, scoring);
+    // 시간 제한으로 끝난 세트(decidedBy)는 점수와 상관없이 그 결과를 센다
+    const w = setWinnerOf(s, scoring);
     if (w === 1) setsA++;
     else if (w === 2) setsB++;
   }

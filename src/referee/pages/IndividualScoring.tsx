@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { setWinnerByRules, setWinsByRules } from '@shared/rules/competitionRules';
+import { setWinnerOf, setWinsByRules } from '@shared/rules/competitionRules';
 import { hasUndecidedParticipant } from '@shared/utils/bracketSkeleton';
 import { showError } from '@shared/utils/toast';
 import type { SetScore, ScoreHistoryEntry } from '@shared/types';
@@ -11,6 +11,7 @@ import TimerModal from '../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
 import ActionToast from '../components/ActionToast';
 import FoulClassifyOverlay from '../components/FoulClassifyOverlay';
+import MatchClockPanel from '../components/MatchClockPanel';
 
 // Referee timeout elapsed timer component
 function TimeoutModal({ match, player1Name, player2Name, timeoutTimer, onClose }: {
@@ -105,8 +106,8 @@ export default function IndividualScoring() {
     // timers & audio
     sideChangeTimer, warmupTimer, timeoutTimer,
     shortWhistle, longWhistle, goalWhistle, initAudio,
-    // golden goal
-    goldenGoal,
+    // 경기 시계·골든골 (M0f)
+    matchClock, handleGoldenCoinToss, setEndUndoable,
     // focus trap
     setEndTrapRef,
     // derived modal visibility
@@ -344,6 +345,7 @@ export default function IndividualScoring() {
           <h1 className="text-3xl font-bold text-yellow-400">{t('common.matchStatus.completed')}</h1>
           <div className="text-4xl font-bold text-green-400 mt-2" role="status" aria-live="assertive">🏆 {winnerName}!</div>
           <div className="text-2xl text-gray-300 mt-1" aria-label={`${t('common.units.set')} ${winSets} : ${loseSets}`}>{t('common.units.set')}: {winSets} - {loseSets}</div>
+          {match.decidedBy && <div className="text-lg text-yellow-300 mt-1">{t(`common.matchClock.decidedBy.${match.decidedBy}`)}</div>}
         </div>
         {/* 세트별 결과 - 승자 점수가 먼저 */}
         {match.sets && match.sets.length > 0 && (
@@ -352,7 +354,9 @@ export default function IndividualScoring() {
               {match.sets.map((s: SetScore, i: number) => {
                 const setWinScore = isP2Winner ? s.player2Score : s.player1Score;
                 const setLoseScore = isP2Winner ? s.player1Score : s.player2Score;
-                const setWinnerName = setWinnerByRules(s.player1Score, s.player2Score, rules) === 2 ? player2Name : player1Name;
+                const setWinner = setWinnerOf(s, rules);
+                // 경기 시간 만료 때 동점으로 끝난 세트는 승자가 없다
+                const setWinnerName = setWinner === 2 ? player2Name : setWinner === 1 ? player1Name : null;
                 return (
                   <div key={i} className="flex justify-between items-center bg-gray-800 rounded px-4 py-2" aria-label={`${t('common.matchHistory.setLabel', { num: i + 1 })}: ${winnerName} ${setWinScore} : ${loserName} ${setLoseScore}`}>
                     <span className="text-sm text-gray-400">{t('common.matchHistory.setLabel', { num: i + 1 })}</span>
@@ -361,7 +365,7 @@ export default function IndividualScoring() {
                       <span className="text-gray-400"> - </span>
                       <span className="text-gray-300">{setLoseScore}</span>
                     </span>
-                    <span className="text-sm text-green-400">🏆 {setWinnerName}</span>
+                    <span className="text-sm text-green-400">{setWinnerName ? `🏆 ${setWinnerName}` : ''}{s.decidedBy && <span className="block text-xs text-yellow-300">{t(`common.matchClock.decidedBy.${s.decidedBy}`)}</span>}</span>
                   </div>
                 );
               })}
@@ -449,13 +453,13 @@ export default function IndividualScoring() {
 
       {/* Set End Confirmation Dialog */}
       {showSetEndConfirm && (
-        <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape' && !isMatchEnd) handleCancelSetEnd(); }}>
+        <div className="modal-backdrop" style={{ zIndex: 100 }} onKeyDown={e => { if (e.key === 'Escape' && !isMatchEnd && setEndUndoable) handleCancelSetEnd(); }}>
           <div ref={setEndTrapRef} className="flex flex-col items-center gap-6 p-8 max-w-sm" role="dialog" aria-modal="true" aria-label={t('common.matchHistory.setResult')}>
             <h2 className="text-2xl font-bold text-yellow-400">{t('common.matchHistory.setResult')}</h2>
             <p className="text-lg text-gray-300 text-center whitespace-pre-line">{setEndMessage}</p>
             <div className="flex gap-4 w-full">
               <button className="btn btn-success btn-large flex-1" onClick={handleConfirmSetEnd}>{t('common.confirm')}</button>
-              {!isMatchEnd && (
+              {!isMatchEnd && setEndUndoable && (
                 <button className="btn btn-secondary btn-large flex-1" onClick={handleCancelSetEnd}>{t('common.cancel')}</button>
               )}
             </div>
@@ -522,18 +526,8 @@ export default function IndividualScoring() {
       </div>
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
-      {/* 골든골 타이머/배너 */}
-      {goldenGoal.enabled && (
-        goldenGoal.isActive ? (
-          <div className="mx-4 mt-2 px-4 py-3 rounded-lg bg-red-700 text-white font-bold text-center" role="status" aria-live="assertive">
-            <span aria-hidden="true">⏱️ </span>{t('referee.scoring.goldenGoalBanner')}
-          </div>
-        ) : (
-          <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-gray-800 text-cyan-300 font-mono text-center text-lg">
-            <span aria-hidden="true">⏱ </span>{Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
-          </div>
-        )
-      )}
+      {/* 경기 시계 (시간 제한 경기) / 골든골 동전 던지기 */}
+      <MatchClockPanel clock={matchClock} rawClock={match.clock} side1Name={player1Name} side2Name={player2Name} onGoldenCoinToss={handleGoldenCoinToss} />
 
       {/* Scoring area - 4 main buttons (1-tap each) */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">

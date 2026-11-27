@@ -33,8 +33,18 @@ export interface ScoringRuleSet {
   minLead: number;
   /** 이 점수에 도달하면 1점 차로도 세트 종료 */
   deuceCap?: number;
-  /** 시간 제한(초). 없으면 제한 없음 (타이머·골든골은 M0f) */
+  /**
+   * 시간 제한(초). 없으면 제한 없음. 시계는 워밍업·사이드 체인지·타임아웃(선수·심판·의료) 동안 멈추고
+   * 랠리 시간은 센다(shared/rules/timeLimit.ts). IBSA 승인 대회에서는 쓰지 않는다(ibsaSanctioned 경고).
+   */
   timeLimitSeconds?: number;
+  /** 시간 제한 단위: per_set = 세트마다 시계를 새로 잰다, per_match = 경기 전체 (없으면 per_match) */
+  timeLimitUnit?: TimeLimitUnit;
+  /**
+   * 시간이 끝났을 때 동점이면 골든골. next_point = 다음 1점(반칙 포함)을 얻은 쪽이 승리(IBSA, 기본),
+   * goal_only = 실제 골(2점)만 승부를 낸다(반칙 점수는 들어가지만 끝내지 않는다).
+   */
+  goldenGoalMode?: GoldenGoalMode;
   /** 한 사람(팀)이 연속으로 넣는 서브 수. 없으면 개인 2, 단체 3 (serve.ts servesPerTurnOf) */
   servesPerTurn?: number;
   /**
@@ -56,6 +66,24 @@ export interface ScoringRuleSet {
  * 듀스 캡·시간 제한은 '없음', 사이드 체인지 점수·서브 수·코트 위 선수 수는 '기본값(자동)'이 된다.
  */
 export const CLEARABLE_SCORING_FIELDS = ['deuceCap', 'timeLimitSeconds', 'sideChangeAt', 'servesPerTurn', 'playersOnCourt'] as const;
+
+export type TimeLimitUnit = 'per_set' | 'per_match';
+export const TIME_LIMIT_UNITS: readonly TimeLimitUnit[] = ['per_set', 'per_match'];
+export type GoldenGoalMode = 'next_point' | 'goal_only';
+export const GOLDEN_GOAL_MODES: readonly GoldenGoalMode[] = ['next_point', 'goal_only'];
+
+/** 선택지 필드 (시간 제한 단위·골든골 방식). 잘못된 값·빈 값("")·null은 상위 값을 지운다(= 기본값). */
+const ENUM_SCORING_FIELDS: ReadonlyArray<readonly [keyof ScoringRuleSet, readonly string[]]> = [
+  ['timeLimitUnit', TIME_LIMIT_UNITS],
+  ['goldenGoalMode', GOLDEN_GOAL_MODES],
+];
+
+function copyEnumFields(from: Record<string, unknown>, to: Partial<ScoringRuleSet>) {
+  for (const [k, allowed] of ENUM_SCORING_FIELDS) {
+    const v = from[k];
+    if (typeof v === 'string' && allowed.includes(v)) (to as Record<string, unknown>)[k] = v;
+  }
+}
 
 export type TiebreakCriterion =
   | 'points'            // 승점 (standingsPoints)
@@ -204,6 +232,8 @@ export interface CompetitionRules {
   qualification: QualificationRules;
   retirement: RetirementRules;
   schedule: ScheduleRules;
+  /** IBSA 승인 대회. 승인 대회에서는 시간 제한 경기가 금지되므로 편집기가 경고한다(막지는 않는다). */
+  ibsaSanctioned: boolean;
   tiebreakDecisions: Record<string, TiebreakDecision>;
 }
 
@@ -221,6 +251,7 @@ export interface CompetitionRulesInput {
   qualification?: Partial<QualificationRules>;
   retirement?: Partial<RetirementRules>;
   schedule?: Partial<ScheduleRules>;
+  ibsaSanctioned?: boolean;
   tiebreakDecisions?: Record<string, TiebreakDecision>;
 }
 
@@ -275,6 +306,7 @@ export const DEFAULT_COMPETITION_RULES: CompetitionRules = {
   qualification: { perGroup: 2, wildcards: 0, avoidSameGroupFirstRound: true },
   retirement: { mode: 'keep_played' },
   schedule: { minRestMinutes: 30 },
+  ibsaSanctioned: false,
   tiebreakDecisions: {},
 };
 
@@ -353,6 +385,7 @@ export function scoringFrom(obj: unknown): ScoringRuleSet | null {
   }
   const rotation = rotationFrom(obj.serveRotation);
   if (rotation) out.serveRotation = rotation;
+  copyEnumFields(obj, out);
   return out;
 }
 
@@ -383,6 +416,10 @@ function mergeScoringPartial(base: ScoringRuleSet, part: unknown): ScoringRuleSe
   for (const k of CLEARABLE_SCORING_FIELDS) if (k in part && (part[k] === null || part[k] === 0)) delete merged[k];
   // 서브 순서: 빈 값("" 표식, null, 빈 목록)은 상위 값을 지운다 (= 기본 순서)
   if ('serveRotation' in part && !rotationFrom(part.serveRotation)) delete merged.serveRotation;
+  // 선택지 필드: 잘못된 값·빈 값은 상위 값을 지운다 (= 기본값)
+  for (const [k, allowed] of ENUM_SCORING_FIELDS) {
+    if (k in part && !(typeof part[k] === 'string' && allowed.includes(part[k] as string))) delete merged[k];
+  }
   const full = scoringFrom(merged);
   return full ?? base;
 }
@@ -406,6 +443,7 @@ function cleanScoringPartial(v: unknown): Partial<ScoringRuleSet> | null {
   }
   const rotation = rotationFrom(v.serveRotation);
   if (rotation) out.serveRotation = rotation;
+  copyEnumFields(v, out);
   return Object.keys(out).length > 0 ? out : null;
 }
 
@@ -458,6 +496,7 @@ export function applyRulesLayer(base: CompetitionRules, layer: unknown): Competi
     tiebreakDecisions: { ...base.tiebreakDecisions },
   };
   if (typeof layer.presetId === 'string') out.presetId = layer.presetId;
+  out.ibsaSanctioned = pickBool(layer.ibsaSanctioned, out.ibsaSanctioned);
   if (isObject(layer.scoring)) {
     out.scoring.individual = mergeScoringPartial(out.scoring.individual, layer.scoring.individual);
     out.scoring.team = mergeScoringPartial(out.scoring.team, layer.scoring.team);
@@ -736,27 +775,71 @@ export function setWinnerByRules(p1: number, p2: number, rules: ScoringRuleSet):
   return null;
 }
 
-/** 세트 목록으로 경기 승자 (규칙 기준). 판정 불가면 null. */
-export function matchWinnerByRules(sets: ReadonlyArray<{ player1Score?: unknown; player2Score?: unknown }>, rules: ScoringRuleSet): 1 | 2 | null {
+/**
+ * 세트 결과 한 줄. decidedBy가 있으면 시간 제한으로 끝난 세트다(shared/rules/timeLimit.ts):
+ * - decidedBy 'time_limit' | 'golden_goal': 점수와 상관없이 끝난 세트. decidedWinner(1|2)가 있으면 그 쪽, 없으면 점수가 높은 쪽.
+ *   (골만 인정하는 골든골은 골 넣은 쪽이 점수로 뒤지거나 같을 수 있어 decidedWinner를 적는다.) 동점이면 승자 없음.
+ * - matchTimeUp: 경기 전체 시간(per_match)이 이 세트에서 끝났다 → 경기가 이 세트로 끝난다.
+ */
+export interface SetResultLike {
+  player1Score?: unknown;
+  player2Score?: unknown;
+  decidedBy?: unknown;
+  decidedWinner?: unknown;
+  matchTimeUp?: unknown;
+}
+
+export type SetDecidedBy = 'time_limit' | 'golden_goal';
+
+export function isTimeDecidedSet(s: SetResultLike | null | undefined): boolean {
+  return !!s && (s.decidedBy === 'time_limit' || s.decidedBy === 'golden_goal');
+}
+
+/** 세트 승자: 시간 제한으로 끝난 세트면 그 결과, 아니면 setWinnerByRules (목표 점수·점수 차·듀스 캡) */
+export function setWinnerOf(s: SetResultLike | null | undefined, rules: ScoringRuleSet): 1 | 2 | null {
+  if (!s) return null;
+  const p1 = finiteNum(s.player1Score) ?? 0;
+  const p2 = finiteNum(s.player2Score) ?? 0;
+  if (isTimeDecidedSet(s)) {
+    if (s.decidedWinner === 1 || s.decidedWinner === 2) return s.decidedWinner;
+    return p1 > p2 ? 1 : p2 > p1 ? 2 : null;
+  }
+  return setWinnerByRules(p1, p2, rules);
+}
+
+/**
+ * 세트 목록으로 경기 승자 (규칙 기준). 판정 불가면 null.
+ * 경기 전체 시간 제한이 끝난 세트(matchTimeUp)가 있으면: 세트 승수가 많은 쪽, 같으면 그 세트를 이긴 쪽
+ * (= 그 세트 점수가 앞선 쪽, 동점이었으면 골든골 승자). 그래도 없으면 null.
+ */
+export function matchWinnerByRules(sets: ReadonlyArray<SetResultLike>, rules: ScoringRuleSet): 1 | 2 | null {
   let w1 = 0;
   let w2 = 0;
+  let timeUp: { winner: 1 | 2 | null } | null = null;
   for (const s of sets) {
-    const w = setWinnerByRules(finiteNum(s.player1Score) ?? 0, finiteNum(s.player2Score) ?? 0, rules);
+    if (!s) continue;
+    const w = setWinnerOf(s, rules);
     if (w === 1) w1++;
     else if (w === 2) w2++;
+    if (s.matchTimeUp === true) timeUp = { winner: w };
   }
   if (w1 >= rules.setsToWin && w1 > w2) return 1;
   if (w2 >= rules.setsToWin && w2 > w1) return 2;
+  if (timeUp) {
+    if (w1 > w2) return 1;
+    if (w2 > w1) return 2;
+    return timeUp.winner;
+  }
   return null;
 }
 
-/** 세트 목록의 양쪽 세트 승수 (규칙 기준: 끝나지 않은 세트는 세지 않는다) */
-export function setWinsByRules(sets: ReadonlyArray<{ player1Score?: unknown; player2Score?: unknown } | null | undefined> | null | undefined, rules: ScoringRuleSet): { player1: number; player2: number } {
+/** 세트 목록의 양쪽 세트 승수 (규칙 기준: 끝나지 않은 세트는 세지 않는다. 시간 제한으로 끝난 세트는 센다) */
+export function setWinsByRules(sets: ReadonlyArray<SetResultLike | null | undefined> | null | undefined, rules: ScoringRuleSet): { player1: number; player2: number } {
   let player1 = 0;
   let player2 = 0;
   for (const s of sets ?? []) {
     if (!s) continue;
-    const w = setWinnerByRules(finiteNum(s.player1Score) ?? 0, finiteNum(s.player2Score) ?? 0, rules);
+    const w = setWinnerOf(s, rules);
     if (w === 1) player1++;
     else if (w === 2) player2++;
   }

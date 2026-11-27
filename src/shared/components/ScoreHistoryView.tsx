@@ -24,7 +24,7 @@ const ACTION_KEY_MAP: Record<string, string> = {
 const META_ACTION_TYPES = new Set([
   'pause', 'resume', 'timeout', 'timeout_player', 'timeout_medical', 'timeout_referee',
   'substitution', 'dead_ball', 'walkover', 'side_change', 'coin_toss', 'warmup_start',
-  'match_start', 'player_rotation'
+  'match_start', 'player_rotation', 'time_expired'
 ]);
 
 function parseTimeStr(time: string | undefined): string {
@@ -132,7 +132,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
               </div>
               {entries.map((h, i) => {
                 const isMeta = h.points === 0 || h.penaltyWarning === true;
-                const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' || h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' || h.actionType === 'player_rotation' || h.actionType === 'side_change' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
+                const icon = h.penaltyWarning ? '⚠️' : h.actionType === 'dead_ball' ? '🔵' : h.actionType === 'goal' ? '⚽' : h.actionType === 'pause' ? '⏸️' : h.actionType === 'resume' ? '▶' : h.actionType === 'timeout' || h.actionType === 'timeout_player' ? '⏱️' : h.actionType === 'timeout_medical' ? '🏥' : h.actionType === 'timeout_referee' ? '🟨' : h.actionType === 'substitution' || h.actionType === 'player_rotation' || h.actionType === 'side_change' ? '🔄' : h.actionType === 'walkover' ? '⚪' : h.actionType === 'coin_toss' ? '🪙' : h.actionType === 'time_expired' ? '⏱️' : h.actionType === 'warmup_start' ? '🏃' : h.actionType === 'match_start' ? '🎾' : h.actionType?.startsWith('penalty_') ? '🔴' : h.points >= 2 ? '🔴' : '🟡';
                 const timeStr = parseTimeStr(h.time);
 
                 if (isMeta) {
@@ -151,6 +151,7 @@ export default function ScoreHistoryView({ history, sets }: ScoreHistoryViewProp
                     : h.actionType === 'match_start' ? t('common.matchHistory.matchStart')
                     : h.actionType === 'player_rotation' ? t('common.matchHistory.playerRotation')
                     : h.actionType === 'side_change' ? t('common.matchHistory.sideChange')
+                    : h.actionType === 'time_expired' ? (h.actionLabel || t('common.matchClock.expired'))
                     : (actionLabel || h.actionType || '');
                   const hideScore = ['timeout', 'timeout_player', 'timeout_medical', 'timeout_referee', 'side_change', 'pause', 'warmup_start', 'coin_toss'].includes(h.actionType) || h.penaltyWarning === true;
                   return (

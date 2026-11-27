@@ -99,6 +99,8 @@ export async function setupFullTournament(input: Record<string, unknown>): Promi
     roundOverride: roundOverrideFromRound && roundOverrideSetsToWin ? { fromRound: roundOverrideFromRound, setsToWin: roundOverrideSetsToWin } : undefined,
     placement: { setsToWin: input.rankingSetsToWin, winScore: input.rankingWinScore },
     minRestMinutes: input.minRestMinutes,
+    timeLimitMinutes: input.timeLimitMinutes, finalsTimeLimitMinutes: input.finalsTimeLimitMinutes,
+    timeLimitUnit: input.timeLimitUnit, goldenGoalMode: input.goldenGoalMode, ibsaSanctioned: input.ibsaSanctioned,
   });
   const tournamentData: Record<string, unknown> = {
     name: input.name || "새 대회",

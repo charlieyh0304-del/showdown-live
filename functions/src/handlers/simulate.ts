@@ -6,7 +6,9 @@
  */
 import { db, asString, asBoolean } from "../db-helpers";
 import { resolveScoringRules, sweepAdvancement, walkoverSetsForTournament, type MatchData as AdvMatchData } from "../lib/advancement";
-import { resolveMatchScoring, setWinnerByRules } from "../shared/rules/competitionRules";
+import { matchWinnerByRules, resolveMatchScoring, setWinnerByRules } from "../shared/rules/competitionRules";
+import { matchDecidedBy, timeLimitOf } from "../shared/rules/timeLimit";
+import { simulateTimeExpiry, type SimSet } from "../lib/sim-time-limit";
 import { playersOnCourtOf, servesPerTurnOf, sideChangePointOf } from "../shared/rules/serve";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
@@ -110,9 +112,12 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     };
     const matchSetsToWin = rules.setsToWin;
     const timeLimitSeconds = Math.max(0, inputTimeLimit ?? rules.timeLimitSeconds ?? 0);
+    // 시간 제한 (M0f): 랠리 시간만 센다(사이드 체인지·타임아웃 제외). per_set이면 세트마다 새로 잰다.
+    const timedRules = { ...rules, timeLimitSeconds: timeLimitSeconds || undefined };
+    const timeCfg = timeLimitOf(timedRules);
     const kind = isTeamType || match.type === "team" ? "team" as const : "individual" as const;
 
-    const sets: Array<{ player1Score: number; player2Score: number; winnerId: string | null }> = [];
+    const sets: SimSet[] = [];
     const p1Id3 = getSideId(match, 1);
     const p2Id3 = getSideId(match, 2);
 
@@ -135,13 +140,14 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
         server: "", serveNumber: 0, serverSide: "",
       });
 
-      const lwStartTime = lwTime;
-      let lwGoldenGoal = false;
-      let lwGoldenWinnerId: string | null = null;
+      let lwTimeUp = false; // 경기가 시간 제한으로 끝났다
+      let lwPlayMs = 0;     // 시계가 잰 플레이 시간 (랠리만)
       let lw1 = 0, lw2 = 0;
       let lwSi = 0;
-      while (lw1 < matchSetsToWin && lw2 < matchSetsToWin && !lwGoldenGoal) {
+      while (lw1 < matchSetsToWin && lw2 < matchSetsToWin && !lwTimeUp) {
         let s1 = 0, s2 = 0;
+        let lwSetDone = false;
+        if (timeCfg.unit === "per_set") lwPlayMs = 0;
         if (lwSi > 0) {
           lwTime += 30000;
           lwHistory.push({
@@ -157,7 +163,9 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
           const p1Scores = Math.random() > 0.5;
           const prev1 = s1, prev2 = s2;
           if (p1Scores) s1 += pts; else s2 += pts;
-          lwTime += 15000 + Math.floor(Math.random() * 10000);
+          const lwRally = 15000 + Math.floor(Math.random() * 10000);
+          lwTime += lwRally;
+          lwPlayMs += lwRally;
           const scorer = p1Scores ? lwP1n : lwP2n;
           const fouler = p1Scores ? lwP2n : lwP1n;
           lwHistory.push({
@@ -173,31 +181,41 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
             serverSide: "",
           });
           if (setWinnerByRules(s1, s2, rules)) break;
-          // 시간 제한 도달 → 골든골: 다음 득점자(현 +pts)가 매치 승자
-          if (timeLimitSeconds > 0 && (lwTime - lwStartTime) / 1000 >= timeLimitSeconds) {
-            lwGoldenGoal = true;
+          // 시간 만료 → 심판 화면과 같은 판정 (앞선 쪽 / 동점이면 골든골)
+          if (timeCfg.enabled && lwPlayMs >= timeCfg.limitMs) {
+            const ex = simulateTimeExpiry(sets, { player1: s1, player2: s2 }, timedRules, [p1Id3, p2Id3]);
             lwHistory.push({
               time: lwFmt(lwTime), set: lwSi + 1, scoringPlayer: "", actionPlayer: "",
-              actionType: "match_start", actionLabel: `골든골 모드 진입 (${timeLimitSeconds}초 만료)`, points: 0,
+              actionType: "time_expired", actionLabel: `시간 종료 (${Math.round(timeLimitSeconds / 60)}분)`, points: 0,
               server: "", serveNumber: 0,
               scoreBefore: { player1: s1, player2: s2 }, scoreAfter: { player1: s1, player2: s2 }, serverSide: "",
             });
-            lwGoldenWinnerId = (p1Scores ? p1Id3 : p2Id3);
+            for (const g of ex.goldenPoints) {
+              const gName = g.scorer === 1 ? lwP1n : lwP2n;
+              lwHistory.push({
+                time: lwFmt(lwTime), set: lwSi + 1, scoringPlayer: gName, actionPlayer: g.goal ? gName : (g.scorer === 1 ? lwP2n : lwP1n),
+                actionType: g.goal ? "goal" : "foul", actionLabel: `골든골 ${g.goal ? `${gName} 골` : "foul"}`, points: g.goal ? 2 : 1,
+                server: "", serveNumber: 0, scoreBefore: g.before, scoreAfter: g.after, serverSide: "",
+              });
+            }
+            sets.push(ex.set);
+            if (ex.set.winnerId === p1Id3) lw1++; else if (ex.set.winnerId === p2Id3) lw2++;
+            if (ex.matchOver) lwTimeUp = true;
+            lwSetDone = true;
             break;
           }
         }
-        const lwSide = setWinnerByRules(s1, s2, rules);
-        const sw = lwGoldenGoal ? lwGoldenWinnerId : (lwSide === 2 ? p2Id3 : p1Id3);
-        sets.push({ player1Score: s1, player2Score: s2, winnerId: sw });
-        if (lwGoldenGoal) {
-          if (lwGoldenWinnerId === p1Id3) lw1 = matchSetsToWin; else lw2 = matchSetsToWin;
-        } else {
+        if (!lwSetDone) {
+          const lwSide = setWinnerByRules(s1, s2, rules);
+          sets.push({ player1Score: s1, player2Score: s2, winnerId: lwSide === 2 ? p2Id3 : p1Id3 });
           if (lwSide === 2) lw2++; else lw1++;
         }
         lwSi++;
       }
-      const lwWinner = lw1 > lw2 ? p1Id3 : p2Id3;
-      const lwWinnerName = lw1 > lw2 ? lwP1n : lwP2n;
+      // 승자: 규칙 판정 (시간 제한으로 끝난 세트 포함)
+      const lwW = matchWinnerByRules(sets, timedRules) ?? (lw1 > lw2 ? 1 : 2);
+      const lwWinner = lwW === 1 ? p1Id3 : p2Id3;
+      const lwWinnerName = lwW === 1 ? lwP1n : lwP2n;
       const lwScore = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
       results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: lwScore, winner: lwWinnerName });
       bulk[`matches/${tid}/${mid}/sets`] = sets;
@@ -206,10 +224,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
       bulk[`matches/${tid}/${mid}/winnerId`] = lwWinner;
       bulk[`matches/${tid}/${mid}/scoreHistory`] = lwHistory.reverse(); // newest first (앱 형식과 동일)
       bulk[`matches/${tid}/${mid}/updatedAt`] = now;
-      if (timeLimitSeconds > 0) {
-        bulk[`matches/${tid}/${mid}/matchStartedAt`] = lwStartTime;
-        if (lwGoldenGoal) bulk[`matches/${tid}/${mid}/goldenGoalActive`] = true;
-      }
+      if (timeLimitSeconds > 0) bulk[`matches/${tid}/${mid}/decidedBy`] = matchDecidedBy(sets);
       continue; // 다음 경기로 (간단 scoreHistory 포함)
     }
 
@@ -291,12 +306,13 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     // 세트를 사전 생성하지 않고 포인트 단위로 직접 진행
     let p1SetWins = 0, p2SetWins = 0;
     let si = 0;
-    // 시간 제한(골든골) 추적: 매치 시작 시각 = 첫 점수 시점(여기 t)
-    const matchSimStart = t;
-    let goldenGoalEntered = false;
-    let goldenGoalWinnerId: string | null = null;
-    while (p1SetWins < matchSetsToWin && p2SetWins < matchSetsToWin && !goldenGoalEntered) {
+    // 시간 제한 (M0f): 랠리 시간만 센다 (사이드 체인지·타임아웃 제외). per_set이면 세트마다 새로 잰다.
+    let playMs = 0;
+    let timeUp = false;
+    while (p1SetWins < matchSetsToWin && p2SetWins < matchSetsToWin && !timeUp) {
       let sc1 = 0, sc2 = 0;
+      let setDone = false;
+      if (timeCfg.unit === "per_set") playMs = 0;
       let sideChanged = false;
       let timeoutUsed1 = false, timeoutUsed2 = false;
 
@@ -316,7 +332,9 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
       while (true) {
         // 세트 종료 조건: 대회 규칙(목표 점수·점수 차·듀스 캡)
         if (setWinnerByRules(sc1, sc2, rules)) break;
-        t += 10000 + Math.floor(Math.random() * 20000);
+        const rally = 10000 + Math.floor(Math.random() * 20000);
+        t += rally;
+        playMs += rally;
 
         // 사이드 체인지: 결정 세트에서 규칙의 사이드 체인지 점수 (기본 ceil(목표/2): 11점 → 6, 31점 → 16)
         const maxScNow = Math.max(sc1, sc2);
@@ -375,16 +393,27 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
           history.push({ time: fmt(t), set: si + 1, scoringPlayer: scorerName, actionPlayer: foulerName, actionType: "foul", actionLabel: `${foulerName} foul`, points: actualPts, server: currentServeLabel, serveNumber: serveNum, scoreBefore: { player1: prevSc1, player2: prevSc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer });
         }
 
-        // 시간 제한 도달 → 골든골: 직전 득점자가 매치 승자 (즉시 종료)
-        if (timeLimitSeconds > 0 && (t - matchSimStart) / 1000 >= timeLimitSeconds) {
-          goldenGoalEntered = true;
-          goldenGoalWinnerId = p1Turn ? p1Id3 : p2Id3;
+        // 시간 만료 → 심판 화면과 같은 판정 (앞선 쪽이 세트/경기, 동점이면 골든골)
+        if (timeCfg.enabled && playMs >= timeCfg.limitMs && !setWinnerByRules(sc1, sc2, rules)) {
+          const ex = simulateTimeExpiry(sets, { player1: sc1, player2: sc2 }, timedRules, [p1Id3, p2Id3]);
           history.push({
             time: fmt(t), set: si + 1, scoringPlayer: "", actionPlayer: "",
-            actionType: "match_start", actionLabel: `골든골 모드 진입 (${timeLimitSeconds}초 만료)`, points: 0,
+            actionType: "time_expired", actionLabel: `시간 종료 (${Math.round(timeLimitSeconds / 60)}분)`, points: 0,
             server: "", serveNumber: 0,
             scoreBefore: { player1: sc1, player2: sc2 }, scoreAfter: { player1: sc1, player2: sc2 }, serverSide: currentServer,
           });
+          for (const g of ex.goldenPoints) {
+            const gName = g.scorer === 1 ? p1n : p2n;
+            history.push({
+              time: fmt(t), set: si + 1, scoringPlayer: gName, actionPlayer: g.goal ? gName : (g.scorer === 1 ? p2n : p1n),
+              actionType: g.goal ? "goal" : "foul", actionLabel: `골든골 ${g.goal ? `${gName} 골 득점` : "foul"}`, points: g.goal ? 2 : 1,
+              server: "", serveNumber: 0, scoreBefore: g.before, scoreAfter: g.after, serverSide: currentServer,
+            });
+          }
+          sets.push(ex.set);
+          if (ex.set.winnerId === p1Id3) p1SetWins++; else if (ex.set.winnerId === p2Id3) p2SetWins++;
+          if (ex.matchOver) timeUp = true;
+          setDone = true;
           break;
         }
 
@@ -412,23 +441,19 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
         if (history.length > 120) break;
       }
 
-      // 세트 종료 → 결과 저장
-      const setSide = setWinnerByRules(sc1, sc2, rules);
-      const setWinnerId = goldenGoalEntered ? goldenGoalWinnerId : (setSide === 2 ? p2Id3 : p1Id3);
-      sets.push({ player1Score: sc1, player2Score: sc2, winnerId: setWinnerId });
-      if (goldenGoalEntered) {
-        if (goldenGoalWinnerId === p1Id3) p1SetWins = matchSetsToWin; else p2SetWins = matchSetsToWin;
-      } else {
+      // 세트 종료 → 결과 저장 (시간 제한으로 끝난 세트는 위에서 저장했다)
+      if (!setDone) {
+        const setSide = setWinnerByRules(sc1, sc2, rules);
+        sets.push({ player1Score: sc1, player2Score: sc2, winnerId: setSide === 2 ? p2Id3 : p1Id3 });
         if (setSide === 2) p2SetWins++; else p1SetWins++;
       }
       si++;
     }
 
-    // 승자 결정
-    const finalWinnerId = p1SetWins > p2SetWins ? p1Id3 : p2Id3;
-    const winnerName = p1SetWins > p2SetWins
-      ? getSideName(match, 1, false)
-      : getSideName(match, 2, false);
+    // 승자 결정: 규칙 판정 (시간 제한으로 끝난 세트 포함)
+    const finalW = matchWinnerByRules(sets, timedRules) ?? (p1SetWins > p2SetWins ? 1 : 2);
+    const finalWinnerId = finalW === 1 ? p1Id3 : p2Id3;
+    const winnerName = getSideName(match, finalW, false);
     const scoreStr = sets.map(s => `${s.player1Score}-${s.player2Score}`).join(", ");
     results.push({ match: `${match.player1Name || match.team1Name} vs ${match.player2Name || match.team2Name}`, score: scoreStr, winner: winnerName });
 
@@ -440,10 +465,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     bulk[`matches/${tid}/${mid}/coinTossChoice`] = choosesServe ? "serve" : "receive";
     bulk[`matches/${tid}/${mid}/scoreHistory`] = history.reverse(); // newest first (앱 형식과 동일)
     bulk[`matches/${tid}/${mid}/updatedAt`] = now;
-    if (timeLimitSeconds > 0) {
-      bulk[`matches/${tid}/${mid}/matchStartedAt`] = matchSimStart;
-      if (goldenGoalEntered) bulk[`matches/${tid}/${mid}/goldenGoalActive`] = true;
-    }
+    if (timeLimitSeconds > 0) bulk[`matches/${tid}/${mid}/decidedBy`] = matchDecidedBy(sets);
 
     // 서브 기준 점수로 결과 업데이트
     const serverScoreStr = sets.map((s, si) => {

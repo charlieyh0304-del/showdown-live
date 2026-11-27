@@ -44,4 +44,12 @@ describe("buildSetupRules: finals scoring is saved where the resolver reads it",
     const hasUndefined = (v: unknown): boolean => v === undefined || (!!v && typeof v === "object" && Object.values(v).some(hasUndefined));
     expect(hasUndefined(buildSetupRules({ isTeam: false, advancePerGroup: 2, thirdPlace: false }).tournamentRules)).toBe(false);
   });
+  it("time limit, unit, golden goal mode and IBSA flag (M0f); finals can differ", () => {
+    const r = buildSetupRules({ isTeam: true, timeLimitMinutes: 30, timeLimitUnit: "per_set", goldenGoalMode: "goal_only", finalsTimeLimitMinutes: 0, ibsaSanctioned: false });
+    const t = tourFrom(r, "team");
+    expect(resolveMatchScoring({ type: "team", stageId: "q" }, t)).toMatchObject({ timeLimitSeconds: 1800, timeLimitUnit: "per_set", goldenGoalMode: "goal_only" });
+    expect(resolveMatchScoring({ type: "team", stageId: "f", roundLabel: "결승" }, t).timeLimitSeconds).toBeUndefined();
+    expect(resolveCompetitionRules(t).ibsaSanctioned).toBe(false);
+    expect(buildSetupRules({ isTeam: false }).tournamentRules.scoring?.individual?.timeLimitSeconds).toBeUndefined();
+  });
 });

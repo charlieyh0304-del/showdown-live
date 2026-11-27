@@ -6,7 +6,8 @@
  *
  * - Firebase는 null을 저장하지 못한다(키 삭제). 그래서 "상위 값을 끄는" 값은 표식으로 저장한다:
  *   walkover.setScore 0 = 세트 목표 점수 사용, roundScoring.fromRound 0 = 라운드별 규칙 없음,
- *   서브 수·사이드 체인지 점수·코트 위 선수 수 0 = 기본값(자동), 서브 순서 "" = 기본 순서.
+ *   서브 수·사이드 체인지 점수·코트 위 선수 수 0 = 기본값(자동), 서브 순서 "" = 기본 순서,
+ *   시간 제한 0 = 시간 제한 없음(상위 값을 끈다).
  * - 동률 결정(rules/tiebreakDecisions)은 동률 화면이 따로 쓰므로 편집기는 건드리지 않는다.
  */
 import {
@@ -44,6 +45,9 @@ export const RULE_FIELD_PATHS = [
   'scoring.individual.minLead',
   'scoring.individual.servesPerTurn',
   'scoring.individual.sideChangeAt',
+  'scoring.individual.timeLimitSeconds',
+  'scoring.individual.timeLimitUnit',
+  'scoring.individual.goldenGoalMode',
   'scoring.team.winScore',
   'scoring.team.setsToWin',
   'scoring.team.maxSets',
@@ -52,6 +56,9 @@ export const RULE_FIELD_PATHS = [
   'scoring.team.sideChangeAt',
   'scoring.team.playersOnCourt',
   'scoring.team.serveRotation',
+  'scoring.team.timeLimitSeconds',
+  'scoring.team.timeLimitUnit',
+  'scoring.team.goldenGoalMode',
   'roundScoring',
   'standingsPoints.win',
   'standingsPoints.draw',
@@ -75,6 +82,7 @@ export const RULE_FIELD_PATHS = [
   'qualification.wildcards',
   'qualification.avoidSameGroupFirstRound',
   'schedule.minRestMinutes',
+  'ibsaSanctioned',
 ] as const;
 
 export type RuleFieldPath = (typeof RULE_FIELD_PATHS)[number];
@@ -82,7 +90,7 @@ export type RuleFieldPath = (typeof RULE_FIELD_PATHS)[number];
 /** 대회 전체에서만 정하는 항목 (프리셋) */
 const LAYER_SECTIONS = [
   'presetId', 'scoring', 'roundScoring', 'standingsPoints', 'walkover', 'retirement',
-  'tiebreak', 'finalRanking', 'qualification', 'schedule',
+  'tiebreak', 'finalRanking', 'qualification', 'schedule', 'ibsaSanctioned',
 ] as const;
 
 /**
@@ -103,6 +111,8 @@ const FIELD_STAGE_USE: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['qualification.perGroup', ['qualifying']],
   ['qualification.wildcards', ['qualifying']],
   ['qualification.avoidSameGroupFirstRound', ['finals']],
+  // IBSA 승인 여부는 대회 전체의 속성이다
+  ['ibsaSanctioned', []],
 ];
 
 /** 이 항목이 그 종류의 스테이지에서 쓰이는가. 스테이지 종류를 모르면 쓰인다고 본다. */
@@ -170,8 +180,14 @@ function isAutoField(path: string): boolean {
   return /^scoring\.(individual|team)\.(servesPerTurn|sideChangeAt|playersOnCourt)$/.test(path);
 }
 
+/** 비우면 '없음'이 되는 항목 (0 표식): 시간 제한 */
+function isOffField(path: string): boolean {
+  return /^scoring\.(individual|team)\.timeLimitSeconds$/.test(path);
+}
+
 export function toLayerValue(path: string, value: unknown): unknown {
   if (path === 'walkover.setScore' && value === null) return 0;
+  if (isOffField(path) && value === null) return 0;
   if (path === 'roundScoring' && value === null) return { fromRound: 0 };
   if (isAutoField(path) && value === null) return 0;
   if (path.endsWith('.serveRotation') && (value === null || (Array.isArray(value) && value.length === 0))) return '';
@@ -251,6 +267,7 @@ export function displayValue(t: TournamentLike, draft: RulesDraft, scope: string
     if (path === 'walkover.setScore' && raw === 0) return null;
     if (path === 'roundScoring' && isObject(raw) && raw.fromRound === 0) return null;
     if (isAutoField(path) && raw === 0) return null;
+    if (isOffField(path) && raw === 0) return null;
     if (path.endsWith('.serveRotation') && raw === '') return null;
     return raw;
   }
@@ -408,6 +425,9 @@ export interface RuleIssue {
 
 interface NumberConstraint { min: number; max?: number; integer: boolean }
 
+/** 시간 제한 최대값 (240분) */
+export const MAX_TIME_LIMIT_SECONDS = 240 * 60;
+
 const NUMBER_CONSTRAINTS: Record<string, NumberConstraint> = {
   'scoring.individual.winScore': { min: 1, max: 99, integer: true },
   'scoring.individual.setsToWin': { min: 1, max: 9, integer: true },
@@ -435,6 +455,11 @@ const NUMBER_CONSTRAINTS: Record<string, NumberConstraint> = {
   'schedule.minRestMinutes': { min: 0, max: 600, integer: true },
   'roundScoring.individual.setsToWin': { min: 1, max: 9, integer: true },
   'roundScoring.team.setsToWin': { min: 1, max: 9, integer: true },
+  // 시간 제한(초). 0 = 없음. 편집기는 분 단위로 받는다(최대 240분).
+  'scoring.individual.timeLimitSeconds': { min: 0, max: MAX_TIME_LIMIT_SECONDS, integer: true },
+  'scoring.team.timeLimitSeconds': { min: 0, max: MAX_TIME_LIMIT_SECONDS, integer: true },
+  'roundScoring.individual.timeLimitSeconds': { min: 0, max: MAX_TIME_LIMIT_SECONDS, integer: true },
+  'roundScoring.team.timeLimitSeconds': { min: 0, max: MAX_TIME_LIMIT_SECONDS, integer: true },
 };
 
 function checkNumber(scope: string, path: string, raw: unknown, c: NumberConstraint, out: RuleIssue[]) {
@@ -501,6 +526,27 @@ export function validateDraft(t: TournamentLike, draft: RulesDraft): RuleIssue[]
     if (typeof s.id === 'string' && draft.stages[s.id]) issues.push(...validateScope(t, draft, s.id));
   }
   return issues;
+}
+
+// ===== IBSA 승인 대회 경고 =====
+
+/**
+ * IBSA 승인 대회(ibsaSanctioned)인데 시간 제한을 쓰는 범위 (경고용, 저장은 막지 않는다. IBSA는 승인 대회의 시간 제한 경기를 금지한다).
+ * 대회 전체·스테이지 점수 규칙과 라운드별 규칙을 본다. 반환: 범위 ID 목록(TOURNAMENT_SCOPE 또는 스테이지 ID). 경고가 없으면 빈 배열.
+ */
+export function ibsaTimeLimitScopes(t: TournamentLike, draft: RulesDraft): string[] {
+  const base = effectiveRules(t, draft, TOURNAMENT_SCOPE);
+  if (!base.ibsaSanctioned) return [];
+  const kind = matchKindOf(t.type);
+  const uses = (r: CompetitionRules) =>
+    (r.scoring[kind].timeLimitSeconds ?? 0) > 0 || (r.roundScoring?.[kind]?.timeLimitSeconds ?? 0) > 0;
+  const out: string[] = [];
+  if (uses(base)) out.push(TOURNAMENT_SCOPE);
+  for (const s of stagesOf(t)) {
+    if (typeof s.id !== 'string') continue;
+    if (uses(effectiveRules(t, draft, s.id)) && !out.includes(TOURNAMENT_SCOPE)) out.push(s.id);
+  }
+  return out;
 }
 
 // ===== 변경 영향 =====

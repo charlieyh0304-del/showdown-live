@@ -1,5 +1,61 @@
 {
   "common": {
+    "matchClock": {
+      "title": "Match clock",
+      "remaining": "Match time remaining",
+      "remainingAria": "Match time remaining {{min}} minutes {{sec}} seconds",
+      "unitPerSet": "{{min}} min limit per set",
+      "unitPerMatch": "{{min}} min limit per match",
+      "state": {
+        "notStarted": "Clock not started",
+        "running": "Running",
+        "paused": "Stopped",
+        "side_change": "Stopped for side change",
+        "timeout": "Stopped for time-out",
+        "warmup": "Stopped for warm-up",
+        "set_break": "Stopped between sets",
+        "manual": "Stopped by referee",
+        "manualWithNote": "Stopped by referee: {{note}}",
+        "expired": "Time is up",
+        "goldenToss": "Golden goal: coin toss for serve",
+        "golden": "Golden goal in play"
+      },
+      "start": "Start match clock",
+      "pause": "Stop clock",
+      "resume": "Restart clock",
+      "pausePrompt": "Reason for stopping the clock (optional)",
+      "pausePlaceholder": "e.g. table repair",
+      "startedMsg": "Match clock started. {{time}} remaining.",
+      "pausedMsg": "Match clock stopped.",
+      "resumedMsg": "Match clock restarted.",
+      "autoStarted": "Match clock started with the first point.",
+      "alert5min": "5 minutes of match time left",
+      "alert1min": "1 minute of match time left",
+      "alert30s": "30 seconds of match time left",
+      "expired": "Match time is up",
+      "expiredSetWin": "Time is up. {{name}} wins set {{num}}, {{p1}} to {{p2}}.",
+      "expiredMatchWin": "Time is up. {{name}} wins the match. Last set {{p1}} to {{p2}}, sets {{s1}} to {{s2}}.",
+      "expiredTie": "Time is up with the score tied. Golden goal. Toss a coin to decide who serves.",
+      "goldenToss": {
+        "title": "Golden goal coin toss",
+        "help": "The winner of the coin toss serves. Choose who serves.",
+        "serve": "{{name}} serves",
+        "random": "Pick at random"
+      },
+      "goldenRule": {
+        "next_point": "Golden goal: the next point wins (including fouls).",
+        "goal_only": "Golden goal: the next goal wins. Foul points count but do not decide."
+      },
+      "goldenServe": "Golden goal. {{name}} serves. {{rule}}",
+      "goldenWin": "Golden goal! {{name}} wins, {{p1}} to {{p2}}.",
+      "goldenNeedToss": "Decide the golden goal serve first.",
+      "scoringBlockedExpired": "Time is up, so no more points can be added. Confirm the end of the set.",
+      "undoBlocked": "The time-up result cannot be undone. Correct scores in the admin screen.",
+      "decidedBy": {
+        "time_limit": "Decided on time",
+        "golden_goal": "Decided by golden goal"
+      }
+    },
     "competitionRules": {
       "presets": {
         "ibsa": "IBSA default",
@@ -816,7 +872,7 @@
         "overrideSets": "Modified sets: {{maxSets}} sets (best of {{setsToWin}})",
         "timeLimitMinutes": "Match time limit: {{minutes}} min (0 = unlimited)",
         "timeLimitAriaLabel": "Match time limit (minutes)",
-        "timeLimitHint": "Golden goal on expiry: next scorer wins immediately"
+        "timeLimitHint": "When time is up the leader wins; a tie goes to golden goal. Set the per-set/per-match unit and golden goal mode in the match rules step."
       },
 
       "rankingMatch": {
@@ -1112,6 +1168,27 @@
       "rankingTab": { "exportLabel": "Export", "csvExport": "CSV Export", "copyResults": "Copy Results", "copied": "Copied!", "matchProgress": "Match Progress", "avgPointsPerMatch": "Avg Points (per match)", "teamRankingTitle": "Team Rankings", "individualRankingTitle": "Individual Rankings", "noCompletedMatches": "No completed matches.", "teamRankingAriaLabel": "Team rankings table", "individualRankingAriaLabel": "Individual rankings table", "rankHeader": "Rank", "teamNameHeader": "Team", "nameHeader": "Name", "matchCountHeader": "Played", "winsHeader": "W", "lossesHeader": "L", "pointsHeader": "Points", "pointDiffHeader": "Diff", "setWonLostHeader": "Sets", "setDiffHeader": "Set Diff", "pointWonLostHeader": "Points", "completedMatchesTitle": "Completed Matches", "resultText": "Results", "typeTeam": "Teams", "typeIndividual": "Singles", "totalCompleted": "{{completed}}/{{total}} matches completed", "roundLabel16": "Round of 16", "roundLabel8": "Quarterfinals", "roundLabel4": "Semifinals" }
     },
     "rulesEditor": {
+      "timeLimit": {
+        "legend": "Time limit and golden goal",
+        "help": "With a time limit the referee screen shows a match clock. The clock stops during warm-up, side changes and time-outs (player, referee, medical); rally time counts.",
+        "toggle": "Use a time limit",
+        "minutes": "Time limit (minutes)",
+        "minutesHelp": "Enter a whole number from 1 to 240.",
+        "unitLegend": "Clock unit",
+        "perSet": "Per set (restarts each set)",
+        "perMatch": "Whole match",
+        "unitHelp": "When time is up: per set, the side leading the set wins it. Whole match, the side leading the current set takes it and the side with more sets wins (equal sets: the side that took that set). A tie goes to golden goal.",
+        "goldenLegend": "Golden goal when tied",
+        "nextPoint": "Next point (IBSA default, foul points count)",
+        "goalOnly": "Next goal (2 points) only (foul points count but do not decide)",
+        "goldenHelp": "Golden goal starts after a coin toss for serve.",
+        "roundLabel": "Time limit from that round (minutes)",
+        "roundHelp": "Leave empty to follow the stage setting; 0 means no time limit from that round.",
+        "ibsa": "IBSA-sanctioned event",
+        "ibsaHelp": "IBSA forbids time-limited matches at sanctioned events. When on, you are warned if a time limit is used.",
+        "ibsaWarning": "Warning: time-limited matches are not allowed at IBSA-sanctioned events. Time limit used in: {{scopes}}. You can still save.",
+        "minutesValue": "{{min}} min"
+      },
       "title": "Competition rules",
       "intro": "All competition rules used by this tournament. There is no standard format: presets are only a starting point, so review every value and change what you need.",
       "scope": {
@@ -1269,6 +1346,15 @@
         "minRestHelp": "Measured from the planned end of the previous match (start + match length) to the start of the next (not start to start). Automatic scheduling keeps this rest; for team matches it applies to every member, and bracket matches wait for their source matches (e.g. quarterfinals) to end."
       },
       "fields": {
+        "scoring-individual-timeLimitSeconds": "Individual time limit",
+        "scoring-individual-timeLimitUnit": "Individual time limit unit",
+        "scoring-individual-goldenGoalMode": "Individual golden goal mode",
+        "scoring-team-timeLimitSeconds": "Team time limit",
+        "scoring-team-timeLimitUnit": "Team time limit unit",
+        "scoring-team-goldenGoalMode": "Team golden goal mode",
+        "roundScoring-individual-timeLimitSeconds": "Per-round time limit",
+        "roundScoring-team-timeLimitSeconds": "Per-round time limit",
+        "ibsaSanctioned": "IBSA-sanctioned event",
         "scoring-individual-winScore": "Individual points to win a set",
         "scoring-individual-setsToWin": "Individual sets per match",
         "scoring-individual-maxSets": "Individual sets per match",

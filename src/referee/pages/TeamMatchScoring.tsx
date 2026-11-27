@@ -8,6 +8,7 @@ import TeamMatchCompletedView from '../components/TeamMatchCompletedView';
 import TeamMatchPendingView from '../components/TeamMatchPendingView';
 import ActionToast from '../components/ActionToast';
 import FoulClassifyOverlay from '../components/FoulClassifyOverlay';
+import MatchClockPanel from '../components/MatchClockPanel';
 
 export default function TeamMatchScoring() {
   const { t } = useTranslation();
@@ -37,7 +38,7 @@ export default function TeamMatchScoring() {
     pendingChoice, setPendingChoice,
     sideChangeTimer, warmupTimer, timeoutTimer,
     shortWhistle, longWhistle, goalWhistle, initAudio,
-    goldenGoal,
+    matchClock, handleGoldenCoinToss,
     handleStartMatch, handleWarmup, handleWalkover,
     handleIBSAScore, handleUndo, handleChangeServe,
     handleServeMiss, handleDeadBall, handleTimeout,
@@ -312,18 +313,8 @@ export default function TeamMatchScoring() {
       </div>
       <style>{`@keyframes scoreFlash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }`}</style>
 
-      {/* 골든골 타이머/배너 */}
-      {goldenGoal.enabled && (
-        goldenGoal.isActive ? (
-          <div className="mx-4 mt-2 px-4 py-3 rounded-lg bg-red-700 text-white font-bold text-center" role="status" aria-live="assertive">
-            <span aria-hidden="true">⏱️ </span>{t('referee.scoring.goldenGoalBanner')}
-          </div>
-        ) : (
-          <div className="mx-4 mt-2 px-4 py-2 rounded-lg bg-gray-800 text-cyan-300 font-mono text-center text-lg">
-            <span aria-hidden="true">⏱ </span>{Math.floor(goldenGoal.remainingSec / 60)}:{String(goldenGoal.remainingSec % 60).padStart(2, '0')}
-          </div>
-        )
-      )}
+      {/* 경기 시계 (시간 제한 경기) / 골든골 동전 던지기 */}
+      <MatchClockPanel clock={matchClock} rawClock={match.clock} side1Name={team1Name} side2Name={team2Name} onGoldenCoinToss={handleGoldenCoinToss} />
 
       {/* Scoring area */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">

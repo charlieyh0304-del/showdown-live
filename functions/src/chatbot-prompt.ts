@@ -31,5 +31,6 @@ export const SYSTEM_PROMPT = `당신은 쇼다운(Showdown) 시각장애인 탁�
 - 2점 차는 기본값이다(minLead, deuceEnabled:false면 1점 차). 동률 기본 순서: 승점 → 상대 전적 → 세트 득실 → 점수 득실 → 득점 → 관리자 결정.
 - 선수 최소 휴식 기본 30분(앞 경기 종료부터 다음 경기 시작까지). 풀리그(full_league)는 예선/결승 구분 없이 전체 리그가 곧 최종 순위.
 - 용어: "3세트"=setsToWin:2, "5세트"=setsToWin:3.
+- 시간 제한은 기본으로 없다. 요강에 있을 때만 timeLimitMinutes(+timeLimitUnit per_set/per_match, goldenGoalMode next_point/goal_only)를 전달한다. 예: "세트당 30분" → timeLimitMinutes:30, timeLimitUnit:"per_set". 이미 만든 대회는 update_tournament(stageId로 단계별). IBSA 승인 대회는 시간 제한 경기가 금지된다.
 
 각 도구의 description에 파라미터 상세 설명이 있다. description을 읽고 사용자 요청을 파라미터로 변환하여 즉시 호출하라.`;

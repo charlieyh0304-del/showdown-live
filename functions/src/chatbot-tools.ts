@@ -141,7 +141,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   */
   {
     name: "update_tournament",
-    description: "대회 정보 수정. 변경할 필드만 전달. 순위 표시 범위(rankingUpTo) 변경, 3/4위/5-8위/하위순위결정전 활성화 변경 등 가능.",
+    description: "대회 정보 수정. 변경할 필드만 전달. 순위 표시 범위(rankingUpTo) 변경, 3/4위/5-8위/하위순위결정전 활성화 변경, 시간 제한(timeLimitMinutes·timeLimitUnit·goldenGoalMode, stageId로 단계별)·IBSA 승인 대회(ibsaSanctioned) 설정 등 가능.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -153,6 +153,11 @@ export const TOOL_DEFINITIONS: Tool[] = [
         thirdPlace: { type: "boolean", description: "3/4위 결정전 활성화" },
         fifthToEighth: { type: "boolean", description: "5~8위 결정전 활성화" },
         classificationGroups: { type: "boolean", description: "9위 이하 하위 순위결정전 활성화" },
+        timeLimitMinutes: { type: "number", description: "경기 시간 제한(분). 0 = 시간 제한 없음. stageId를 주면 그 스테이지만 (예: 본선만 시간 제한)" },
+        timeLimitUnit: { type: "string", enum: ["per_set", "per_match"], description: "시간 제한 단위: per_set(세트마다) / per_match(경기 전체)" },
+        goldenGoalMode: { type: "string", enum: ["next_point", "goal_only"], description: "시간 만료 시 동점이면 골든골: next_point(다음 1점, 반칙 포함, IBSA) / goal_only(다음 골만)" },
+        ibsaSanctioned: { type: "boolean", description: "IBSA 승인 대회 여부 (승인 대회는 시간 제한 금지 — 관리자 화면 경고)" },
+        stageId: { type: "string", description: "시간 제한 설정을 적용할 스테이지 ID (없으면 대회 전체)" },
       },
       required: ["tournamentId"],
     },
@@ -571,6 +576,12 @@ export const TOOL_DEFINITIONS: Tool[] = [
         servesPerTurn: { type: "number", description: "한 번에 넣는 서브 수 (기본 3. 예: 21점 2서브 대회면 2)" },
         sideChangeAt: { type: "number", description: "결정 세트 사이드 체인지 점수 (기본: 목표 점수의 절반 올림, 31→16, 21→11)" },
         playersOnCourt: { type: "number", description: "코트 위 선수 수 (기본 teamSize 또는 3)" },
+        // 시간 제한·골든골 (M0f)
+        timeLimitMinutes: { type: "number", description: "경기 시간 제한(분). 요강에 시간 제한이 있을 때만 (예: 세트당 30분 → 30 + timeLimitUnit per_set). 시계는 워밍업·사이드 체인지·타임아웃 동안 멈춘다. IBSA 승인 대회는 시간 제한 금지" },
+        finalsTimeLimitMinutes: { type: "number", description: "본선 시간 제한(분). 예선과 다를 때만 (0 = 본선은 시간 제한 없음)" },
+        timeLimitUnit: { type: "string", enum: ["per_set", "per_match"], description: "시간 제한 단위: per_set(세트마다) / per_match(경기 전체, 기본)" },
+        goldenGoalMode: { type: "string", enum: ["next_point", "goal_only"], description: "시간 만료 시 동점이면 골든골: next_point(다음 1점, 반칙 포함 — IBSA 기본) / goal_only(다음 골만 인정)" },
+        ibsaSanctioned: { type: "boolean", description: "IBSA 승인 대회 (시간 제한을 쓰면 관리자 화면에서 경고)" },
         seeds: { type: "array", items: { type: "string" }, description: "탑시드 팀명 목록" },
         tiebreakerRules: { type: "array", items: { type: "string", enum: ["points", "wins", "head_to_head", "set_difference", "point_difference", "points_for", "points_scored", "set_ratio", "point_ratio", "lot"] }, description: "동률 기준 순서. 사용자가 정한 경우에만 전달. 승점(points)은 항상 첫 기준. 지정하지 않으면 대회 규칙 기본값: 승점 → 상대 전적 → 세트 득실 → 점수 득실 → 득점, 그래도 같으면 관리자 결정" },
       },
@@ -606,6 +617,12 @@ export const TOOL_DEFINITIONS: Tool[] = [
         winScore: { type: "number", description: "세트 목표 점수 (기본 11)" },
         servesPerTurn: { type: "number", description: "한 번에 넣는 서브 수 (기본 2)" },
         sideChangeAt: { type: "number", description: "결정 세트 사이드 체인지 점수 (기본: 목표 점수의 절반 올림, 11→6)" },
+        // 시간 제한·골든골 (M0f)
+        timeLimitMinutes: { type: "number", description: "경기 시간 제한(분). 요강에 시간 제한이 있을 때만 (예: 세트당 30분 → 30 + timeLimitUnit per_set). 시계는 워밍업·사이드 체인지·타임아웃 동안 멈춘다. IBSA 승인 대회는 시간 제한 금지" },
+        finalsTimeLimitMinutes: { type: "number", description: "본선 시간 제한(분). 예선과 다를 때만 (0 = 본선은 시간 제한 없음)" },
+        timeLimitUnit: { type: "string", enum: ["per_set", "per_match"], description: "시간 제한 단위: per_set(세트마다) / per_match(경기 전체, 기본)" },
+        goldenGoalMode: { type: "string", enum: ["next_point", "goal_only"], description: "시간 만료 시 동점이면 골든골: next_point(다음 1점, 반칙 포함 — IBSA 기본) / goal_only(다음 골만 인정)" },
+        ibsaSanctioned: { type: "boolean", description: "IBSA 승인 대회 (시간 제한을 쓰면 관리자 화면에서 경고)" },
         // 본선 설정
         finalsFormat: { type: "string", enum: ["single_elimination", "double_elimination", "round_robin"], description: "본선 방식 (기본 single_elimination)" },
         finalsStartRound: { type: "number", description: "본선 시작 라운드 (4/8/16/32)" },

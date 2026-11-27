@@ -16,6 +16,15 @@ export function stripUndefined<T extends Record<string, unknown>>(data: T): Reco
   return Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
 }
 
+/**
+ * 경기 쓰기의 updatedAt. DB 규칙은 새 updatedAt이 저장된 값보다 커야 받는다.
+ * 다른 기기의 시계가 앞서 있어도 거부되지 않도록 항상 저장된 값보다 크게 맞춘다 (M0f 경기 시계).
+ */
+export function monotonicUpdatedAt(now: number, prev: unknown): number {
+  const p = typeof prev === 'number' && Number.isFinite(prev) ? prev : 0;
+  return now > p ? now : p + 1;
+}
+
 /** 중첩 객체까지 undefined를 제거한 사본 (set()으로 노드 전체를 쓸 때 사용). */
 export function toFirebaseValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;

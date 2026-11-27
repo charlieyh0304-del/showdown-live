@@ -9,6 +9,7 @@ import {
   buildMatchesBulkUpdate,
   buildTeamsBulkData,
   buildScheduleBulkData,
+  monotonicUpdatedAt,
   scheduleSlotKey,
   toFirebaseValue,
   writeOrQueue,
@@ -606,6 +607,9 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
         if (currentData === null) return payload;
         // Merge: always apply changes on top of server's latest state
         const merged = { ...currentData, ...payload };
+        // DB 규칙은 updatedAt이 이전 값보다 커야 쓰기를 받는다. 다른 기기 시계가 앞서 있으면(시계 차이)
+        // 이 기기의 Date.now()가 더 작아 거부되므로 항상 이전 값보다 크게 맞춘다 (경기 시계 쓰기, M0f).
+        merged.updatedAt = monotonicUpdatedAt(now, currentData.updatedAt);
         if (payload.scoreHistory && currentData.scoreHistory) {
           const serverHistory = Array.isArray(currentData.scoreHistory) ? currentData.scoreHistory : Object.values(currentData.scoreHistory);
           const newHistory = payload.scoreHistory as unknown[];

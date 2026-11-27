@@ -1,17 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { speak, preWarmSpeech, formatTime } from '@shared/utils/locale';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
   createEmptySet,
   createScoreHistoryEntry,
-  getEffectiveTimeLimitSeconds,
-  applyGoldenGoalEvent,
   getPenaltyAction,
   computePenaltyCounts,
 } from '@shared/utils/scoring';
 import {
   DEFAULT_TEAM_SCORING,
+  isTimeDecidedSet,
   resolveMatchScoring,
   setWinnerByRules,
   setWinsByRules,
@@ -25,8 +24,11 @@ import {
   servesPerTurnOf,
   shouldChangeSidesMidSet,
 } from '@shared/rules/serve';
-import { firstServerOfSet, setEndOutcome, undoSetTransition } from './teamScoringModel';
-import { useGoldenGoalTimer } from './useGoldenGoalTimer';
+import { firstServerOfSet, setEndOutcome, undoSetTransition, type SetEndOutcome } from './teamScoringModel';
+import { applyGoldenPoint, clockFrom, matchDecidedBy, startClock, stripTimeDecision } from '@shared/rules/timeLimit';
+import { useMatchClock } from './useMatchClock';
+import { clockAutoPauseReason, nextSetClockPatch, planGoldenCoinToss, planTimeExpiry, undoneSetClockPatch } from './timeLimitModel';
+import { serverNow } from '@shared/utils/serverTime';
 import type { ScoreActionType, ScoreHistoryEntry } from '@shared/types';
 import { useCountdownTimer, playWarningBeep } from './useCountdownTimer';
 import { walkoverSetsFor } from '@shared/utils/competition';
@@ -36,7 +38,6 @@ import { useWhistle } from '@shared/hooks/useWhistle';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
 import { useTimerAlerts } from './useTimerAlerts';
 import { useTimerSync } from './useTimerSync';
-import { useGoldenGoalAnnouncement } from './useGoldenGoalAnnouncement';
 import { useActiveMatchRecovery } from './useActiveMatchRecovery';
 import { showConfirm, showPrompt } from '@shared/utils/confirm';
 
@@ -56,8 +57,6 @@ export function useTeamMatchScoring(
   const maxServes = servesPerTurnOf(rules, 'team');
   const playersOnCourt = playersOnCourtOf(rules);
   const serveRotation = useMemo(() => serveRotationOf(rules), [rules]);
-  const timeLimitSeconds = match ? getEffectiveTimeLimitSeconds({ ...match, type: 'team' }, tournament) : 0;
-  const goldenGoal = useGoldenGoalTimer(match?.matchStartedAt, timeLimitSeconds);
   const { canAct, startProcessing, done } = useDoubleClickGuard();
   const { shortWhistle, longWhistle, goalWhistle, initAudio } = useWhistle();
   const [announcement, setAnnouncement] = useState('');
@@ -142,13 +141,20 @@ export function useTeamMatchScoring(
     setSideChangeDismissed,
   });
 
-  // 골든골 진입 안내 — shared hook
-  useGoldenGoalAnnouncement({
-    goldenGoalActive: goldenGoal.isActive,
-    matchStatus: match?.status,
-    matchGoldenGoalActive: match?.goldenGoalActive,
-    updateMatch, setLastAction, setAnnouncement, longWhistle,
+  // 경기 시계 (시간 제한 경기, M0f): 사이드 체인지·타임아웃·워밍업 동안 자동으로 멈춘다
+  const onExpireRef = useRef<() => void>(() => {});
+  const handleClockExpire = useCallback(() => onExpireRef.current(), []);
+  const matchClock = useMatchClock({
+    match, rules,
+    autoPause: clockAutoPauseReason({
+      activeTimeout: match?.activeTimeout,
+      warmup: showWarmup && warmupTimer.isRunning,
+      sideChange: pendingSideChange || !!match?.sideChangeStartTime,
+    }),
+    updateMatch, setLastAction, setAnnouncement,
+    onExpire: handleClockExpire,
   });
+  const goldenPhase = matchClock.goldenPhase;
 
   // 세션 복구용 localStorage — shared hook
   useActiveMatchRecovery(match?.status, tournamentId, matchId);
@@ -337,52 +343,16 @@ export function useTeamMatchScoring(
     if (match.status !== 'in_progress') return;
     if (match.activeTimeout) return;
 
-    if (goldenGoal.isActive) {
-      if (actionType !== 'goal') {
-        setLastAction(`⚠️ ${t('referee.scoring.goldenGoalOnlyGoal')}`);
-        setAnnouncement(t('referee.scoring.goldenGoalOnlyGoal'));
-        return;
-      }
-      const scoringTeamGG = toOpponent ? (actingTeam === 1 ? 2 : 1) : actingTeam;
-      const ciGG = match.currentSet ?? 0;
-      const setsGG = [...match.sets.map(s => ({ ...s }))];
-      const csGG = { ...setsGG[ciGG] };
-      const beforeGG = { player1: csGG.player1Score, player2: csGG.player2Score };
-      const { newScores } = applyGoldenGoalEvent('goal', scoringTeamGG, beforeGG);
-      csGG.player1Score = newScores.player1;
-      csGG.player2Score = newScores.player2;
-      const winnerId = scoringTeamGG === 1 ? (match.team1Id ?? 'team1') : (match.team2Id ?? 'team2');
-      csGG.winnerId = winnerId;
-      setsGG[ciGG] = csGG;
-      const t1NameGG = match.team1Name ?? t('referee.home.team1Default');
-      const t2NameGG = match.team2Name ?? t('referee.home.team2Default');
-      const winnerName = scoringTeamGG === 1 ? t1NameGG : t2NameGG;
-      const histEntry = createScoreHistoryEntry({
-        scoringPlayer: winnerName,
-        actionPlayer: actingTeam === 1 ? t1NameGG : t2NameGG,
-        actionType: 'goal',
-        actionLabel: `${t('referee.scoring.goldenGoalActivated')} - ${label}`,
-        points,
-        set: ciGG + 1,
-        server: (match.currentServe ?? 'player1') === 'player1' ? t1NameGG : t2NameGG,
-        serveNumber: (match.serveCount ?? 0) + 1,
-        scoreBefore: beforeGG,
-        scoreAfter: newScores,
-        serverSide: match.currentServe ?? 'player1',
-      });
-      goalWhistle();
-      await updateMatch({
-        sets: setsGG,
-        status: 'completed',
-        winnerId,
-        scoreHistory: [histEntry, ...(match.scoreHistory ?? [])],
-      });
-      setLastAction(`🏆 ${winnerName} ${t('common.scoreActions.goal')}!`);
-      setAnnouncement(`${winnerName} ${t('common.scoreActions.goal')}`);
-      setTimeout(() => longWhistle(), 500);
-      if (tournamentId) autoBackupToLocal(tournamentId);
+    // 골든골 동전 던지기 전에는 점수를 넣지 않는다 (서브를 먼저 정한다)
+    if (goldenPhase === 'coin_toss') {
+      const msg = t('common.matchClock.goldenNeedToss');
+      setLastAction(`⚠️ ${msg}`);
+      setAnnouncement(msg);
       return;
     }
+    const golden = goldenPhase === 'playing';
+    // 시간이 끝나 세트(경기)가 정해졌으면(골든골 아님) 더 넣지 않는다
+    if (!golden && clockFrom(match.clock)?.expired) return;
 
     startProcessing();
     try {
@@ -390,15 +360,28 @@ export function useTeamMatchScoring(
     const ci = match.currentSet ?? 0;
     const sets = [...match.sets.map(s => ({ ...s }))];
     const cs = { ...sets[ci] };
-    // 이미 끝난 세트에는 점수를 넣지 않는다
-    if (cs.winnerId || setWinnerByRules(cs.player1Score, cs.player2Score, rules)) return;
+    // 이미 끝난 세트에는 점수를 넣지 않는다 (골든골 중에는 골든 포인트만 세트를 끝낸다)
+    if (cs.winnerId || (!golden && setWinnerByRules(cs.player1Score, cs.player2Score, rules))) return;
 
     const scoreBefore = { player1: cs.player1Score, player2: cs.player2Score };
     const scoringTeam = toOpponent ? (actingTeam === 1 ? 2 : 1) : actingTeam;
 
-    if (scoringTeam === 1) cs.player1Score += points;
+    // 골든골: 점수는 기록하고, 끝내는 점수(next_point = 다음 1점, goal_only = 다음 골)면 세트에 골든골 표시
+    let goldenDecisive = false;
+    if (golden) {
+      const gp = applyGoldenPoint(sets, ci, { actionType, scorer: scoringTeam, points, toOpponent }, matchClock.cfg, rules);
+      Object.assign(cs, gp.sets[ci]);
+      goldenDecisive = gp.decisive;
+    } else if (scoringTeam === 1) cs.player1Score += points;
     else cs.player2Score += points;
     sets[ci] = cs;
+
+    // 시간 제한 경기에서 시계를 시작하지 않고 첫 점수를 넣으면 시계를 시작한다
+    const rawClock = clockFrom(match.clock);
+    const clockPatch: Record<string, unknown> = matchClock.enabled && rawClock && !rawClock.started && !rawClock.expired
+      ? { clock: startClock(rawClock, { autoPause: null, inProgress: true }, serverNow()) }
+      : {};
+    if (clockPatch.clock) speak(t('common.matchClock.autoStarted'));
 
     const scoreAfter = { player1: cs.player1Score, player2: cs.player2Score };
 
@@ -477,18 +460,28 @@ export function useTeamMatchScoring(
     );
 
     sets[ci] = cs;
-    const setEnd = setEndOutcome(match, sets, ci, rules, {
+    // 골든골 중 끝내지 않는 점수(goal_only의 반칙)는 세트를 끝내지 않는다
+    const setEnd = golden && !goldenDecisive ? null : setEndOutcome(match, sets, ci, rules, {
       sideIds: [match.team1Id ?? 'team1', match.team2Id ?? 'team2'],
       serverName: side => (side === 'player1' ? t1Name : t2Name),
       time: formatTime(),
       sideChangeLabel: t('common.matchHistory.sideChange'),
     });
+    if (goldenDecisive) {
+      const gName = scoringTeam === 1 ? t1Name : t2Name;
+      const gMsg = t('common.matchClock.goldenWin', { name: gName, p1: cs.player1Score, p2: cs.player2Score });
+      setLastAction(`🏆 ${gMsg}`);
+      setAnnouncement(gMsg);
+      speak(gMsg);
+    }
     if (setEnd?.kind === 'completed') {
       const ok1 = await updateMatch({
         sets: setEnd.sets, status: 'completed', winnerId: setEnd.winnerId,
+        decidedBy: matchDecidedBy(setEnd.sets), goldenGoalActive: null,
         currentServe: nextServe, serveCount: nextCount,
         scoreHistory: newHistory,
         ...rotationUpdate,
+        ...clockPatch,
       });
       if (!ok1) { notifyUpdateFailed(); return; }
       setTimeout(() => longWhistle(), 500);
@@ -504,6 +497,9 @@ export function useTeamMatchScoring(
         player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
         scoreHistory: [setEnd.setStartEntry, ...newHistory],
         ...rotationUpdate,
+        ...clockPatch,
+        // 시간 제한: per_set이면 새 세트의 새 시계, per_match면 이어서 (세트 사이에는 멈춤)
+        ...nextSetClockPatch(clockPatch.clock ?? match.clock, setEnd.currentSet, serverNow()),
       });
       if (!okSet) { notifyUpdateFailed(); return; }
       const setWinnerName = setEnd.setWinner === 1 ? t1Name : t2Name;
@@ -518,11 +514,12 @@ export function useTeamMatchScoring(
     }
 
     // 사이드 체인지: 결정 세트(단판 포함)에서 규칙의 사이드 체인지 점수(기본 ceil(목표/2), 31점 → 16)에 닿으면
-    if (shouldChangeSidesMidSet(cs, sets.slice(0, ci), rules, match.sideChangeUsed ?? false)) {
+    if (!golden && shouldChangeSidesMidSet(cs, sets.slice(0, ci), rules, match.sideChangeUsed ?? false)) {
       const ok2 = await updateMatch({
         sets, currentServe: nextServe, serveCount: nextCount,
         sideChangeUsed: true, scoreHistory: newHistory,
         ...rotationUpdate,
+        ...clockPatch,
       });
       if (!ok2) { notifyUpdateFailed(); return; }
       setPendingSideChange(true);
@@ -533,12 +530,97 @@ export function useTeamMatchScoring(
       sets, currentServe: nextServe, serveCount: nextCount,
       scoreHistory: newHistory,
       ...rotationUpdate,
+      ...clockPatch,
     });
     if (!ok3) { notifyUpdateFailed(); return; }
     if (tournamentId) autoBackupDebounced(tournamentId);
 
     } finally { done(); }
-  }, [match, rules, maxServes, playersOnCourt, serveRotation, updateMatch, canAct, startProcessing, done, tournamentId, goalWhistle, shortWhistle, longWhistle, goldenGoal.isActive, t]);
+  }, [match, rules, maxServes, playersOnCourt, serveRotation, updateMatch, canAct, startProcessing, done, tournamentId, goalWhistle, shortWhistle, longWhistle, notifyUpdateFailed, goldenPhase, matchClock.cfg, matchClock.enabled, t]);
+
+  /** 세트 종료 결과를 쓴다 (시간 만료용: 경기 완료 또는 다음 세트) */
+  const writeSetEnd = useCallback(async (setEnd: SetEndOutcome, extra: Record<string, unknown>, history: ScoreHistoryEntry[]) => {
+    if (setEnd.kind === 'completed') {
+      return updateMatch({
+        ...extra, sets: setEnd.sets, status: 'completed', winnerId: setEnd.winnerId,
+        decidedBy: matchDecidedBy(setEnd.sets), goldenGoalActive: null, scoreHistory: history,
+      });
+    }
+    return updateMatch({
+      ...extra,
+      sets: setEnd.sets, currentSet: setEnd.currentSet,
+      currentServe: setEnd.currentServe, serveCount: setEnd.serveCount,
+      sideChangeUsed: setEnd.sideChangeUsed,
+      player1Timeouts: 0, player2Timeouts: 0, activeTimeout: null,
+      scoreHistory: [setEnd.setStartEntry, ...history],
+      ...nextSetClockPatch(extra.clock, setEnd.currentSet, serverNow()),
+    });
+  }, [updateMatch]);
+
+  // 시간 만료 (M0f): 앞선 쪽이 세트(경기)를 가져가거나, 동점이면 골든골 동전 던지기
+  const handleTimeExpiry = useCallback(async () => {
+    if (!match || match.status !== 'in_progress') return;
+    const t1n = match.team1Name ?? t('referee.home.team1Default');
+    const t2n = match.team2Name ?? t('referee.home.team2Default');
+    const sideIds: [string, string] = [match.team1Id ?? 'team1', match.team2Id ?? 'team2'];
+    const plan = planTimeExpiry(match, rules, matchClock.cfg, serverNow(), {
+      sideIds,
+      time: formatTime(),
+      label: t('common.matchClock.expired'),
+      serverName: (match.currentServe ?? 'player1') === 'player1' ? t1n : t2n,
+    });
+    if (!plan) return;
+    longWhistle();
+    if (plan.kind === 'golden_goal') {
+      const ok = await updateMatch(plan.update);
+      if (!ok) { notifyUpdateFailed(); return; }
+      const msg = t('common.matchClock.expiredTie');
+      setLastAction(`⏱️ ${msg}`);
+      setAnnouncement(msg);
+      speak(msg);
+      return;
+    }
+    const ci = match.currentSet ?? 0;
+    const history = [plan.entry, ...(match.scoreHistory ?? [])];
+    const setEnd = setEndOutcome({ ...match, scoreHistory: history }, plan.sets, ci, rules, {
+      sideIds,
+      serverName: side => (side === 'player1' ? t1n : t2n),
+      time: formatTime(),
+      sideChangeLabel: t('common.matchHistory.sideChange'),
+    });
+    const ok = setEnd ? await writeSetEnd(setEnd, { clock: plan.clock }, history) : await updateMatch({ sets: plan.sets, clock: plan.clock, scoreHistory: history });
+    if (!ok) { notifyUpdateFailed(); return; }
+    const cs = plan.sets[ci];
+    const wins = setWinsByRules(plan.sets, rules);
+    const winnerSide = plan.matchWinner ?? plan.setWinner;
+    const winnerName = winnerSide === 1 ? t1n : winnerSide === 2 ? t2n : '';
+    const msg = plan.matchWinner
+      ? t('common.matchClock.expiredMatchWin', { name: winnerName, p1: cs.player1Score, p2: cs.player2Score, s1: wins.player1, s2: wins.player2 })
+      : t('common.matchClock.expiredSetWin', { name: winnerName, num: ci + 1, p1: cs.player1Score, p2: cs.player2Score });
+    setLastAction(`⏱️ ${msg}`);
+    setAnnouncement(msg);
+    speak(msg);
+    if (setEnd?.kind === 'next_set') setPendingSideChange(true);
+    if (tournamentId) autoBackupToLocal(tournamentId);
+  }, [match, rules, matchClock.cfg, updateMatch, writeSetEnd, longWhistle, notifyUpdateFailed, tournamentId, t]);
+  useEffect(() => { onExpireRef.current = () => { void handleTimeExpiry(); }; }, [handleTimeExpiry]);
+
+  // 골든골 서브 결정 (동전 던지기 결과)
+  const handleGoldenCoinToss = useCallback(async (server: 'player1' | 'player2') => {
+    if (!match) return;
+    const t1n = match.team1Name ?? t('referee.home.team1Default');
+    const t2n = match.team2Name ?? t('referee.home.team2Default');
+    const name = server === 'player1' ? t1n : t2n;
+    const label = t('common.matchClock.goldenServe', { name, rule: t(`common.matchClock.goldenRule.${matchClock.cfg.goldenGoalMode}`) });
+    const update = planGoldenCoinToss(match, server, { time: formatTime(), label, serverName: name });
+    if (!update) return;
+    const ok = await updateMatch(update);
+    if (!ok) { notifyUpdateFailed(); return; }
+    shortWhistle();
+    setLastAction(`⏱️ ${label}`);
+    setAnnouncement(label);
+    speak(label);
+  }, [match, matchClock.cfg.goldenGoalMode, updateMatch, notifyUpdateFailed, shortWhistle, t]);
 
   const handleUndo = useCallback(async () => {
     if (!match) return;
@@ -546,10 +628,20 @@ export function useTeamMatchScoring(
     if (history.length === 0) return;
 
     const ci = match.currentSet ?? 0;
+    // 시간 만료 기록, 시간 제한으로 끝난 세트의 전환은 되돌리지 않는다 (점수 정정은 관리자 화면)
+    const prevSetTimed = ci > 0 && history[0]?.actionType === 'side_change' && isTimeDecidedSet(match.sets?.[ci - 1]);
+    if (history[0]?.actionType === 'time_expired' || prevSetTimed) {
+      const msgB = t('common.matchClock.undoBlocked');
+      setLastAction(`⚠️ ${msgB}`);
+      setAnnouncement(msgB);
+      speak(msgB);
+      return;
+    }
     // 세트 전환 직후라면 새 세트를 지우고 이전 세트의 마지막 득점을 되돌린다
     const transition = undoSetTransition(match.sets ?? [], ci, history);
     if (transition) {
-      await updateMatch(transition.update);
+      // per_set: 앞 세트 시계를 세트가 끝날 때의 흐른 시간으로 되살린다 (새 시계로 바뀌어 시간을 다시 받지 않게)
+      await updateMatch({ ...transition.update, ...undoneSetClockPatch(match.clock, ci - 1) });
       const t1n = match.team1Name ?? t('referee.home.team1Default');
       const t2n = match.team2Name ?? t('referee.home.team2Default');
       const msgT = `${t1n} ${transition.score.player1}, ${t2n} ${transition.score.player2}. ${transition.update.currentServe === 'player1' ? t1n : t2n} ${t('common.matchHistory.serve')}`;
@@ -561,7 +653,8 @@ export function useTeamMatchScoring(
 
     const lastEntry = history[0];
     const sets = [...(match.sets ?? []).map(s => ({ ...s }))];
-    const cs = { ...sets[ci] };
+    // 골든 포인트를 되돌리면 골든골 표시도 지운다
+    const cs = stripTimeDecision({ ...sets[ci] });
     cs.player1Score = lastEntry.scoreBefore.player1;
     cs.player2Score = lastEntry.scoreBefore.player2;
     cs.winnerId = null;
@@ -569,7 +662,12 @@ export function useTeamMatchScoring(
 
     const { currentServe, serveCount } = revertServeTurn(match.currentServe ?? 'player1', match.serveCount ?? 0, maxServes);
 
-    await updateMatch({ sets, currentServe, serveCount, scoreHistory: history.slice(1) });
+    // 골든골 서브 결정을 되돌리면 다시 동전 던지기
+    const undoClock = clockFrom(match.clock);
+    const clockUndo = lastEntry.actionType === 'coin_toss' && undoClock?.goldenGoal === 'playing'
+      ? { clock: { ...undoClock, goldenGoal: 'coin_toss' as const } } : {};
+
+    await updateMatch({ sets, currentServe, serveCount, scoreHistory: history.slice(1), ...clockUndo });
     const t1Name = match.team1Name ?? t('referee.home.team1Default');
     const t2Name = match.team2Name ?? t('referee.home.team2Default');
     const serverName = currentServe === 'player1' ? t1Name : t2Name;
@@ -907,8 +1005,9 @@ export function useTeamMatchScoring(
   const p1Penalties = p1PenaltyCounts.penalties;
   const p2Penalties = p2PenaltyCounts.penalties;
 
-  const scoringDisabled = !!match?.activeTimeout || showSideChange || pendingSideChange;
-  const nonGoalDisabled = scoringDisabled || goldenGoal.isActive;
+  // 골든골 동전 던지기 중에는 점수를 넣지 않는다. 골든골 진행 중에는 반칙도 점수다(next_point는 끝내고, goal_only는 점수만).
+  const scoringDisabled = !!match?.activeTimeout || showSideChange || pendingSideChange || goldenPhase === 'coin_toss';
+  const nonGoalDisabled = scoringDisabled;
 
   return {
     // data
@@ -936,8 +1035,8 @@ export function useTeamMatchScoring(
     // timers & audio
     sideChangeTimer, warmupTimer, timeoutTimer,
     shortWhistle, longWhistle, goalWhistle, initAudio,
-    // golden goal
-    goldenGoal,
+    // 경기 시계·골든골 (M0f)
+    matchClock, goldenPhase, handleGoldenCoinToss,
     // handlers
     handleStartMatch, handleWarmup, handleWalkover,
     handleIBSAScore, handleUndo, handleChangeServe,

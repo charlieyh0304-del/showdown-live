@@ -279,14 +279,14 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
   const correctionWinner = useMemo(() => {
     if (correctionSets.length === 0 || !correctionMatch) return null;
     // 그 경기의 유효 규칙(라운드·스테이지·팀 31점·듀스 캡)으로 판정한다 (B12)
-    return correctionResult(correctionMatch, correctionSets, tournament).winner;
+    return correctionResult(correctionMatch, correctionSets, tournament, correctionMatch.sets).winner;
   }, [correctionSets, correctionMatch, tournament]);
 
   const handleSaveCorrection = async () => {
     if (!correctionMatch || !correctionReason.trim()) return;
     setCorrectionSaving(true);
     try {
-      const corrected = correctionResult(correctionMatch, correctionSets, tournament);
+      const corrected = correctionResult(correctionMatch, correctionSets, tournament, correctionMatch.sets);
       const newSets: SetScore[] = corrected.sets;
       const newWinnerId = corrected.winnerId;
 

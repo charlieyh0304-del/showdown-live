@@ -97,5 +97,18 @@ describe('correctionResult (StatusTab score correction, one winner function)', (
   it('team match uses the 31 point target', () => {
     const r = correctionResult({ type: 'team', team1Id: 'x', team2Id: 'y' }, [s(25, 31)], tour({ type: 'team' }));
     expect(r.winnerId).toBe('y');
+  });  it('golden-goal set: fixing the scores so the other side leads moves the set (decidedWinner dropped)', () => {
+    const golden = { ...s(7, 6), decidedBy: 'golden_goal' as const, decidedWinner: 1 as const };
+    const m = { type: 'individual' as const, player1Id: 'a', player2Id: 'b' };
+    const r = correctionResult(m, [s(11, 5), { ...golden, player1Score: 6, player2Score: 7 }, s(5, 11)], tour(), [s(11, 5), golden, s(5, 11)]);
+    expect(r.sets[1].winnerId).toBe('b');
+    expect(r.sets[1].decidedWinner).toBeUndefined();
+    expect(r.sets[1].decidedBy).toBe('golden_goal');
+  });
+  it('golden-goal set: unchanged or tied scores keep decidedWinner (goal-only golden goal)', () => {
+    const golden = { ...s(9, 10), decidedBy: 'golden_goal' as const, decidedWinner: 1 as const };
+    const m = { type: 'individual' as const, player1Id: 'a', player2Id: 'b' };
+    expect(correctionResult(m, [golden], tour(), [golden]).sets[0].winnerId).toBe('a');
+    expect(correctionResult(m, [{ ...golden, player2Score: 9 }], tour(), [golden]).sets[0].winnerId).toBe('a');
   });
 });

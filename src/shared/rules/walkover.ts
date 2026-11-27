@@ -9,7 +9,7 @@
  *
  * 순수 모듈. functions/src/shared/rules/walkover.ts는 이 파일의 사본이다.
  */
-import { setWinnerByRules, type CompetitionRules, type ScoringRuleSet, type WalkoverRules } from './competitionRules';
+import { isTimeDecidedSet, setWinnerOf, type CompetitionRules, type ScoringRuleSet, type WalkoverRules } from './competitionRules';
 
 /** 서버 생성 BYE 슬롯의 ID 표기 */
 export const BYE_ID = 'BYE';
@@ -25,6 +25,9 @@ export interface WalkoverSet {
   player1Violations: number;
   player2Violations: number;
   winnerId: string | null;
+  /** 시간 제한으로 끝난 세트 표시 (shared/rules/timeLimit.ts). 경기 포기 처리에서도 그대로 둔다. */
+  decidedBy?: 'time_limit' | 'golden_goal';
+  decidedWinner?: 1 | 2;
 }
 
 export interface ByeLike {
@@ -132,6 +135,17 @@ export interface SetScoreLike {
   player2Faults?: unknown;
   player1Violations?: unknown;
   player2Violations?: unknown;
+  decidedBy?: unknown;
+  decidedWinner?: unknown;
+}
+
+/** 시간 제한으로 끝난 세트의 표시를 옮긴다 */
+function timeMarks(s: SetScoreLike): Pick<WalkoverSet, 'decidedBy' | 'decidedWinner'> {
+  if (!isTimeDecidedSet(s)) return {};
+  return {
+    decidedBy: s.decidedBy as 'time_limit' | 'golden_goal',
+    ...(s.decidedWinner === 1 || s.decidedWinner === 2 ? { decidedWinner: s.decidedWinner } : {}),
+  };
 }
 
 function scoreNum(v: unknown): number {
@@ -172,9 +186,10 @@ export function buildRetirementSets(
       player1Violations: scoreNum(s.player1Violations),
       player2Violations: scoreNum(s.player2Violations),
       winnerId: (() => {
-        const w = setWinnerByRules(scoreNum(s.player1Score), scoreNum(s.player2Score), scoring);
+        const w = setWinnerOf(s, scoring);
         return w === null ? null : w === winnerSide ? winnerId : retiringId;
       })(),
+      ...timeMarks(s),
     }));
   }
   const target = Math.max(1, scoring.winScore);
@@ -193,10 +208,10 @@ export function buildRetirementSets(
       player1Violations: scoreNum(s.player1Violations),
       player2Violations: scoreNum(s.player2Violations),
     };
-    const done = setWinnerByRules(p1, p2, scoring);
+    const done = setWinnerOf(s, scoring);
     if (done !== null) {
       // 이미 끝난 세트: 그대로 둔다 (기권한 쪽이 이긴 세트도 남는다)
-      out.push({ player1Score: p1, player2Score: p2, ...base, winnerId: done === winnerSide ? winnerId : retiringId });
+      out.push({ player1Score: p1, player2Score: p2, ...base, winnerId: done === winnerSide ? winnerId : retiringId, ...timeMarks(s) });
       if (done === winnerSide) winnerSets++;
       continue;
     }

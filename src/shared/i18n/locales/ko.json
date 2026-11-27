@@ -1,5 +1,61 @@
 {
   "common": {
+    "matchClock": {
+      "title": "경기 시계",
+      "remaining": "남은 경기 시간",
+      "remainingAria": "남은 경기 시간 {{min}}분 {{sec}}초",
+      "unitPerSet": "세트당 {{min}}분 제한",
+      "unitPerMatch": "경기당 {{min}}분 제한",
+      "state": {
+        "notStarted": "시계 시작 전",
+        "running": "진행 중",
+        "paused": "멈춤",
+        "side_change": "사이드 체인지로 멈춤",
+        "timeout": "타임아웃으로 멈춤",
+        "warmup": "워밍업으로 멈춤",
+        "set_break": "세트 사이 멈춤",
+        "manual": "심판이 멈춤",
+        "manualWithNote": "심판이 멈춤: {{note}}",
+        "expired": "시간 종료",
+        "goldenToss": "골든골: 동전 던지기로 서브를 정하는 중",
+        "golden": "골든골 진행 중"
+      },
+      "start": "경기 시계 시작",
+      "pause": "시계 멈춤",
+      "resume": "시계 다시 시작",
+      "pausePrompt": "시계를 멈춘 이유를 적으세요 (선택)",
+      "pausePlaceholder": "예: 테이블 정비",
+      "startedMsg": "경기 시계를 시작했습니다. 남은 시간 {{time}}.",
+      "pausedMsg": "경기 시계를 멈췄습니다.",
+      "resumedMsg": "경기 시계를 다시 시작했습니다.",
+      "autoStarted": "첫 득점으로 경기 시계를 시작했습니다.",
+      "alert5min": "남은 경기 시간 5분",
+      "alert1min": "남은 경기 시간 1분",
+      "alert30s": "남은 경기 시간 30초",
+      "expired": "경기 시간 종료",
+      "expiredSetWin": "시간 종료. {{name}}, {{num}}세트 승리. {{p1}} 대 {{p2}}.",
+      "expiredMatchWin": "시간 종료. {{name}} 경기 승리. 마지막 세트 {{p1}} 대 {{p2}}, 세트 {{s1}} 대 {{s2}}.",
+      "expiredTie": "시간 종료, 동점입니다. 골든골. 동전을 던져 서브할 쪽을 정하세요.",
+      "goldenToss": {
+        "title": "골든골 동전 던지기",
+        "help": "동전 던지기에서 이긴 쪽이 서브합니다. 서브할 쪽을 고르세요.",
+        "serve": "{{name}} 서브",
+        "random": "무작위로 정하기"
+      },
+      "goldenRule": {
+        "next_point": "골든골: 다음 1점을 얻는 쪽이 승리합니다 (반칙 점수 포함).",
+        "goal_only": "골든골: 다음 골을 넣는 쪽이 승리합니다. 반칙 점수는 들어가지만 승부를 내지 않습니다."
+      },
+      "goldenServe": "골든골. {{name}} 서브. {{rule}}",
+      "goldenWin": "골든골! {{name}} 승리. {{p1}} 대 {{p2}}.",
+      "goldenNeedToss": "먼저 골든골 서브를 정하세요.",
+      "scoringBlockedExpired": "시간이 끝나 점수를 더 넣을 수 없습니다. 세트 종료를 확인하세요.",
+      "undoBlocked": "시간 종료 기록은 되돌릴 수 없습니다. 점수 정정은 관리자 화면에서 하세요.",
+      "decidedBy": {
+        "time_limit": "시간 종료로 결정",
+        "golden_goal": "골든골로 결정"
+      }
+    },
     "competitionRules": {
       "presets": {
         "ibsa": "IBSA 기본",
@@ -816,7 +872,7 @@
         "overrideSets": "변경 세트 수: {{maxSets}}세트 ({{setsToWin}}세트 선승)",
         "timeLimitMinutes": "경기 시간 제한: {{minutes}}분 (0=무제한)",
         "timeLimitAriaLabel": "경기 시간 제한 (분)",
-        "timeLimitHint": "시간 만료 시 골든골 모드: 다음 득점자가 즉시 승리"
+        "timeLimitHint": "시간이 끝나면 앞선 쪽이 이기고, 동점이면 골든골입니다. 세트당/경기당 단위와 골든골 방식은 '경기 규칙' 단계에서 정합니다."
       },
 
       "rankingMatch": {
@@ -1112,6 +1168,27 @@
       "rankingTab": { "exportLabel": "내보내기", "csvExport": "CSV 내보내기", "copyResults": "결과 복사", "copied": "복사됨!", "matchProgress": "경기 진행", "avgPointsPerMatch": "평균 득점 (경기당)", "teamRankingTitle": "팀 순위", "individualRankingTitle": "개인 순위", "noCompletedMatches": "완료된 경기가 없습니다.", "teamRankingAriaLabel": "팀 순위표", "individualRankingAriaLabel": "개인 순위표", "rankHeader": "순위", "teamNameHeader": "팀명", "nameHeader": "이름", "matchCountHeader": "경기수", "winsHeader": "승", "lossesHeader": "패", "pointsHeader": "득실점", "pointDiffHeader": "득실차", "setWonLostHeader": "세트득실", "setDiffHeader": "세트차", "pointWonLostHeader": "포인트득실", "completedMatchesTitle": "완료된 경기", "resultText": "결과", "typeTeam": "팀전", "typeIndividual": "개인전", "totalCompleted": "총 {{completed}}/{{total}} 경기 완료", "roundLabel16": "16강", "roundLabel8": "8강", "roundLabel4": "4강" }
     },
     "rulesEditor": {
+      "timeLimit": {
+        "legend": "시간 제한·골든골",
+        "help": "시간 제한을 켜면 심판 화면에 경기 시계가 나옵니다. 워밍업, 사이드 체인지, 타임아웃(선수·심판·의료) 동안에는 시계가 멈추고, 랠리 시간은 셉니다.",
+        "toggle": "시간 제한 사용",
+        "minutes": "제한 시간 (분)",
+        "minutesHelp": "1분에서 240분까지 정수로 입력합니다.",
+        "unitLegend": "시간을 재는 단위",
+        "perSet": "세트마다 (세트가 바뀌면 새로 잽니다)",
+        "perMatch": "경기 전체",
+        "unitHelp": "시간이 끝나면: 세트마다는 그 세트에서 앞선 쪽이 세트를 이깁니다. 경기 전체는 진행 중 세트를 앞선 쪽이 가져가고 세트 승수가 많은 쪽이 이깁니다(세트 승수가 같으면 그 세트를 가져간 쪽). 동점이면 골든골입니다.",
+        "goldenLegend": "동점일 때 골든골 방식",
+        "nextPoint": "다음 1점 (IBSA 기본, 반칙 점수 포함)",
+        "goalOnly": "다음 골(2점)만 인정 (반칙 점수는 들어가지만 승부를 내지 않음)",
+        "goldenHelp": "골든골은 동전 던지기로 서브를 정한 뒤 시작합니다.",
+        "roundLabel": "그 라운드부터 시간 제한 (분)",
+        "roundHelp": "비우면 단계 설정을 따르고, 0이면 그 라운드부터 시간 제한이 없습니다.",
+        "ibsa": "IBSA 승인 대회",
+        "ibsaHelp": "IBSA 승인 대회에서는 시간 제한 경기가 금지됩니다. 켜 두면 시간 제한을 쓸 때 경고합니다.",
+        "ibsaWarning": "주의: IBSA 승인 대회에서는 시간 제한 경기가 금지됩니다. 시간 제한을 쓰는 범위: {{scopes}}. 저장은 할 수 있습니다.",
+        "minutesValue": "{{min}}분"
+      },
       "title": "경기 규칙",
       "intro": "이 대회에서 쓰는 모든 경기 규칙입니다. 정해진 표준은 없습니다. 프리셋은 시작점일 뿐이니 값을 하나씩 확인하고 필요하면 바꾸세요.",
       "scope": {
@@ -1269,6 +1346,15 @@
         "minRestHelp": "앞 경기가 끝나는 예정 시각(시작 + 경기 시간)부터 다음 경기 시작까지입니다 (시작~시작 아님). 자동 일정 배정이 이 값을 지키고, 단체전은 팀원 모두에게, 대진 경기는 앞 경기(예: 8강)가 끝난 뒤에 적용합니다."
       },
       "fields": {
+        "scoring-individual-timeLimitSeconds": "개인전 시간 제한",
+        "scoring-individual-timeLimitUnit": "개인전 시간 제한 단위",
+        "scoring-individual-goldenGoalMode": "개인전 골든골 방식",
+        "scoring-team-timeLimitSeconds": "단체전 시간 제한",
+        "scoring-team-timeLimitUnit": "단체전 시간 제한 단위",
+        "scoring-team-goldenGoalMode": "단체전 골든골 방식",
+        "roundScoring-individual-timeLimitSeconds": "라운드별 시간 제한",
+        "roundScoring-team-timeLimitSeconds": "라운드별 시간 제한",
+        "ibsaSanctioned": "IBSA 승인 대회",
         "scoring-individual-winScore": "개인전 세트 목표 점수",
         "scoring-individual-setsToWin": "개인전 경기 세트 수",
         "scoring-individual-maxSets": "개인전 경기 세트 수",

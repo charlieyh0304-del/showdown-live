@@ -1,14 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
-import { setWinnerByRules, setWinsByRules, type ScoringRuleSet } from '@shared/rules/competitionRules';
+import { setWinnerOf, setWinsByRules, type ScoringRuleSet } from '@shared/rules/competitionRules';
 import type { ScoreHistoryEntry } from '@shared/types';
 
 interface MatchLike {
   winnerId?: string | null;
   team2Id?: string | null;
-  sets?: Array<{ player1Score: number; player2Score: number }>;
+  sets?: Array<{ player1Score: number; player2Score: number; decidedBy?: 'time_limit' | 'golden_goal'; decidedWinner?: 1 | 2 }>;
   scoreHistory?: ScoreHistoryEntry[];
+  /** 시간 제한·골든골로 끝난 경기 (M0f) */
+  decidedBy?: 'time_limit' | 'golden_goal' | null;
 }
 
 interface Props {
@@ -58,6 +60,7 @@ export default function TeamMatchCompletedView({ match, team1Name, team2Name, ru
             </div>
           </div>
         )}
+        {match.decidedBy && <div className="text-lg text-yellow-300 mt-1">{t(`common.matchClock.decidedBy.${match.decidedBy}`)}</div>}
         {multiSet && (
           <div className="text-2xl text-gray-300 mt-1" aria-label={`${t('common.units.set')} ${winnerName} ${winSets} : ${loserName} ${loseSets}`}>{t('common.units.set')}: {winSets} - {loseSets}</div>
         )}
@@ -69,7 +72,7 @@ export default function TeamMatchCompletedView({ match, team1Name, team2Name, ru
             {sets.map((s, i) => {
               const setWinScore = isT2Winner ? s.player2Score : s.player1Score;
               const setLoseScore = isT2Winner ? s.player1Score : s.player2Score;
-              const setWinner = setWinnerByRules(s.player1Score, s.player2Score, rules);
+              const setWinner = setWinnerOf(s, rules);
               const setWinnerName = setWinner === 2 ? team2Name : setWinner === 1 ? team1Name : null;
               return (
                 <div key={i} className="flex justify-between items-center bg-gray-800 rounded px-4 py-2" aria-label={`${t('common.matchHistory.setLabel', { num: i + 1 })}: ${winnerName} ${setWinScore} : ${loserName} ${setLoseScore}`}>

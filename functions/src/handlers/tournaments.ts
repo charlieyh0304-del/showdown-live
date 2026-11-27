@@ -3,7 +3,7 @@
  */
 import { db, hashPinSHA256, hashPinPBKDF2 } from "../db-helpers";
 import { DEFAULT_INDIVIDUAL_SCORING, DEFAULT_TEAM_SCORING, isTeamType } from "../shared/rules/competitionRules";
-import { rankingConfigUpdate } from "../lib/tournament-update";
+import { rankingConfigUpdate, timeLimitRuleUpdate } from "../lib/tournament-update";
 
 // ===== PIN brute force 방어: RTDB 기반 rate limiter =====
 const RL_WINDOW_MS = 10 * 60 * 1000;   // 10분 윈도우
@@ -90,9 +90,18 @@ export async function createTournament(input: Record<string, unknown>): Promise<
 }
 
 export async function updateTournament(input: Record<string, unknown>): Promise<string> {
-  const { tournamentId, rankingUpTo, thirdPlace, fifthToEighth, classificationGroups, ...fields } = input;
+  const { tournamentId, rankingUpTo, thirdPlace, fifthToEighth, classificationGroups, timeLimitMinutes, timeLimitUnit, goldenGoalMode, ibsaSanctioned, stageId, ...fields } = input;
   const updates: Record<string, unknown> = { ...fields, updatedAt: Date.now() };
   delete updates.tournamentId;
+
+  // 시간 제한·골든골·IBSA 승인 (M0f): 규칙 층(rules/scoring, 스테이지면 stages/{키}/rules/scoring)에 쓴다
+  if (timeLimitMinutes !== undefined || timeLimitUnit !== undefined || goldenGoalMode !== undefined || ibsaSanctioned !== undefined) {
+    const curSnap = await db.ref(`tournaments/${tournamentId}`).once("value");
+    const curData = curSnap.exists() ? curSnap.val() as Record<string, unknown> : {};
+    const tl = timeLimitRuleUpdate(curData, { timeLimitMinutes, timeLimitUnit, goldenGoalMode, ibsaSanctioned, stageId }, "rules" in fields);
+    if ("error" in tl) return JSON.stringify({ error: tl.error });
+    Object.assign(updates, tl.updates);
+  }
 
   // 순위결정전 설정: 레거시 rankingMatchConfig와 규칙 층 rules.finalRanking을 함께 쓴다
   // (rules.finalRanking이 레거시 값보다 우선하므로, 레거시만 쓰면 바뀌지 않는다)

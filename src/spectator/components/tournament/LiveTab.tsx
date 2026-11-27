@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { matchSetWins } from '@shared/utils/scoring';
 import { resolveMatchScoring, type TournamentLike } from '@shared/rules/competitionRules';
 import type { Match } from '@shared/types';
+import MatchClockDisplay from '@shared/components/MatchClockDisplay';
 import type { useNavigate } from 'react-router-dom';
 
 export interface LiveTabProps {
@@ -233,6 +234,18 @@ export default function LiveTab({
                 </p>
               )}
             </button>
+            {/* 경기 시계 (시간 제한 경기): 버튼 밖에 두어 화면 낭독기가 따로 읽는다. 5분·1분·30초·종료·골든골 때만 알린다 */}
+            {match.clock && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <MatchClockDisplay
+                  clock={match.clock}
+                  goldenGoalMode={resolveMatchScoring(match, tournament).goldenGoalMode}
+                  size="small"
+                  announce
+                  matchLabel={match.type === 'individual' ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}` : `${match.team1Name ?? ''} vs ${match.team2Name ?? ''}`}
+                />
+              </div>
+            )}
           </li>
         ))}
       </ul>

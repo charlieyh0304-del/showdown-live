@@ -18,6 +18,8 @@ import {
   fieldDomId,
   fieldUsedAtStage,
   getPath,
+  ibsaTimeLimitScopes,
+  MAX_TIME_LIMIT_SECONDS,
   moveItem,
   overriddenPaths,
   removeItem,
@@ -89,6 +91,7 @@ export default function CompetitionRulesEditor({
   const activeScope = scope === TOURNAMENT_SCOPE || stageOptions.some(s => s.id === scope) ? scope : TOURNAMENT_SCOPE;
   const isStage = activeScope !== TOURNAMENT_SCOPE;
   const kind = matchKindOf(tournament.type);
+  const sp = `scoring.${kind}`;
 
   /** 다음 렌더가 끝난 뒤 요소로 초점을 옮긴다 (순서 변경·범위 전환·되돌리기 뒤에 초점을 잃지 않게) */
   const setPendingFocus = (targetId: string) => {
@@ -134,6 +137,7 @@ export default function CompetitionRulesEditor({
       return bestOfLabel(max);
     }
     if (path.endsWith('.minLead')) return (v as number) >= 2 ? t('admin.rulesEditor.valueOn') : t('admin.rulesEditor.valueOff');
+    if (path.endsWith('.timeLimitSeconds')) return typeof v === 'number' && v > 0 ? t('admin.rulesEditor.timeLimit.minutesValue', { min: Math.round(v / 60) }) : t('admin.rulesEditor.valueNone');
     if (path === 'tiebreak.criteria') return toList<string>(v).map(criterionName).join(t('admin.rulesEditor.tiebreak.joiner'));
     if (path === 'roundScoring') {
       const r = v as { fromRound: number; individual?: { setsToWin?: number }; team?: { setsToWin?: number } };
@@ -147,6 +151,8 @@ export default function CompetitionRulesEditor({
       'finalRanking.fifthToEighth': { joint: 'finalRanking.joint', qualifying_record: 'finalRanking.qualifyingRecord' },
       'finalRanking.lowerPlaces': { joint: 'finalRanking.joint', qualifying_record: 'finalRanking.qualifyingRecord' },
       'retirement.mode': { keep_played: 'walkover.retirementKeep', as_walkover: 'walkover.retirementVoid', as_recorded: 'walkover.retirementRecorded' },
+      [`${sp}.timeLimitUnit`]: { per_set: 'timeLimit.perSet', per_match: 'timeLimit.perMatch' },
+      [`${sp}.goldenGoalMode`]: { next_point: 'timeLimit.nextPoint', goal_only: 'timeLimit.goalOnly' },
     };
     const key = enumLabels[path]?.[String(v)];
     if (key) return t(`admin.rulesEditor.${key}`);
@@ -303,10 +309,17 @@ export default function CompetitionRulesEditor({
 
   // ===== 값 =====
   const scoring = eff.scoring[kind];
-  const sp = `scoring.${kind}`;
   const rawMaxSets = value(`${sp}.maxSets`) as number;
   const bestOfOptions = BEST_OF.includes(rawMaxSets) || !Number.isFinite(rawMaxSets) ? BEST_OF : [...BEST_OF, rawMaxSets].sort((a, b) => a - b);
-  const roundRule = value('roundScoring') as { fromRound: number; individual?: { setsToWin?: number }; team?: { setsToWin?: number } } | null;
+  type RoundPart = { setsToWin?: number; maxSets?: number; timeLimitSeconds?: number };
+  const roundRule = value('roundScoring') as { fromRound: number; individual?: RoundPart; team?: RoundPart } | null;
+  const roundTimeLimit = roundRule?.[kind]?.timeLimitSeconds;
+  // 시간 제한 (분 단위로 보여 준다)
+  const rawTimeLimit = value(`${sp}.timeLimitSeconds`);
+  // 켜짐: 양수 값, 또는 분 입력을 비운 상태(NaN — 오류로 알린다). 없음(undefined/null/0)은 꺼짐
+  const timeLimitOn = typeof rawTimeLimit === 'number' && (Number.isNaN(rawTimeLimit) || rawTimeLimit > 0);
+  const timeLimitMinutes = typeof rawTimeLimit === 'number' && Number.isFinite(rawTimeLimit) && rawTimeLimit > 0 ? rawTimeLimit / 60 : null;
+  const ibsaScopes = ibsaTimeLimitScopes(tournament, draft);
   const roundSetsToWin = roundRule?.[kind]?.setsToWin ?? scoring.setsToWin;
   const criteria = toList<TiebreakCriterion>(value('tiebreak.criteria'));
   const remaining = availableCriteria(criteria);
@@ -349,7 +362,9 @@ export default function CompetitionRulesEditor({
                   className="underline text-left text-red-200 hover:text-white"
                   onClick={() => {
                     if (issue.path !== 'confirm') setScope(issue.scope);
-                    setPendingFocus(id(issue.path === `${sp}.setsToWin` ? `${sp}.maxSets` : issue.path));
+                    setPendingFocus(/^roundScoring\.\w+\.timeLimitSeconds$/.test(issue.path)
+                      ? `${id('roundScoring')}-timelimit`
+                      : id(issue.path === `${sp}.setsToWin` ? `${sp}.maxSets` : issue.path));
                   }}
                 >
                   {t('admin.rulesEditor.errors.item', { scope: scopeName(issue.scope), field: fieldLabel(issue.path), message: issueMessage(issue) })}
@@ -527,15 +542,111 @@ export default function CompetitionRulesEditor({
                   value={roundSetsToWin * 2 - 1}
                   onChange={e => {
                     const max = Number(e.target.value);
-                    set('roundScoring', { ...roundRule, [kind]: { setsToWin: Math.ceil(max / 2), maxSets: max } });
+                    set('roundScoring', { ...roundRule, [kind]: { ...roundRule[kind], setsToWin: Math.ceil(max / 2), maxSets: max } });
                   }}
                 >
                   {BEST_OF.map(n => <option key={n} value={n}>{bestOfLabel(n)}</option>)}
                 </select>
               </div>
+              <div>
+                <label htmlFor={`${id('roundScoring')}-timelimit`} className="block font-semibold mb-1">{t('admin.rulesEditor.timeLimit.roundLabel')}</label>
+                <input
+                  id={`${id('roundScoring')}-timelimit`}
+                  type="number"
+                  inputMode="numeric"
+                  className={`input w-32 ${issueFor(`roundScoring.${kind}.timeLimitSeconds`) ? 'border-red-500 border-2' : ''}`}
+                  min={0}
+                  max={MAX_TIME_LIMIT_SECONDS / 60}
+                  step={1}
+                  value={typeof roundTimeLimit === 'number' && Number.isFinite(roundTimeLimit) ? String(roundTimeLimit / 60) : ''}
+                  onChange={e => {
+                    const part: RoundPart = { ...roundRule[kind] };
+                    if (e.target.value === '') delete part.timeLimitSeconds;
+                    else part.timeLimitSeconds = Math.round(Number(e.target.value) * 60);
+                    set('roundScoring', { ...roundRule, [kind]: part });
+                  }}
+                  aria-invalid={issueFor(`roundScoring.${kind}.timeLimitSeconds`) ? true : undefined}
+                  aria-describedby={describedBy(`${id('roundScoring')}-timelimit-help`, issueFor(`roundScoring.${kind}.timeLimitSeconds`) && `${id('roundScoring')}-timelimit-error`)}
+                />
+                <p id={`${id('roundScoring')}-timelimit-help`} className="text-gray-400 text-sm mt-1">{t('admin.rulesEditor.timeLimit.roundHelp')}</p>
+                {renderError({ issue: issueFor(`roundScoring.${kind}.timeLimitSeconds`), forId: `${id('roundScoring')}-timelimit` })}
+              </div>
             </div>
           )}
         </div>
+      </fieldset>
+
+      {/* 시간 제한·골든골 (M0f) */}
+      <fieldset className="card space-y-4" aria-describedby={`${idPrefix}-timelimit-help`}>
+        <legend className="text-xl font-bold">{t('admin.rulesEditor.timeLimit.legend')}</legend>
+        <p id={`${idPrefix}-timelimit-help`} className="text-gray-400 text-sm">{t('admin.rulesEditor.timeLimit.help')}</p>
+        {ibsaScopes.length > 0 && (
+          <p role="status" className="text-yellow-100 bg-yellow-900/50 border border-yellow-500 rounded p-3 font-semibold">
+            <span aria-hidden="true">⚠️ </span>{t('admin.rulesEditor.timeLimit.ibsaWarning', { scopes: ibsaScopes.map(scopeName).join(t('admin.rulesEditor.listJoiner')) })}
+          </p>
+        )}
+        {shown(`${sp}.timeLimitSeconds`) && (
+          <div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                id={`${id(`${sp}.timeLimitSeconds`)}-toggle`}
+                type="checkbox"
+                className="mt-1 w-5 h-5"
+                checked={timeLimitOn}
+                onChange={e => set(`${sp}.timeLimitSeconds`, e.target.checked ? 30 * 60 : null)}
+              />
+              <span className="font-semibold">{t('admin.rulesEditor.timeLimit.toggle')}</span>
+            </label>
+            {timeLimitOn && (
+              <div className="ml-8 mt-3">
+                <label htmlFor={id(`${sp}.timeLimitSeconds`)} className="block font-semibold mb-1">{t('admin.rulesEditor.timeLimit.minutes')}</label>
+                <input
+                  id={id(`${sp}.timeLimitSeconds`)}
+                  type="number"
+                  inputMode="numeric"
+                  className={`input w-32 ${issueFor(`${sp}.timeLimitSeconds`) ? 'border-red-500 border-2' : ''}`}
+                  min={1}
+                  max={MAX_TIME_LIMIT_SECONDS / 60}
+                  step={1}
+                  value={timeLimitMinutes !== null ? String(timeLimitMinutes) : ''}
+                  onChange={e => set(`${sp}.timeLimitSeconds`, e.target.value === '' ? Number.NaN : Math.round(Number(e.target.value) * 60))}
+                  aria-invalid={issueFor(`${sp}.timeLimitSeconds`) ? true : undefined}
+                  aria-describedby={describedBy(`${id(`${sp}.timeLimitSeconds`)}-help`, issueFor(`${sp}.timeLimitSeconds`) && `${id(`${sp}.timeLimitSeconds`)}-error`)}
+                />
+                <p id={`${id(`${sp}.timeLimitSeconds`)}-help`} className="text-gray-400 text-sm mt-1">{t('admin.rulesEditor.timeLimit.minutesHelp')}</p>
+                {renderError({ issue: issueFor(`${sp}.timeLimitSeconds`), forId: id(`${sp}.timeLimitSeconds`) })}
+              </div>
+            )}
+            {renderOverride({ paths: [`${sp}.timeLimitSeconds`], focusId: `${id(`${sp}.timeLimitSeconds`)}-toggle` })}
+          </div>
+        )}
+        {timeLimitOn && renderRadios({
+          path: `${sp}.timeLimitUnit`,
+          legend: t('admin.rulesEditor.timeLimit.unitLegend'),
+          help: t('admin.rulesEditor.timeLimit.unitHelp'),
+          current: scoring.timeLimitUnit ?? 'per_match',
+          options: [
+            { value: 'per_set', label: t('admin.rulesEditor.timeLimit.perSet') },
+            { value: 'per_match', label: t('admin.rulesEditor.timeLimit.perMatch') },
+          ],
+          onSelect: v => set(`${sp}.timeLimitUnit`, v),
+        })}
+        {timeLimitOn && renderRadios({
+          path: `${sp}.goldenGoalMode`,
+          legend: t('admin.rulesEditor.timeLimit.goldenLegend'),
+          help: t('admin.rulesEditor.timeLimit.goldenHelp'),
+          current: scoring.goldenGoalMode ?? 'next_point',
+          options: [
+            { value: 'next_point', label: t('admin.rulesEditor.timeLimit.nextPoint') },
+            { value: 'goal_only', label: t('admin.rulesEditor.timeLimit.goalOnly') },
+          ],
+          onSelect: v => set(`${sp}.goldenGoalMode`, v),
+        })}
+        {renderCheck({
+          path: 'ibsaSanctioned',
+          label: t('admin.rulesEditor.timeLimit.ibsa'),
+          help: t('admin.rulesEditor.timeLimit.ibsaHelp'),
+        })}
       </fieldset>
 
       {/* 승점 */}

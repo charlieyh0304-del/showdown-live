@@ -7,6 +7,8 @@
  * - 라운드별 세트 수: rules.roundScoring
  * - 순위결정전 점수: rules.placementScoring
  * - 진출·최종 순위·휴식: rules.qualification / finalRanking / schedule
+ * - 시간 제한·골든골(M0f): rules.scoring.{kind}.timeLimitSeconds/timeLimitUnit/goldenGoalMode, 본선만 다르면 본선 스테이지,
+ *   IBSA 승인 대회 표시: rules.ibsaSanctioned
  * Firebase는 undefined를 저장하지 못하므로 값이 없는 항목은 넣지 않는다.
  * 순수 함수 (Firebase 의존 없음).
  */
@@ -39,6 +41,13 @@ export interface SetupRulesInput {
   roundOverride?: { fromRound: unknown; setsToWin: unknown };
   placement?: { setsToWin?: unknown; winScore?: unknown };
   minRestMinutes?: unknown;
+  /** 시간 제한(분). 0/없음 = 없음 */
+  timeLimitMinutes?: unknown;
+  /** 본선 시간 제한(분). 예선과 다를 때 (0 = 본선은 시간 제한 없음) */
+  finalsTimeLimitMinutes?: unknown;
+  timeLimitUnit?: unknown;
+  goldenGoalMode?: unknown;
+  ibsaSanctioned?: unknown;
 }
 
 export interface SetupRules {
@@ -65,8 +74,13 @@ export function buildSetupRules(input: SetupRulesInput): SetupRules {
   if (side) scoring.sideChangeAt = side;
   const onCourt = pos(input.playersOnCourt);
   if (onCourt && input.isTeam) scoring.playersOnCourt = onCourt;
+  const timeMin = pos(input.timeLimitMinutes);
+  if (timeMin) scoring.timeLimitSeconds = Math.round(timeMin * 60);
+  if (input.timeLimitUnit === "per_set" || input.timeLimitUnit === "per_match") scoring.timeLimitUnit = input.timeLimitUnit;
+  if (input.goldenGoalMode === "next_point" || input.goldenGoalMode === "goal_only") scoring.goldenGoalMode = input.goldenGoalMode;
 
   const rules: CompetitionRulesInput = { scoring: { [kind]: scoring } };
+  if (typeof input.ibsaSanctioned === "boolean") rules.ibsaSanctioned = input.ibsaSanctioned;
 
   if (!input.isFullLeague) {
     rules.qualification = {};
@@ -118,6 +132,13 @@ export function buildSetupRules(input: SetupRulesInput): SetupRules {
   if (!input.isFullLeague && ((fSets && fSets !== setsToWin) || (fWin && fWin !== winScore))) {
     const fs = fSets ?? setsToWin;
     finalsStageRules = { scoring: { [kind]: { winScore: fWin ?? winScore, setsToWin: fs, maxSets: fs * 2 - 1 } } };
+  }
+  // 본선 시간 제한이 예선과 다르면 본선 스테이지에 (0 = 본선은 시간 제한 없음)
+  const fTime = nonNeg(input.finalsTimeLimitMinutes);
+  if (!input.isFullLeague && fTime !== undefined && Math.round(fTime * 60) !== (scoring.timeLimitSeconds ?? 0)) {
+    const fs = finalsStageRules ?? { scoring: { [kind]: {} } };
+    const part = { ...(fs.scoring?.[kind] ?? {}), timeLimitSeconds: Math.round(fTime * 60) };
+    finalsStageRules = { ...fs, scoring: { ...fs.scoring, [kind]: part } };
   }
   return { defaults, tournamentRules: rules, finalsStageRules };
 }

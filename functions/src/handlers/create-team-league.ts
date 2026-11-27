@@ -27,6 +27,9 @@ export async function createTeamLeague(input: Record<string, unknown>, executeTo
     roundOverrideFromRound: input.roundOverrideFromRound,
     roundOverrideSetsToWin: input.roundOverrideSetsToWin,
     servesPerTurn: input.servesPerTurn, sideChangeAt: input.sideChangeAt,
+    // 시간 제한·골든골 (M0f): 대회 규칙(rules.scoring)에 저장된다
+    timeLimitMinutes: input.timeLimitMinutes, finalsTimeLimitMinutes: input.finalsTimeLimitMinutes,
+    timeLimitUnit: input.timeLimitUnit, goldenGoalMode: input.goldenGoalMode, ibsaSanctioned: input.ibsaSanctioned,
     playersOnCourt: input.playersOnCourt,
     finalsFormat: asString(input.finalsFormat, "single_elimination"),
     finalsStartRound: input.finalsStartRound,

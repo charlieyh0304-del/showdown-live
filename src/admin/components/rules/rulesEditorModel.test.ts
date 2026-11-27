@@ -11,6 +11,7 @@ import {
   effectiveRules,
   emptyDraft,
   fieldUsedAtStage,
+  ibsaTimeLimitScopes,
   isDraftDirty,
   mergeDrafts,
   moveItem,
@@ -294,5 +295,56 @@ describe('serve / side change fields (M0g)', () => {
     expect(validateDraft(team, bad).map(i => i.code)).toEqual(['rotationInvalid']);
     const tooMany = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.team.serveRotation', ['A1', 'B4']);
     expect(validateDraft(team, tooMany).map(i => i.code)).toEqual(['rotationInvalid']);
+  });
+});
+
+describe('time limit / golden goal / IBSA fields (M0f)', () => {
+  const ind = { type: 'individual', stages: [{ id: 'q', type: 'qualifying' }, { id: 'f', type: 'finals' }] };
+  it('time limit per stage; empty = off (0 marker) clears the tournament value', () => {
+    let d = setFieldValues(emptyDraft(), TOURNAMENT_SCOPE, {
+      'scoring.individual.timeLimitSeconds': 1800,
+      'scoring.individual.timeLimitUnit': 'per_set',
+      'scoring.individual.goldenGoalMode': 'goal_only',
+    });
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'q' }, withDraft(ind, d))).toMatchObject({ timeLimitSeconds: 1800, timeLimitUnit: 'per_set', goldenGoalMode: 'goal_only' });
+    d = setFieldValue(d, 'f', 'scoring.individual.timeLimitSeconds', null);
+    expect(d.stages.f).toEqual({ scoring: { individual: { timeLimitSeconds: 0 } } });
+    expect(displayValue(ind, d, 'f', 'scoring.individual.timeLimitSeconds')).toBe(null);
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'f' }, withDraft(ind, d)).timeLimitSeconds).toBeUndefined();
+    expect(overriddenPaths(ind, d, 'f')).toContain('scoring.individual.timeLimitSeconds');
+    expect(validateDraft(ind, d)).toEqual([]);
+    // 대회 값으로 되돌리기
+    const back = resetStagePaths(ind, d, 'f', ['scoring.individual.timeLimitSeconds']);
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'f' }, withDraft(ind, back)).timeLimitSeconds).toBe(1800);
+  });
+  it('validation: minutes must be a whole number within 0..240 minutes', () => {
+    const bad = (v: number) => validateDraft(ind, setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'scoring.individual.timeLimitSeconds', v)).map(i => i.code);
+    expect(bad(Number.NaN)).toEqual(['required']);
+    expect(bad(241 * 60)).toEqual(['max']);
+    expect(bad(-60)).toEqual(['min']);
+    expect(bad(90.5)).toEqual(['integer']);
+    expect(bad(30 * 60)).toEqual([]);
+    const round = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'roundScoring', { fromRound: 4, individual: { timeLimitSeconds: 300 * 60 } });
+    expect(validateDraft(ind, round).map(i => i.path)).toEqual(['roundScoring.individual.timeLimitSeconds']);
+  });
+  it('IBSA-sanctioned + time limit → non-blocking warning naming the scopes', () => {
+    let d = setFieldValue(emptyDraft(), TOURNAMENT_SCOPE, 'ibsaSanctioned', true);
+    expect(ibsaTimeLimitScopes(ind, d)).toEqual([]);
+    d = setFieldValue(d, 'f', 'scoring.individual.timeLimitSeconds', 600);
+    expect(ibsaTimeLimitScopes(ind, d)).toEqual(['f']);
+    d = setFieldValue(d, TOURNAMENT_SCOPE, 'scoring.individual.timeLimitSeconds', 600);
+    expect(ibsaTimeLimitScopes(ind, d)).toEqual([TOURNAMENT_SCOPE]);
+    // 경고일 뿐 저장을 막지 않는다
+    expect(validateDraft(ind, d)).toEqual([]);
+    expect(ibsaTimeLimitScopes(ind, setFieldValue(d, TOURNAMENT_SCOPE, 'ibsaSanctioned', false))).toEqual([]);
+    // 라운드별 시간 제한도 경고
+    const r = setFieldValues(emptyDraft(), TOURNAMENT_SCOPE, { ibsaSanctioned: true, roundScoring: { fromRound: 4, individual: { timeLimitSeconds: 600 } } });
+    expect(ibsaTimeLimitScopes(ind, r)).toEqual([TOURNAMENT_SCOPE]);
+  });
+  it('ibsaSanctioned is a tournament-wide field and is saved under rules/ibsaSanctioned', () => {
+    expect(fieldUsedAtStage('ibsaSanctioned', 'finals')).toBe(false);
+    const t = { ...ind, id: 't', rules: {} };
+    const payload = buildRulesWritePayload(t, setFieldValue(draftFromTournament(t), TOURNAMENT_SCOPE, 'ibsaSanctioned', true));
+    expect(payload['rules/ibsaSanctioned']).toBe(true);
   });
 });

@@ -44,6 +44,9 @@ export async function createIndividualTournament(input: Record<string, unknown>,
     roundOverrideSetsToWin: input.roundOverrideSetsToWin,
     finalsWinScore: input.finalsWinScore,
     servesPerTurn: input.servesPerTurn, sideChangeAt: input.sideChangeAt,
+    // 시간 제한·골든골 (M0f): 대회 규칙(rules.scoring)에 저장된다
+    timeLimitMinutes: input.timeLimitMinutes, finalsTimeLimitMinutes: input.finalsTimeLimitMinutes,
+    timeLimitUnit: input.timeLimitUnit, goldenGoalMode: input.goldenGoalMode, ibsaSanctioned: input.ibsaSanctioned,
     ...(minRest !== undefined ? { minRestMinutes: minRest } : {}),
   });
   const itParsed = JSON.parse(itResult);
