@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { notifyTournamentWrite } from '@shared/utils/dataWrites';
 import type { Player, Team, StageGroup, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -105,7 +106,7 @@ export default function GroupAssignmentSection({
                               const updatedStages = toArray(tournament.stages).map(s =>
                                 s.id === qualifyingStage.id ? { ...s, groups: updatedGroups } : s
                               );
-                              await updateTournament({ stages: updatedStages });
+                              notifyTournamentWrite(await updateTournament({ stages: updatedStages }), t);
                             }
                           }}
                           aria-label={t('admin.tournamentDetail.bracketTab.assignGroupAriaLabel', { name: player.name })}

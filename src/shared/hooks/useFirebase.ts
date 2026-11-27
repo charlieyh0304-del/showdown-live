@@ -3,7 +3,18 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, onValue, set, push, remove, update, get, runTransaction, query, limitToLast, type DataSnapshot, type Query } from 'firebase/database';
 import { database, authReady } from '../config/firebase';
 import { queueUpdate } from '../utils/offlineQueue';
-import type { Player, Referee, Court, Tournament, Match, Team, ScheduleSlot, Notification } from '../types';
+import type { Player, Referee, Court, Tournament, Match, MatchUpdate, Team, ScheduleSlot, Notification } from '../types';
+import {
+  stripUndefined,
+  buildMatchesBulkUpdate,
+  buildTeamsBulkData,
+  buildScheduleBulkData,
+  scheduleSlotKey,
+  toFirebaseValue,
+  writeOrQueue,
+  type StageReplaceScope,
+  type WriteResult,
+} from '../utils/dataWrites';
 
 // ===== Write rate limiter =====
 // Prevents rapid writes from overwhelming Firebase (max 10 writes/sec per path)
@@ -462,7 +473,11 @@ export function useMatches(tournamentId: string | null, limit?: number) {
     return newRef.key;
   }, [tournamentId]);
 
-  const updateMatch = useCallback(async (matchId: string, data: Partial<Match>): Promise<boolean> => {
+  /**
+   * 관리자용 경기 업데이트. null은 필드 삭제, undefined는 무시.
+   * 반환: 'written'(서버 반영) | 'queued'(연결 오류로 재시도 큐에 보관, 서버 반영 미확인) | false(실패/충돌/서버 거부)
+   */
+  const updateMatch = useCallback(async (matchId: string, data: MatchUpdate): Promise<WriteResult> => {
     if (!tournamentId) return false;
     const path = `matches/${tournamentId}/${matchId}`;
     if (!canWrite(path)) {
@@ -475,26 +490,28 @@ export function useMatches(tournamentId: string | null, limit?: number) {
       data = { ...data, scoreHistory: data.scoreHistory.slice(0, MAX_SCORE_HISTORY) };
     }
     // Firebase does not accept undefined values — strip them
-    const payload = Object.fromEntries(Object.entries({ ...data, updatedAt: now }).filter(([, v]) => v !== undefined));
-    try {
-      const result = await runTransaction(ref(database, path), (currentData) => {
-        if (currentData === null) return payload;
-        // Merge: always apply changes on top of server's latest state
-        // For scoreHistory, append new entries from payload to server's existing history
-        const merged = { ...currentData, ...payload };
-        if (payload.scoreHistory && currentData.scoreHistory) {
-          const serverHistory = Array.isArray(currentData.scoreHistory) ? currentData.scoreHistory : Object.values(currentData.scoreHistory);
-          const newHistory = payload.scoreHistory as unknown[];
-          // Merge: use the longer/newer history (contains all entries)
-          merged.scoreHistory = newHistory.length >= serverHistory.length ? newHistory : serverHistory;
-        }
-        return merged;
-      });
-      return result.committed;
-    } catch {
-      queueUpdate(path, payload as Record<string, unknown>);
-      return true;
-    }
+    const payload = stripUndefined({ ...data, updatedAt: now });
+    return writeOrQueue(
+      async () => {
+        const result = await runTransaction(ref(database, path), (currentData) => {
+          if (currentData === null) return payload;
+          // Merge: always apply changes on top of server's latest state
+          // For scoreHistory, append new entries from payload to server's existing history
+          const merged = { ...currentData, ...payload };
+          if (payload.scoreHistory && currentData.scoreHistory) {
+            const serverHistory = Array.isArray(currentData.scoreHistory) ? currentData.scoreHistory : Object.values(currentData.scoreHistory);
+            const newHistory = payload.scoreHistory as unknown[];
+            // Merge: use the longer/newer history (contains all entries)
+            merged.scoreHistory = newHistory.length >= serverHistory.length ? newHistory : serverHistory;
+          }
+          return merged;
+        });
+        return result.committed;
+      },
+      // Connection errors only: queue for replay on reconnect, reported as 'queued' (never as written).
+      // Server rejections (permission_denied incl. .validate, maxretry) are not queued and return false.
+      () => queueUpdate(path, payload),
+    );
   }, [tournamentId]);
 
   const deleteMatch = useCallback(async (matchId: string) => {
@@ -502,33 +519,31 @@ export function useMatches(tournamentId: string | null, limit?: number) {
     await remove(ref(database, `matches/${tournamentId}/${matchId}`));
   }, [tournamentId]);
 
-  const setMatchesBulk = useCallback(async (newMatches: Omit<Match, 'id'>[]): Promise<string[]> => {
+  /**
+   * 경기 일괄 생성 (스테이지 범위 교체).
+   * options.replaceStages에 속한 스테이지의 기존 pending 경기만 새 경기로 교체한다.
+   * 진행 중/완료 경기와 다른 스테이지의 경기는 삭제하지도, 다시 쓰지도 않는다.
+   */
+  const setMatchesBulk = useCallback(async (
+    newMatches: Omit<Match, 'id'>[],
+    options: { replaceStages: StageReplaceScope },
+  ): Promise<string[]> => {
     if (!tournamentId) return [];
-    // Build new matches keyed by push IDs
-    const bulkData: Record<string, unknown> = {};
-    const ids: string[] = [];
-    for (const match of newMatches) {
-      const clean = JSON.parse(JSON.stringify(match));
-      const newRef = push(ref(database, `matches/${tournamentId}`));
-      bulkData[newRef.key!] = clean;
-      ids.push(newRef.key!);
+    const basePath = `matches/${tournamentId}`;
+    // New matches keyed by push IDs
+    const entries = newMatches.map(match => ({ key: push(ref(database, basePath)).key!, match }));
+    const existingSnap = await get(ref(database, basePath));
+    const existingData = existingSnap.val() as Record<string, Partial<Match>> | null;
+    const updates = buildMatchesBulkUpdate(existingData, entries, options.replaceStages);
+    if (Object.keys(updates).length > 0) {
+      // Multi-path update: matches outside the scope are never rewritten
+      await update(ref(database, basePath), updates);
     }
-    // Merge: preserve in-progress/completed matches, only overwrite pending ones
-    const existingSnap = await get(ref(database, `matches/${tournamentId}`));
-    const existingData = existingSnap.val() as Record<string, Record<string, unknown>> | null;
-    if (existingData) {
-      for (const [key, match] of Object.entries(existingData)) {
-        if (match.status === 'in_progress' || match.status === 'completed') {
-          bulkData[key] = match; // Preserve in-progress/completed matches
-        }
-      }
-    }
-    await set(ref(database, `matches/${tournamentId}`), bulkData);
-    return ids;
+    return entries.map(e => e.key);
   }, [tournamentId]);
 
   /** Batch update multiple matches at once using multi-path update (no transactions) */
-  const updateMatchesBulk = useCallback(async (updates: Array<{ matchId: string; data: Partial<Match> }>) => {
+  const updateMatchesBulk = useCallback(async (updates: Array<{ matchId: string; data: MatchUpdate }>) => {
     if (!tournamentId || updates.length === 0) return;
     const now = Date.now();
     const bulkUpdate: Record<string, unknown> = {};
@@ -567,7 +582,7 @@ export function useMatch(tournamentId: string | null, matchId: string | null) {
     return () => { isMounted = false; unsub(); };
   }, [tournamentId, matchId]);
 
-  const updateMatch = useCallback(async (data: Partial<Match>): Promise<boolean> => {
+  const updateMatch = useCallback(async (data: MatchUpdate): Promise<boolean> => {
     if (!tournamentId || !matchId) return false;
     const path = `matches/${tournamentId}/${matchId}`;
     if (!canWrite(path)) {
@@ -632,24 +647,10 @@ export function useTeams(tournamentId: string | null) {
     return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
+  /** 팀 목록을 주어진 집합으로 정확히 교체한다 (목록에 없는 팀은 삭제됨). */
   const setTeamsBulk = useCallback(async (newTeams: Team[]) => {
     if (!tournamentId) return;
-    // Build new teams data
-    const bulkData: Record<string, Team> = {};
-    for (const team of newTeams) {
-      bulkData[team.id] = team;
-    }
-    // Merge: preserve existing teams not in the new set
-    const existingSnap = await get(ref(database, `teams/${tournamentId}`));
-    const existingData = existingSnap.val() as Record<string, Team> | null;
-    if (existingData) {
-      for (const [key, team] of Object.entries(existingData)) {
-        if (!(key in bulkData)) {
-          bulkData[key] = team; // Preserve existing teams not being replaced
-        }
-      }
-    }
-    await set(ref(database, `teams/${tournamentId}`), bulkData);
+    await set(ref(database, `teams/${tournamentId}`), buildTeamsBulkData(newTeams));
   }, [tournamentId]);
 
   return { teams, loading, setTeamsBulk };
@@ -753,25 +754,20 @@ export function useSchedule(tournamentId: string | null) {
     return () => { isMounted = false; unsub(); };
   }, [tournamentId]);
 
-  const setScheduleBulk = useCallback(async (slots: Omit<ScheduleSlot, 'id'>[]) => {
+  /**
+   * 스케줄을 주어진 슬롯 집합으로 교체한다. 슬롯은 matchId를 키로 저장되어 같은 경기에 슬롯이 중복되지 않는다.
+   * keepMatchIds에 있는 경기의 기존 슬롯은 새 슬롯에 없어도 유지된다 (예: 완료된 경기). 그 외 기존 슬롯은 제거된다.
+   */
+  const setScheduleBulk = useCallback(async (slots: Omit<ScheduleSlot, 'id'>[], keepMatchIds: Iterable<string> = []) => {
     if (!tournamentId) return;
-    // Build new schedule data
-    const bulkData: Record<string, Omit<ScheduleSlot, 'id'>> = {};
-    for (const slot of slots) {
-      const newRef = push(ref(database, `schedule/${tournamentId}`));
-      bulkData[newRef.key!] = slot;
+    const path = `schedule/${tournamentId}`;
+    const keep = [...keepMatchIds];
+    let existingData: Record<string, Omit<ScheduleSlot, 'id'>> | null = null;
+    if (keep.length > 0) {
+      const existingSnap = await get(ref(database, path));
+      existingData = existingSnap.val() as Record<string, Omit<ScheduleSlot, 'id'>> | null;
     }
-    // Merge: preserve existing schedule entries
-    const existingSnap = await get(ref(database, `schedule/${tournamentId}`));
-    const existingData = existingSnap.val() as Record<string, Omit<ScheduleSlot, 'id'>> | null;
-    if (existingData) {
-      for (const [key, slot] of Object.entries(existingData)) {
-        if (!(key in bulkData)) {
-          bulkData[key] = slot; // Preserve existing schedule slots
-        }
-      }
-    }
-    await set(ref(database, `schedule/${tournamentId}`), bulkData);
+    await set(ref(database, path), buildScheduleBulkData(existingData, slots, keep));
   }, [tournamentId]);
 
   /** Update or add a single schedule slot by matchId (no full rewrite) */
@@ -783,9 +779,8 @@ export function useSchedule(tournamentId: string | null) {
       // Update in place
       await update(ref(database, `schedule/${tournamentId}/${existingSlot.id}`), slot);
     } else {
-      // Add new slot
-      const newRef = push(ref(database, `schedule/${tournamentId}`));
-      await set(newRef, slot);
+      // Add new slot, keyed deterministically by matchId (no duplicates)
+      await set(ref(database, `schedule/${tournamentId}/${scheduleSlotKey(slot.matchId)}`), toFirebaseValue(slot));
     }
   }, [tournamentId, schedule]);
 

@@ -14,6 +14,7 @@ import {
   useSchedule,
 } from '@shared/hooks/useFirebase';
 import { simulateTournament } from '@shared/utils/simulation';
+import { notifyTournamentWrite } from '@shared/utils/dataWrites';
 import { getSampleNames } from './AdminSettings';
 import PlayersTab from '../components/tournament-detail/PlayersTab';
 import BracketTab from '../components/tournament-detail/BracketTab';
@@ -229,7 +230,9 @@ export default function TournamentDetail() {
           scheduledDate: schedInfo?.scheduledDate,
         };
       });
-      const actualMatchIds = await setMatchesBulk(remappedMatches);
+      // 시뮬레이션은 대회 전체 데이터를 재생성하므로 모든 스테이지의 pending 경기를 교체한다
+      // (진행 중/완료 경기는 setMatchesBulk가 항상 보존)
+      const actualMatchIds = await setMatchesBulk(remappedMatches, { replaceStages: 'all' });
 
       // sim_match_X → 실제 Firebase ID 매핑
       const matchIdMap = new Map<string, string>();
@@ -246,7 +249,8 @@ export default function TournamentDetail() {
           courtId: simAutoCourt ? (courtIdMap.get(slot.courtId) || slot.courtId) : '',
           courtName: simAutoCourt ? (courtNameMap.get(slot.courtId) || slot.courtName) : '',
         }));
-        await setScheduleBulk(remappedSchedule);
+        // 보존된 진행 중/완료 경기의 기존 슬롯은 유지하고, 나머지는 새 스케줄로 교체
+        await setScheduleBulk(remappedSchedule, matches.filter(m => m.status !== 'pending').map(m => m.id));
       }
 
       // === 심판 배정 업데이트 (실제 match ID로, 타임아웃 포함) ===
@@ -286,7 +290,10 @@ export default function TournamentDetail() {
       setSimProgress(t('admin.tournamentDetail.simulation.updatingStatus'));
       // 모든 경기가 completed이면 대회 완료, 아니면 in_progress
       const allCompleted = result.matches.every(m => m.status === 'completed');
-      await updateTournament({ status: allCompleted ? 'completed' : 'in_progress' });
+      if (!notifyTournamentWrite(await updateTournament({ status: allCompleted ? 'completed' : 'in_progress' }), t)) {
+        setSimProgress(t('admin.tournamentDetail.simulation.statusNotSaved', { count: result.matches.length }));
+        return;
+      }
 
       setSimProgress(t('admin.tournamentDetail.simulation.completed', { count: result.matches.length, status: allCompleted ? t('common.tournamentStatus.completed') : t('common.tournamentStatus.inProgress') }));
       // 10초 후 메시지 클리어
@@ -296,7 +303,7 @@ export default function TournamentDetail() {
       setSimProgress(t('admin.tournamentDetail.simulation.error'));
       // 에러 발생해도 대회 상태는 in_progress로 업데이트 시도
       try {
-        await updateTournament({ status: 'in_progress' });
+        notifyTournamentWrite(await updateTournament({ status: 'in_progress' }), t);
       } catch (statusErr) {
         console.error('상태 업데이트 실패:', statusErr);
       }

@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { calculateMatchCount } from '@shared/utils/tournament';
-import { showWarning, showSuccess } from '@shared/utils/toast';
+import { showWarning } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
-import type { Match, MatchStatus, ScheduleSlot, Tournament } from '@shared/types';
+import { CLEARED_SCHEDULE_FIELDS, buildManualScheduleUpdate, combineWriteResults, notifyWriteOutcome, scheduleKeepMatchIds, type WriteResult } from '@shared/utils/dataWrites';
+import type { Match, MatchStatus, MatchUpdate, ScheduleSlot, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -37,9 +38,10 @@ export interface ScheduleTabProps {
   courts: { id: string; name: string }[];
   referees: { id: string; name: string }[];
   schedule: ScheduleSlot[];
-  setScheduleBulk: (slots: Omit<ScheduleSlot, 'id'>[]) => Promise<void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
-  updateMatchesBulk: (updates: Array<{ matchId: string; data: Partial<Match> }>) => Promise<void>;
+  /** keepMatchIds: 새 슬롯에 없어도 기존 슬롯을 유지할 경기 ID */
+  setScheduleBulk: (slots: Omit<ScheduleSlot, 'id'>[], keepMatchIds?: Iterable<string>) => Promise<void>;
+  updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
+  updateMatchesBulk: (updates: Array<{ matchId: string; data: MatchUpdate }>) => Promise<void>;
   updateScheduleSlot: (slot: Omit<ScheduleSlot, 'id'>) => Promise<void>;
   participantCount: number;
 }
@@ -149,19 +151,15 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
     setScheduleConflict('');
     setSavingMatchId(matchId);
     try {
-      const matchData: Partial<Match> = {
-        scheduledDate: edit.scheduledDate || undefined,
-        scheduledTime: edit.scheduledTime || undefined,
-        courtId: edit.courtId || undefined,
-        courtName: edit.courtName || undefined,
-      };
+      // 비운 필드는 null로 보내 Firebase에서 삭제한다
+      const matchData = buildManualScheduleUpdate(edit);
       // 매치 + 스케줄 슬롯을 동시에 업데이트
       const match = matches.find(m => m.id === matchId);
       const existingSlot = schedule.find(s => s.matchId === matchId);
       const label = match?.type === 'individual'
         ? `${match.player1Name ?? ''} vs ${match.player2Name ?? ''}`
         : `${match?.team1Name ?? ''} vs ${match?.team2Name ?? ''}`;
-      await Promise.all([
+      const [matchResult] = await Promise.all([
         updateMatch(matchId, matchData),
         updateScheduleSlot({
           matchId,
@@ -173,27 +171,33 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
           status: existingSlot?.status || match?.status || 'pending',
         }),
       ]);
-      setManualEdits(prev => { const next = { ...prev }; delete next[matchId]; return next; });
+      // 실패 시 편집 내용을 유지해 다시 저장할 수 있게 한다
+      if (notifyWriteOutcome(combineWriteResults([matchResult]), t) !== 'failed') {
+        setManualEdits(prev => { const next = { ...prev }; delete next[matchId]; return next; });
+      }
     } finally {
       setSavingMatchId(null);
     }
-  }, [manualEdits, matches, schedule, updateMatch, updateScheduleSlot, checkPlayerTimeConflict]);
+  }, [manualEdits, matches, schedule, updateMatch, updateScheduleSlot, checkPlayerTimeConflict, t]);
 
   const handleResetSchedule = useCallback(async () => {
     if (!await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.resetConfirm'), destructive: true })) return;
     setResettingSchedule(true);
     try {
+      const results: WriteResult[] = [];
       for (const match of matches) {
         if (match.scheduledDate || match.scheduledTime) {
-          await updateMatch(match.id, { scheduledDate: undefined, scheduledTime: undefined, courtId: undefined, courtName: undefined });
+          // null = Firebase에서 필드 삭제 (undefined는 무시되어 값이 남는다)
+          results.push(await updateMatch(match.id, CLEARED_SCHEDULE_FIELDS));
         }
       }
       await setScheduleBulk([]);
       setManualEdits({});
+      notifyWriteOutcome(combineWriteResults(results), t);
     } finally {
       setResettingSchedule(false);
     }
-  }, [matches, updateMatch, setScheduleBulk]);
+  }, [matches, updateMatch, setScheduleBulk, t]);
 
   const sortedMatches = useMemo(() => {
     return [...matches].sort((a, b) => {
@@ -384,25 +388,14 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
       // 배치 업데이트: 모든 매치를 한번에 저장
       await updateMatchesBulk(batchUpdates);
 
-      // If only assigning unassigned, keep existing schedule slots
-      if (onlyUnassigned) {
-        const existingSlots = schedule.map(s => ({
-          matchId: s.matchId,
-          courtId: s.courtId,
-          courtName: s.courtName,
-          scheduledTime: s.scheduledTime,
-          scheduledDate: s.scheduledDate,
-          label: s.label,
-          status: s.status,
-        }));
-        await setScheduleBulk([...existingSlots, ...newSlots]);
-      } else {
-        await setScheduleBulk(newSlots);
-      }
+      // 슬롯은 matchId 기준으로 저장되므로 재생성해도 누적되지 않는다.
+      // - 미배정만 배정: 기존 경기의 기존 슬롯은 모두 유지
+      // - 전체 재배정: 이번에 다시 배정하지 않은 완료 경기의 슬롯만 유지
+      await setScheduleBulk(newSlots, scheduleKeepMatchIds(matches, onlyUnassigned));
     } finally {
       setGenerating(false);
     }
-  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, schedule, setScheduleBulk, updateMatch, expectedMatchCount.total, t, breakStart, breakEnd]);
+  }, [matches, courts, startTime, interval, endTime, restInterval, nextDayStartTime, scheduleDate, onlyUnassigned, setScheduleBulk, updateMatchesBulk, expectedMatchCount.total, t, breakStart, breakEnd]);
 
   // Group schedule by date, then by time
   const dates = useMemo(() => {
@@ -616,6 +609,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                   const target = matches.filter(m => m.scheduledTime && (!shiftCourtId || m.courtId === shiftCourtId));
                   if (target.length === 0) return;
                   if (!await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.shiftConfirm', { count: target.length, minutes: shiftMinutes }) })) return;
+                  const shiftResults: WriteResult[] = [];
                   for (const m of target) {
                     const [h, min] = (m.scheduledTime || '00:00').split(':').map(Number);
                     let total = h * 60 + min + shiftMinutes;
@@ -624,9 +618,9 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                     while (total >= 1440) { total -= 1440; ds++; }
                     const newTime = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
                     const newDate = ds !== 0 && m.scheduledDate ? (() => { const d = new Date(m.scheduledDate!); d.setDate(d.getDate() + ds); return d.toISOString().split('T')[0]; })() : m.scheduledDate;
-                    await updateMatch(m.id, { scheduledTime: newTime, ...(newDate ? { scheduledDate: newDate } : {}) });
+                    shiftResults.push(await updateMatch(m.id, { scheduledTime: newTime, ...(newDate ? { scheduledDate: newDate } : {}) }));
                   }
-                  showSuccess(shiftMinutes > 0
+                  notifyWriteOutcome(combineWriteResults(shiftResults), t, shiftMinutes > 0
                     ? t('admin.tournamentDetail.scheduleTab.shiftCompleteForward', { count: target.length, minutes: shiftMinutes })
                     : t('admin.tournamentDetail.scheduleTab.shiftCompleteBackward', { count: target.length, minutes: -shiftMinutes }));
                 }}
@@ -665,10 +659,11 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
                 if (target.length === 0) { showWarning(t('admin.tournamentDetail.scheduleTab.noMatchesToMove')); return; }
                 const toName = courts.find(c => c.id === moveToCourt)?.name || '';
                 if (!await showConfirm({ message: t('admin.tournamentDetail.scheduleTab.courtMoveConfirm', { count: target.length, court: toName }) })) return;
+                const moveResults: WriteResult[] = [];
                 for (const m of target) {
-                  await updateMatch(m.id, { courtId: moveToCourt, courtName: toName });
+                  moveResults.push(await updateMatch(m.id, { courtId: moveToCourt, courtName: toName }));
                 }
-                showSuccess(t('admin.tournamentDetail.scheduleTab.courtMoveComplete', { count: target.length }));
+                notifyWriteOutcome(combineWriteResults(moveResults), t, t('admin.tournamentDetail.scheduleTab.courtMoveComplete', { count: target.length }));
                 setMoveFromCourt(''); setMoveToCourt('');
               }}
               aria-label={t('admin.tournamentDetail.scheduleTab.courtMoveAriaLabel')}

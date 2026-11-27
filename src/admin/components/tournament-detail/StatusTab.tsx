@@ -4,8 +4,9 @@ import { push, set, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
 import { showSuccess, showError } from '@shared/utils/toast';
+import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, type WriteResult } from '@shared/utils/dataWrites';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
-import type { Match, Team, Player, MatchStatus, SetScore, ScoreHistoryEntry, Tournament } from '@shared/types';
+import type { Match, MatchUpdate, Team, Player, MatchStatus, SetScore, ScoreHistoryEntry, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -39,7 +40,7 @@ export interface StatusTabProps {
   tournament: Tournament;
   matches: Match[];
   updateTournament: (data: Record<string, unknown>) => Promise<boolean | void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
+  updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
   isTeamType: boolean;
   tournamentPlayers: Player[];
   teams: Team[];
@@ -146,8 +147,8 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
   }, [filtered]);
 
   const handleStatusChange = useCallback(async (newStatus: 'in_progress' | 'paused' | 'completed') => {
-    await updateTournament({ status: newStatus });
-  }, [updateTournament]);
+    notifyTournamentWrite(await updateTournament({ status: newStatus }), t);
+  }, [updateTournament, t]);
 
   const handleAdvanceToFinals = async () => {
     // 1. 조별 순위 계산
@@ -239,7 +240,11 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
       await set(matchRef, match);
     }
 
-    await updateTournament({ currentStageId: finalsStageId });
+    // 단계 전환이 저장되지 않았으면 성공 알림을 띄우지 않는다 (경기는 이미 생성됨을 알림)
+    if (await updateTournament({ currentStageId: finalsStageId }) === false) {
+      showError(t('admin.tournamentDetail.statusTab.advanceToFinalsStageNotSaved', { count: finalsMatches.length }));
+      return;
+    }
     showSuccess(t('admin.tournamentDetail.statusTab.advanceToFinalsAlert', { count: finalsMatches.length }));
   };
 
@@ -302,13 +307,19 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
 
       const existingHistory = toArray(correctionMatch.scoreHistory);
 
-      await updateMatch(correctionMatch.id, {
+      const result = await updateMatch(correctionMatch.id, {
         sets: newSets,
         winnerId: newWinnerId,
         scoreHistory: [...existingHistory, historyEntry],
       });
 
-      showSuccess(t('admin.tournamentDetail.statusTab.scoreCorrected'));
+      // 큐에 저장된 경우 "저장됨"이 아니라 "연결되면 동기화"로 안내. 실패 시 모달 유지.
+      const outcome = combineWriteResults([result]);
+      if (outcome === 'failed') {
+        showError(t('admin.tournamentDetail.statusTab.scoreCorrectionError'));
+        return;
+      }
+      notifyWriteOutcome(outcome, t, t('admin.tournamentDetail.statusTab.scoreCorrected'));
       closeCorrectionModal();
     } catch (err) {
       console.error('점수 수정 오류:', err);
@@ -361,16 +372,22 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
         winnerId: walkoverWinnerId,
       }));
 
-      await updateMatch(walkoverMatch.id, {
+      const result = await updateMatch(walkoverMatch.id, {
         status: 'completed',
         winnerId: walkoverWinnerId,
         walkover: true,
         walkoverReason: walkoverReason.trim(),
         sets: walkoverSets,
         scoreHistory: [...existingHistory, historyEntry],
-      } as Partial<Match>);
+      });
 
-      showSuccess(t('admin.tournamentDetail.statusTab.walkoverProcessed'));
+      // 큐에 저장된 경우 "처리됨"이 아니라 "연결되면 동기화"로 안내. 실패 시 모달 유지.
+      const outcome = combineWriteResults([result]);
+      if (outcome === 'failed') {
+        showError(t('admin.tournamentDetail.statusTab.walkoverError'));
+        return;
+      }
+      notifyWriteOutcome(outcome, t, t('admin.tournamentDetail.statusTab.walkoverProcessed'));
       closeWalkoverModal();
     } catch (err) {
       console.error('부전승 처리 오류:', err);

@@ -4,7 +4,8 @@ import { createEmptySet } from '@shared/utils/scoring';
 import { showWarning, showSuccess } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
 import { buildGroupAssignment, calculateMatchCount } from '@shared/utils/tournament';
-import type { Match, Team, Player, StageGroup, Tournament } from '@shared/types';
+import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, replaceStagesFor, type StageReplaceScope, type WriteResult } from '@shared/utils/dataWrites';
+import type { Match, MatchUpdate, Team, Player, StageGroup, Tournament } from '@shared/types';
 import GroupAssignmentSection from './GroupAssignmentSection';
 import FinalsSection from './FinalsSection';
 import MatchListSection from './MatchListSection';
@@ -23,8 +24,8 @@ export interface BracketTabProps {
   matches: Match[];
   tournamentPlayers: Player[];
   teams: Team[];
-  setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<string[] | void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
+  setMatchesBulk: (matches: Omit<Match, 'id'>[], options: { replaceStages: StageReplaceScope }) => Promise<string[] | void>;
+  updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
   addMatch: (match: Omit<Match, 'id'>) => Promise<string | null>;
   deleteMatch: (matchId: string) => Promise<void>;
   updateTournament: (data: Record<string, unknown>) => Promise<boolean | void>;
@@ -96,7 +97,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       const updatedStages = toArray(tournament.stages).map(s =>
         s.id === qualifyingStage.id ? { ...s, groups: updatedGroups } : s
       );
-      await updateTournament({ stages: updatedStages });
+      notifyTournamentWrite(await updateTournament({ stages: updatedStages }), t);
     }
   };
 
@@ -117,7 +118,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       const updatedStages = toArray(tournament.stages).map(s =>
         s.id === qualifyingStage.id ? { ...s, groups } : s
       );
-      await updateTournament({ stages: updatedStages });
+      notifyTournamentWrite(await updateTournament({ stages: updatedStages }), t);
     }
   };
 
@@ -287,28 +288,31 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
         return;
       }
 
-      await setMatchesBulk(newMatches);
+      // 이번에 생성하는 스테이지(조별 예선 또는 stageId 없는 풀리그)의 pending 경기만 교체.
+      // 본선 등 다른 스테이지의 경기는 보존된다.
+      await setMatchesBulk(newMatches, { replaceStages: replaceStagesFor(newMatches) });
     } finally {
       setGenerating(false);
     }
   }, [isTeamType, tournamentPlayers, teams, tournament.id, setMatchesBulk, groupAssignment, tournament.stages, matches, t, expectedMatchCount.total]);
 
   const handleAssign = useCallback(async (matchId: string, field: 'refereeId' | 'courtId' | 'assistantRefereeId', value: string) => {
-    const data: Partial<Match> = { [field]: value || undefined };
+    // 빈 값(미배정 선택)은 null로 보내 Firebase에서 필드를 삭제한다
+    const data: MatchUpdate = { [field]: value || null };
     if (field === 'refereeId') {
       const found = referees.find(r => r.id === value);
-      data.refereeName = found?.name ?? undefined;
+      data.refereeName = found?.name ?? null;
     }
     if (field === 'assistantRefereeId') {
       const found = referees.find(r => r.id === value);
-      data.assistantRefereeName = found?.name ?? undefined;
+      data.assistantRefereeName = found?.name ?? null;
     }
     if (field === 'courtId') {
       const found = courts.find(c => c.id === value);
-      data.courtName = found?.name ?? undefined;
+      data.courtName = found?.name ?? null;
     }
-    await updateMatch(matchId, data);
-  }, [updateMatch, referees, courts]);
+    notifyWriteOutcome(combineWriteResults([await updateMatch(matchId, data)]), t);
+  }, [updateMatch, referees, courts, t]);
 
   const handleBulkAssignReferees = useCallback(async () => {
     const unassigned = matches.filter(m => !m.refereeId && m.status !== 'completed');
@@ -318,9 +322,9 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       const ref = referees[i % referees.length];
       return updateMatch(match.id, { refereeId: ref.id, refereeName: ref.name });
     });
-    await Promise.all(updates);
-    showSuccess(t('admin.tournamentDetail.bracketTab.bulkRefereeAlert', { count: unassigned.length }));
-  }, [matches, referees, updateMatch]);
+    const results = await Promise.all(updates);
+    notifyWriteOutcome(combineWriteResults(results), t, t('admin.tournamentDetail.bracketTab.bulkRefereeAlert', { count: unassigned.length }));
+  }, [matches, referees, updateMatch, t]);
 
   const handleAddMatch = useCallback(async () => {
     if (!addPlayer1 || !addPlayer2 || addPlayer1 === addPlayer2) return;
@@ -417,11 +421,12 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
 
   const handleEditMatch = useCallback(async () => {
     if (!editingMatchId || !editPlayer1 || !editPlayer2 || editPlayer1 === editPlayer2) return;
+    let result: WriteResult;
     if (isTeamType) {
       const t1 = teams.find(t => t.id === editPlayer1);
       const t2 = teams.find(t => t.id === editPlayer2);
       if (!t1 || !t2) return;
-      await updateMatch(editingMatchId, {
+      result = await updateMatch(editingMatchId, {
         team1Id: t1.id,
         team2Id: t2.id,
         team1Name: t1.name,
@@ -433,15 +438,16 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       const p1 = tournamentPlayers.find(p => p.id === editPlayer1);
       const p2 = tournamentPlayers.find(p => p.id === editPlayer2);
       if (!p1 || !p2) return;
-      await updateMatch(editingMatchId, {
+      result = await updateMatch(editingMatchId, {
         player1Id: p1.id,
         player2Id: p2.id,
         player1Name: p1.name,
         player2Name: p2.name,
       });
     }
-    setEditingMatchId(null);
-  }, [editingMatchId, editPlayer1, editPlayer2, isTeamType, teams, tournamentPlayers, updateMatch]);
+    // 실패 시 편집 상태를 유지해 다시 저장할 수 있게 한다
+    if (notifyWriteOutcome(combineWriteResults([result]), t) !== 'failed') setEditingMatchId(null);
+  }, [editingMatchId, editPlayer1, editPlayer2, isTeamType, teams, tournamentPlayers, updateMatch, t]);
 
   const handleSwapRound = useCallback(async (matchId: string, direction: 'up' | 'down') => {
     const sorted = [...matches].sort((a, b) => (a.round ?? 0) - (b.round ?? 0));
@@ -451,11 +457,12 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
     if (targetIdx < 0 || targetIdx >= sorted.length) return;
     const currentMatch = sorted[idx];
     const targetMatch = sorted[targetIdx];
-    await Promise.all([
+    const results = await Promise.all([
       updateMatch(currentMatch.id, { round: targetMatch.round }),
       updateMatch(targetMatch.id, { round: currentMatch.round }),
     ]);
-  }, [matches, updateMatch]);
+    notifyWriteOutcome(combineWriteResults(results), t);
+  }, [matches, updateMatch, t]);
 
   const hasActiveMatches = matches.some(m => m.status === 'in_progress');
   const canGenerate = (isTeamType ? teams.length >= 2 : tournamentPlayers.length >= 2) && !hasActiveMatches;
@@ -518,7 +525,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
                   : t('admin.tournamentDetail.bracketTab.confirmBracket');
                 if (await showConfirm({ message: msg })) {
                   if (tournament.status !== 'in_progress') {
-                    await updateTournament({ status: 'in_progress' });
+                    if (!notifyTournamentWrite(await updateTournament({ status: 'in_progress' }), t)) return;
                   }
                   showSuccess(t('admin.tournamentDetail.bracketTab.bracketConfirmed'));
                 }

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Player, Team, SeedEntry, Tournament } from '@shared/types';
 import { showWarning } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
+import { notifyTournamentWrite } from '@shared/utils/dataWrites';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -205,7 +206,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
   };
 
   const saveSeeds = async () => {
-    await updateTournament({ seeds });
+    notifyTournamentWrite(await updateTournament({ seeds }), t);
   };
 
   const handleBulkAdd = useCallback(async () => {
@@ -668,7 +669,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                 const stages = existingQualifying
                   ? existingStages.map(s => s.id === existingQualifying.id ? updatedStage : s)
                   : [updatedStage, ...existingStages];
-                await updateTournament({
+                notifyTournamentWrite(await updateTournament({
                   seeds,
                   stages,
                   qualifyingConfig: {
@@ -676,7 +677,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     groupCount,
                     format: 'group_round_robin',
                   },
-                });
+                }), t);
               }}
               aria-label={t('admin.tournamentDetail.topSeedSection.saveAndCreateGroupsAriaLabel')}
             >
@@ -729,7 +730,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                   ? existingStages.map(s => s.id === existingFinals.id ? updatedFinals : s)
                   : [...existingStages, updatedFinals];
 
-                await updateTournament({
+                notifyTournamentWrite(await updateTournament({
                   stages,
                   finalsConfig: {
                     ...(typeof tournament.finalsConfig === 'object' && tournament.finalsConfig ? tournament.finalsConfig : {}),
@@ -739,7 +740,7 @@ function PlayersTab({ tournament, tournamentPlayers, globalPlayers, addTournamen
                     startingRound: startRound,
                     seedMethod: 'manual',
                   },
-                });
+                }), t);
               }}
               aria-label={t('admin.tournamentDetail.finalsSetupInline.advancePerGroupAriaLabel')}
             />

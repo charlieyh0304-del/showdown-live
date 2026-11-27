@@ -436,6 +436,13 @@ export interface Match {
   updatedAt?: number;
 }
 
+/**
+ * 경기 부분 업데이트 데이터.
+ * - undefined: 해당 필드를 건드리지 않음 (쓰기 전에 제거됨)
+ * - null: 해당 필드를 Firebase에서 삭제 (값 지우기)
+ */
+export type MatchUpdate = { [K in keyof Match]?: Match[K] | null };
+
 // ===== 팀 =====
 export interface Team {
   id: string;

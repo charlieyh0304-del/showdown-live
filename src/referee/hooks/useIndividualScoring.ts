@@ -77,7 +77,7 @@ export function useIndividualScoring(
   const syncCoachToFirebase = useCallback((field: 'player1Coach' | 'player2Coach', value: string) => {
     if (coachSyncTimer.current) clearTimeout(coachSyncTimer.current);
     coachSyncTimer.current = setTimeout(() => {
-      updateMatch({ [field]: value || undefined });
+      updateMatch({ [field]: value || null }); // 빈 값 = 코치 삭제 (null), undefined는 무시됨
     }, 500);
   }, [updateMatch]);
   // Penalty & timeout dropdowns

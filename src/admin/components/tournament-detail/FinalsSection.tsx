@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
-import { showWarning, showSuccess } from '@shared/utils/toast';
-import type { Match, Team, Player, Tournament } from '@shared/types';
+import { showWarning } from '@shared/utils/toast';
+import { combineWriteResults, notifyWriteOutcome, replaceStagesFor, type StageReplaceScope, type WriteResult } from '@shared/utils/dataWrites';
+import type { Match, MatchUpdate, Team, Player, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
 function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
@@ -58,8 +59,8 @@ export interface FinalsSectionProps {
   isTeamType: boolean;
   isManualMode: boolean;
   expectedMatchCount: { total: number };
-  setMatchesBulk: (matches: Omit<Match, 'id'>[]) => Promise<string[] | void>;
-  updateMatch: (matchId: string, data: Partial<Match>) => Promise<boolean | void>;
+  setMatchesBulk: (matches: Omit<Match, 'id'>[], options: { replaceStages: StageReplaceScope }) => Promise<string[] | void>;
+  updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
 }
 
 export default function FinalsSection({
@@ -191,7 +192,8 @@ export default function FinalsSection({
                     createdAt: now + i,
                   });
                 }
-                await setMatchesBulk(newMatches);
+                // 본선 스테이지만 교체 범위로 지정: 대기 중인 예선 경기는 보존된다
+                await setMatchesBulk(newMatches, { replaceStages: replaceStagesFor(newMatches) });
               }}
               aria-label={t('admin.tournamentDetail.bracketTab.createFinalsSlotsAriaLabel')}
             >
@@ -255,6 +257,7 @@ export default function FinalsSection({
     }
 
     const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+    const results: WriteResult[] = [];
     for (let i = 0; i < Math.min(pairs.length, sortedFinals.length); i++) {
       const [p1, p2] = pairs[i];
       const matchData: Partial<Match> = isTeamType ? {
@@ -266,9 +269,9 @@ export default function FinalsSection({
         player1Name: idToName.get(p1) || p1,
         player2Name: idToName.get(p2) || p2,
       };
-      await updateMatch(sortedFinals[i].id, matchData);
+      results.push(await updateMatch(sortedFinals[i].id, matchData));
     }
-    showSuccess(t('admin.tournamentDetail.bracketTab.finalsArranged'));
+    notifyWriteOutcome(combineWriteResults(results), t, t('admin.tournamentDetail.bracketTab.finalsArranged'));
   };
 
   const handleSlotChange = async (matchId: string, slot: 'player1' | 'player2', newId: string) => {
@@ -276,7 +279,7 @@ export default function FinalsSection({
     const matchData: Partial<Match> = isTeamType
       ? (slot === 'player1' ? { team1Id: newId, team1Name: name } : { team2Id: newId, team2Name: name })
       : (slot === 'player1' ? { player1Id: newId, player1Name: name } : { player2Id: newId, player2Name: name });
-    await updateMatch(matchId, matchData);
+    notifyWriteOutcome(combineWriteResults([await updateMatch(matchId, matchData)]), t);
   };
 
   const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
