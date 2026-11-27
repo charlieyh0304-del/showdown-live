@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAccessibility, type ColorMode } from '../hooks/useAccessibility';
+import { isVoiceEnabled, setVoiceEnabled, subscribeVoice } from '../utils/voicePreference';
 
 export default function AccessibilityMenu() {
   const [open, setOpen] = useState(false);
@@ -9,6 +10,8 @@ export default function AccessibilityMenu() {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [voiceOn, setVoiceOn] = useState(isVoiceEnabled);
+  useEffect(() => subscribeVoice(setVoiceOn), []);
 
   // Escape key closes menu; focus trap inside panel
   useEffect(() => {
@@ -50,6 +53,12 @@ export default function AccessibilityMenu() {
     setFontSize(size);
     const label = size === 'normal' ? t('common.accessibility.fontSizeNormal') : size === 'large' ? t('common.accessibility.fontSizeLarge') : t('common.accessibility.fontSizeXLarge');
     setAnnouncement(t('common.accessibility.fontSizeChanged', { label }));
+  };
+
+  const handleVoice = () => {
+    const next = !voiceOn;
+    setVoiceEnabled(next);
+    setAnnouncement(next ? t('common.accessibility.voiceTurnedOn') : t('common.accessibility.voiceTurnedOff'));
   };
 
   return (
@@ -119,6 +128,22 @@ export default function AccessibilityMenu() {
                   </button>
                 ))}
               </div>
+            </fieldset>
+
+            {/* Voice announcements (default off) */}
+            <fieldset>
+              <legend className="font-semibold mb-2">{t('common.accessibility.voiceAnnouncements')}</legend>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={voiceOn}
+                aria-describedby="a11y-voice-help"
+                onClick={handleVoice}
+                className={`btn w-full ${voiceOn ? 'btn-primary ring-2 ring-yellow-400' : 'bg-gray-700 text-white'}`}
+              >
+                {voiceOn ? t('common.accessibility.voiceOn') : t('common.accessibility.voiceOff')}
+              </button>
+              <p id="a11y-voice-help" className="text-sm text-gray-400 mt-1">{t('common.accessibility.voiceHelp')}</p>
             </fieldset>
 
             <button

@@ -177,6 +177,12 @@
       "selected": "Selected",
       "switchedTo": "Switched to {{label}}",
       "fontSizeChanged": "Font size changed to {{label}}",
+      "voiceAnnouncements": "Voice announcements",
+      "voiceOn": "Voice announcements on",
+      "voiceOff": "Voice announcements off",
+      "voiceHelp": "Reads out scores, serves, timers and more. Screen reader users hear the same information with this off. Saved on this device only.",
+      "voiceTurnedOn": "Voice announcements turned on",
+      "voiceTurnedOff": "Voice announcements turned off",
       "modeLabel": "{{label}} mode {{selected}}",
       "fontSizeLabel": "Font size {{label}} {{selected}}"
     },

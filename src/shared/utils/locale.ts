@@ -1,3 +1,5 @@
+import { isVoiceEnabled } from './voicePreference';
+
 /**
  * Returns the current locale string based on language setting.
  * Used for toLocaleTimeString, toLocaleDateString, etc.
@@ -48,9 +50,10 @@ export function preWarmSpeech() {
   speechPreWarmed = true;
 }
 
-/** TTS helper: speak text using Web Speech API (iOS/Android compatible) */
+/** TTS helper: speak text using Web Speech API (iOS/Android compatible). 음성 안내 설정이 꺼져 있으면(기본) 아무것도 하지 않는다. */
 export function speak(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  if (!isVoiceEnabled()) return;
   window.speechSynthesis.cancel();
   const doSpeak = () => {
     const utterance = new SpeechSynthesisUtterance(text);
