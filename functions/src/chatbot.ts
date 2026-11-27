@@ -196,16 +196,28 @@ export const chatbot = onRequest(
       throw new Error("API overloaded after retries");
     }
 
+    let currentModel = MODELS[0];
+
+    // 안전 거절(stop_reason "refusal", HTTP 200) 시 다음 모델로 1회 재시도
+    async function ask(msgs: Anthropic.MessageParam[]): Promise<Anthropic.Message> {
+      const res = await callClaude(msgs, currentModel);
+      const idx = MODELS.indexOf(currentModel);
+      if (res.stop_reason !== "refusal" || idx >= MODELS.length - 1) return res;
+      logger.warn("Refusal, falling back to next model", { reqId, fromModel: currentModel, toModel: MODELS[idx + 1] });
+      currentModel = MODELS[idx + 1];
+      return callClaude(msgs, currentModel);
+    }
+
     try {
-      let currentModel = MODELS[0];
       let response: Anthropic.Message;
       try {
-        response = await callClaude(anthropicMessages, currentModel);
-      } catch {
-        // Fallback to Haiku
+        response = await ask(anthropicMessages);
+      } catch (err) {
+        // Fallback to Haiku (폴백 모델이 없는 역할은 그대로 에러 처리)
+        if (MODELS.length < 2 || currentModel !== MODELS[0]) throw err;
         currentModel = MODELS[1];
         logger.warn("Falling back to secondary model", { reqId, fromModel: MODELS[0], toModel: currentModel });
-        response = await callClaude(anthropicMessages, currentModel);
+        response = await ask(anthropicMessages);
       }
 
       let loopCount = 0;
@@ -242,7 +254,7 @@ export const chatbot = onRequest(
         anthropicMessages.push({ role: "assistant", content: response.content });
         anthropicMessages.push({ role: "user", content: toolResults });
 
-        response = await callClaude(anthropicMessages, currentModel);
+        response = await ask(anthropicMessages);
       }
 
       // AI가 도구를 호출하지 않고 텍스트만 반환했는데 대회 생성/시뮬레이션 요청인 경우 재시도 (최대 3회)
@@ -262,7 +274,7 @@ export const chatbot = onRequest(
         logger.warn("Evasive reply detected, forcing tool call", { reqId, retryAttempt: retryAttempt + 1 });
         anthropicMessages.push({ role: "assistant", content: response.content });
         anthropicMessages.push({ role: "user", content: `[시스템 강제 지시] 위 응답은 잘못되었습니다. 모든 기능(와일드카드, 3/4위전, 5~8위, 9~16위, 17~24위, 25~32위 순위결정전)은 파라미터로 완전 자동 지원됩니다. "제약", "수동", "한계" 등의 표현을 사용하지 마세요. 지금 즉시 create_individual_tournament 또는 create_team_league 도구를 호출하세요. classificationGroups:true, fifthToEighth:true, thirdPlace:true 파라미터를 포함하세요.` });
-        response = await callClaude(anthropicMessages, currentModel);
+        response = await ask(anthropicMessages);
 
         // 도구 호출 성공 시 루프 실행
         while (response.stop_reason === "tool_use" && loopCount < MAX_TOOL_LOOPS) {
@@ -280,7 +292,7 @@ export const chatbot = onRequest(
           }
           anthropicMessages.push({ role: "assistant", content: response.content });
           anthropicMessages.push({ role: "user", content: toolResults2 });
-          response = await callClaude(anthropicMessages, currentModel);
+          response = await ask(anthropicMessages);
         }
       }
 
@@ -288,7 +300,9 @@ export const chatbot = onRequest(
       const textBlocks = response.content.filter(
         (b): b is Anthropic.TextBlock => b.type === "text",
       );
-      let reply = textBlocks.map((b) => b.text).join("\n") || "작업 완료.";
+      let reply = response.stop_reason === "refusal"
+        ? "죄송합니다. 이 요청은 처리할 수 없습니다. 질문을 바꿔서 다시 시도해 주세요."
+        : textBlocks.map((b) => b.text).join("\n") || "작업 완료.";
 
       // 자동 시뮬레이션: 대회 생성 후 run_full_simulation이 호출되지 않았고 사용자가 시뮬레이션을 요청한 경우 강제 실행
       const hasCreate = actions.some(a => a.tool === "create_individual_tournament" || a.tool === "create_team_league");
