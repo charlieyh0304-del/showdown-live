@@ -52,7 +52,6 @@ export default function SettingsSection({ hasRomanNames, showRoman, onShowRomanC
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <p style={{ color: '#d1d5db' }}>{t('spectator.settings.a11yHint')}</p>
 
       <section aria-labelledby={`${uid}-notify`} className="card">
         <h3 id={`${uid}-notify`} style={{ fontSize: '1.125rem', fontWeight: 'bold' }}>{t('spectator.settings.notifyTitle')}</h3>

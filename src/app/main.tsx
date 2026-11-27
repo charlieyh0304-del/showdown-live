@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import '@shared/i18n';
+import { resetPracticeDataOnce } from '@shared/utils/practiceDataReset';
+
+// 연습 모드 기록 1회 초기화 (기기별 저장소에만 있는 데이터)
+resetPracticeDataOnce();
 
 // Apply saved accessibility settings before first render to prevent flash
 const savedAccessibility = localStorage.getItem('showdown_accessibility');

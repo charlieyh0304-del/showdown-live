@@ -2303,7 +2303,6 @@
       "liveNow": "{{count}} in progress now"
     },
     "settings": {
-      "a11yHint": "Text size and colours are in the accessibility button at the bottom right.",
       "notifyTitle": "Favourite player alerts",
       "notifyHelp": "Get an alert 10 minutes before a favourite player's match and when the result is in, even with the app closed. Turning this on asks the browser for permission.",
       "notifyPrivacy": "Only this device's push address and your favourite player numbers are stored on the server. Turning alerts off deletes them.",
