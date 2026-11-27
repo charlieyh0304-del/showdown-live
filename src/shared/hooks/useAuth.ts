@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ref, get } from 'firebase/database';
 import { signInWithCustomToken, signOut } from 'firebase/auth';
-import { database, auth } from '../config/firebase';
+import { database, auth, authReady } from '../config/firebase';
 import type { AuthSession } from '../types';
 
 const AUTH_KEY = 'showdown_auth';
@@ -115,22 +115,27 @@ export function useAuth() {
   return { session, isAdmin, isReferee, loginAdmin, loginReferee, logout };
 }
 
-// 관리자 PIN 설정 여부 확인 (admins/ 또는 config/adminPin 존재)
+// 관리자 PIN 설정 여부 확인 (config/adminExists 플래그)
 export function useAdminPinExists() {
   const [exists, setExists] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      // config/adminExists는 공개 읽기 — PIN 해시 노출 없이 존재 여부만 확인
-      const existsSnap = await get(ref(database, 'config/adminExists'));
-      if (!cancelled && existsSnap.val() === true) {
-        setExists(true);
-        return;
+      try {
+        // config/adminExists는 공개 읽기 (DB 규칙: .read true) — authReady는 연결 안정화용으로만 대기
+        // 전체 체크에 8초 타임아웃 — authReady pending 또는 get() 무응답 방어
+        const result = await withTimeout((async () => {
+          await authReady.catch(() => {});
+          const snap = await get(ref(database, 'config/adminExists'));
+          return snap.val() === true;
+        })(), 8000);
+        if (!cancelled) setExists(result);
+      } catch (err) {
+        // 실패 시 로그인 화면으로 폴백 — 이미 설정된 사용자가 PIN 재설정으로 잘못 유도되지 않도록
+        if (import.meta.env.DEV) console.warn('[useAdminPinExists] check failed:', err);
+        if (!cancelled) setExists(true);
       }
-      // 레거시 호환: config/adminPin 존재 여부 (해시 값은 DB 규칙으로 읽기 차단)
-      const configSnap = await get(ref(database, 'config/adminPin'));
-      if (!cancelled) setExists(!!configSnap.val());
     }
     check();
     return () => { cancelled = true; };

@@ -7,7 +7,7 @@
         ".validate": "newData.isString() && newData.val().length >= 10"
       },
       "adminExists": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": "(auth != null && !data.exists()) || auth.token.role === 'admin'",
         ".validate": "newData.isBoolean()"
       },
