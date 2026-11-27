@@ -16,68 +16,67 @@ async function navigateToFirstTournament(page: import('@playwright/test').Page):
   await navigateToSpectator(page);
   await page.waitForTimeout(2000);
 
-  // Tournament buttons live inside li elements — may be grouped or ungrouped
-  const tournamentButton = page.locator('li button[aria-label]').first();
-  if (!(await tournamentButton.isVisible().catch(() => false))) {
+  // 대회 목록: 진행 중·예정·종료 묶음(h2) 아래 각 대회가 링크다
+  const tournamentLink = page.locator('li a[href*="/spectator/tournament/"]').first();
+  if (!(await tournamentLink.isVisible().catch(() => false))) {
     return false;
   }
 
-  await tournamentButton.click();
+  await tournamentLink.click();
 
-  // Wait for tournament detail page to load (tablist appears in bottom nav)
-  await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
+  // 대회 화면: 구역 메뉴(nav)가 나타난다
+  await page.locator('nav.spectator-section-nav').waitFor({ timeout: 15000 }).catch(() => {});
   return page.url().includes('/spectator/tournament/');
+}
+
+/** 대회 화면의 구역 메뉴 링크 (실시간 현황·경기 일정·순위·대진표·다음 경기·선수 명단·심판·설정) */
+function sectionLink(page: import('@playwright/test').Page, text: string) {
+  return page.locator('nav.spectator-section-nav a', { hasText: text });
 }
 
 // ── Spectator Home ───────────────────────────────────────
 
 test.describe('Spectator Home', () => {
-  test('tablist has correct aria attributes', async ({ page }) => {
-    await navigateToSpectator(page);
-
-    const tablist = page.locator('[role="tablist"]').first();
-    await expect(tablist).toBeVisible();
-    await expect(tablist).toHaveAttribute('aria-label');
-
-    const tabs = tablist.locator('[role="tab"]');
-    expect(await tabs.count()).toBeGreaterThanOrEqual(2);
-
-    // First tab should be selected by default
-    await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
-  });
-
-  test('switching to completed tab updates panel content', async ({ page }) => {
-    await navigateToSpectator(page);
-
-    const completedTab = page.locator('button[role="tab"]', { hasText: '완료' });
-    await completedTab.click();
-    await expect(completedTab).toHaveAttribute('aria-selected', 'true');
-
-    // Panel should show completed tournaments or empty state
-    const panel = page.locator('[role="tabpanel"]');
-    await expect(panel).toBeVisible();
-
-    const completedTournament = panel.locator('li button').first();
-    const emptyMessage = page.locator('text=완료된 대회가 없습니다');
-
-    const hasContent = await completedTournament.isVisible().catch(() => false);
-    const hasEmpty = await emptyMessage.isVisible().catch(() => false);
-    expect(hasContent || hasEmpty).toBeTruthy();
-  });
-
-  test('tournament items show name, type, and status', async ({ page }) => {
+  test('tournament list has one h1, phase headings and a labelled search field', async ({ page }) => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('[role="tabpanel"] li button').first();
-    if (!(await tournamentButton.isVisible().catch(() => false))) {
+    await expect(page.locator('h1')).toHaveCount(1);
+    const search = page.locator('input[type="search"]');
+    await expect(search).toBeVisible();
+    // 검색 칸은 보이는 label과 연결된다
+    const id = await search.getAttribute('id');
+    expect(id).toBeTruthy();
+    await expect(page.locator(`label[for="${id}"]`)).toBeVisible();
+
+    // 대회가 있으면 진행 중 → 예정 → 종료 순서의 묶음 제목(h2)이 있다
+    const headings = await page.locator('main h2').allTextContents();
+    const order = ['진행 중', '예정', '종료'].map(p => headings.findIndex(h => h.startsWith(p))).filter(i => i >= 0);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  test('search narrows the list or shows a no-results message', async ({ page }) => {
+    await navigateToSpectator(page);
+    await page.waitForTimeout(2000);
+
+    const search = page.locator('input[type="search"]');
+    await search.fill('존재하지 않는 대회 이름 zzz');
+    await expect(page.locator('li a[href*="/spectator/tournament/"]')).toHaveCount(0);
+    await expect(page.locator('text=맞는 대회가 없습니다').first()).toBeVisible();
+  });
+
+  test('tournament items are links with an accessible name', async ({ page }) => {
+    await navigateToSpectator(page);
+    await page.waitForTimeout(2000);
+
+    const tournamentLink = page.locator('li a[href*="/spectator/tournament/"]').first();
+    if (!(await tournamentLink.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
-    // Should have aria-label with tournament details
-    const label = await tournamentButton.getAttribute('aria-label');
-    expect(label).toBeTruthy();
+    const name = (await tournamentLink.textContent())?.trim();
+    expect(name).toBeTruthy();
   });
 
   test('loading state shows status indicator', async ({ page }) => {
@@ -90,38 +89,32 @@ test.describe('Spectator Home', () => {
   });
 });
 
-// ── Tournament View — All Tabs ───────────────────────────
+// ── Tournament View — Sections ───────────────────────────
 
-test.describe('Tournament View — Tab Navigation', () => {
-  test('tournament view has 5 navigation tabs', async ({ page }) => {
+test.describe('Tournament View — Section Navigation', () => {
+  test('tournament view has a section menu with the current section marked', async ({ page }) => {
     if (!(await navigateToFirstTournament(page))) {
       test.skip();
       return;
     }
 
-    // Bottom navigation tabs
-    const navTabs = page.locator('[role="tablist"] [role="tab"]');
-    expect(await navTabs.count()).toBeGreaterThanOrEqual(5);
+    const links = page.locator('nav.spectator-section-nav a');
+    expect(await links.count()).toBeGreaterThanOrEqual(5);
+    await expect(page.locator('nav.spectator-section-nav a[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator('h1')).toHaveCount(1);
   });
 
-  test('keyboard arrow navigation between tabs', async ({ page }) => {
+  test('section links change the address (back button returns)', async ({ page }) => {
     if (!(await navigateToFirstTournament(page))) {
       test.skip();
       return;
     }
 
-    const tabs = page.locator('[role="tablist"] [role="tab"]');
-    const firstTab = tabs.first();
-
-    await firstTab.focus();
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(200);
-
-    // Second tab should now be focused or selected
-    const secondTab = tabs.nth(1);
-    const isSelected = await secondTab.getAttribute('aria-selected');
-    const isFocused = await secondTab.evaluate(el => el === document.activeElement);
-    expect(isSelected === 'true' || isFocused).toBeTruthy();
+    const start = page.url();
+    await sectionLink(page, '순위').click();
+    await expect(page).toHaveURL(/\/standings$/);
+    await page.goBack();
+    await expect(page).toHaveURL(start);
   });
 });
 
@@ -192,7 +185,7 @@ test.describe('Tournament View — Players Tab', () => {
     }
 
     // Navigate to players tab
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (!(await playersTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -215,7 +208,7 @@ test.describe('Tournament View — Players Tab', () => {
       return;
     }
 
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (!(await playersTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -243,7 +236,7 @@ test.describe('Tournament View — Players Tab', () => {
       return;
     }
 
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (!(await playersTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -268,7 +261,7 @@ test.describe('Tournament View — Players Tab', () => {
       return;
     }
 
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (await playersTab.isVisible()) {
       await playersTab.click();
       await waitForLoading(page);
@@ -286,7 +279,7 @@ test.describe('Tournament View — Standings Tab', () => {
       return;
     }
 
-    const standingsTab = page.locator('[role="tab"]').filter({ hasText: '순위' });
+    const standingsTab = sectionLink(page, '순위');
     if (!(await standingsTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -311,7 +304,7 @@ test.describe('Tournament View — Standings Tab', () => {
       return;
     }
 
-    const standingsTab = page.locator('[role="tab"]').filter({ hasText: '순위' });
+    const standingsTab = sectionLink(page, '순위');
     if (await standingsTab.isVisible()) {
       await standingsTab.click();
       await waitForLoading(page);
@@ -329,7 +322,7 @@ test.describe('Tournament View — Schedule Tab', () => {
       return;
     }
 
-    const scheduleTab = page.locator('[role="tab"]').filter({ hasText: '일정' });
+    const scheduleTab = sectionLink(page, '일정');
     if (!(await scheduleTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -349,7 +342,7 @@ test.describe('Tournament View — Schedule Tab', () => {
       return;
     }
 
-    const scheduleTab = page.locator('[role="tab"]').filter({ hasText: '일정' });
+    const scheduleTab = sectionLink(page, '일정');
     if (await scheduleTab.isVisible()) {
       await scheduleTab.click();
       await page.waitForTimeout(2000);
@@ -370,7 +363,7 @@ test.describe('Tournament View — Referees Tab', () => {
       return;
     }
 
-    const refereesTab = page.locator('[role="tab"]').filter({ hasText: '심판' });
+    const refereesTab = sectionLink(page, '심판');
     if (!(await refereesTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -399,7 +392,7 @@ test.describe('Tournament View — Referees Tab', () => {
       return;
     }
 
-    const refereesTab = page.locator('[role="tab"]').filter({ hasText: '심판' });
+    const refereesTab = sectionLink(page, '심판');
     if (await refereesTab.isVisible()) {
       await refereesTab.click();
       await waitForLoading(page);
@@ -475,7 +468,7 @@ test.describe('Player Profile View', () => {
     }
 
     // Navigate to players tab
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (!(await playersTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -484,8 +477,8 @@ test.describe('Player Profile View', () => {
     await playersTab.click();
     await page.waitForTimeout(2000);
 
-    // Click a player link/button in the player list
-    const playerLink = page.locator('main button[aria-label]').first();
+    // 선수 명단의 이름은 선수 상세로 가는 링크다
+    const playerLink = page.locator('main a[href*="/player/"]').first();
     if (!(await playerLink.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -505,7 +498,7 @@ test.describe('Player Profile View', () => {
       return;
     }
 
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (!(await playersTab.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -514,8 +507,7 @@ test.describe('Player Profile View', () => {
     await playersTab.click();
     await waitForLoading(page);
 
-    const playerLink = page.locator('[aria-label*="profile"]').first()
-      .or(page.locator('[role="tabpanel"] button').first());
+    const playerLink = page.locator('main a[href*="/player/"]').first();
 
     if (!(await playerLink.isVisible().catch(() => false))) {
       test.skip();
@@ -542,14 +534,13 @@ test.describe('Player Profile View', () => {
       return;
     }
 
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = sectionLink(page, '선수');
     if (await playersTab.isVisible()) {
       await playersTab.click();
       await waitForLoading(page);
     }
 
-    const playerLink = page.locator('[aria-label*="profile"]').first()
-      .or(page.locator('[role="tabpanel"] button').first());
+    const playerLink = page.locator('main a[href*="/player/"]').first();
     if (await playerLink.isVisible()) {
       await playerLink.click();
       await waitForLoading(page);
@@ -733,11 +724,11 @@ test.describe('Spectator Layout Navigation', () => {
       return;
     }
 
-    const backButton = page.locator('[aria-label*="backToList"], [aria-label*="목록"]').first();
-    if (await backButton.isVisible()) {
-      await backButton.click();
-      await waitForLoading(page);
-      await expect(page).toHaveURL(/\/spectator\/?$/);
-    }
+    // 머리글의 '대회 목록으로' 링크
+    const backLink = page.locator('header a[href="/spectator"]');
+    await expect(backLink).toBeVisible();
+    await backLink.click();
+    await waitForLoading(page);
+    await expect(page).toHaveURL(/\/spectator\/?$/);
   });
 });

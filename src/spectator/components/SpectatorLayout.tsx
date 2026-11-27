@@ -1,5 +1,5 @@
-import { type ReactNode, useState, useEffect, useCallback, useMemo } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { type ReactNode, useState, useEffect, useMemo } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ErrorBoundary from '@shared/components/ErrorBoundary';
 import AiChatPanel from '@shared/components/AiChatPanel';
@@ -8,9 +8,10 @@ import { useFavorites, useTournaments, useMatches, useSchedule } from '@shared/h
 import { useMatchNotifications } from '../hooks/useMatchNotifications';
 import { usePushNotifications } from '@shared/hooks/usePushNotifications';
 import { useNotificationSettings } from '@shared/hooks/useNotificationSettings';
+import { createSpectatorResponder } from '../utils/spectatorAssistant';
 
 // Global notification watcher - deferred to avoid blocking initial render
-function NotificationWatcher() {
+function NotificationWatcher({ tournamentId }: { tournamentId: string | null }) {
   const [ready, setReady] = useState(false);
 
   // Defer heavy subscriptions to avoid freezing on iOS navigation
@@ -20,20 +21,22 @@ function NotificationWatcher() {
   }, []);
 
   if (!ready) return null;
-  return <NotificationWatcherInner />;
+  return <NotificationWatcherInner currentTournamentId={tournamentId} />;
 }
 
-function NotificationWatcherInner() {
+function NotificationWatcherInner({ currentTournamentId }: { currentTournamentId: string | null }) {
   const { favoriteIds, favorites } = useFavorites();
   const { tournaments } = useTournaments(20);
 
   // Pick any active tournament (in_progress first, then registration, then any)
+  // 보고 있는 대회가 있으면 그 대회, 아니면 진행 중인 대회
   const activeTournamentId = useMemo(
-    () => tournaments.find(t => t.status === 'in_progress')?.id
+    () => currentTournamentId
+      || tournaments.find(t => t.status === 'in_progress')?.id
       || tournaments.find(t => t.status === 'registration')?.id
       || tournaments[0]?.id
       || null,
-    [tournaments]
+    [tournaments, currentTournamentId]
   );
 
   const { matches } = useMatches(activeTournamentId, 100);
@@ -54,7 +57,7 @@ function useTournamentContext() {
 }
 
 const baseNavStyle = {
-  flex: 1,
+  width: '100%',
   textAlign: 'center' as const,
   display: 'flex',
   flexDirection: 'column' as const,
@@ -80,40 +83,17 @@ interface SpectatorLayoutProps {
 }
 
 export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
-  const navigate = useNavigate();
   const { t } = useTranslation();
-  const location = useLocation();
   const tournamentId = useTournamentContext();
-
-  const isTabActive = useCallback((path: string, exact = false) => {
-    if (exact) return location.pathname === path;
-    return location.pathname.startsWith(path);
-  }, [location.pathname]);
-
-  const handleNavKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
-    const tabs = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
-    const currentIdx = Array.from(tabs).findIndex(tab => tab === document.activeElement);
-    if (currentIdx === -1) return;
-
-    let nextIdx = currentIdx;
-    if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + tabs.length) % tabs.length;
-    else return;
-
-    e.preventDefault();
-    tabs[nextIdx].focus();
-    tabs[nextIdx].click();
-  }, []);
+  const responder = useMemo(() => ({ ...createSpectatorResponder(t), offlineNote: t('spectator.assistant.offlineNote') }), [t]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Global notification watcher */}
-      <NotificationWatcher />
+      <NotificationWatcher tournamentId={tournamentId} />
       <NotificationToast />
 
-      {/* Header */}
       <header
-        aria-label={t('spectator.layout.headerAriaLabel')}
         style={{
           backgroundColor: '#111827',
           borderBottom: '2px solid #374151',
@@ -122,43 +102,30 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
         }}
       >
         {tournamentId ? (
-          <button
-            onClick={() => navigate('/spectator')}
+          <Link
+            to="/spectator"
             className="btn"
-            style={{
-              background: 'none',
-              color: 'var(--color-secondary)',
-              padding: '0.5rem 0.75rem',
-              fontSize: '1.1rem',
-              position: 'absolute',
-              left: '0.5rem',
-            }}
-            aria-label={t('spectator.layout.backToListAriaLabel')}
+            style={{ background: 'none', color: 'var(--color-secondary)', padding: '0.5rem 0.75rem', fontSize: '1.1rem', position: 'absolute', left: '0.5rem', textDecoration: 'underline' }}
           >
-            {t('spectator.layout.backToList')}
-          </button>
+            <span aria-hidden="true">← </span>{t('spectator.layout.backToTournamentList')}
+          </Link>
         ) : null}
-        <span
-          style={{
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            color: 'var(--color-primary)',
-          }}
-        >
+        <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
           {t('spectator.layout.headerTitle')}
         </span>
       </header>
 
-      {/* Main content area */}
       <main
         id="main-content"
         style={{
           flex: 1,
           padding: '1rem',
-          paddingBottom: '5rem',
+          paddingBottom: tournamentId ? '6rem' : '5rem',
           overflowY: 'auto',
           maxWidth: '64rem',
           marginLeft: 'auto',
@@ -171,131 +138,33 @@ export default function SpectatorLayout({ children }: SpectatorLayoutProps) {
         </ErrorBoundary>
       </main>
 
-      {/* Bottom tab navigation - context-aware */}
-      <nav
-        aria-label={t('spectator.nav.label')}
-        role="tablist"
-        onKeyDown={handleNavKeyDown}
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: '#111827',
-          borderTop: '2px solid #374151',
-          display: 'flex',
-          zIndex: 40,
-        }}
-      >
-        {tournamentId ? (
-          /* Tournament context: 5 tabs */
-          <>
-            <NavLink
-              to={`/spectator/tournament/${tournamentId}`}
-              end
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}`, true)}
-              aria-current={isTabActive(`/spectator/tournament/${tournamentId}`, true) ? 'page' : undefined}
-              aria-label={t('spectator.layout.tournamentTab.overviewAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#9889;</span>
-              {t('spectator.layout.tournamentTab.overview')}
-            </NavLink>
-            <NavLink
-              to={`/spectator/tournament/${tournamentId}/players`}
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/players`)}
-              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/players`) ? 'page' : undefined}
-              aria-label={t('spectator.layout.tournamentTab.playersAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128101;</span>
-              {t('spectator.layout.tournamentTab.players')}
-            </NavLink>
-            <NavLink
-              to={`/spectator/tournament/${tournamentId}/standings`}
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/standings`)}
-              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/standings`) ? 'page' : undefined}
-              aria-label={t('spectator.layout.tournamentTab.standingsAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127942;</span>
-              {t('spectator.layout.tournamentTab.standings')}
-            </NavLink>
-            <NavLink
-              to={`/spectator/tournament/${tournamentId}/schedule`}
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/schedule`)}
-              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/schedule`) ? 'page' : undefined}
-              aria-label={t('spectator.layout.tournamentTab.scheduleAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128197;</span>
-              {t('spectator.layout.tournamentTab.schedule')}
-            </NavLink>
-            <NavLink
-              to={`/spectator/tournament/${tournamentId}/referees`}
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive(`/spectator/tournament/${tournamentId}/referees`)}
-              aria-current={isTabActive(`/spectator/tournament/${tournamentId}/referees`) ? 'page' : undefined}
-              aria-label={t('spectator.layout.tournamentTab.refereesAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#128084;</span>
-              {t('spectator.layout.tournamentTab.referees')}
-            </NavLink>
-          </>
-        ) : (
-          /* Home context: 3 tabs */
-          <>
-            <NavLink
-              to="/spectator"
-              end
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive('/spectator', true)}
-              aria-current={isTabActive('/spectator', true) ? 'page' : undefined}
-              aria-label={t('spectator.layout.tournamentsAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127942;</span>
-              {t('spectator.layout.tournaments')}
-            </NavLink>
-            <NavLink
-              to="/spectator/favorites"
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive('/spectator/favorites')}
-              aria-current={isTabActive('/spectator/favorites') ? 'page' : undefined}
-              aria-label={t('spectator.layout.favoritesAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#11088;</span>
-              {t('spectator.layout.favorites')}
-            </NavLink>
-            <NavLink
-              to="/spectator/practice"
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-              style={getNavStyle}
-              role="tab"
-              aria-selected={isTabActive('/spectator/practice')}
-              aria-current={isTabActive('/spectator/practice') ? 'page' : undefined}
-              aria-label={t('spectator.layout.practiceAriaLabel')}
-            >
-              <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>&#127947;</span>
-              {t('spectator.layout.practice')}
-            </NavLink>
-          </>
-        )}
-      </nav>
-      <AiChatPanel userRole="spectator" contextInfo={tournamentId ? `현재 보고 있는 대회: tournamentId=${tournamentId}. 이 대회의 결과를 기준으로 답하세요.` : undefined} />
+      {/* 대회 밖(목록·즐겨찾기·연습)에서만 아래 메뉴를 둔다. 대회 안 구역 메뉴는 대회 화면 위쪽에 있다. */}
+      {!tournamentId && (
+        <nav
+          aria-label={t('spectator.nav.label')}
+          style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: '#111827', borderTop: '2px solid #374151', zIndex: 40 }}
+        >
+          <ul style={{ display: 'flex', listStyle: 'none', margin: 0, padding: 0 }}>
+            {([
+              { to: '/spectator', end: true, icon: '🏆', label: t('spectator.layout.tournaments') },
+              { to: '/spectator/favorites', end: false, icon: '⭐', label: t('spectator.layout.favorites') },
+              { to: '/spectator/practice', end: false, icon: '🏋️', label: t('spectator.layout.practice') },
+            ]).map(item => (
+              <li key={item.to} style={{ flex: 1 }}>
+                <NavLink to={item.to} end={item.end} className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} style={getNavStyle}>
+                  <span aria-hidden="true" style={{ fontSize: '1.25rem' }}>{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+      <AiChatPanel
+        userRole="spectator"
+        localResponder={responder}
+        contextInfo={tournamentId ? `현재 보고 있는 대회: tournamentId=${tournamentId}. 이 대회의 결과를 기준으로 답하세요.` : undefined}
+      />
     </div>
   );
 }

@@ -1,44 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
+import {
+  applyA11yToDocument, dispatchA11y, getA11ySettings, subscribeA11y,
+  type A11ySettings, type ColorMode,
+} from '../utils/a11ySettings';
 
-export type ColorMode = 'dark' | 'high-contrast';
+export type { ColorMode, A11ySettings } from '../utils/a11ySettings';
 
-interface AccessibilitySettings {
-  colorMode: ColorMode;
-  fontSize: 'normal' | 'large' | 'xlarge';
-}
-
-const STORAGE_KEY = 'showdown_accessibility';
-
-function loadSettings(): AccessibilitySettings {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignored */ }
-  return { colorMode: 'dark', fontSize: 'normal' };
-}
-
+/** 접근성 화면 설정 (기기별 저장). 도우미 명령(글씨 크게·고대비)과 같은 저장소를 쓴다. */
 export function useAccessibility() {
-  const [settings, setSettings] = useState<AccessibilitySettings>(loadSettings);
+  const [settings, setSettings] = useState<A11ySettings>(getA11ySettings);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-
-    // Apply to document
-    const root = document.documentElement;
-    root.classList.remove('mode-dark', 'mode-high-contrast');
-    root.classList.add(`mode-${settings.colorMode}`);
-
-    root.classList.remove('font-normal', 'font-large', 'font-xlarge');
-    root.classList.add(`font-${settings.fontSize}`);
-  }, [settings]);
-
-  const setColorMode = useCallback((mode: ColorMode) => {
-    setSettings(s => ({ ...s, colorMode: mode }));
+    applyA11yToDocument(getA11ySettings());
+    return subscribeA11y(setSettings);
   }, []);
 
-  const setFontSize = useCallback((size: 'normal' | 'large' | 'xlarge') => {
-    setSettings(s => ({ ...s, fontSize: size }));
-  }, []);
+  const update = useCallback((patch: Partial<A11ySettings>) => dispatchA11y({ type: 'update', patch }), []);
+  const setColorMode = useCallback((mode: ColorMode) => dispatchA11y({ type: 'update', patch: { colorMode: mode } }), []);
+  const stepFont = useCallback((delta: number) => dispatchA11y({ type: 'fontStep', delta }), []);
+  const reset = useCallback(() => dispatchA11y({ type: 'reset' }), []);
 
-  return { settings, setColorMode, setFontSize };
+  return { settings, update, setColorMode, stepFont, reset };
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useChatbot, type ChatRole, type ChatMessage, type ChatAction } from '../hooks/useChatbot';
+import { useChatbot, type ChatRole, type ChatMessage, type ChatAction, type LocalChatResponder } from '../hooks/useChatbot';
 
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: ['br', 'hr', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'code', 'pre', 'p', 'span', 'div', 'h2', 'h3', 'h4'],
@@ -116,12 +116,15 @@ function MessageBubble({ msg, toolLabels, purify }: { msg: ChatMessage; toolLabe
 interface AiChatPanelProps {
   userRole: ChatRole;
   contextInfo?: string; // 추가 컨텍스트 (심판 이름, 대회명 등)
+  /** 기기 안 응답기 (설정 명령 실행, 서버에 닿지 않을 때 대신 답하기) */
+  localResponder?: LocalChatResponder;
 }
 
-export default function AiChatPanel({ userRole, contextInfo }: AiChatPanelProps) {
+export default function AiChatPanel({ userRole, contextInfo, localResponder }: AiChatPanelProps) {
   const { t } = useTranslation();
   const { id: tournamentId } = useParams<{ id: string }>();
-  const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(userRole, tournamentId, contextInfo);
+  const { messages, isLoading, elapsedSec, sendMessage, cancelRequest, clearChat } = useChatbot(userRole, tournamentId, contextInfo, localResponder);
+
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [domPurify, setDomPurify] = useState<typeof import('dompurify').default | null>(null);

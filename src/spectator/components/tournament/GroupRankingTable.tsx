@@ -17,6 +17,8 @@ export interface GroupRankingTableProps {
   scope?: string;
   /** 진출 표시 (예선 경기 전체로 계산한 qualifierMarks). 없으면 표시하지 않는다. */
   marks?: ReadonlyMap<string, QualifierMark>;
+  /** 표 제목 (화면낭독기 caption). 잠정 순위면 그렇다고 적는다. */
+  caption?: string;
 }
 
 function formatDiff(value: number): { text: string; color: string } {
@@ -29,7 +31,7 @@ const thStyle = (align: 'left' | 'center'): React.CSSProperties => ({
   textAlign: align, padding: '0.5rem', color: '#d1d5db', position: 'sticky', top: 0, backgroundColor: '#111827', zIndex: 1,
 });
 
-export default function GroupRankingTable({ matches, onSelectPlayer, isTeam = false, tournament, scope = '', marks }: GroupRankingTableProps) {
+export default function GroupRankingTable({ matches, onSelectPlayer, isTeam = false, tournament, scope = '', marks, caption }: GroupRankingTableProps) {
   const { t } = useTranslation();
   const rankings = useMemo(() => calculateGroupRanking(matches, undefined, tournament, scope), [matches, tournament, scope]);
 
@@ -57,7 +59,7 @@ export default function GroupRankingTable({ matches, onSelectPlayer, isTeam = fa
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.875rem' }}>
-        <caption className="sr-only">{t('spectator.tournament.tabs.groups')}</caption>
+        <caption className="sr-only">{caption || t('spectator.tournament.tabs.groups')}</caption>
         <thead>
           <tr style={{ borderBottom: '2px solid #374151' }}>
             <th scope="col" style={thStyle('left')}>{t('spectator.tournament.view.rankLabel')}</th>

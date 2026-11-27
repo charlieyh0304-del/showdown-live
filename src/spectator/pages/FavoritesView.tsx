@@ -17,7 +17,7 @@ export default function FavoritesView() {
   const { settings, setEnabled, setTypeEnabled, setQuietHours, setPlayerSettings, getPlayerSettings } = useNotificationSettings();
   const { history: notifHistory, unreadCount, markAllAsRead, clearAll } = useNotificationHistory();
   const [showHistory, setShowHistory] = useState(false);
-  const { pushEnabled, pushSupported, enablePush } = usePushNotifications(favorites);
+  const { pushEnabled, pushSupported, enablePush, disablePush } = usePushNotifications(favorites);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Always call useMatches with a stable value (no conditional hooks)
@@ -65,17 +65,30 @@ export default function FavoritesView() {
     }
   }, [favoritePlayers, favorites, updateFavoriteName]);
 
+  // 알림 켜기: 앱 안 알림 설정(settings.enabled)과 푸시 구독을 한 스위치로 함께 켠다
   const handleRequestPermission = async () => {
     // Try FCM push first, fall back to basic web notifications
     if (pushSupported) {
       const ok = await enablePush();
       if (ok) {
+        setEnabled(true);
         setNotifPermission('granted');
         return;
       }
     }
     const granted = await requestNotificationPermission();
+    if (granted) setEnabled(true);
     setNotifPermission(granted ? 'granted' : 'denied');
+  };
+
+  // 전체 알림 스위치: 끄면 푸시 구독도 지워 서버가 더 보내지 않게 하고, 켜면 푸시도 다시 켠다
+  const handleGlobalToggle = async (on: boolean) => {
+    setEnabled(on);
+    if (!on) {
+      if (pushEnabled) await disablePush();
+    } else if (pushSupported && !pushEnabled) {
+      await enablePush();
+    }
   };
 
   if (pLoading) {
@@ -227,7 +240,7 @@ export default function FavoritesView() {
                 {/* Global toggle */}
                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderTop: '1px solid #374151' }}>
                   <span style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>{t('spectator.favorites.notifications.globalToggle')}</span>
-                  <input type="checkbox" checked={settings.enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ width: '20px', height: '20px', accentColor: '#3b82f6' }} />
+                  <input type="checkbox" checked={settings.enabled} onChange={(e) => { void handleGlobalToggle(e.target.checked); }} style={{ width: '20px', height: '20px', accentColor: '#3b82f6' }} />
                 </label>
 
                 {settings.enabled && (

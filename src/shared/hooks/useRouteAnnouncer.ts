@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigationType } from 'react-router-dom';
+import { focusKeySelector, takeFocusKey } from '../utils/focusReturn';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -43,6 +44,7 @@ function getPageTitleKey(pathname: string): string {
 
 export function useRouteAnnouncer() {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const { t } = useTranslation();
   const [announcement, setAnnouncement] = useState('');
   const isFirstRender = useRef(true);
@@ -62,19 +64,37 @@ export function useRouteAnnouncer() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAnnouncement(title);
 
-    // Move focus to main content area or h1 after navigation
-    requestAnimationFrame(() => {
+    // 뒤로 가기(POP)로 돌아왔고 떠날 때 누른 이름이 기억되어 있으면 그 이름으로 초점을 되돌린다(데이터가 늦게 그려질 수 있어 몇 번 다시 찾는다)
+    const restoreKey = navigationType === 'POP' ? takeFocusKey(location.key) : null;
+    let cancelled = false;
+    const focusDefault = () => {
       const mainContent = document.getElementById('main-content');
+      // 화면이 지정한 초점 대상(구역 제목 등) → h1 → 본문
+      const preferred = mainContent?.querySelector<HTMLElement>('[data-route-focus]');
       const h1 = mainContent?.querySelector('h1') || document.querySelector('h1');
-      const target = h1 || mainContent;
+      const target = preferred || h1 || mainContent;
+      const title = preferred?.getAttribute('data-route-title');
+      if (title) { document.title = title; setAnnouncement(title); }
       if (target instanceof HTMLElement) {
-        target.setAttribute('tabindex', '-1');
+        const hadTabIndex = target.hasAttribute('tabindex');
+        if (!hadTabIndex) target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: false });
         // Remove tabindex after focus to avoid persistent tab stop
-        const cleanup = () => { target.removeAttribute('tabindex'); target.removeEventListener('blur', cleanup); };
+        const cleanup = () => { if (!hadTabIndex) target.removeAttribute('tabindex'); target.removeEventListener('blur', cleanup); };
         target.addEventListener('blur', cleanup);
       }
-    });
+    };
+    const tryRestore = (attempt: number) => {
+      if (cancelled) return;
+      const el = restoreKey ? document.querySelector<HTMLElement>(focusKeySelector(restoreKey)) : null;
+      if (el) { el.focus(); return; }
+      if (restoreKey && attempt < 20) { setTimeout(() => tryRestore(attempt + 1), 50); return; }
+      focusDefault();
+    };
+    requestAnimationFrame(() => tryRestore(0));
+    return () => { cancelled = true; };
+    // 검색 파라미터(필터)만 바뀔 때는 초점을 옮기지 않는다: 경로가 바뀔 때만 실행한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, t]);
 
   return announcement;

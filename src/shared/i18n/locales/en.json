@@ -241,7 +241,32 @@
       "voiceTurnedOn": "Voice announcements turned on",
       "voiceTurnedOff": "Voice announcements turned off",
       "modeLabel": "{{label}} mode {{selected}}",
-      "fontSizeLabel": "Font size {{label}} {{selected}}"
+      "fontSizeLabel": "Font size {{label}} {{selected}}",
+      "light": "Light",
+      "highContrastLight": "High contrast (white background)",
+      "invert": "Invert colors",
+      "fontLevel": "Level {{n}} ({{percent}}%)",
+      "fontSmaller": "Smaller text",
+      "fontLarger": "Larger text",
+      "fontWeight": "Text weight",
+      "weightNormal": "Normal",
+      "weightBold": "Bold",
+      "lineHeight": "Line spacing",
+      "letterSpacing": "Letter spacing",
+      "spacingNormal": "Normal",
+      "spacingRelaxed": "Wide",
+      "spacingLoose": "Extra wide",
+      "strongFocus": "Strong focus outline",
+      "strongFocusHelp": "Shows a thick yellow outline around your current position when you move with the keyboard.",
+      "reduceMotion": "Reduce motion",
+      "reduceMotionHelp": "Reduces transitions and blinking. Until you change it, it follows your device's reduce motion setting.",
+      "on": "On",
+      "off": "Off",
+      "turnedOn": "{{label}} turned on",
+      "turnedOff": "{{label}} turned off",
+      "valueChanged": "{{label}} changed to {{value}}",
+      "reset": "Reset to defaults",
+      "resetDone": "Accessibility settings reset to defaults"
     },
 
     "modeBadge": {
@@ -349,7 +374,8 @@
       "sortNewestAriaLabel": "Change sort to oldest first",
       "sortOldestAriaLabel": "Change sort to newest first",
       "newestSortButton": "Newest ↓",
-      "oldestSortButton": "Oldest ↑"
+      "oldestSortButton": "Oldest ↑",
+      "showAll": "Show all {{count}} entries"
     },
 
     "time": {
@@ -1765,10 +1791,33 @@
   },
 
   "spectator": {
+    "schedule": {
+      "timeTbd": "Time TBD",
+      "count": "{{count}} matches (of {{total}})",
+      "empty": "No matches match these filters.",
+      "noFavorites": "You have no favourite players yet. Tap the star in the player list to add one.",
+      "dateTbd": "Date TBD",
+      "versus": "vs",
+      "setScore": "Sets {{s1}} to {{s2}}",
+      "referee": "Referee {{name}}",
+      "delayed": "Delayed",
+      "status": {
+        "pending": "Scheduled",
+        "in_progress": "In progress",
+        "completed": "Finished"
+      },
+      "stage": {
+        "finals": "Finals",
+        "ranking": "Placement",
+        "other": "Other",
+        "qualifying": "Qualifying"
+      }
+    },
     "nav": {
       "label": "Spectator Tab Menu"
     },
     "layout": {
+      "backToTournamentList": "Back to tournament list",
       "headerAriaLabel": "Showdown Spectator",
       "homeButton": "← Spectator Home",
       "homeAriaLabel": "Go to spectator home",
@@ -1814,7 +1863,31 @@
         "inProgress": "In Progress",
         "completed": "Completed",
         "paused": "Paused"
-      }
+      },
+      "intro": "Pick a tournament to see live scores, the schedule, standings and players.",
+      "phase": {
+        "live": "Live",
+        "upcoming": "Upcoming",
+        "finished": "Finished"
+      },
+      "phaseHeading": {
+        "live_one": "Live tournament ({{count}})",
+        "live_other": "Live tournaments ({{count}})",
+        "upcoming_one": "Upcoming tournament ({{count}})",
+        "upcoming_other": "Upcoming tournaments ({{count}})",
+        "finished_one": "Finished tournament ({{count}})",
+        "finished_other": "Finished tournaments ({{count}})"
+      },
+      "searchLabel": "Find a tournament",
+      "searchPlaceholder": "Tournament name or venue",
+      "searchCount_one": "{{count}} tournament found",
+      "searchCount_other": "{{count}} tournaments found",
+      "a11yHint": "Use headings (H2) to move between live, upcoming and finished tournaments. The button at the bottom right changes text size and colors.",
+      "venue": "Venue: {{venue}}",
+      "liveMatchCount_one": "{{count}} match in progress",
+      "liveMatchCount_other": "{{count}} matches in progress",
+      "noTournaments": "No tournaments yet.",
+      "noSearchResults": "No tournaments match \"{{query}}\"."
     },
 
     "tournament": {
@@ -1927,7 +2000,8 @@
         "historySummary": "Total {{total}} | Completed {{completed}} | In Progress {{inProgress}} | Pending {{pending}}",
         "qualifyingGroupLeague": "Qualifying (Group League)",
         "finalsTournament": "Finals (Tournament)",
-        "wildcardBadge": "Wildcard"
+        "wildcardBadge": "Wildcard",
+        "serveLabel": "Serve"
       }
     },
 
@@ -2021,7 +2095,10 @@
         "logout": "Sign out"
       },
       "bulkRemoveConfirm": "Remove {{count}} players from favorites?",
-      "bulkRemove": "Remove {{count}}"
+      "bulkRemove": "Remove {{count}}",
+      "toggleLabel": "Favourite {{name}}",
+      "addedAnnounce": "Added {{name}} to favourites.",
+      "removedAnnounce": "Removed {{name}} from favourites."
     },
 
     "notifications": {
@@ -2054,6 +2131,201 @@
       "deleteCompleted": "Delete All Completed Records",
       "deleteMatch": "Delete {{p1}} vs {{p2}} record",
       "backToTournaments": "Back to Tournaments"
+    },
+    "rules": {
+      "points": "Standings points: {{list}}.",
+      "listSep": ", ",
+      "pointsWin": "{{n}} for a win",
+      "pointsLoss": "{{n}} for a loss",
+      "pointsDraw": "{{n}} for a draw",
+      "pointsWalkoverWin": "{{n}} for a walkover win",
+      "pointsForfeitLoss": "{{n}} for a forfeit loss",
+      "walkoverExcluded": "Walkovers and forfeits are not counted in the standings.",
+      "walkoverCounted": "Walkovers and forfeits count as {{score}} in the standings.",
+      "tiebreak": "{{lead}} {{list}}, in that order. If still tied, {{unresolved}}.",
+      "tiebreakLeadPoints": "If points are tied, rank is decided by",
+      "tiebreakLead": "Rank is decided by",
+      "orderSep": ", ",
+      "tiebreakNone": "If points are tied, {{unresolved}}.",
+      "headToHeadRecursive": "Head-to-head is checked again among the players who are still tied.",
+      "qualify": "The top {{n}} of each group advance.",
+      "wildcards": "{{n}} more advance as wildcards.",
+      "unresolved": {
+        "lot": "it is decided by lot",
+        "admin_decision": "the organizers decide",
+        "playoff": "a playoff decides"
+      },
+      "criteria": {
+        "points": "standings points",
+        "wins": "matches won",
+        "head_to_head": "head-to-head among tied players",
+        "set_difference": "set difference",
+        "point_difference": "point difference",
+        "points_scored": "points scored",
+        "set_ratio": "set ratio",
+        "point_ratio": "point ratio",
+        "lot": "lot"
+      }
+    },
+    "live": {
+      "eventCourt": "{{court}}: ",
+      "eventSetEnd": "{{court}}{{p1}} vs {{p2}}, set {{set}} over. {{winner}} wins it, {{s1}} to {{s2}}",
+      "eventMatchEnd": "{{court}}{{p1}} vs {{p2}}, match over. {{winner}} wins, sets {{s1}} to {{s2}}",
+      "eventMatchEndNoWinner": "{{court}}{{p1}} vs {{p2}}, match over",
+      "eventGoldenGoal": "{{court}}{{p1}} vs {{p2}}, golden goal: the next goal wins",
+      "summary": "{{live}} in progress, {{upcoming}} starting soon, {{recent}} just finished.",
+      "courtBoard": "Courts",
+      "courtNow": "Now: {{match}}",
+      "courtScore": "Set {{set}}: {{s1}} to {{s2}} (sets {{w1}} to {{w2}})",
+      "courtIdle": "No match now",
+      "courtNext": "Next: {{time}} {{match}}",
+      "inProgress": "In progress ({{count}})",
+      "upcoming": "Starting soon ({{count}})",
+      "recent": "Just finished ({{count}})",
+      "noUpcoming": "No match starts within the next hour.",
+      "noRecent": "No match finished in the last 30 minutes."
+    },
+    "connection": {
+      "justNow": "just now",
+      "minutesAgo": "{{n}} min ago",
+      "hoursAgo": "{{h}} h ago",
+      "hoursMinutesAgo": "{{h}} h {{m}} min ago",
+      "connecting": "Connecting to the server",
+      "live": "Live (updated {{time}})",
+      "liveNoTime": "Live",
+      "reconnecting": "Connection lost, reconnecting. Showing data as of {{time}} ({{ago}})",
+      "cached": "Saved data (as of {{time}}, {{ago}})",
+      "cachedNoTime": "Saved data"
+    },
+    "assistant": {
+      "liveList": "{{count}} live: {{list}}",
+      "offlineNote": "You are offline, so this answer uses data saved on this device.",
+      "vs": "{{p1}} vs {{p2}}",
+      "liveScore": "set {{set}} {{s1}} to {{s2}}, sets {{w1}} to {{w2}}",
+      "courtUnknown": "Court {{court}} was not found.",
+      "courtNow": "{{court}}: now {{match}}, {{score}}.",
+      "courtIdle": "{{court}}: no match in progress.",
+      "courtNext": "Next: {{match}}, {{when}}.",
+      "playerLive": "{{name}} is playing now: {{match}}, {{score}}.",
+      "playerNoNext": "{{name}} has no remaining matches.",
+      "playerNext": "{{name}}'s next match: {{match}}, {{when}}.",
+      "standingsNone": "No standings yet.",
+      "rankItem": "{{rank}}. {{name}} ({{w}}W {{l}}L)",
+      "overall": "Overall standings",
+      "noLive": "No matches in progress.",
+      "liveList_one": "{{count}} match in progress: {{list}}",
+      "liveList_other": "{{count}} matches in progress: {{list}}",
+      "fontChanged": "Text size set to level {{n}} ({{percent}}%).",
+      "colorChanged": "Screen changed to {{label}}.",
+      "notificationsOn": "Favorite match alerts turned on.",
+      "notificationsOff": "Favorite match alerts turned off.",
+      "favoriteAdded": "{{name}} added to favorites.",
+      "favoriteRemoved": "{{name}} removed from favorites."
+    },
+    "sections": {
+      "menuLabel": "Tournament menu",
+      "live": "Live now",
+      "schedule": "Schedule",
+      "standings": "Standings",
+      "bracket": "Bracket",
+      "next": "Next matches",
+      "players": "Players",
+      "referees": "Referees",
+      "settings": "Settings"
+    },
+    "search": {
+      "region": "Find a player or referee",
+      "label": "Find a player or referee",
+      "placeholder": "Name (Korean initials work too)",
+      "help": "Choose a name to see that person's schedule and results. Use the up and down arrows, then press Enter.",
+      "listLabel": "Matching people",
+      "count": "{{count}} found. Use the up and down arrows to choose.",
+      "none": "No one matches \"{{query}}\".",
+      "kind": {
+        "player": "player",
+        "team": "team",
+        "referee": "referee"
+      }
+    },
+    "filters": {
+      "legend": "Filter matches",
+      "all": "All",
+      "date": "Date",
+      "stage": "Stage",
+      "court": "Court",
+      "status": "Status",
+      "remaining": "Remaining",
+      "completed": "Finished",
+      "favoritesOnly": "Favourite players only",
+      "division": "Division"
+    },
+    "players": {
+      "intro": "Choose a name to see that player's schedule and results. Tap the star to add a favourite. To find someone quickly, use the search above.",
+      "empty": "No player list yet.",
+      "count": "{{count}} players",
+      "teamCount": "{{count}} teams",
+      "noFavorites": "You have no favourite players.",
+      "record": "{{w}} W {{l}} L"
+    },
+    "standings": {
+      "rulesTitle": "How standings are decided",
+      "groupsTitle": "Group standings",
+      "finalTitle": "Final ranking",
+      "provisional": "Provisional ({{completed}} of {{total}} matches finished)",
+      "final": "Final",
+      "inProgressCount": "{{count}} in progress"
+    },
+    "next": {
+      "intro": "Upcoming matches from now, earliest first. Bracket matches not yet decided show the round, the time and which match's winner will play.",
+      "count": "{{count}} upcoming matches",
+      "empty": "No matches left."
+    },
+    "person": {
+      "pageTitle": "{{name}} - {{tournament}}",
+      "refereePageTitle": "Referee {{name}} - {{tournament}}",
+      "refereeHeading": "Referee {{name}}",
+      "notFound": "No matches found for this person in this tournament.",
+      "backToPlayers": "Back to players",
+      "backToReferees": "Back to referees",
+      "fullProfile": "Full record of {{name}}",
+      "now": "Now",
+      "playingNow": "Playing ({{court}})",
+      "nextAt": "Next match {{when}}, {{court}}",
+      "noMore": "No matches left",
+      "standing": "Current standing",
+      "groupRank": "Group {{group}}: {{rank}}",
+      "provisional": "provisional",
+      "winRate": "{{pct}}% wins",
+      "matches": "Schedule and results ({{count}})",
+      "refereeNoMatches": "No assigned matches."
+    },
+    "referees": {
+      "intro": "Choose a name to see the matches that referee officiates.",
+      "liveNow": "{{count}} in progress now"
+    },
+    "settings": {
+      "a11yHint": "Text size and colours are in the accessibility button at the bottom right.",
+      "notifyTitle": "Favourite player alerts",
+      "notifyHelp": "Get an alert 10 minutes before a favourite player's match and when the result is in, even with the app closed. Turning this on asks the browser for permission.",
+      "notifyPrivacy": "Only this device's push address and your favourite player numbers are stored on the server. Turning alerts off deletes them.",
+      "notifyUnsupported": "This browser does not support alerts while the app is closed.",
+      "notifyStateOn": "Alerts on ({{count}} favourites)",
+      "notifyStateOff": "Alerts off",
+      "notifyOn": "Turn alerts on",
+      "notifyOff": "Turn alerts off",
+      "notifyOnDone": "Alerts are on for {{count}} favourite players.",
+      "notifyOffDone": "Alerts are off.",
+      "notifyDenied": "Notifications are blocked in this browser. Allow them for this site in the browser settings.",
+      "notifyFailed": "Could not turn alerts on. Please try again later.",
+      "notifyNoFavorites": "You have no favourite players yet. Tap the star in the player list to add one.",
+      "soundTitle": "Result sound",
+      "resultSound": "Play a sound for new results",
+      "resultSoundFavoritesOnly": "Only favourite players' matches",
+      "soundHelp": "Plays a short sound when a match ends while you are on this screen.",
+      "namesTitle": "Player names",
+      "showRoman": "Show the romanized name after the Korean name",
+      "on": "on",
+      "off": "off"
     }
   }
 }

@@ -51,7 +51,6 @@ export default function LiveTab({
 }: LiveTabProps) {
   const liveMatches = matches.filter((m) => m.status === 'in_progress');
   const prevScoresRef = useRef<Map<string, string>>(new Map());
-  const [announcement, setAnnouncement] = useState('');
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
   const [changedMatchId, setChangedMatchId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -77,15 +76,8 @@ export default function LiveTab({
           else if (p2Diff > 0) scorer = `${match.player2Name || t('referee.home.player2Default')} +${p2Diff}`;
 
           const announcementText = t('spectator.tournament.view.scoreAnnouncement', { p1: match.player1Name || t('referee.home.player1Default'), p1Score: currentSetData.player1Score, p2: match.player2Name || t('referee.home.player2Default'), p2Score: currentSetData.player2Score, set: match.currentSet });
-          setAnnouncement(announcementText);
           setToast({ message: scorer || announcementText, key: Date.now() });
           setChangedMatchId(match.id);
-
-          // Auto-scroll to the match that just scored
-          const el = matchRefs.current.get(match.id);
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
         }
         prevScoresRef.current.set(key, scoreStr);
       } else if (match.type === 'team' && Array.isArray(match.sets) && match.sets.length > 0) {
@@ -102,14 +94,8 @@ export default function LiveTab({
           else if (p2Diff > 0) scorer = `${match.team2Name || t('referee.home.team2Default')} +${p2Diff}`;
 
           const announcementText = t('spectator.tournament.view.teamScoreAnnouncement', { p1: match.team1Name || t('referee.home.team1Default'), p1Score: setData.player1Score, p2: match.team2Name || t('referee.home.team2Default'), p2Score: setData.player2Score });
-          setAnnouncement(announcementText);
           setToast({ message: scorer || announcementText, key: Date.now() });
           setChangedMatchId(match.id);
-
-          const el = matchRefs.current.get(match.id);
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
         }
         prevScoresRef.current.set(key, scoreStr);
       }
@@ -143,12 +129,11 @@ export default function LiveTab({
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Visible toast banner for score changes */}
+      {/* 눈으로 보는 득점 배너 */}
       {toast && (
         <div
           key={toast.key}
-          aria-live="assertive"
-          aria-atomic="true"
+          aria-hidden="true"
           style={{
             position: 'sticky',
             top: 0,
@@ -169,10 +154,7 @@ export default function LiveTab({
         </div>
       )}
 
-      {/* Screen reader score announcements */}
-      <div aria-live="assertive" aria-atomic="true" className="sr-only">
-        {announcement}
-      </div>
+      {/* 점수 한 점마다 화면낭독기로 읽지 않는다: 세트·경기 종료, 골든골만 대회 화면의 알림 영역이 알린다 (위 배너는 눈으로만 보는 표시) */}
 
       <ul ref={listRef} style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {liveMatches.map((match) => (

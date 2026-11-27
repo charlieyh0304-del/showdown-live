@@ -41,7 +41,15 @@ function saveMessages(key: string, msgs: ChatMessage[]) {
   }
 }
 
-export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInfo?: string) {
+/** 기기 안 응답기 (관전 도우미): 설정 명령은 바로 실행, 정보 질문은 서버에 닿지 않을 때 대신 답한다 */
+export interface LocalChatResponder {
+  command: (text: string) => string | null;
+  answer: (text: string) => string | null;
+  /** 서버 대신 기기 안 정보로 답했다는 안내 문장 */
+  offlineNote?: string;
+}
+
+export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInfo?: string, local?: LocalChatResponder) {
   const storageKey = getChatStorageKey(userRole, tournamentId);
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(storageKey));
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +65,22 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
     const updatedMessages = [...messagesRef.current, userMsg];
     setMessages(updatedMessages);
     saveMessages(storageKey, updatedMessages);
+    const appendAssistant = (content: string) => setMessages(prev => {
+      const updated = [...prev, { role: 'assistant' as const, content, timestamp: Date.now() }];
+      saveMessages(storageKey, updated);
+      return updated;
+    });
+    // 설정 명령(글씨 크게·고대비·즐겨찾기·알림)은 서버 없이 바로 실행한다
+    const commandReply = local?.command(text);
+    if (commandReply) { appendAssistant(commandReply); return; }
+    const offlineAnswer = () => {
+      const a = local?.answer(text);
+      return a ? (local?.offlineNote ? `${local.offlineNote} ${a}` : a) : null;
+    };
+    if (local && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const a = offlineAnswer();
+      if (a) { appendAssistant(a); return; }
+    }
     setIsLoading(true);
     setError(null);
     setElapsedSec(0);
@@ -98,6 +122,8 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
       });
     } catch (err: unknown) {
       if ((err as Error).name === 'AbortError') return;
+      const fallback = offlineAnswer();
+      if (fallback) { appendAssistant(fallback); return; }
       const msg = (err as Error).message || 'AI 요청 실패';
       setError(msg);
       setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ 오류: ${msg}`, timestamp: Date.now() }]);
@@ -105,7 +131,7 @@ export function useChatbot(userRole: ChatRole, tournamentId?: string, contextInf
       setIsLoading(false);
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
-  }, [tournamentId, userRole, contextInfo, storageKey]);
+  }, [tournamentId, userRole, contextInfo, storageKey, local]);
 
   const cancelRequest = useCallback(() => {
     abortRef.current?.abort();

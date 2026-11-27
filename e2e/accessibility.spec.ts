@@ -227,11 +227,11 @@ test.describe('A11y — Spectator 페이지', () => {
     expect.soft(a11y.violations, formatViolations(a11y.violations)).toEqual([]);
   });
 
-  test('spectator home — completed tab', async ({ page }) => {
+  test('spectator home — search with no results', async ({ page }) => {
     await navigateToSpectator(page);
 
-    const completedTab = page.locator('button[role="tab"]', { hasText: '완료' });
-    await completedTab.click();
+    // 대회 목록은 탭 없이 진행 중·예정·종료 묶음으로 보인다. 검색 결과 없음 상태도 검사한다
+    await page.locator('input[type="search"]').fill('zzz 없는 대회');
     await waitForLoading(page);
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
@@ -242,14 +242,14 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('li button[aria-label]').first();
+    const tournamentButton = page.locator('li a[href*="/spectator/tournament/"]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
+    await page.locator('nav.spectator-section-nav').waitFor({ timeout: 15000 }).catch(() => {});
 
     const a11y = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
     expect.soft(a11y.violations, formatViolations(a11y.violations)).toEqual([]);
@@ -259,16 +259,16 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('li button[aria-label]').first();
+    const tournamentButton = page.locator('li a[href*="/spectator/tournament/"]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
+    await page.locator('nav.spectator-section-nav').waitFor({ timeout: 15000 }).catch(() => {});
 
-    const playersTab = page.locator('[role="tab"]').filter({ hasText: '선수' });
+    const playersTab = page.locator('nav.spectator-section-nav a', { hasText: '선수' });
     if (await playersTab.isVisible()) {
       await playersTab.click();
       await page.waitForTimeout(2000);
@@ -282,16 +282,16 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('li button[aria-label]').first();
+    const tournamentButton = page.locator('li a[href*="/spectator/tournament/"]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
+    await page.locator('nav.spectator-section-nav').waitFor({ timeout: 15000 }).catch(() => {});
 
-    const standingsTab = page.locator('[role="tab"]').filter({ hasText: '순위' });
+    const standingsTab = page.locator('nav.spectator-section-nav a', { hasText: '순위' });
     if (await standingsTab.isVisible()) {
       await standingsTab.click();
       await page.waitForTimeout(2000);
@@ -305,16 +305,16 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('li button[aria-label]').first();
+    const tournamentButton = page.locator('li a[href*="/spectator/tournament/"]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
+    await page.locator('nav.spectator-section-nav').waitFor({ timeout: 15000 }).catch(() => {});
 
-    const scheduleTab = page.locator('[role="tab"]').filter({ hasText: '일정' });
+    const scheduleTab = page.locator('nav.spectator-section-nav a', { hasText: '일정' });
     if (await scheduleTab.isVisible()) {
       await scheduleTab.click();
       await page.waitForTimeout(2000);
@@ -328,16 +328,16 @@ test.describe('A11y — Spectator 페이지', () => {
     await navigateToSpectator(page);
     await page.waitForTimeout(2000);
 
-    const tournamentButton = page.locator('li button[aria-label]').first();
+    const tournamentButton = page.locator('li a[href*="/spectator/tournament/"]').first();
     if (!(await tournamentButton.isVisible().catch(() => false))) {
       test.skip();
       return;
     }
 
     await tournamentButton.click();
-    await page.locator('[role="tablist"]').last().waitFor({ timeout: 15000 }).catch(() => {});
+    await page.locator('nav.spectator-section-nav').waitFor({ timeout: 15000 }).catch(() => {});
 
-    const refereesTab = page.locator('[role="tab"]').filter({ hasText: '심판' });
+    const refereesTab = page.locator('nav.spectator-section-nav a', { hasText: '심판' });
     if (await refereesTab.isVisible()) {
       await refereesTab.click();
       await page.waitForTimeout(2000);

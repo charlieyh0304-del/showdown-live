@@ -241,7 +241,32 @@
       "voiceTurnedOn": "음성 안내를 켰습니다",
       "voiceTurnedOff": "음성 안내를 껐습니다",
       "modeLabel": "{{label}} 모드 {{selected}}",
-      "fontSizeLabel": "글꼴 크기 {{label}} {{selected}}"
+      "fontSizeLabel": "글꼴 크기 {{label}} {{selected}}",
+      "light": "밝은 화면",
+      "highContrastLight": "흰 바탕 고대비",
+      "invert": "색 반전",
+      "fontLevel": "{{n}}단계 ({{percent}}%)",
+      "fontSmaller": "글자 작게",
+      "fontLarger": "글자 크게",
+      "fontWeight": "글자 굵기",
+      "weightNormal": "보통",
+      "weightBold": "굵게",
+      "lineHeight": "줄 간격",
+      "letterSpacing": "글자 간격",
+      "spacingNormal": "보통",
+      "spacingRelaxed": "넓게",
+      "spacingLoose": "아주 넓게",
+      "strongFocus": "초점 강조",
+      "strongFocusHelp": "키보드로 옮겨 다닐 때 지금 위치를 두꺼운 노란 테두리로 크게 보여 줍니다.",
+      "reduceMotion": "움직임 줄이기",
+      "reduceMotionHelp": "화면 전환·깜박임 같은 움직임을 줄입니다. 직접 바꾸기 전에는 기기의 '동작 줄이기' 설정을 따릅니다.",
+      "on": "켜짐",
+      "off": "꺼짐",
+      "turnedOn": "{{label}}을(를) 켰습니다",
+      "turnedOff": "{{label}}을(를) 껐습니다",
+      "valueChanged": "{{label}}: {{value}}(으)로 바꿨습니다",
+      "reset": "기본값으로 되돌리기",
+      "resetDone": "접근성 설정을 기본값으로 되돌렸습니다"
     },
 
     "modeBadge": {
@@ -349,7 +374,8 @@
       "sortNewestAriaLabel": "오래된순으로 정렬 변경",
       "sortOldestAriaLabel": "최신순으로 정렬 변경",
       "newestSortButton": "최신순 ↓",
-      "oldestSortButton": "오래된순 ↑"
+      "oldestSortButton": "오래된순 ↑",
+      "showAll": "전체 {{count}}개 보기"
     },
 
     "time": {
@@ -1765,10 +1791,33 @@
   },
 
   "spectator": {
+    "schedule": {
+      "timeTbd": "시간 미정",
+      "count": "경기 {{count}}개 (전체 {{total}}개)",
+      "empty": "조건에 맞는 경기가 없습니다.",
+      "noFavorites": "즐겨찾기한 선수가 없습니다. 선수 명단에서 별을 눌러 추가하세요.",
+      "dateTbd": "날짜 미정",
+      "versus": "대",
+      "setScore": "세트 {{s1}} 대 {{s2}}",
+      "referee": "주심 {{name}}",
+      "delayed": "지연",
+      "status": {
+        "pending": "예정",
+        "in_progress": "진행 중",
+        "completed": "끝남"
+      },
+      "stage": {
+        "finals": "본선",
+        "ranking": "순위결정전",
+        "other": "기타",
+        "qualifying": "예선"
+      }
+    },
     "nav": {
       "label": "관람 탭 메뉴"
     },
     "layout": {
+      "backToTournamentList": "대회 목록으로",
       "headerAriaLabel": "쇼다운 관람",
       "homeButton": "← 관람 홈",
       "homeAriaLabel": "관람 홈으로 이동",
@@ -1814,7 +1863,26 @@
         "inProgress": "진행중",
         "completed": "완료",
         "paused": "일시정지"
-      }
+      },
+      "intro": "대회를 골라 실시간 점수, 일정, 순위, 선수 정보를 보세요.",
+      "phase": {
+        "live": "진행 중",
+        "upcoming": "예정",
+        "finished": "종료"
+      },
+      "phaseHeading": {
+        "live": "진행 중인 대회 ({{count}}개)",
+        "upcoming": "예정된 대회 ({{count}}개)",
+        "finished": "종료된 대회 ({{count}}개)"
+      },
+      "searchLabel": "대회 찾기",
+      "searchPlaceholder": "대회 이름이나 장소",
+      "searchCount": "대회 {{count}}개를 찾았습니다",
+      "a11yHint": "제목(H2)으로 진행 중·예정·종료 대회 묶음 사이를 이동할 수 있습니다. 오른쪽 아래 버튼에서 글자 크기와 색을 바꿀 수 있습니다.",
+      "venue": "장소: {{venue}}",
+      "liveMatchCount": "지금 {{count}}경기 진행 중",
+      "noTournaments": "아직 등록된 대회가 없습니다.",
+      "noSearchResults": "\"{{query}}\"에 맞는 대회가 없습니다."
     },
 
     "tournament": {
@@ -1927,7 +1995,8 @@
         "historySummary": "전체 {{total}}경기 | 완료 {{completed}}경기 | 진행중 {{inProgress}}경기 | 대기 {{pending}}경기",
         "qualifyingGroupLeague": "예선 (조별리그)",
         "finalsTournament": "본선 (토너먼트)",
-        "wildcardBadge": "와일드카드 진출"
+        "wildcardBadge": "와일드카드 진출",
+        "serveLabel": "서브"
       }
     },
 
@@ -2021,7 +2090,10 @@
         "logout": "로그아웃"
       },
       "bulkRemoveConfirm": "{{count}}명을 즐겨찾기에서 삭제하시겠습니까?",
-      "bulkRemove": "{{count}}명 삭제"
+      "bulkRemove": "{{count}}명 삭제",
+      "toggleLabel": "{{name}} 즐겨찾기",
+      "addedAnnounce": "{{name}} 선수를 즐겨찾기에 넣었습니다.",
+      "removedAnnounce": "{{name}} 선수를 즐겨찾기에서 뺐습니다."
     },
 
     "notifications": {
@@ -2054,6 +2126,199 @@
       "deleteCompleted": "완료 기록 전체 삭제",
       "deleteMatch": "{{p1}} vs {{p2}} 기록 삭제",
       "backToTournaments": "대회 목록으로"
+    },
+    "rules": {
+      "points": "순위 점수는 {{list}}입니다.",
+      "listSep": ", ",
+      "pointsWin": "이기면 {{n}}점",
+      "pointsLoss": "지면 {{n}}점",
+      "pointsDraw": "비기면 {{n}}점",
+      "pointsWalkoverWin": "부전승은 {{n}}점",
+      "pointsForfeitLoss": "기권패는 {{n}}점",
+      "walkoverExcluded": "부전승·기권 경기는 순위 계산에 넣지 않습니다.",
+      "walkoverCounted": "부전승·기권 경기는 {{score}}(으)로 순위에 넣습니다.",
+      "tiebreak": "{{lead}} {{list}} 순서로 정합니다. 그래도 같으면 {{unresolved}}.",
+      "tiebreakLeadPoints": "순위 점수가 같으면",
+      "tiebreakLead": "순위는",
+      "orderSep": ", ",
+      "tiebreakNone": "순위 점수가 같으면 {{unresolved}}.",
+      "headToHeadRecursive": "상대 전적은 그래도 같은 선수끼리만 다시 비교합니다.",
+      "qualify": "각 조 상위 {{n}}명이 본선에 나갑니다.",
+      "wildcards": "그 밖에 {{n}}명이 와일드카드로 더 나갑니다.",
+      "unresolved": {
+        "lot": "추첨으로 정합니다",
+        "admin_decision": "운영진이 정합니다",
+        "playoff": "결정전을 합니다"
+      },
+      "criteria": {
+        "points": "순위 점수",
+        "wins": "이긴 경기 수",
+        "head_to_head": "동률 선수끼리의 상대 전적",
+        "set_difference": "세트 득실차",
+        "point_difference": "점수 득실차",
+        "points_scored": "얻은 점수",
+        "set_ratio": "세트 득실률",
+        "point_ratio": "점수 득실률",
+        "lot": "추첨"
+      }
+    },
+    "live": {
+      "eventCourt": "{{court}}, ",
+      "eventSetEnd": "{{court}}{{p1}} 대 {{p2}}, {{set}}세트 끝. {{winner}} 승리, {{s1}} 대 {{s2}}",
+      "eventMatchEnd": "{{court}}{{p1}} 대 {{p2}}, 경기 끝. {{winner}} 승리, 세트 {{s1}} 대 {{s2}}",
+      "eventMatchEndNoWinner": "{{court}}{{p1}} 대 {{p2}}, 경기 끝",
+      "eventGoldenGoal": "{{court}}{{p1}} 대 {{p2}}, 골든골: 다음 득점이 이깁니다",
+      "summary": "진행 중 {{live}}경기, 곧 시작 {{upcoming}}경기, 방금 끝남 {{recent}}경기.",
+      "courtBoard": "코트 현황",
+      "courtNow": "지금: {{match}}",
+      "courtScore": "{{set}}세트 {{s1}} 대 {{s2}} (세트 {{w1}} 대 {{w2}})",
+      "courtIdle": "지금 경기 없음",
+      "courtNext": "다음: {{time}} {{match}}",
+      "inProgress": "진행 중 ({{count}})",
+      "upcoming": "곧 시작 ({{count}})",
+      "recent": "방금 끝남 ({{count}})",
+      "noUpcoming": "한 시간 안에 시작할 경기가 없습니다.",
+      "noRecent": "최근 30분 안에 끝난 경기가 없습니다."
+    },
+    "connection": {
+      "justNow": "방금",
+      "minutesAgo": "{{n}}분 전",
+      "hoursAgo": "{{h}}시간 전",
+      "hoursMinutesAgo": "{{h}}시간 {{m}}분 전",
+      "connecting": "서버에 연결하는 중입니다",
+      "live": "실시간 연결됨 ({{time}} 갱신)",
+      "liveNoTime": "실시간 연결됨",
+      "reconnecting": "연결이 끊겨 다시 연결하는 중입니다. 화면은 {{time}} 기준({{ago}})입니다",
+      "cached": "저장된 데이터 ({{time}} 기준, {{ago}})",
+      "cachedNoTime": "저장된 데이터"
+    },
+    "assistant": {
+      "offlineNote": "지금은 연결이 끊겨 기기에 저장된 데이터로 답합니다.",
+      "vs": "{{p1}} 대 {{p2}}",
+      "liveScore": "{{set}}세트 {{s1}} 대 {{s2}}, 세트 {{w1}} 대 {{w2}}",
+      "courtUnknown": "{{court}}번 코트를 찾지 못했습니다.",
+      "courtNow": "{{court}}: 지금 {{match}}, {{score}}.",
+      "courtIdle": "{{court}}: 지금 진행 중인 경기가 없습니다.",
+      "courtNext": "다음은 {{match}}, {{when}}.",
+      "playerLive": "{{name}} 선수는 지금 경기 중입니다: {{match}}, {{score}}.",
+      "playerNoNext": "{{name}} 선수의 남은 경기가 없습니다.",
+      "playerNext": "{{name}} 선수의 다음 경기는 {{match}}, {{when}}입니다.",
+      "standingsNone": "아직 순위가 없습니다.",
+      "rankItem": "{{rank}}위 {{name}} ({{w}}승 {{l}}패)",
+      "overall": "전체 순위",
+      "noLive": "지금 진행 중인 경기가 없습니다.",
+      "liveList": "진행 중 {{count}}경기: {{list}}",
+      "fontChanged": "글자 크기를 {{n}}단계({{percent}}%)로 바꿨습니다.",
+      "colorChanged": "화면을 {{label}}(으)로 바꿨습니다.",
+      "notificationsOn": "즐겨찾기 경기 알림을 켰습니다.",
+      "notificationsOff": "즐겨찾기 경기 알림을 껐습니다.",
+      "favoriteAdded": "{{name}}을(를) 즐겨찾기에 넣었습니다.",
+      "favoriteRemoved": "{{name}}을(를) 즐겨찾기에서 뺐습니다."
+    },
+    "sections": {
+      "menuLabel": "대회 메뉴",
+      "live": "실시간 현황",
+      "schedule": "경기 일정",
+      "standings": "순위",
+      "bracket": "대진표",
+      "next": "다음 경기",
+      "players": "선수 명단",
+      "referees": "심판",
+      "settings": "설정"
+    },
+    "search": {
+      "region": "선수·심판 찾기",
+      "label": "선수·심판 찾기",
+      "placeholder": "이름 또는 초성 (예: 김철수, ㄱㅊㅅ)",
+      "help": "이름을 고르면 그 선수·심판의 일정과 결과를 봅니다. 위아래 화살표로 고르고 Enter를 누르세요.",
+      "listLabel": "찾은 사람",
+      "count": "{{count}}명 찾음. 위아래 화살표로 고르세요.",
+      "none": "\"{{query}}\"에 맞는 사람이 없습니다.",
+      "kind": {
+        "player": "선수",
+        "team": "팀",
+        "referee": "심판"
+      }
+    },
+    "filters": {
+      "legend": "경기 거르기",
+      "all": "전체",
+      "date": "날짜",
+      "stage": "부문·단계",
+      "court": "코트",
+      "status": "진행 상태",
+      "remaining": "남은 경기",
+      "completed": "끝난 경기",
+      "favoritesOnly": "즐겨찾기 선수만 보기",
+      "division": "부"
+    },
+    "players": {
+      "intro": "이름을 누르면 그 선수의 일정과 결과를 봅니다. 오른쪽 별을 누르면 즐겨찾기에 넣습니다. 빠르게 찾으려면 위의 선수·심판 찾기를 쓰세요.",
+      "empty": "아직 선수 명단이 없습니다.",
+      "count": "선수 {{count}}명",
+      "teamCount": "팀 {{count}}개",
+      "noFavorites": "즐겨찾기한 선수가 없습니다.",
+      "record": "{{w}}승 {{l}}패"
+    },
+    "standings": {
+      "rulesTitle": "순위를 정하는 방법",
+      "groupsTitle": "조별 순위",
+      "finalTitle": "최종 순위",
+      "provisional": "잠정 순위 (경기 {{completed}}/{{total}} 끝남)",
+      "final": "확정",
+      "inProgressCount": "{{count}}경기 진행 중"
+    },
+    "next": {
+      "intro": "지금부터 열릴 경기를 이른 순서로 보여 줍니다. 대진이 아직 정해지지 않은 경기는 라운드 이름과 시각, 어느 경기의 승자가 오는지 함께 나옵니다.",
+      "count": "다음 경기 {{count}}개",
+      "empty": "남은 경기가 없습니다."
+    },
+    "person": {
+      "pageTitle": "{{name}} - {{tournament}}",
+      "refereePageTitle": "심판 {{name}} - {{tournament}}",
+      "refereeHeading": "심판 {{name}}",
+      "notFound": "이 대회에서 이 사람의 경기를 찾지 못했습니다.",
+      "backToPlayers": "선수 명단으로",
+      "backToReferees": "심판 명단으로",
+      "fullProfile": "{{name}} 전체 기록 보기",
+      "now": "지금",
+      "playingNow": "경기 중 ({{court}})",
+      "nextAt": "다음 경기 {{when}}, {{court}}",
+      "noMore": "남은 경기 없음",
+      "standing": "현재 순위",
+      "groupRank": "{{group}}조 {{rank}}",
+      "provisional": "잠정",
+      "winRate": "승률 {{pct}}%",
+      "matches": "일정과 결과 ({{count}}경기)",
+      "refereeNoMatches": "맡은 경기가 없습니다."
+    },
+    "referees": {
+      "intro": "이름을 누르면 그 심판이 맡은 경기를 봅니다.",
+      "liveNow": "지금 {{count}}경기 진행"
+    },
+    "settings": {
+      "a11yHint": "글씨 크기와 색은 화면 오른쪽 아래 접근성 버튼에서 바꿀 수 있습니다.",
+      "notifyTitle": "즐겨찾기 선수 경기 알림",
+      "notifyHelp": "즐겨찾기한 선수의 경기가 시작 10분 전일 때와 결과가 나왔을 때 알려 줍니다. 앱을 닫아 두어도 옵니다. 켜면 브라우저가 알림 허용을 묻습니다.",
+      "notifyPrivacy": "알림을 받으려고 서버에 저장하는 것은 이 기기의 알림 주소와 즐겨찾기 선수 번호뿐입니다. 끄면 지웁니다.",
+      "notifyUnsupported": "이 브라우저는 앱을 닫았을 때 오는 알림을 지원하지 않습니다.",
+      "notifyStateOn": "알림 켜짐 (즐겨찾기 {{count}}명)",
+      "notifyStateOff": "알림 꺼짐",
+      "notifyOn": "알림 켜기",
+      "notifyOff": "알림 끄기",
+      "notifyOnDone": "알림을 켰습니다. 즐겨찾기 {{count}}명의 경기를 알려 드립니다.",
+      "notifyOffDone": "알림을 껐습니다.",
+      "notifyDenied": "브라우저에서 알림이 막혀 있습니다. 브라우저 설정에서 이 사이트의 알림을 허용해 주세요.",
+      "notifyFailed": "알림을 켜지 못했습니다. 잠시 후 다시 해 보세요.",
+      "notifyNoFavorites": "아직 즐겨찾기한 선수가 없습니다. 선수 명단에서 별을 눌러 추가하세요.",
+      "soundTitle": "결과 알림 소리",
+      "resultSound": "새 결과가 나오면 소리로 알리기",
+      "resultSoundFavoritesOnly": "즐겨찾기 선수 경기만",
+      "soundHelp": "이 화면을 보고 있을 때 경기가 끝나면 짧은 소리를 냅니다.",
+      "namesTitle": "선수 이름 표기",
+      "showRoman": "한글 이름 뒤에 영문 이름도 함께 보기",
+      "on": "켜짐",
+      "off": "꺼짐"
     }
   }
 }

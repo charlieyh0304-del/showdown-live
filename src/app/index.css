@@ -21,7 +21,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-size: 20px;
+  font-size: 1.25rem; /* 20px at 100% — scales with the a11y font level */
   line-height: 1.5;
   min-height: 100vh;
 }
@@ -81,10 +81,11 @@ button, a, input, select {
 }
 
 /* ===== 접근성: Reduced Motion ===== */
+/* 접근성 설정에서 움직임을 직접 켠 경우(a11y-motion-ok)만 기기 설정을 무시한다. 직접 고르지 않았으면 기기 설정을 따른다 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not(.a11y-motion-ok) *,
+  :root:not(.a11y-motion-ok) *::before,
+  :root:not(.a11y-motion-ok) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -612,4 +613,60 @@ a:not(.btn):not(.nav-link):not(.mode-card):not(.skip-link):hover {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(100%); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 접근성 설정 확장 (shared/utils/a11ySettings.ts) ===== */
+/* 글자 크기 5단계: 루트 글자 크기를 바꿔 rem 기반 크기가 모두 따라 커진다 */
+.font-scale-0 { font-size: 100%; }
+.font-scale-1 { font-size: 112.5%; }
+.font-scale-2 { font-size: 125%; }
+.font-scale-3 { font-size: 150%; }
+.font-scale-4 { font-size: 175%; }
+
+.a11y-bold body { font-weight: 600; }
+.a11y-bold body :where(p, span, li, td, th, label, dd, dt, a, button, input, select, textarea, legend) { font-weight: 600; }
+
+.a11y-lh-relaxed body, .a11y-lh-relaxed body * { line-height: 1.8 !important; }
+.a11y-lh-loose body, .a11y-lh-loose body * { line-height: 2.1 !important; }
+.a11y-ls-wide body, .a11y-ls-wide body * { letter-spacing: 0.05em !important; }
+.a11y-ls-wider body, .a11y-ls-wider body * { letter-spacing: 0.1em !important; }
+
+/* 초점 강조: 두껍고 대비가 큰 이중 테두리 */
+.a11y-strong-focus *:focus-visible,
+.a11y-strong-focus *:focus {
+  outline: 5px solid #ffff00 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 9px #000000 !important;
+}
+
+/* 움직임 줄이기 (설정에서 켬) */
+.a11y-reduce-motion *,
+.a11y-reduce-motion *::before,
+.a11y-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/*
+ * 색 모드. 화면 곳곳의 색이 인라인으로 정해져 있어 밝은 모드·흰 바탕 고대비·색 반전은 화면 전체 필터로 만든다.
+ * 루트(html)의 필터는 고정 위치 요소의 기준을 바꾸지 않는다. 접근성 버튼·창(.a11y-no-invert)은 같은 필터를
+ * 한 번 더 걸어 원래 색으로 되돌린다(반전하지 않는다). .a11y-no-invert는 반드시 고정 위치 요소 자신에 붙인다:
+ * 루트가 아닌 조상에 필터가 있으면 그 조상이 고정 위치의 기준이 되어 버튼이 화면 구석에 머물지 않는다.
+ * 흰 바탕 고대비는 루트의 흑백(grayscale)을 되돌릴 수 없어, 창은 노랑 대신 검정 바탕·밝은 글자의 고대비로 보인다.
+ */
+.mode-light { filter: invert(1) hue-rotate(180deg); }
+.mode-high-contrast-light { filter: invert(1) grayscale(1) contrast(1.2); }
+.mode-invert { filter: invert(1); }
+.mode-light .a11y-no-invert,
+.mode-light img, .mode-light video { filter: invert(1) hue-rotate(180deg); }
+.mode-high-contrast-light .a11y-no-invert { filter: invert(1); }
+.mode-invert .a11y-no-invert { filter: invert(1); }
+
+/* 관전: 구역 메뉴 */
+.spectator-section-nav a[aria-current="page"] {
+  background-color: var(--color-primary);
+  color: #000000;
+  font-weight: 800;
 }

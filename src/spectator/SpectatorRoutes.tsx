@@ -13,12 +13,8 @@ export default function SpectatorRoutes() {
     <SpectatorLayout>
       <Routes>
         <Route path="/" element={<SectionErrorBoundary><SpectatorHome /></SectionErrorBoundary>} />
-        {/* Tournament context routes - 5 bottom tabs */}
-        <Route path="/tournament/:id" element={<SectionErrorBoundary><TournamentView viewTab="overview" /></SectionErrorBoundary>} />
-        <Route path="/tournament/:id/players" element={<SectionErrorBoundary><TournamentView viewTab="players" /></SectionErrorBoundary>} />
-        <Route path="/tournament/:id/standings" element={<SectionErrorBoundary><TournamentView viewTab="standings" /></SectionErrorBoundary>} />
-        <Route path="/tournament/:id/schedule" element={<SectionErrorBoundary><TournamentView viewTab="schedule" /></SectionErrorBoundary>} />
-        <Route path="/tournament/:id/referees" element={<SectionErrorBoundary><TournamentView viewTab="referees" /></SectionErrorBoundary>} />
+        {/* 대회 상세: 구역(실시간·일정·순위·대진·다음 경기·선수·심판·설정)과 선수·심판 상세가 모두 주소를 가진다 (뒤로 가기·공유) */}
+        <Route path="/tournament/:id/*" element={<SectionErrorBoundary><TournamentView /></SectionErrorBoundary>} />
         {/* Detail views */}
         <Route path="/match/:tournamentId/:matchId" element={<SectionErrorBoundary><LiveMatchView /></SectionErrorBoundary>} />
         <Route path="/player/:tournamentId/:playerName" element={<SectionErrorBoundary><PlayerProfileView /></SectionErrorBoundary>} />

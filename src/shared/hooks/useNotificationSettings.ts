@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 // === Types ===
 export interface NotificationTypeFlags {
@@ -19,7 +19,12 @@ export interface PlayerNotificationSettings {
 }
 
 export interface NotificationSettings {
+  /** 즐겨찾기 선수 경기 알림 (켜는 사람만: 기본 꺼짐) */
   enabled: boolean;
+  /** 새 결과가 나오면 소리로 알리기 (앱을 보고 있을 때, 기본 꺼짐) */
+  resultSound: boolean;
+  /** 결과 소리를 즐겨찾기 선수 경기에만 */
+  resultSoundFavoritesOnly: boolean;
   types: NotificationTypeFlags;
   quietHours: QuietHours;
   perPlayer: Record<string, PlayerNotificationSettings>;
@@ -29,30 +34,44 @@ const SETTINGS_KEY = 'showdown_notification_settings';
 
 const DEFAULT_TYPES: NotificationTypeFlags = {
   preMatch: true,
-  matchStart: true,
+  matchStart: false,
   matchComplete: true,
 };
 
-const DEFAULT_SETTINGS: NotificationSettings = {
-  enabled: true,
+/** 예전 버전에서 푸시를 켠 기기(토큰 저장됨)는 이미 알림을 받기로 한 것으로 본다 */
+function hadPushOptIn(): boolean {
+  try { return !!localStorage.getItem('showdown_fcm_token'); } catch { return false; }
+}
+
+export const DEFAULT_SETTINGS: NotificationSettings = {
+  enabled: false,
+  resultSound: false,
+  resultSoundFavoritesOnly: true,
   types: { ...DEFAULT_TYPES },
   quietHours: { enabled: false, start: '22:00', end: '08:00' },
   perPlayer: {},
 };
 
+/** 저장된 값을 완전한 설정으로 (저장 값이 없으면 기본 꺼짐, 단 예전에 푸시를 켠 기기는 켜짐) */
+export function normalizeNotificationSettings(parsed: unknown, pushOptIn = false): NotificationSettings {
+  if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_SETTINGS, types: { ...DEFAULT_TYPES, matchStart: pushOptIn }, enabled: pushOptIn };
+  const p = parsed as Partial<NotificationSettings>;
+  return {
+    enabled: typeof p.enabled === 'boolean' ? p.enabled : pushOptIn,
+    resultSound: p.resultSound === true,
+    resultSoundFavoritesOnly: p.resultSoundFavoritesOnly !== false,
+    types: { ...DEFAULT_TYPES, ...(p.types || {}) },
+    quietHours: { ...DEFAULT_SETTINGS.quietHours, ...(p.quietHours || {}) },
+    perPlayer: p.perPlayer ?? {},
+  };
+}
+
 function loadSettings(): NotificationSettings {
   try {
     const stored = localStorage.getItem(SETTINGS_KEY);
-    if (!stored) return { ...DEFAULT_SETTINGS };
-    const parsed = JSON.parse(stored);
-    return {
-      enabled: parsed.enabled ?? true,
-      types: { ...DEFAULT_TYPES, ...parsed.types },
-      quietHours: { ...DEFAULT_SETTINGS.quietHours, ...parsed.quietHours },
-      perPlayer: parsed.perPlayer ?? {},
-    };
+    return normalizeNotificationSettings(stored ? JSON.parse(stored) : null, hadPushOptIn());
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return normalizeNotificationSettings(null, hadPushOptIn());
   }
 }
 
@@ -111,25 +130,44 @@ export function getSettingsForSync(settings: NotificationSettings) {
   };
 }
 
-export function useNotificationSettings() {
-  const [settings, setSettings] = useState<NotificationSettings>(loadSettings);
-  const settingsRef = useRef(settings);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
+// ===== 모듈 저장소: 여러 화면(관전 설정 구역, 알림 감시, 즐겨찾기 화면)이 같은 값을 보고 바로 함께 바뀐다 =====
+let current: NotificationSettings | null = null;
+const listeners = new Set<() => void>();
 
-  const update = useCallback((partial: Partial<NotificationSettings>) => {
-    const next = { ...settingsRef.current, ...partial };
-    saveSettings(next);
-    settingsRef.current = next;
-    setSettings(next);
-  }, []);
+export function getNotificationSettings(): NotificationSettings {
+  if (!current) current = loadSettings();
+  return current;
+}
+
+export function updateNotificationSettings(partial: Partial<NotificationSettings>): NotificationSettings {
+  const next = { ...getNotificationSettings(), ...partial };
+  current = next;
+  saveSettings(next);
+  listeners.forEach(l => l());
+  return next;
+}
+
+function subscribeNotificationSettings(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+/** 테스트용: 저장소를 비워 다음 읽기 때 기기 저장 값을 다시 읽게 한다 */
+export function resetNotificationSettingsCache(): void {
+  current = null;
+}
+
+export function useNotificationSettings() {
+  const settings = useSyncExternalStore(subscribeNotificationSettings, getNotificationSettings, getNotificationSettings);
+
+  const update = useCallback((partial: Partial<NotificationSettings>) => updateNotificationSettings(partial), []);
 
   const setEnabled = useCallback((enabled: boolean) => {
     update({ enabled });
   }, [update]);
 
   const setTypeEnabled = useCallback((type: keyof NotificationTypeFlags, enabled: boolean) => {
-    const types = { ...settingsRef.current.types, [type]: enabled };
-    update({ types });
+    update({ types: { ...getNotificationSettings().types, [type]: enabled } });
   }, [update]);
 
   const setQuietHours = useCallback((quietHours: QuietHours) => {
@@ -137,18 +175,17 @@ export function useNotificationSettings() {
   }, [update]);
 
   const setPlayerSettings = useCallback((playerId: string, playerSettings: PlayerNotificationSettings) => {
-    const perPlayer = { ...settingsRef.current.perPlayer, [playerId]: playerSettings };
-    update({ perPlayer });
+    update({ perPlayer: { ...getNotificationSettings().perPlayer, [playerId]: playerSettings } });
   }, [update]);
 
   const removePlayerSettings = useCallback((playerId: string) => {
-    const perPlayer = { ...settingsRef.current.perPlayer };
+    const perPlayer = { ...getNotificationSettings().perPlayer };
     delete perPlayer[playerId];
     update({ perPlayer });
   }, [update]);
 
   const getPlayerSettings = useCallback((playerId: string): PlayerNotificationSettings => {
-    return settingsRef.current.perPlayer[playerId] ?? {
+    return getNotificationSettings().perPlayer[playerId] ?? {
       enabled: true,
       types: { ...DEFAULT_TYPES },
     };
@@ -156,6 +193,7 @@ export function useNotificationSettings() {
 
   return {
     settings,
+    update,
     setEnabled,
     setTypeEnabled,
     setQuietHours,

@@ -1,156 +1,103 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useTournament, useMatches, useFavorites, useSchedule, useReferees, useTournamentReferees } from '@shared/hooks/useFirebase';
-import { parseTimeDisplay } from '@shared/utils/locale';
-import { requestNotificationPermission } from '@shared/utils/notifications';
-import { useMatchNotifications } from '../hooks/useMatchNotifications';
+import { useFavorites, useReferees, useTournamentReferees, useTournamentLocalPlayers } from '@shared/hooks/useFirebase';
+import { useSlotLabel } from '@shared/hooks/useSlotLabel';
+import { useNotificationSettings } from '@shared/hooks/useNotificationSettings';
+import { useAudioFeedback } from '@shared/hooks/useAudioFeedback';
+import { resolveMatchScoring } from '@shared/rules/competitionRules';
+import { ALL_DIVISIONS, filterByDivision, getDivisions, hasDivisionChoice, loadDivisionChoice, resolveDivisionChoice, rulesScopeStageId, saveDivisionChoice } from '@shared/utils/divisions';
 import type { Match } from '@shared/types';
-import LiveTab from '../components/tournament/LiveTab';
 import BracketTab from '../components/tournament/BracketTab';
-import GroupsTab from '../components/tournament/GroupsTab';
-import RankingTab from '../components/tournament/RankingTab';
 import PlayersTab from '../components/tournament/PlayersTab';
-import HistoryTab from '../components/tournament/HistoryTab';
 import RefereesTab from '../components/tournament/RefereesTab';
-import { participantStats } from '@shared/utils/ranking';
+import LiveSection from '../components/sections/LiveSection';
+import ScheduleSection from '../components/sections/ScheduleSection';
+import StandingsSection from '../components/sections/StandingsSection';
+import NextSection from '../components/sections/NextSection';
+import SettingsSection from '../components/sections/SettingsSection';
+import PeopleSearch from '../components/sections/PeopleSearch';
+import ConnectionLine from '../components/sections/ConnectionLine';
+import { PlayerDetail, RefereeDetail } from '../components/sections/PersonDetail';
+import { useNow, useSpectatorData } from '../hooks/useSpectatorData';
+import { buildPeopleIndex } from '../utils/peopleSearch';
+import { buildScheduleRows, involves } from '../utils/spectatorData';
+import { describeLiveEvent, detectLiveEvents } from '../utils/liveEvents';
+import { setAssistantData } from '../utils/spectatorAssistant';
+import { buildRomanMap, formatDisplayName, loadShowRoman, saveShowRoman } from '../utils/nameDisplay';
+import { parseSpectatorPath, playerPath, SPECTATOR_SECTIONS, sectionPath, type SpectatorSection } from '../utils/spectatorRoutes';
+import { tournamentDateRange, tournamentVenue } from '../utils/tournamentList';
 
-/** URL-based tab: mapped from the route path segment after tournament/:id */
-type ViewTab = 'overview' | 'players' | 'standings' | 'schedule' | 'referees';
-
-export default function TournamentView({ viewTab = 'overview' }: { viewTab?: ViewTab }) {
-  const { id } = useParams<{ id: string }>();
+/**
+ * 관전 대회 화면 (df4095 구성): 대회 이름(h1) → 연결 상태 → 선수·심판 찾기 → 구역 메뉴 → 구역.
+ * 구역·선수·심판마다 주소가 있어 뒤로 가기와 공유가 되고, 뒤로 돌아오면 누른 이름에 초점이 돌아온다.
+ * 화면낭독기 안내(aria-live)는 세트 끝·경기 끝·골든골 같은 의미 있는 사건에서만 한다.
+ */
+export default function TournamentView() {
+  const params = useParams<{ id: string; '*': string }>();
+  const id = params.id || null;
+  const route = parseSpectatorPath(params['*'] || '');
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { tournament, loading: tLoading } = useTournament(id || null);
-  const { matches, loading: mLoading } = useMatches(id || null);
+  const data = useSpectatorData(id);
+  const { tournament, matches: allMatches, schedule, loading } = data;
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
-  const { schedule } = useSchedule(id || null);
-
-  const getTournamentTypeLabel = (type: string) => t(`common.tournamentType.${type}`);
   const { referees } = useReferees();
-  const { assignments } = useTournamentReferees(id || null);
+  const { assignments } = useTournamentReferees(id);
+  const { players: localPlayers } = useTournamentLocalPlayers(id);
+  const now = useNow();
+  const slotLabel = useSlotLabel(allMatches);
 
-  useMatchNotifications(favoriteIds, matches, schedule);
+  // 부(division): 지금은 기본 부 하나(docs/05 부록 5). 둘 이상이면 고르는 창이 보인다.
+  const divisions = useMemo(() => getDivisions(tournament, allMatches), [tournament, allMatches]);
+  const [divisionChoice, setDivisionChoice] = useState<string>(() => (id ? loadDivisionChoice(id) : null) || ALL_DIVISIONS);
+  const division = resolveDivisionChoice(divisionChoice, divisions);
+  const matches = useMemo(() => filterByDivision(allMatches, division, divisions), [allMatches, division, divisions]);
 
-  const handleToggleFavorite = useCallback((playerId: string, playerName?: string) => {
-    const newFavs = toggleFavorite(playerId, playerName);
-    if (newFavs.includes(playerId)) {
-      requestNotificationPermission();
-    }
-  }, [toggleFavorite]);
+  const rows = useMemo(() => buildScheduleRows(matches, schedule, tournament?.date || ''), [matches, schedule, tournament?.date]);
+  const people = useMemo(() => buildPeopleIndex(allMatches, referees, assignments), [allMatches, referees, assignments]);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const playerPanelRef = useRef<HTMLDivElement>(null);
-  const playerTriggerRef = useRef<HTMLElement | null>(null);
-  const [stageFilter, setStageFilter] = useState<'all' | 'qualifying' | 'finals' | 'ranking'>('all');
-  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  // 이름 표기 (영문 데이터가 있을 때만)
+  const romanMap = useMemo(() => buildRomanMap(localPlayers as Array<{ name?: string }>), [localPlayers]);
+  const [showRoman, setShowRoman] = useState(loadShowRoman);
+  const nameOf = useCallback((n: string) => formatDisplayName(n, romanMap, showRoman), [romanMap, showRoman]);
 
-  // Set document title for screen readers
+  // 도우미(기기 안 답변)가 지금 대회 데이터를 쓰게 한다
   useEffect(() => {
-    if (tournament) {
-      document.title = t('spectator.tournament.pageTitle', { name: tournament.name });
-    } else {
-      document.title = t('spectator.tournament.defaultPageTitle');
-    }
-  }, [tournament, t]);
+    setAssistantData({ tournament, matches: allMatches, schedule });
+    return () => setAssistantData(null);
+  }, [tournament, allMatches, schedule]);
+
+  // 의미 있는 사건만 알림 (세트 끝·경기 끝·골든골) + 결과 소리(설정에서 켠 경우)
+  const prevMatches = useRef<Match[] | null>(null);
+  const [liveMsg, setLiveMsg] = useState('');
+  const { settings: notif } = useNotificationSettings();
+  const audio = useAudioFeedback();
+  useEffect(() => {
+    if (data.usingCache) return;
+    const prev = prevMatches.current;
+    prevMatches.current = allMatches;
+    if (!prev) return;
+    const events = detectLiveEvents(prev, allMatches, m => resolveMatchScoring(m, tournament));
+    if (events.length === 0) return;
+    const text = events.map(e => describeLiveEvent(e, t)).join(' ');
+    setLiveMsg(text);
+    const ends = events.filter(e => e.kind === 'match_end');
+    if (notif.resultSound && ends.some(e => notif.resultSoundFavoritesOnly === false || involves(e.match, favoriteIds))) audio.matchComplete();
+  }, [allMatches, tournament, t, data.usingCache, notif.resultSound, notif.resultSoundFavoritesOnly, favoriteIds, audio]);
+
+  const sectionLabel = (s: SpectatorSection) => t(`spectator.sections.${s}`);
+  const activeSection: SpectatorSection = route.kind === 'player' ? 'players' : route.kind === 'referee' ? 'referees' : route.section;
 
   useEffect(() => {
-    if (selectedPlayer && playerPanelRef.current) {
-      playerPanelRef.current.focus();
-    }
-    if (!selectedPlayer && playerTriggerRef.current) {
-      playerTriggerRef.current.focus();
-      playerTriggerRef.current = null;
-    }
-  }, [selectedPlayer]);
+    if (tournament) document.title = t('spectator.tournament.pageTitle', { name: `${sectionLabel(activeSection)} - ${tournament.name}` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournament?.name, activeSection, t]);
 
-  const handleSelectPlayer = useCallback((player: string | null) => {
-    if (player) {
-      playerTriggerRef.current = document.activeElement as HTMLElement;
-    }
-    setSelectedPlayer(player);
-  }, []);
-
-  const stageMap = useMemo(() => {
-    const qualifying = matches.filter(m => m.groupId || m.stageId?.includes('qualifying'));
-    const finals = matches.filter(m =>
-      !m.groupId && (m.stageId?.includes('finals') || m.roundLabel) &&
-      !m.stageId?.includes('ranking') && !m.roundLabel?.includes('결정전')
-    );
-    const ranking = matches.filter(m =>
-      m.stageId?.includes('ranking') ||
-      m.roundLabel?.includes('결정전')
-    );
-    const other = matches.filter(m =>
-      !m.groupId && !m.stageId && !m.roundLabel
-    );
-    return { qualifying, finals, ranking, other };
-  }, [matches]);
-
-  // 개인전 풀리그: 리그전만 진행 (예선/본선 구분 없음)
-  const isFullLeagueOnly = useMemo(() => {
-    if (!tournament) return false;
-    // formatType이 round_robin이면 풀리그
-    if (tournament.formatType === 'round_robin') return true;
-    // stages에 finals가 없으면 풀리그
-    const hasFinalsStage = tournament.stages?.some(s => (s as { type?: string }).type === 'finals');
-    if (!hasFinalsStage && !tournament.finalsConfig) {
-      // 실제 본선 경기가 없으면 풀리그
-      const hasFinalsMatches = stageMap.finals.length > 0;
-      if (!hasFinalsMatches) return true;
-    }
-    return false;
-  }, [tournament, stageMap]);
-
-  const hasGroupStage = useMemo(() => {
-    if (isFullLeagueOnly) return false; // 풀리그는 조 없음
-    if (tournament?.formatType === 'group_knockout') return true;
-    if (tournament?.qualifyingConfig) return true;
-    if (tournament?.stages?.some(s => s.type === 'qualifying' || s.format === 'group_knockout' || s.format === 'round_robin')) return true;
-    return matches.some(m => m.groupId);
-  }, [tournament, matches, isFullLeagueOnly]);
-
-  const filteredMatches = useMemo(() => {
-    if (stageFilter === 'all') return matches;
-    if (stageFilter === 'qualifying') return stageMap.qualifying;
-    if (stageFilter === 'finals') return stageMap.finals;
-    return stageMap.ranking;
-  }, [stageFilter, matches, stageMap]);
-
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return null;
-    const q = searchQuery.trim().toLowerCase();
-    return matches.filter(m =>
-      m.player1Name?.toLowerCase().includes(q) ||
-      m.player2Name?.toLowerCase().includes(q) ||
-      m.team1Name?.toLowerCase().includes(q) ||
-      m.team2Name?.toLowerCase().includes(q)
-    );
-  }, [searchQuery, matches]);
-
-  const playerMatches = useMemo(() => {
-    if (!selectedPlayer) return [];
-    return matches.filter(m =>
-      m.player1Name === selectedPlayer || m.player2Name === selectedPlayer ||
-      m.team1Name === selectedPlayer || m.team2Name === selectedPlayer
-    );
-  }, [selectedPlayer, matches]);
-
-  // 선수 상세 전적: 대회 규칙의 'stats' 문맥으로 정규화한 결과 (세트 승자 = 그 경기의 유효 점수 규칙, 부전승 반영 규칙)
-  const playerStats = useMemo(() => {
-    if (!playerMatches.length || !selectedPlayer) return null;
-    const row = participantStats(playerMatches, tournament).find(r => r.playerName === selectedPlayer);
-    return {
-      total: playerMatches.length,
-      wins: row?.wins ?? 0, losses: row?.losses ?? 0,
-      setsWon: row?.setsWon ?? 0, setsLost: row?.setsLost ?? 0,
-      pointsFor: row?.pointsFor ?? 0, pointsAgainst: row?.pointsAgainst ?? 0,
-    };
-  }, [playerMatches, selectedPlayer, tournament]);
-
-  const loading = tLoading || mLoading;
+  const onSelectPlayer = useCallback((name: string) => {
+    const p = people.find(x => x.kind !== 'referee' && x.name === name);
+    if (id) navigate(playerPath(id, p?.id || name));
+  }, [people, id, navigate]);
 
   if (loading) {
     return (
@@ -160,508 +107,93 @@ export default function TournamentView({ viewTab = 'overview' }: { viewTab?: Vie
     );
   }
 
-  if (!tournament) {
+  if (!tournament || !id) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="alert">
-        <p style={{ fontSize: '1.5rem', color: '#ef4444' }}>{t('spectator.tournament.notFound')}</p>
-        <button className="btn btn-primary" onClick={() => navigate('/spectator')} style={{ marginTop: '1rem' }}>
-          {t('spectator.tournament.backToList')}
-        </button>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <h1 style={{ fontSize: '1.5rem', color: '#ef4444' }}>{t('spectator.tournament.notFound')}</h1>
+        <p style={{ marginTop: '1rem' }}><Link to="/spectator" className="btn btn-primary">{t('spectator.layout.backToTournamentList')}</Link></p>
       </div>
+    );
+  }
+
+  const venue = tournamentVenue(tournament);
+  const team = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
+  const headingProps = (title: string) => ({
+    'data-route-focus': true,
+    'data-route-title': t('spectator.tournament.pageTitle', { name: `${title} - ${tournament.name}` }),
+    tabIndex: -1,
+    style: { fontSize: '1.375rem', fontWeight: 'bold', marginBottom: '0.75rem', outline: 'none' } as const,
+  });
+
+  let content: React.ReactNode;
+  if (route.kind === 'player') {
+    const person = people.find(p => p.kind !== 'referee' && (p.id === route.key || p.name === route.key)) ?? null;
+    content = <PlayerDetail person={person} playerKey={route.key} tournament={tournament} tournamentId={id} matches={allMatches} schedule={schedule} slotLabel={slotLabel} now={now} isFavorite={isFavorite} toggleFavorite={toggleFavorite} nameOf={nameOf} divisions={divisions} />;
+  } else if (route.kind === 'referee') {
+    const person = people.find(p => p.kind === 'referee' && p.id === route.key) ?? null;
+    content = <RefereeDetail person={person} refereeId={route.key} assignedIds={assignments[route.key]?.assignedMatchIds || []} tournament={tournament} tournamentId={id} matches={allMatches} schedule={schedule} slotLabel={slotLabel} now={now} />;
+  } else {
+    const s = route.section;
+    content = (
+      <>
+        <h2 id="section-title" {...headingProps(sectionLabel(s))}>{sectionLabel(s)}</h2>
+        {s === 'live' && <LiveSection rows={rows} matches={matches} now={now} tournament={tournament} tournamentId={id} slotLabel={slotLabel} isFavorite={isFavorite} toggleFavorite={toggleFavorite} navigate={navigate} />}
+        {s === 'schedule' && <ScheduleSection rows={rows} tournament={tournament} tournamentId={id} slotLabel={slotLabel} favoriteIds={favoriteIds} />}
+        {s === 'standings' && <StandingsSection matches={matches} tournament={tournament} isFavorite={isFavorite} onSelectPlayer={onSelectPlayer} rulesStageId={rulesScopeStageId(division, divisions)} />}
+        {s === 'bracket' && <BracketTab matches={matches} tournamentType={tournament.type} onSelectPlayer={onSelectPlayer} tournament={tournament} allMatches={allMatches} />}
+        {s === 'next' && <NextSection rows={rows} now={now} tournament={tournament} tournamentId={id} slotLabel={slotLabel} favoriteIds={favoriteIds} />}
+        {s === 'players' && <PlayersTab matches={matches} isTeam={team} isFavorite={isFavorite} toggleFavorite={toggleFavorite} tournamentId={id} tournament={tournament} nameOf={nameOf} />}
+        {s === 'referees' && <RefereesTab referees={referees} assignments={assignments} matches={allMatches} tournamentId={id} />}
+        {s === 'settings' && <SettingsSection hasRomanNames={romanMap.size > 0} showRoman={showRoman} onShowRomanChange={on => { setShowRoman(on); saveShowRoman(on); }} />}
+      </>
     );
   }
 
   return (
     <div>
-      {/* Tournament header */}
-      <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-          {tournament.name}
-        </h1>
+      <div style={{ marginBottom: '0.75rem', textAlign: 'center' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{tournament.name}</h1>
         <p style={{ color: '#d1d5db' }}>
-          {tournament.date} · {getTournamentTypeLabel(tournament.type)}
+          {[tournamentDateRange(tournament), venue, t(`common.tournamentType.${tournament.type}`)].filter(Boolean).join(' · ')}
         </p>
+        <ConnectionLine connected={data.connected} lastUpdateAt={data.lastUpdateAt} usingCache={data.usingCache} cacheSavedAt={data.cacheSavedAt} now={now} />
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom: '1rem' }}>
-        <input
-          className="input"
-          style={{ width: '100%' }}
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder={t('spectator.tournament.searchPlaceholder')}
-          aria-label={t('spectator.tournament.searchAriaLabel')}
-        />
-      </div>
+      {/* 의미 있는 사건 알림 (세트·경기 끝, 골든골). 점수 한 점마다 읽지 않는다. */}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{liveMsg}</p>
 
-      {searchResults && (
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.5rem', textAlign: 'center' }}>
-            {t('spectator.tournament.searchResults', { count: searchResults.length })}
-          </h2>
-          {searchResults.map(match => {
-            const isIndividual = match.type === 'individual';
-            const label = isIndividual
-              ? `${match.player1Name || t('referee.home.player1Default')} vs ${match.player2Name || t('referee.home.player2Default')}`
-              : `${match.team1Name || t('referee.home.team1Default')} vs ${match.team2Name || t('referee.home.team2Default')}`;
-            return (
-              <button
-                key={match.id}
-                className="card"
-                onClick={() => navigate(`/spectator/match/${id}/${match.id}`)}
-                style={{ marginBottom: '0.5rem', padding: '0.75rem', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+      <PeopleSearch people={people} tournamentId={id} nameOf={nameOf} />
+
+      <nav aria-label={t('spectator.sections.menuLabel')} className="spectator-section-nav" style={{ marginBottom: '1rem' }}>
+        <ul style={{ listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(7rem, 1fr))', gap: '0.375rem', padding: 0 }}>
+          {SPECTATOR_SECTIONS.map(s => (
+            <li key={s}>
+              <Link
+                to={sectionPath(id, s)}
+                aria-current={activeSection === s ? 'page' : undefined}
+                className="btn"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', fontSize: '1rem', padding: '0.5rem', backgroundColor: activeSection === s ? undefined : '#1f2937', color: activeSection === s ? undefined : '#fff', textDecoration: 'none', border: '1px solid #374151' }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold' }}>{label}</span>
-                  <span style={{ color: match.status === 'completed' ? '#22c55e' : match.status === 'in_progress' ? '#ef4444' : '#d1d5db', fontWeight: 'bold', fontSize: '0.875rem' }}>
-                    {match.status === 'completed' ? `\u2713 ${t('common.matchStatus.completed')} \u2192` : match.status === 'in_progress' ? `\u25B6 ${t('common.matchStatus.inProgress')} \u2192` : `\u23F3 ${t('common.matchStatus.pending')}`}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Player record panel */}
-      {selectedPlayer && (
-        <div
-          ref={playerPanelRef}
-          tabIndex={-1}
-          role="dialog"
-          aria-label={t('spectator.tournament.playerRecord.title', { player: selectedPlayer })}
-          aria-modal="true"
-          className="card"
-          style={{ marginBottom: '1.5rem', border: '2px solid #facc15', outline: 'none' }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') handleSelectPlayer(null);
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{t('spectator.tournament.playerRecord.title', { player: selectedPlayer })}</h2>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              {(() => {
-                const pId = matches.find(m => m.player1Name === selectedPlayer)?.player1Id
-                  || matches.find(m => m.player2Name === selectedPlayer)?.player2Id
-                  || matches.find(m => m.team1Name === selectedPlayer)?.team1Id
-                  || matches.find(m => m.team2Name === selectedPlayer)?.team2Id
-                  || selectedPlayer;
-                return (
-                  <button
-                    onClick={() => handleToggleFavorite(pId, selectedPlayer)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    aria-label={isFavorite(pId) ? t('spectator.favorites.removeFavorite', { name: selectedPlayer }) : t('spectator.favorites.addFavorite', { name: selectedPlayer })}
-                    aria-pressed={isFavorite(pId)}
-                  >
-                    {isFavorite(pId) ? '★' : '☆'}
-                  </button>
-                );
-              })()}
-              <button
-                className="btn btn-primary"
-                style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }}
-                onClick={() => navigate(`/spectator/player/${id}/${encodeURIComponent(selectedPlayer)}`)}
-              >
-                {t('common.profile')}
-              </button>
-              <button className="btn" style={{ fontSize: '0.875rem', padding: '0.25rem 0.75rem' }} onClick={() => handleSelectPlayer(null)}>{t('common.close')}</button>
-            </div>
-          </div>
-          {playerStats && (() => {
-            const completedCount = playerStats.wins + playerStats.losses;
-            const winRate = completedCount > 0 ? Math.round((playerStats.wins / completedCount) * 100) : 0;
-            const isTeamTournament = tournament.type === 'team' || tournament.type === 'randomTeamLeague';
-            return (
-              <dl style={{ margin: '0 0 1rem 0', fontSize: '0.9375rem' }}>
-                {(() => {
-                  const setDiff = playerStats.setsWon - playerStats.setsLost;
-                  const goalDiff = playerStats.pointsFor - playerStats.pointsAgainst;
-                  const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '0.375rem 0', borderBottom: '1px solid #374151' } as const;
-                  return (<>
-                    <div style={rowStyle}>
-                      <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.record')}</dt>
-                      <dd style={{ margin: 0 }}><span style={{ color: '#22c55e', fontWeight: 'bold' }}>{t('spectator.tournament.playerRecord.wins', { count: playerStats.wins })}</span>{' '}<span style={{ color: '#ef4444', fontWeight: 'bold' }}>{t('spectator.tournament.playerRecord.losses', { count: playerStats.losses })}</span>{' '}<span style={{ color: '#9ca3af' }}>{t('spectator.tournament.playerRecord.matchCount', { count: completedCount })}</span></dd>
-                    </div>
-                    <div style={rowStyle}>
-                      <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.winRate')}</dt>
-                      <dd style={{ margin: 0, fontWeight: 'bold', color: winRate >= 50 ? '#22c55e' : '#ef4444' }}>{winRate}%</dd>
-                    </div>
-                    {!isTeamTournament && (
-                      <div style={rowStyle}>
-                        <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.setDiff')}</dt>
-                        <dd style={{ margin: 0, fontWeight: 'bold', color: setDiff > 0 ? '#22c55e' : setDiff < 0 ? '#ef4444' : '#9ca3af' }}>{setDiff > 0 ? '+' : ''}{setDiff}</dd>
-                      </div>
-                    )}
-                    <div style={{ ...rowStyle, borderBottom: 'none' }}>
-                      <dt style={{ color: '#d1d5db' }}>{t('spectator.tournament.playerRecord.goalDiff')}</dt>
-                      <dd style={{ margin: 0, fontWeight: 'bold', color: goalDiff > 0 ? '#22c55e' : goalDiff < 0 ? '#ef4444' : '#9ca3af' }}>{goalDiff > 0 ? '+' : ''}{goalDiff} ({t('spectator.tournament.playerRecord.scored', { 'for': playerStats.pointsFor })} {t('spectator.tournament.playerRecord.conceded', { against: playerStats.pointsAgainst })})</dd>
-                    </div>
-                  </>);
-                })()}
-              </dl>
-            );
-          })()}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '20rem', overflowY: 'auto' }}>
-            {isFullLeagueOnly ? (
-              /* 풀리그: 리그 경기 전체 표시 */
-              <div>
-                {playerMatches.map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
-                ))}
-              </div>
-            ) : (<>
-            {/* 예선 경기 */}
-            {playerMatches.filter(m => m.groupId).length > 0 && (
-              <div>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.qualifyingStage')}</h4>
-                {playerMatches.filter(m => m.groupId).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
-                ))}
-              </div>
-            )}
-            {/* 본선 경기 */}
-            {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).length > 0 && (
-              <div>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.finalsStage')}</h4>
-                {playerMatches.filter(m => !m.groupId && m.stageId?.includes('finals')).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
-                ))}
-              </div>
-            )}
-            {/* 순위결정전 */}
-            {playerMatches.filter(m => m.stageId?.includes('ranking')).length > 0 && (
-              <div>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.rankingStage')}</h4>
-                {playerMatches.filter(m => m.stageId?.includes('ranking')).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
-                ))}
-              </div>
-            )}
-            {/* 기타 (분류되지 않은 경기) */}
-            {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).length > 0 && (
-              <div>
-                {(playerMatches.some(m => m.groupId) || playerMatches.some(m => m.stageId?.includes('finals'))) && (
-                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#d1d5db', marginBottom: '0.25rem', marginTop: '0.25rem' }}>{t('spectator.tournament.playerRecord.otherStage')}</h4>
-                )}
-                {playerMatches.filter(m => !m.groupId && !m.stageId?.includes('finals') && !m.stageId?.includes('ranking')).map(m => (
-                  <PlayerMatchRow key={m.id} match={m} navigate={navigate} tournamentId={id!} selectedPlayer={selectedPlayer!} expandedMatchId={expandedMatchId} onToggleExpand={setExpandedMatchId} />
-                ))}
-              </div>
-            )}
-            </>)}
-          </div>
-        </div>
-      )}
-
-      {/* Stage filter - shown on standings and schedule views */}
-      {(viewTab === 'standings' || viewTab === 'schedule') && !isFullLeagueOnly && (stageMap.qualifying.length > 0 || stageMap.finals.length > 0 || stageMap.ranking.length > 0) && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', justifyContent: 'center' }} role="group" aria-label={t('spectator.tournament.stageFilter.label')}>
-          {([
-            { key: 'all' as const, label: t('spectator.tournament.stageFilter.all'), count: matches.length },
-            { key: 'qualifying' as const, label: t('spectator.tournament.stageFilter.qualifying'), count: stageMap.qualifying.length },
-            { key: 'finals' as const, label: t('spectator.tournament.stageFilter.finals'), count: stageMap.finals.length },
-            { key: 'ranking' as const, label: t('spectator.tournament.stageFilter.ranking'), count: stageMap.ranking.length },
-          ] as const).filter(s => s.count > 0 || s.key === 'all').map(s => (
-            <button
-              key={s.key}
-              className={`btn ${stageFilter === s.key ? 'btn-primary' : ''}`}
-              style={{
-                padding: '0.5rem 1rem',
-                whiteSpace: 'nowrap',
-                backgroundColor: stageFilter === s.key ? undefined : '#374151',
-              }}
-              onClick={() => setStageFilter(s.key)}
-              aria-pressed={stageFilter === s.key}
-            >
-              {s.label} ({s.count})
-            </button>
+                {sectionLabel(s)}
+              </Link>
+            </li>
           ))}
+        </ul>
+      </nav>
+
+      {hasDivisionChoice(divisions) && (
+        <div style={{ marginBottom: '1rem' }}>
+          <label htmlFor="division-select" style={{ display: 'block', fontWeight: 'bold' }}>{t('spectator.filters.division')}</label>
+          <select id="division-select" className="input" value={division} onChange={e => { setDivisionChoice(e.target.value); saveDivisionChoice(id, e.target.value); }}>
+            <option value={ALL_DIVISIONS}>{t('spectator.filters.all')}</option>
+            {divisions.map(d => <option key={d.id} value={d.id}>{d.label || d.id}</option>)}
+          </select>
         </div>
       )}
 
-      {/* View content based on bottom nav tab */}
-      <div role="region" aria-label={t(`spectator.layout.tournamentTab.${viewTab}`)}>
-        {viewTab === 'overview' && (
-          <LiveTab matches={matches} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} navigate={navigate} tournamentId={id!} tournament={tournament} />
-        )}
-        {viewTab === 'players' && (
-          <PlayersTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFavorite={isFavorite} toggleFavorite={handleToggleFavorite} tournamentId={id!} navigate={navigate} tournament={tournament} />
-        )}
-        {viewTab === 'standings' && (
-          <>
-            <RankingTab matches={matches} tournamentType={tournament.type} isFavorite={isFavorite} onSelectPlayer={handleSelectPlayer} stageFilter={stageFilter} tournament={tournament} />
-            {hasGroupStage && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <GroupsTab matches={matches} onSelectPlayer={handleSelectPlayer} isTeam={tournament.type === 'team' || tournament.type === 'randomTeamLeague'} isFullLeague={isFullLeagueOnly} tournament={tournament} />
-              </div>
-            )}
-            <div style={{ marginTop: '1.5rem' }}>
-              <BracketTab matches={filteredMatches} tournamentType={tournament.type} onSelectPlayer={handleSelectPlayer} tournament={tournament} allMatches={matches} />
-            </div>
-          </>
-        )}
-        {viewTab === 'schedule' && (
-          <HistoryTab matches={filteredMatches} navigate={navigate} tournamentId={id!} tournament={tournament} />
-        )}
-        {viewTab === 'referees' && (
-          <RefereesTab referees={referees} assignments={assignments} matches={matches} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PlayerMatchRow({
-  match: m,
-  navigate,
-  tournamentId,
-  selectedPlayer,
-  expandedMatchId,
-  onToggleExpand,
-}: {
-  match: Match;
-  navigate: ReturnType<typeof useNavigate>;
-  tournamentId: string;
-  selectedPlayer: string;
-  expandedMatchId: string | null;
-  onToggleExpand: (id: string | null) => void;
-}) {
-  const { t } = useTranslation();
-  const isP1 = m.player1Name === selectedPlayer || m.team1Name === selectedPlayer;
-  const opponentName = isP1
-    ? (m.player2Name || m.team2Name || t('common.unknown'))
-    : (m.player1Name || m.team1Name || t('common.unknown'));
-  const myId = isP1 ? (m.player1Id || m.team1Id) : (m.player2Id || m.team2Id);
-  const isWin = m.status === 'completed' && m.winnerId === myId;
-  const isCompleted = m.status === 'completed';
-  const isExpanded = expandedMatchId === m.id;
-
-  // Per-match point totals
-  let matchPointsFor = 0;
-  let matchPointsAgainst = 0;
-  if (Array.isArray(m.sets)) {
-    m.sets.forEach(s => {
-      matchPointsFor += isP1 ? s.player1Score : s.player2Score;
-      matchPointsAgainst += isP1 ? s.player2Score : s.player1Score;
-    });
-  }
-
-  // Duration from scoreHistory timestamps
-  const duration = useMemo(() => {
-    if (!Array.isArray(m.scoreHistory) || m.scoreHistory.length < 2) return null;
-    const times = m.scoreHistory.map(e => new Date(e.time).getTime()).filter(t => !isNaN(t));
-    if (times.length < 2) return null;
-    const diffMs = Math.max(...times) - Math.min(...times);
-    const mins = Math.round(diffMs / 60000);
-    return mins > 0 ? mins : null;
-  }, [m.scoreHistory]);
-
-  return (
-    <div style={{ backgroundColor: '#1f2937', borderRadius: '0.5rem', marginBottom: '0.25rem', overflow: 'hidden' }} aria-label={`${selectedPlayer} vs ${opponentName}${isCompleted ? (isWin ? ` ${t('spectator.playerProfile.win')}` : ` ${t('spectator.playerProfile.loss')}`) : ''}`}>
-      {/* Main row - clickable to expand/collapse */}
-      <div
-        style={{ padding: '0.75rem', fontSize: '0.875rem', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleExpand(isExpanded ? null : m.id);
-        }}
-      >
-        {/* Top line: player vs opponent, result indicator */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 'bold' }}>
-              {selectedPlayer} <span style={{ color: '#9ca3af' }}>vs</span> {opponentName}
-            </span>
-            {isCompleted && (
-              <span style={{
-                color: isWin ? '#22c55e' : '#ef4444',
-                fontWeight: 'bold',
-                fontSize: '0.75rem',
-              }}>
-                {isWin ? t('spectator.playerProfile.win') : t('spectator.playerProfile.loss')}
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {duration && (
-              <span style={{ color: '#9ca3af', fontSize: '0.6875rem' }}>{duration}{t('common.time.minutes')}</span>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); navigate(`/spectator/match/${tournamentId}/${m.id}`); }}
-              style={{ color: m.status === 'completed' ? '#22c55e' : '#facc15', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              aria-label={`${selectedPlayer} vs ${opponentName} ${t('spectator.favorites.viewMatch')}`}
-            >
-              {m.status === 'completed' ? t('spectator.favorites.viewMatch') : t('spectator.liveMatch.liveStatus')}
-            </button>
-          </div>
-        </div>
-
-        {/* Set score pills - chronological order (Set 1 first) */}
-        {Array.isArray(m.sets) && m.sets.length > 0 && (
-          <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            {[...m.sets].sort((a, b) => (a.player1Score + a.player2Score === 0 ? 1 : 0) - (b.player1Score + b.player2Score === 0 ? 1 : 0)).map((s, i) => {
-              const myScore = isP1 ? s.player1Score : s.player2Score;
-              const oppScore = isP1 ? s.player2Score : s.player1Score;
-              const setWon = myScore > oppScore;
-              return (
-                <span key={i} style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 'bold',
-                  color: setWon ? '#bbf7d0' : '#fecaca',
-                  backgroundColor: setWon ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  border: `1px solid ${setWon ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                  padding: '0.125rem 0.5rem',
-                  borderRadius: '9999px',
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {t('common.matchHistory.setLabel', { num: i + 1 })} {myScore}-{oppScore}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Total points summary */}
-        {isCompleted && Array.isArray(m.sets) && m.sets.length > 0 && (
-          <div style={{ color: '#9ca3af', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-            {t('spectator.tournament.playerRecord.scored', { 'for': matchPointsFor })} / {t('spectator.tournament.playerRecord.conceded', { against: matchPointsAgainst })} ({matchPointsFor - matchPointsAgainst > 0 ? '+' : ''}{matchPointsFor - matchPointsAgainst})
-          </div>
-        )}
-      </div>
-
-      {/* Expandable detail: score history timeline - sorted chronologically (oldest first) */}
-      {isExpanded && Array.isArray(m.scoreHistory) && m.scoreHistory.length > 0 && (() => {
-        // Sort chronologically: by set ascending, then by time ascending
-        const META_TYPES = new Set(['pause', 'resume', 'timeout', 'substitution', 'dead_ball', 'walkover', 'coin_toss', 'warmup_start', 'match_start', 'player_rotation', 'side_change']);
-        // History entries are stored newest-first; reverse to get chronological, then group by set
-        const filtered = m.scoreHistory.filter(entry => {
-          if (entry.actionType === 'resume') return false; // 재개 숨김
-          return entry.points > 0 || META_TYPES.has(entry.actionType);
-        });
-        const sorted = [...filtered].reverse().sort((a, b) => {
-          if (a.set !== b.set) return a.set - b.set;
-          return 0; // preserve chronological order within same set
-        });
-
-        if (sorted.length === 0) return null;
-
-        // Group by set for clean display
-        const setGroups = new Map<number, typeof sorted>();
-        sorted.forEach(entry => {
-          const s = entry.set || 1;
-          if (!setGroups.has(s)) setGroups.set(s, []);
-          setGroups.get(s)!.push(entry);
-        });
-
-        return (
-          <div style={{
-            borderTop: '1px solid #374151',
-            padding: '0.5rem 0.75rem',
-            backgroundColor: '#111827',
-            maxHeight: '14rem',
-            overflowY: 'auto',
-          }}>
-            <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#facc15', marginBottom: '0.375rem' }}>{t('spectator.tournament.view.scoreTimeline')}</p>
-            {/* Set score summary line */}
-            {Array.isArray(m.sets) && m.sets.length > 0 && (
-              <p style={{ fontSize: '0.6875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
-                {m.sets.map((s, i) => `${t('common.matchHistory.setLabel', { num: i + 1 })}: ${isP1 ? s.player1Score : s.player2Score}-${isP1 ? s.player2Score : s.player1Score}`).join(', ')}
-              </p>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-              {Array.from(setGroups.entries()).map(([setNum, entries]) => (
-                <div key={setNum}>
-                  <div style={{
-                    fontSize: '0.6875rem', fontWeight: 'bold', color: '#60a5fa',
-                    padding: '0.25rem 0', marginTop: setNum > 1 ? '0.25rem' : 0,
-                    borderTop: setNum > 1 ? '1px solid #1f2937' : 'none',
-                  }}>
-                    {t('common.matchHistory.setLabel', { num: setNum })}
-                  </div>
-                  {entries.map((entry, i) => {
-                    const isMine = entry.scoringPlayer === selectedPlayer;
-                    const timeStr = entry.time ? parseTimeDisplay(entry.time) : '';
-
-                    const ACTION_LABELS: Record<string, string> = {
-                      goal: t('common.scoreActions.goal'),
-                      irregular_serve: t('common.scoreActions.irregularServe'),
-                      centerboard: t('common.scoreActions.centerboard'),
-                      body_touch: t('common.scoreActions.bodyTouch'),
-                      illegal_defense: t('common.scoreActions.illegalDefense'),
-                      out: t('common.scoreActions.out'),
-                      ball_holding: t('common.scoreActions.ballHolding'),
-                      mask_touch: t('common.scoreActions.maskTouch'),
-                      penalty: t('common.scoreActions.penalty'),
-                      walkover: t('common.scoreActions.walkover'),
-                    };
-
-                    // Meta events (0 points)
-                    const isMetaEvent = entry.points === 0 && META_TYPES.has(entry.actionType);
-                    if (isMetaEvent) {
-                      const metaIcon = entry.actionType === 'coin_toss' ? '🪙' : entry.actionType === 'warmup_start' ? '🏃' : entry.actionType === 'match_start' ? '🎾' : entry.actionType === 'timeout' ? '⏱️' : entry.actionType === 'side_change' ? '🔄' : entry.actionType === 'player_rotation' ? '🔄' : entry.actionType === 'pause' ? '⏸️' : entry.actionType === 'substitution' ? '🔄' : entry.actionType === 'dead_ball' ? '🔵' : '⚪';
-                      const metaDesc = ACTION_LABELS[entry.actionType] || entry.actionType || '';
-                      return (
-                        <div key={i} style={{
-                          display: 'flex',
-                          gap: '0.5rem',
-                          fontSize: '0.6875rem',
-                          color: '#9ca3af',
-                          alignItems: 'center',
-                          padding: '0.125rem 0',
-                        }}>
-                          <span style={{ color: '#9ca3af', minWidth: '3rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
-                          <span>{metaIcon} {metaDesc}</span>
-                        </div>
-                      );
-                    }
-
-                    const icon = entry.actionType === 'goal' ? '⚽' : entry.actionType === 'walkover' ? '⚪' : entry.points >= 2 ? '🔴' : '🟡';
-                    const label = ACTION_LABELS[entry.actionType || ''] || entry.actionType || '';
-                    const desc = entry.actionType === 'goal'
-                      ? `${entry.scoringPlayer} ${t('common.scoreActions.goal')} +${entry.points}`
-                      : entry.actionType === 'walkover'
-                      ? `${entry.scoringPlayer || '?'} ${t('common.scoreActions.walkover')}`
-                      : `${entry.actionPlayer} ${label} → ${entry.scoringPlayer} +${entry.points}`;
-
-                    return (
-                      <div key={i} style={{
-                        display: 'flex',
-                        gap: '0.5rem',
-                        fontSize: '0.6875rem',
-                        color: isMine ? '#bbf7d0' : '#fecaca',
-                        alignItems: 'center',
-                      }}>
-                        <span style={{ color: '#9ca3af', minWidth: '3rem', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
-                        <span style={{
-                          backgroundColor: isMine ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                          padding: '0 0.25rem',
-                          borderRadius: '0.125rem',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}>
-                          {entry.scoreAfter?.player1 ?? 0}-{entry.scoreAfter?.player2 ?? 0}
-                        </span>
-                        <span>{icon} {desc}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* If expanded but no scoreHistory */}
-      {isExpanded && (!Array.isArray(m.scoreHistory) || m.scoreHistory.length === 0) && (
-        <div style={{
-          borderTop: '1px solid #374151',
-          padding: '0.5rem 0.75rem',
-          backgroundColor: '#111827',
-        }}>
-          <p style={{ fontSize: '0.75rem', color: '#d1d5db', textAlign: 'center' }}>{t('common.matchHistory.noDetailedHistory')}</p>
-        </div>
-      )}
+      <section aria-labelledby={route.kind === 'section' ? 'section-title' : undefined} aria-label={route.kind !== 'section' ? sectionLabel(activeSection) : undefined}>
+        {content}
+      </section>
     </div>
   );
 }

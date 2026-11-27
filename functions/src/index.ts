@@ -10,12 +10,13 @@ export { chatbot } from "./chatbot";
 export { verifyAdminPin, verifyRefereePin } from "./handlers/auth";
 // 실경기 승자/패자 자동 진출 (푸시 알림 onMatchChange와 별개 함수)
 export { advanceOnMatchResult } from "./triggers/advance-on-match-result";
+import { favoriteInMatch, favoriteSideInfo, matchParticipants, selectSubscriptions, type PushMatchLike } from "./lib/push-targets";
 
 setGlobalOptions({ region: "us-central1" });
 
 interface PushSubscription {
   token: string;
-  favoriteIds: string[];
+  favoriteIds?: string[];
   favoriteNames?: string[];
   platform: string;
   updatedAt: number;
@@ -46,47 +47,18 @@ interface ScheduleSlot {
   scheduledDate?: string;
 }
 
-// Get all participant IDs/names from a match (including team members)
+// 참가자·구독 맞추기는 순수 함수(lib/push-targets.ts)로 테스트한다
 function getMatchParticipants(match: Match): string[] {
-  const ids = [
-    match.player1Id, match.player2Id,
-    match.player1Name, match.player2Name,
-    match.team1Id, match.team2Id,
-    match.team1Name, match.team2Name,
-  ];
-  // Include team member IDs and names for team matches
-  const m = match as unknown as { team1?: { memberIds?: string[]; memberNames?: string[] }; team2?: { memberIds?: string[]; memberNames?: string[] } };
-  const team1 = m.team1;
-  const team2 = m.team2;
-  if (team1?.memberIds) ids.push(...team1.memberIds);
-  if (team1?.memberNames) ids.push(...team1.memberNames);
-  if (team2?.memberIds) ids.push(...team2.memberIds);
-  if (team2?.memberNames) ids.push(...team2.memberNames);
-  return ids.filter((v): v is string => !!v);
+  return matchParticipants(match as unknown as PushMatchLike);
 }
 
-// Find subscriptions whose favorites overlap with given participant IDs or names
+// Find subscriptions whose favorites overlap with given participant IDs (legacy records: names)
 async function findSubscriptions(participantIds: string[]): Promise<PushSubscription[]> {
   const snap = await db.ref("pushSubscriptions").once("value");
   if (!snap.exists()) return [];
-
-  const results: PushSubscription[] = [];
-  const participantSet = new Set(participantIds);
-
-  snap.forEach((child) => {
-    const sub = child.val() as PushSubscription;
-    if (!sub.token) return;
-    // ID 매칭
-    if (sub.favoriteIds?.some((id: string) => participantSet.has(id))) {
-      results.push(sub);
-      return;
-    }
-    // 이름 매칭 (대회 간 같은 선수가 다른 ID를 가질 수 있음)
-    if (sub.favoriteNames?.some((name: string) => participantSet.has(name))) {
-      results.push(sub);
-    }
-  });
-  return results;
+  const all: PushSubscription[] = [];
+  snap.forEach((child) => { all.push(child.val() as PushSubscription); });
+  return selectSubscriptions(all, participantIds);
 }
 
 // Send FCM to multiple tokens, clean up invalid ones
@@ -190,25 +162,10 @@ async function sendToSubscriptions(
 }
 
 // Helper to get player display info for a subscription
-function getPlayerInfo(match: Match, favoriteIds: string[], favoriteNames?: string[]) {
-  const participants = getMatchParticipants(match);
-  // ID 매칭
-  let favId = favoriteIds.find((id) => participants.includes(id));
-  // 이름 매칭 폴백
-  if (!favId && favoriteNames) {
-    favId = favoriteNames.find((name) => participants.includes(name));
-  }
-  if (!favId) return null;
-
-  const isP1 = favId === match.player1Id || favId === match.player1Name ||
-    favId === match.team1Id || favId === match.team1Name;
-  const favName = isP1
-    ? (match.player1Name || match.team1Name || favId)
-    : (match.player2Name || match.team2Name || favId);
-  const oppName = isP1
-    ? (match.player2Name || match.team2Name || "")
-    : (match.player1Name || match.team1Name || "");
-  return { favName, oppName, isP1 };
+function getPlayerInfo(match: Match, sub: PushSubscription) {
+  const favKey = favoriteInMatch(sub, getMatchParticipants(match));
+  if (!favKey) return null;
+  return favoriteSideInfo(match as unknown as PushMatchLike, favKey);
 }
 
 // Track sent notifications to prevent duplicates
@@ -273,7 +230,7 @@ export const onMatchChange = onValueUpdated(
       // Send personalized notifications per subscription
       const matchLink = `/spectator/match/${tournamentId}/${matchId}`;
       for (const sub of subs) {
-        const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
+        const info = getPlayerInfo(after, sub);
         if (!info) continue;
         const courtInfo = after.courtName ? ` (${after.courtName})` : "";
         await sendToSubscriptions([sub], {
@@ -297,7 +254,7 @@ export const onMatchChange = onValueUpdated(
 
       const resultLink = `/spectator/match/${tournamentId}/${matchId}`;
       for (const sub of subs) {
-        const info = getPlayerInfo(after, sub.favoriteIds, sub.favoriteNames);
+        const info = getPlayerInfo(after, sub);
         if (!info) continue;
 
         const won = info.isP1
@@ -438,7 +395,7 @@ export const preMatchNotify = onSchedule(
 
             const preMatchLink = `/spectator/match/${tid}/${matchId}`;
             for (const sub of subs) {
-              const info = getPlayerInfo(match, sub.favoriteIds, sub.favoriteNames);
+              const info = getPlayerInfo(match, sub);
               if (!info) continue;
               const courtInfo = match.courtName ? ` (${match.courtName})` : "";
               await sendToSubscriptions([sub], {

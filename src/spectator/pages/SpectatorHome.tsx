@@ -1,184 +1,141 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useId } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useTournaments } from '@shared/hooks/useFirebase';
+import { useTournaments, useMatches } from '@shared/hooks/useFirebase';
 import type { Tournament } from '@shared/types';
+import { groupTournaments, tournamentDateRange, tournamentPhase, tournamentVenue, type TournamentPhase } from '../utils/tournamentList';
+
+const PHASE_COLOR: Record<TournamentPhase, string> = { live: '#15803d', upcoming: '#2563eb', finished: '#4b5563' };
+
+/** 진행 중 대회의 지금 진행 중인 경기 수 (진행 중 대회만 구독한다) */
+function LiveCount({ tournamentId }: { tournamentId: string }) {
+  const { t } = useTranslation();
+  const { matches } = useMatches(tournamentId, 100);
+  const n = matches.filter(m => m.status === 'in_progress').length;
+  return <span style={{ color: n > 0 ? '#fca5a5' : '#d1d5db' }}>{t('spectator.home.liveMatchCount', { count: n })}</span>;
+}
+
+export interface TournamentListItemProps {
+  tournament: Tournament;
+}
+
+export function TournamentListItem({ tournament: tour }: TournamentListItemProps) {
+  const { t } = useTranslation();
+  const phase = tournamentPhase(tour.status);
+  const venue = tournamentVenue(tour);
+  const statusLabel = t(`spectator.home.phase.${phase}`);
+  return (
+    <li>
+      <Link
+        to={`/spectator/tournament/${tour.id}`}
+        className="card"
+        style={{ display: 'block', textDecoration: 'none', color: 'inherit', border: '2px solid #374151' }}
+      >
+        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.375rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>{tour.name}</span>
+          <span style={{ padding: '0.15rem 0.6rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: 'bold', backgroundColor: PHASE_COLOR[phase], color: '#fff', whiteSpace: 'nowrap' }}>
+            <span className="sr-only">, </span>{statusLabel}
+          </span>
+        </span>
+        <span style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', color: '#d1d5db', marginTop: '0.375rem', fontSize: '0.9375rem' }}>
+          {tour.groupName && <span><span className="sr-only">, </span>{tour.groupName}</span>}
+          <span><span className="sr-only">, </span>{tournamentDateRange(tour)}</span>
+          {venue && <span><span className="sr-only">, </span>{t('spectator.home.venue', { venue })}</span>}
+          <span><span className="sr-only">, </span>{t(`common.tournamentType.${tour.type}`)}</span>
+          {phase === 'live' && <span><span className="sr-only">, </span><LiveCount tournamentId={tour.id} /></span>}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+export interface TournamentListProps {
+  tournaments: Tournament[];
+  query: string;
+}
+
+/** 묶음별 목록 (진행 중 → 예정 → 종료). 대회가 하나여도 자동으로 들어가지 않는다. */
+export function TournamentList({ tournaments, query }: TournamentListProps) {
+  const { t } = useTranslation();
+  const groups = useMemo(() => groupTournaments(tournaments, query), [tournaments, query]);
+  if (groups.length === 0) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        <p style={{ fontSize: '1.125rem', color: '#d1d5db' }}>
+          {query.trim() ? t('spectator.home.noSearchResults', { query: query.trim() }) : t('spectator.home.noTournaments')}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <>
+      {groups.map(g => (
+        <section key={g.phase} aria-labelledby={`tour-phase-${g.phase}`} style={{ marginBottom: '1.5rem' }}>
+          <h2 id={`tour-phase-${g.phase}`} style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
+            {t(`spectator.home.phaseHeading.${g.phase}`, { count: g.items.length })}
+          </h2>
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {g.items.map(tour => <TournamentListItem key={tour.id} tournament={tour} />)}
+          </ul>
+        </section>
+      ))}
+    </>
+  );
+}
 
 export default function SpectatorHome() {
   const { tournaments, loading } = useTournaments(20);
-  const [filter, setFilter] = useState<'in_progress' | 'completed'>('in_progress');
-  const navigate = useNavigate();
   const { t } = useTranslation();
-
-  const getTournamentTypeLabel = (type: Tournament['type']): string => {
-    return t(`common.tournamentType.${type}`);
-  };
-
-  const getStatusLabel = (status: Tournament['status']): string => {
-    const statusMap: Record<string, string> = {
-      draft: t('spectator.home.tournamentStatusLabels.draft'),
-      registration: t('spectator.home.tournamentStatusLabels.registration'),
-      in_progress: t('spectator.home.tournamentStatusLabels.inProgress'),
-      completed: t('spectator.home.tournamentStatusLabels.completed'),
-      paused: t('spectator.home.tournamentStatusLabels.paused'),
-    };
-    return statusMap[status] || status;
-  };
+  const [query, setQuery] = useState('');
+  const searchId = useId();
+  const visibleCount = useMemo(() => groupTournaments(tournaments, query).reduce((n, g) => n + g.items.length, 0), [tournaments, query]);
 
   useEffect(() => {
     document.title = t('spectator.home.pageTitle');
   }, [t]);
 
-  const visibleTournaments = tournaments.filter((t) => {
-    if (filter === 'in_progress') {
-      return t.status === 'draft' || t.status === 'registration' || t.status === 'in_progress' || t.status === 'paused';
-    }
-    return t.status === 'completed';
-  });
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
-        <p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center' }}>
+      <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
         {t('spectator.home.title')}
       </h1>
+      <p style={{ color: '#d1d5db', textAlign: 'center', marginBottom: '1rem' }}>{t('spectator.home.intro')}</p>
 
-      {/* Filter toggle */}
-      <div
-        style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}
-        role="tablist"
-        aria-label={t('spectator.home.filterAriaLabel')}
-        onKeyDown={e => {
-          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-            e.preventDefault();
-            const tabs: Array<'in_progress' | 'completed'> = ['in_progress', 'completed'];
-            const idx = tabs.indexOf(filter);
-            const next = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
-            setFilter(tabs[next]);
-            e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
-          }
-        }}
-      >
-        <button
-          role="tab"
-          aria-selected={filter === 'in_progress'}
-          tabIndex={filter === 'in_progress' ? 0 : -1}
-          className={filter === 'in_progress' ? 'btn btn-primary' : 'btn btn-secondary'}
-          onClick={() => setFilter('in_progress')}
-          style={{ flex: 1 }}
-        >
-          {t('spectator.home.inProgress')}
-        </button>
-        <button
-          role="tab"
-          aria-selected={filter === 'completed'}
-          tabIndex={filter === 'completed' ? 0 : -1}
-          className={filter === 'completed' ? 'btn btn-primary' : 'btn btn-secondary'}
-          onClick={() => setFilter('completed')}
-          style={{ flex: 1 }}
-        >
-          {t('spectator.home.completed')}
-        </button>
+      <div style={{ marginBottom: '1.25rem' }}>
+        <label htmlFor={searchId} style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.25rem' }}>{t('spectator.home.searchLabel')}</label>
+        <input
+          id={searchId}
+          type="search"
+          className="input"
+          style={{ width: '100%' }}
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t('spectator.home.searchPlaceholder')}
+          autoComplete="off"
+        />
+        <p className="sr-only" role="status" aria-live="polite">
+          {query.trim() ? t('spectator.home.searchCount', { count: visibleCount }) : ''}
+        </p>
       </div>
 
-      {/* Tournament list */}
-      <div role="tabpanel" aria-label={filter === 'in_progress' ? t('spectator.home.inProgressPanel') : t('spectator.home.completedPanel')}>
-        {visibleTournaments.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-            <p style={{ fontSize: '1.25rem', color: '#d1d5db' }} role="status">
-              {filter === 'in_progress'
-                ? t('spectator.home.noInProgress')
-                : t('spectator.home.noCompleted')}
-            </p>
-          </div>
-        ) : (
-          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {(() => {
-              const grouped = new Map<string, typeof visibleTournaments>();
-              const ungrouped: typeof visibleTournaments = [];
-              for (const tour of visibleTournaments) {
-                if (tour.groupId && tour.groupName) {
-                  if (!grouped.has(tour.groupId)) grouped.set(tour.groupId, []);
-                  grouped.get(tour.groupId)!.push(tour);
-                } else {
-                  ungrouped.push(tour);
-                }
-              }
-              return (
-                <>
-                  {[...grouped.entries()].map(([groupId, groupTours]) => (
-                    <li key={groupId}>
-                      <div className="card" style={{ border: '2px solid #374151' }}>
-                        <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)', display: 'block', marginBottom: '0.5rem' }}>
-                          {groupTours[0].groupName}
-                        </span>
-                        <div style={{ color: '#d1d5db', marginBottom: '0.75rem' }}>{groupTours[0].date} | {groupTours.length}개 부문</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          {groupTours.map((t) => (
-                            <button
-                              key={t.id}
-                              onClick={() => navigate(`/spectator/tournament/${t.id}`)}
-                              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '0.75rem 1rem', borderRadius: '0.5rem', backgroundColor: '#1f2937', border: 'none', color: 'inherit' }}
-                              aria-label={`${t.name}, ${getTournamentTypeLabel(t.type)}, ${getStatusLabel(t.status)}`}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 'bold' }}>{t.name}</span>
-                                <span style={{ padding: '0.15rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold', backgroundColor: (t.status === 'in_progress' || t.status === 'draft') ? '#15803d' : t.status === 'registration' ? '#2563eb' : t.status === 'paused' ? '#b45309' : '#6b7280', color: '#fff' }}>
-                                  {getStatusLabel(t.status)}
-                                </span>
-                              </div>
-                              <span style={{ color: '#67e8f9', fontSize: '0.875rem' }}>{getTournamentTypeLabel(t.type)}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                  {ungrouped.map((t) => (
-                    <li key={t.id}>
-                      <button
-                        className="card"
-                        onClick={() => navigate(`/spectator/tournament/${t.id}`)}
-                        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: '2px solid #374151' }}
-                        aria-label={`${t.name}, ${getTournamentTypeLabel(t.type)}, ${getStatusLabel(t.status)}`}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                          <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)', display: 'block' }}>{t.name}</span>
-                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: 'bold', backgroundColor: (t.status === 'in_progress' || t.status === 'draft') ? '#15803d' : t.status === 'registration' ? '#2563eb' : t.status === 'paused' ? '#b45309' : '#6b7280', color: '#ffffff', whiteSpace: 'nowrap' }}>
-                            {(t.status === 'in_progress' || t.status === 'draft' || t.status === 'paused') && <span aria-hidden="true">{'● '}</span>}
-                            {getStatusLabel(t.status)}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', color: '#d1d5db' }}>
-                          <span>{t.date}</span>
-                          <span>{getTournamentTypeLabel(t.type)}</span>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </>
-              );
-            })()}
-          </ul>
-        )}
-      </div>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem' }} role="status" aria-live="polite">
+          <p style={{ fontSize: '1.5rem' }}>{t('common.loading')}</p>
+        </div>
+      ) : (
+        <TournamentList tournaments={tournaments} query={query} />
+      )}
 
-      {/* 연습 경기 관람 */}
-      <button
-        className="card w-full p-4"
-        onClick={() => navigate('/spectator/practice')}
-        style={{ border: '2px solid #7c3aed', cursor: 'pointer', textAlign: 'center' }}
+      <p style={{ color: '#9ca3af', fontSize: '0.875rem', textAlign: 'center', margin: '1rem 0' }}>{t('spectator.home.a11yHint')}</p>
+
+      <Link
+        to="/spectator/practice"
+        className="card"
+        style={{ display: 'block', border: '2px solid #7c3aed', textAlign: 'center', textDecoration: 'none', color: 'inherit' }}
       >
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc' }}>{t('spectator.home.practiceWatch')}</h2>
-        <p style={{ color: '#d1d5db', fontSize: '0.875rem', marginTop: '0.25rem' }}>{t('spectator.home.practiceWatchDescription')}</p>
-      </button>
+        <span style={{ display: 'block', fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc' }}>{t('spectator.home.practiceWatch')}</span>
+        <span style={{ display: 'block', color: '#d1d5db', fontSize: '0.875rem', marginTop: '0.25rem' }}>{t('spectator.home.practiceWatchDescription')}</span>
+      </Link>
     </div>
   );
 }

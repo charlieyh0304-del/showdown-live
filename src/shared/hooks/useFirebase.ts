@@ -922,24 +922,49 @@ function saveLocalFavorites(favorites: FavoriteEntry[]) {
   try { localStorage.setItem('showdown_favorites', JSON.stringify(favorites)); } catch { /* ignore */ }
 }
 
+// 즐겨찾기 저장소 (기기 하나에 하나): 여러 화면(목록·상세·알림 감시·도우미)이 같은 값을 보도록 변경을 모두에게 알린다
+let favoritesState: FavoriteEntry[] | null = null;
+const favoriteListeners = new Set<(f: FavoriteEntry[]) => void>();
+
+export function getFavoriteEntries(): FavoriteEntry[] {
+  if (favoritesState === null) favoritesState = loadLocalFavorites();
+  return favoritesState;
+}
+
+function commitFavorites(next: FavoriteEntry[]) {
+  favoritesState = next;
+  saveLocalFavorites(next);
+  favoriteListeners.forEach(l => l(next));
+}
+
+/** 즐겨찾기를 켜거나 끈다 (on을 주지 않으면 뒤집는다). 결과 ID 목록을 돌려준다. 선수 기준이라 모든 부(division)에 걸친다. */
+export function setFavoriteEntry(playerId: string, playerName?: string, on?: boolean): string[] {
+  const prev = getFavoriteEntries();
+  const exists = prev.some(f => f.id === playerId);
+  const want = on ?? !exists;
+  if (want === exists) return prev.map(f => f.id);
+  const next = want ? [...prev, { id: playerId, name: playerName || playerId }] : prev.filter(f => f.id !== playerId);
+  commitFavorites(next);
+  return next.map(f => f.id);
+}
+
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadLocalFavorites);
-  const favoritesRef = useRef(favorites);
-  useEffect(() => { favoritesRef.current = favorites; }, [favorites]);
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>(getFavoriteEntries);
+
+  useEffect(() => {
+    const l = (f: FavoriteEntry[]) => setFavorites(f);
+    favoriteListeners.add(l);
+    // 다른 탭에서 바꾼 값
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'showdown_favorites') { favoritesState = loadLocalFavorites(); favoriteListeners.forEach(x => x(favoritesState!)); }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => { favoriteListeners.delete(l); window.removeEventListener('storage', onStorage); };
+  }, []);
 
   const favoriteIds = useMemo(() => favorites.map(f => f.id), [favorites]);
 
-  const toggleFavorite = useCallback((playerId: string, playerName?: string): string[] => {
-    const prev = favoritesRef.current;
-    const exists = prev.some(f => f.id === playerId);
-    const next = exists
-      ? prev.filter(f => f.id !== playerId)
-      : [...prev, { id: playerId, name: playerName || playerId }];
-    saveLocalFavorites(next);
-    favoritesRef.current = next;
-    setFavorites(next);
-    return next.map(f => f.id);
-  }, []);
+  const toggleFavorite = useCallback((playerId: string, playerName?: string): string[] => setFavoriteEntry(playerId, playerName), []);
 
   const isFavorite = useCallback((playerId: string) => {
     return favorites.some(f => f.id === playerId);
@@ -950,13 +975,10 @@ export function useFavorites() {
   }, [favorites]);
 
   const updateFavoriteName = useCallback((playerId: string, name: string) => {
-    const prev = favoritesRef.current;
+    const prev = getFavoriteEntries();
     const entry = prev.find(f => f.id === playerId);
     if (!entry || entry.name === name) return;
-    const next = prev.map(f => f.id === playerId ? { ...f, name } : f);
-    saveLocalFavorites(next);
-    favoritesRef.current = next;
-    setFavorites(next);
+    commitFavorites(prev.map(f => f.id === playerId ? { ...f, name } : f));
   }, []);
 
   return { favoriteIds, favorites, toggleFavorite, isFavorite, getFavoriteName, updateFavoriteName };

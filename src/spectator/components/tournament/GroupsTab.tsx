@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { qualifierMarks, type RankingTournament } from '@shared/utils/ranking';
 import type { Match } from '@shared/types';
 import GroupRankingTable from './GroupRankingTable';
+import { isPlayableMatch } from '../../utils/spectatorData';
 
 export interface GroupsTabProps {
   matches: Match[];
@@ -46,23 +47,28 @@ export default function GroupsTab({ matches, onSelectPlayer, isTeam = false, isF
         {isFullLeague ? t('spectator.tournament.view.fullLeagueProgress', { completed: totalCompleted, total: totalMatches }) : t('spectator.tournament.view.groupProgress', { groups: groups.length, completed: totalCompleted, total: totalMatches })}
       </p>
       {groups.map(([groupId, gMatches]) => {
-        const completed = gMatches.filter(m => m.status === 'completed').length;
-        const inProgress = gMatches.filter(m => m.status === 'in_progress').length;
+        const playable = gMatches.filter(isPlayableMatch);
+        const completed = playable.filter(m => m.status === 'completed').length;
+        const inProgress = playable.filter(m => m.status === 'in_progress').length;
+        // 조 경기가 다 끝나기 전 순위는 잠정이다 (진행 중 경기는 끝난 경기만으로 계산)
+        const provisional = completed < playable.length;
+        const groupName = groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId });
+        const status = provisional
+          ? t('spectator.standings.provisional', { completed, total: playable.length })
+          : t('spectator.standings.final');
         return (
-          <div key={groupId} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>
-                {groupId === 'default' ? t('spectator.tournament.view.matchLabel') : t('spectator.tournament.view.groupLabel', { id: groupId })}
+          <section key={groupId} className="card" aria-labelledby={`group-${groupId}-title`}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <h3 id={`group-${groupId}-title`} style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>
+                {groupName}
               </h3>
-              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                {completed}/{gMatches.length} {t('common.matchStatus.completed')}
-                {inProgress > 0 && (
-                  <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>{inProgress} {t('common.matchStatus.inProgress')}</span>
-                )}
+              <span style={{ fontSize: '0.875rem', fontWeight: 'bold', padding: '0.125rem 0.5rem', borderRadius: '0.25rem', backgroundColor: provisional ? '#92400e' : '#15803d', color: '#fff' }}>
+                {status}
+                {inProgress > 0 && ` · ${t('spectator.standings.inProgressCount', { count: inProgress })}`}
               </span>
             </div>
-            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} marks={marks} />
-          </div>
+            <GroupRankingTable matches={gMatches} onSelectPlayer={onSelectPlayer} isTeam={isTeam} tournament={tournament} scope={groupId === 'default' ? '' : groupId} marks={marks} caption={`${groupName}, ${status}`} />
+          </section>
         );
       })}
     </div>
