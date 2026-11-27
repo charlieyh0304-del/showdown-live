@@ -169,8 +169,8 @@ export const chatbot = onRequest(
 
     // 역할별 모델 선택: 관리자=Opus(정교한 처리), 관람자/심판=Haiku(빠른 조회)
     const MODELS = role === "admin"
-      ? ["claude-opus-4-0-20250514", "claude-haiku-4-5-20251001"]
-      : ["claude-haiku-4-5-20251001"];
+      ? ["claude-opus-5-5", "claude-haiku-5-5"]
+      : ["claude-haiku-5-5"];
     const MAX_RETRIES = 2;
 
     async function callClaude(msgs: Anthropic.MessageParam[], model: string): Promise<Anthropic.Message> {
@@ -178,7 +178,7 @@ export const chatbot = onRequest(
         try {
           return await client.messages.create({
             model,
-            max_tokens: 4096,
+            max_tokens: 16000, // Opus 5.5는 thinking 상시 활성 — 출력 여유 확보
             system: systemPrompt,
             messages: msgs,
             tools: availableTools,
