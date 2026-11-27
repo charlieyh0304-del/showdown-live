@@ -11,6 +11,7 @@ const DEFAULT_PRODUCTION_ORIGINS = [
   "https://showdown-staging.web.app",
   "https://showdown-staging.firebaseapp.com",
   "https://charlieyh0304-del.github.io",
+  "https://showdown.df4095.com",
 ];
 
 const PRODUCTION_ORIGINS: string[] = process.env.CORS_ORIGINS
