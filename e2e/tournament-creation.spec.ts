@@ -143,7 +143,12 @@ test.describe('Tournament Creation Flow', () => {
     }
 
     // Keep clicking next until we see "대회 생성" button
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
+      // '경기 규칙' 단계는 규칙을 확인했다고 표시해야 넘어간다
+      const rulesConfirm = page.locator('#wizard-rules-confirm');
+      if (await rulesConfirm.isVisible().catch(() => false)) {
+        await rulesConfirm.check();
+      }
       const nextBtn = page.locator('[aria-label="다음 단계"]');
       if (await nextBtn.isVisible()) {
         await nextBtn.click();

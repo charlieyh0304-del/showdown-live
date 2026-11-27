@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { Dispatch } from 'react';
-import type { WizardState, Action } from '../../pages/TournamentCreate';
+import type { WizardState, Action } from './wizardModel';
 
 interface Preset {
   id: string;

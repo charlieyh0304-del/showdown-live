@@ -7,6 +7,7 @@ import {
   matchWinnerByRules,
   tiebreakDecisionKey,
   criteriaFromLegacy,
+  matchRoundSize,
 } from './competitionRules';
 
 describe('resolveMatchScoring precedence', () => {
@@ -121,5 +122,83 @@ describe('set/match winner by rules', () => {
   it('team 31 match winner', () => {
     expect(matchWinnerByRules([{ player1Score: 29, player2Score: 31 }], { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2 })).toBe(2);
     expect(matchWinnerByRules([{ player1Score: 11, player2Score: 5 }], { winScore: 31, setsToWin: 1, maxSets: 1, minLead: 2 })).toBeNull();
+  });
+});
+
+describe('minRestMinutes (M0b)', () => {
+  it('defaults to 30 minutes (end of previous match to start of next)', () => {
+    expect(resolveCompetitionRules(null).schedule.minRestMinutes).toBe(30);
+  });
+  it('tournament and stage overrides', () => {
+    const t = { rules: { schedule: { minRestMinutes: 20 } }, stages: [{ id: 'f', rules: { schedule: { minRestMinutes: 5 } } }] };
+    expect(resolveCompetitionRules(t).schedule.minRestMinutes).toBe(20);
+    expect(resolveCompetitionRules(t, 'f').schedule.minRestMinutes).toBe(5);
+    expect(resolveCompetitionRules(t, 'other').schedule.minRestMinutes).toBe(20);
+  });
+  it('accepts 0, ignores negative or non-numbers', () => {
+    expect(resolveCompetitionRules({ rules: { schedule: { minRestMinutes: 0 } } }).schedule.minRestMinutes).toBe(0);
+    expect(resolveCompetitionRules({ rules: { schedule: { minRestMinutes: -5 } } }).schedule.minRestMinutes).toBe(30);
+    expect(resolveCompetitionRules({ rules: { schedule: { minRestMinutes: '10' } } }).schedule.minRestMinutes).toBe(30);
+  });
+});
+
+describe('retirement rules (M0b)', () => {
+  it('defaults to IBSA "giving up": keep earned points', () => {
+    expect(resolveCompetitionRules(null).retirement.mode).toBe('keep_played');
+  });
+  it('can be set per tournament / stage', () => {
+    const t = { rules: { retirement: { mode: 'as_walkover' } }, stages: [{ id: 'g', rules: { retirement: { mode: 'keep_played' } } }] };
+    expect(resolveCompetitionRules(t).retirement.mode).toBe('as_walkover');
+    expect(resolveCompetitionRules(t, 'g').retirement.mode).toBe('keep_played');
+    expect(resolveCompetitionRules({ rules: { retirement: { mode: 'bogus' } } }).retirement.mode).toBe('keep_played');
+  });
+});
+
+describe('custom preset (M0b)', () => {
+  it('"start from blank" preset keeps defaults but records the choice', () => {
+    const r = resolveCompetitionRules({ rules: { presetId: 'custom' } });
+    expect(r.presetId).toBe('custom');
+    expect(r.tiebreak).toEqual(DEFAULT_COMPETITION_RULES.tiebreak);
+  });
+});
+
+describe('round scoring override (M0b, B15: wizard round override was ignored by real scoring)', () => {
+  const finalsStage = { id: 'fin', type: 'finals' };
+  it('legacy finalsConfig.roundScoringOverride applies from the given round (semis best-of-5)', () => {
+    const t = {
+      type: 'individual',
+      stages: [finalsStage],
+      finalsConfig: { roundScoringOverride: { fromRound: 4, scoringRules: { winScore: 11, setsToWin: 3, maxSets: 5, minLead: 2 } } },
+    };
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin', roundLabel: '8강', bracketRound: '8강' }, t)).toMatchObject({ setsToWin: 2, maxSets: 3 });
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin', roundLabel: '4강', bracketRound: '4강' }, t)).toMatchObject({ setsToWin: 3, maxSets: 5, winScore: 11 });
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin', roundLabel: '결승' }, t)).toMatchObject({ setsToWin: 3 });
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin_3rd', roundLabel: '3/4위 결정전', bracketRound: '3/4위' }, t)).toMatchObject({ setsToWin: 3 });
+    // 조별 리그 경기(라운드 이름 없음)에는 적용하지 않는다
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'q' }, t)).toMatchObject({ setsToWin: 2 });
+    // 5/6위 결정전은 토너먼트 라운드가 아니다
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin', roundLabel: '5/6위 결정전' }, t)).toMatchObject({ setsToWin: 2 });
+  });
+  it('rules.roundScoring beats legacy and stage can switch it off with fromRound 0', () => {
+    const t = {
+      stages: [{ id: 'fin', rules: { roundScoring: { fromRound: 0 } } }, { id: 'fin2' }],
+      finalsConfig: { roundScoringOverride: { fromRound: 4, scoringRules: { setsToWin: 3, winScore: 11 } } },
+      rules: { roundScoring: { fromRound: 2, individual: { setsToWin: 4 } } },
+    };
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin2', roundLabel: '4강' }, t).setsToWin).toBe(2);
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin2', roundLabel: '결승' }, t)).toMatchObject({ setsToWin: 4, maxSets: 7 });
+    expect(resolveMatchScoring({ type: 'individual', stageId: 'fin', roundLabel: '결승' }, t).setsToWin).toBe(2);
+  });
+  it('appliedScoringRules still wins; invalid fromRound ignored', () => {
+    const t = { rules: { roundScoring: { fromRound: 3, individual: { setsToWin: 3 } } } };
+    expect(resolveCompetitionRules(t).roundScoring).toBeNull();
+    const t2 = { rules: { roundScoring: { fromRound: 4, individual: { setsToWin: 3 } } } };
+    expect(resolveMatchScoring({ type: 'individual', roundLabel: '4강', appliedScoringRules: { winScore: 11, setsToWin: 1 } }, t2).setsToWin).toBe(1);
+  });
+  it('matchRoundSize', () => {
+    expect(matchRoundSize({ roundLabel: '16강' })).toBe(16);
+    expect(matchRoundSize({ bracketRound: '결승' })).toBe(2);
+    expect(matchRoundSize({ roundLabel: '9~16위 순위 결정전' })).toBeNull();
+    expect(matchRoundSize({})).toBeNull();
   });
 });

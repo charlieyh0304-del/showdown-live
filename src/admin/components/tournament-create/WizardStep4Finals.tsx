@@ -1,42 +1,11 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import NumberStepper from './NumberStepper';
+import { effectiveOverrideFromRound, validStartRounds, type Action, type WizardState } from './wizardModel';
 
 interface WizardStep4FinalsProps {
-  state: {
-    finalsFormat: 'single_elimination' | 'double_elimination' | 'round_robin';
-    finalsStartRound: number;
-    bracketArrangement: 'cross_group' | 'sequential' | 'custom';
-    avoidSameGroup: boolean;
-    thirdPlaceMatch: boolean;
-    hasRankingMatch: boolean;
-    rankingStartRank: number;
-    rankingEndRank: number;
-    rankingFormat: 'round_robin' | 'single_elimination';
-    fifthToEighth: boolean;
-    fifthToEighthFormat: 'simple' | 'full' | 'round_robin';
-    classificationGroups: boolean;
-    classificationGroupSize: number;
-    rankingUpTo?: number;
-    hasGroupStage?: boolean;
-    advanceCount?: number;
-    advancePerGroup?: number;
-    groupCount?: number;
-    participantCount?: number;
-    type?: string;
-    teamSize?: number;
-    // round scoring
-    finalsScoringRules: { winScore: number; setsToWin: number; maxSets: number; minLead: number; deuceEnabled: boolean; timeLimitSeconds?: number };
-    qualifyingScoringRules?: { winScore: number; setsToWin: number; maxSets: number; minLead: number; deuceEnabled: boolean; timeLimitSeconds?: number };
-    sameRulesAsQualifying?: boolean;
-    hasRoundScoringOverride?: boolean;
-    roundOverrideFromRound?: number;
-    roundOverrideSetsToWin?: number;
-    roundOverrideMaxSets?: number;
-    // custom pairings
-    customPairings?: Array<{ position: number; slot1: string; slot2: string }>;
-  };
-  dispatch: (action: { type: 'SET_FIELD'; field: string; value: unknown }) => void;
+  state: WizardState;
+  dispatch: (action: Action) => void;
 }
 
 const FORMAT_CARD_KEYS = [
@@ -232,7 +201,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
   const customMatchCount = Math.min(state.finalsStartRound / 2, Math.ceil(slotLabels.length / 2));
 
   // Ensure customPairings array is initialized
-  const customPairings = state.customPairings || [];
+  const customPairings = useMemo(() => state.customPairings || [], [state.customPairings]);
 
   // Count assigned slots in custom mode
   const assignedSlots = useMemo(() => {
@@ -263,16 +232,17 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
       r = Math.floor(r / 2);
     }
     return rounds;
-  }, [state.finalsStartRound]);
+  }, [state.finalsStartRound, t]);
 
   // Scoring summary
+  const overrideFrom = effectiveOverrideFromRound(state);
   const scoringSummary = useMemo(() => {
-    if (!state.hasRoundScoringOverride || !state.roundOverrideFromRound) return null;
-    const fromRound = state.roundOverrideFromRound;
+    const fromRound = overrideFrom;
+    if (!state.hasRoundScoringOverride || !fromRound) return null;
     const earlyPart = `${getRoundLabel(state.finalsStartRound, t)}~${getRoundLabel(fromRound * 2, t)}: ${t('admin.tournamentCreate.matchRules.finalsSets', { maxSets, setsToWin })}`;
     const latePart = `${getRoundLabel(fromRound, t)}~${getRoundLabel(2, t)}: ${t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: overrideMaxSets, setsToWin: overrideSetsToWin })}`;
     return `${earlyPart} | ${latePart}`;
-  }, [state.hasRoundScoringOverride, state.roundOverrideFromRound, state.finalsStartRound, maxSets, overrideMaxSets]);
+  }, [state.hasRoundScoringOverride, overrideFrom, state.finalsStartRound, maxSets, setsToWin, overrideMaxSets, overrideSetsToWin, t]);
 
   // Custom pairing helpers
   const handleCustomPairingChange = (matchIndex: number, slot: 'slot1' | 'slot2', value: string) => {
@@ -311,26 +281,37 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
           role="radiogroup"
           aria-label={t('admin.tournamentCreate.finals.formatTitle')}
         >
-          {FORMAT_CARD_KEYS.map((fmt) => (
-            <button
-              key={fmt.value}
-              role="radio"
-              aria-checked={state.finalsFormat === fmt.value}
-              className={`card text-left p-4 border-2 ${
-                state.finalsFormat === fmt.value
-                  ? 'border-yellow-400 bg-gray-800'
-                  : 'border-transparent hover:border-gray-600'
-              }`}
-              onClick={() => setField('finalsFormat', fmt.value)}
-              aria-label={`${t(fmt.labelKey)}${state.finalsFormat === fmt.value ? `, ${t('common.accessibility.selected')}` : ''}`}
-            >
-              <div className="text-2xl mb-1" aria-hidden="true">
-                {fmt.icon}
-              </div>
-              <h3 className="text-lg font-bold">{t(fmt.labelKey)}</h3>
-              <p className="text-gray-400 text-sm">{t(fmt.descKey)}</p>
-            </button>
-          ))}
+          {FORMAT_CARD_KEYS.map((fmt) => {
+            const unsupportedKey = fmt.value === 'double_elimination'
+              ? 'admin.tournamentCreate.finals.notSupportedYet'
+              : fmt.value === 'round_robin' && state.hasGroupStage
+                ? 'admin.tournamentCreate.finals.roundRobinAfterGroupsUnsupported'
+                : null;
+            return (
+              <button
+                key={fmt.value}
+                role="radio"
+                aria-checked={state.finalsFormat === fmt.value}
+                aria-disabled={unsupportedKey ? 'true' : undefined}
+                aria-describedby={`finals-format-${fmt.value}-desc`}
+                className={`card text-left p-4 border-2 ${
+                  unsupportedKey
+                    ? 'border-transparent opacity-60 cursor-not-allowed'
+                    : state.finalsFormat === fmt.value
+                      ? 'border-yellow-400 bg-gray-800'
+                      : 'border-transparent hover:border-gray-600'
+                }`}
+                onClick={() => { if (!unsupportedKey) setField('finalsFormat', fmt.value); }}
+                aria-label={`${t(fmt.labelKey)}${state.finalsFormat === fmt.value ? `, ${t('common.accessibility.selected')}` : ''}`}
+              >
+                <div className="text-2xl mb-1" aria-hidden="true">
+                  {fmt.icon}
+                </div>
+                <h3 className="text-lg font-bold">{t(fmt.labelKey)}</h3>
+                <p id={`finals-format-${fmt.value}-desc`} className="text-gray-400 text-sm">{t(unsupportedKey ?? fmt.descKey)}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -339,16 +320,10 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
         <div className="card space-y-4">
           <h3 className="text-lg font-semibold mb-2 text-center">{t('admin.tournamentCreate.finals.startRound')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { value: 32, label: t('admin.tournamentCreate.finals.round32') },
-              { value: 16, label: t('admin.tournamentCreate.finals.round16') },
-              { value: 8, label: t('admin.tournamentCreate.finals.round8') },
-              { value: 4, label: t('admin.tournamentCreate.finals.round4') },
-            ]
-              .filter((opt) => {
-                const ac = state.advanceCount || state.participantCount || 8;
-                return opt.value <= ac * 2;
-              })
+            {validStartRounds(state)
+              .slice()
+              .reverse()
+              .map((v) => ({ value: v, label: getRoundLabel(v, t) }))
               .map((opt) => (
                 <button
                   key={opt.value}
@@ -631,7 +606,7 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                       <select
                         id="round-override-from"
                         className="input bg-gray-600 text-white py-2 px-3 rounded"
-                        value={state.roundOverrideFromRound || (availableRounds[0]?.value ?? 4)}
+                        value={overrideFrom ?? availableRounds[0]?.value ?? 4}
                         onChange={(e) => setField('roundOverrideFromRound', Number(e.target.value))}
                         aria-label={t('admin.tournamentCreate.matchRules.roundScoringOverride')}
                       >
@@ -792,13 +767,15 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
 
               {/* 순위 표시 범위 (N위까지만) */}
               <div className="mt-4 pt-4 border-t border-gray-700">
-                <label className="block text-sm font-semibold mb-2">
-                  순위 표시 범위 (선택)
+                <label htmlFor="wizard-ranking-up-to" className="block text-sm font-semibold mb-2">
+                  {t('admin.tournamentCreate.finals.rankingUpToLabel')}
                 </label>
-                <p className="text-xs text-gray-400 mb-2">
-                  N위까지만 표시 (예: 8 → 1~8위까지). 빈칸이면 본선 진출자 전체
+                <p id="wizard-ranking-up-to-hint" className="text-xs text-gray-400 mb-2">
+                  {t('admin.tournamentCreate.finals.rankingUpToHint')}
                 </p>
                 <input
+                  id="wizard-ranking-up-to"
+                  aria-describedby="wizard-ranking-up-to-hint"
                   type="number"
                   min={0}
                   max={128}
@@ -806,36 +783,9 @@ export default function WizardStep4Finals({ state, dispatch }: WizardStep4Finals
                   onChange={(e) => setField('rankingUpTo', e.target.value ? parseInt(e.target.value) : 0)}
                   className="w-32 px-3 py-2 bg-gray-700 rounded border border-gray-600 text-white"
                   placeholder={t('admin.tournamentCreate.finals.rankingUpToPlaceholder')}
-                  aria-label={t('admin.tournamentCreate.finals.rankingUpToAriaLabel')}
                 />
               </div>
 
-              <h3 className="text-lg font-bold text-cyan-400 mt-4">{t('admin.tournamentCreate.finals.rankingFormatTitle')}</h3>
-              <div
-                className="grid grid-cols-2 gap-3"
-                role="radiogroup"
-                aria-label={t('admin.tournamentCreate.finals.rankingFormatAriaLabel')}
-              >
-                {(
-                  [
-                    { value: 'round_robin' as const, labelKey: 'admin.tournamentCreate.finals.rankingRoundRobin' },
-                    { value: 'single_elimination' as const, labelKey: 'admin.tournamentCreate.finals.rankingSingleElimination' },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.value}
-                    role="radio"
-                    aria-checked={state.rankingFormat === opt.value}
-                    className={`btn text-lg py-3 ${
-                      state.rankingFormat === opt.value ? 'btn-primary' : 'bg-gray-700 text-white'
-                    }`}
-                    onClick={() => setField('rankingFormat', opt.value)}
-                    aria-label={`${t(opt.labelKey)}${state.rankingFormat === opt.value ? `, ${t('common.accessibility.selected')}` : ''}`}
-                  >
-                    {t(opt.labelKey)}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
         </div>

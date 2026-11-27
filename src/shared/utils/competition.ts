@@ -4,7 +4,7 @@
  */
 import type { Match, MatchType, SetScore, Tournament } from '../types';
 import { resolveCompetitionRules, resolveMatchScoring } from '../rules/competitionRules';
-import { buildByeSets, buildWalkoverSets, isRealParticipantId } from '../rules/walkover';
+import { buildByeSets, buildRetirementSets, buildWalkoverSets, isRealParticipantId } from '../rules/walkover';
 import { resultContextFor } from '../rules/standings';
 import { selectQualifiers, type QualificationResult } from '../rules/qualification';
 import { crossGroupSeedOrder, placeSeeds, nextPowerOfTwo } from '../rules/seeding';
@@ -13,13 +13,29 @@ type RulesTournament = Partial<Tournament> | null | undefined;
 
 /** 기권/불참 부전승 세트 (규칙의 부전승 점수 × 이겨야 하는 세트 수) */
 export function walkoverSetsFor(
-  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules'>,
+  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules' | 'roundLabel' | 'bracketRound'>,
   tournament: RulesTournament,
   winnerSide: 1 | 2,
   winnerId: string,
 ): SetScore[] {
   const rules = resolveCompetitionRules(tournament, match.stageId);
   return buildWalkoverSets(resolveMatchScoring(match, tournament), rules.walkover, winnerSide, winnerId);
+}
+
+/**
+ * 경기 포기(기권) 세트: 대회 규칙의 기권 처리(retirement.mode)에 따라
+ * 얻은 점수를 남기거나(IBSA 경기 포기) 부전승처럼 기록한다.
+ */
+export function retirementSetsFor(
+  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules' | 'roundLabel' | 'bracketRound' | 'sets'>,
+  tournament: RulesTournament,
+  retiringSide: 1 | 2,
+  winnerId: string,
+  retiringId: string | null,
+): SetScore[] {
+  const rules = resolveCompetitionRules(tournament, match.stageId);
+  const sets = Array.isArray(match.sets) ? match.sets : Object.values((match.sets ?? {}) as Record<string, SetScore>);
+  return buildRetirementSets(sets, retiringSide, resolveMatchScoring(match, tournament), rules, winnerId, retiringId);
 }
 
 /** 본선 골격의 BYE 경기 세트를 만드는 함수 (bracketSkeleton byeSets 옵션) */

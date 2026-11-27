@@ -14,6 +14,7 @@
  *   기본값 → 프리셋(rules.presetId) → 레거시 대회 필드(gameConfig, teamMatchSettings, scoringRules,
  *   rankingMatchConfig, finalsConfig, tiebreakerRules) → tournament.rules → 레거시 stage.scoringRules → stage.rules
  * 경기 점수 규칙은 그 위에 match.appliedScoringRules가 최우선이다.
+ * 본선 토너먼트 경기는 라운드별 규칙(roundScoring, 예: 4강부터 5세트)이 스테이지 점수 규칙 위에 덮인다.
  * (= 기존 advancement.ts resolveScoringRules 순서: match → stage → tournament → 팀 31점 → gameConfig → 기본)
  *
  * 순수 모듈. functions/src/shared/rules/는 이 폴더의 사본이다(scripts/sync-shared-rules.mjs로 복사,
@@ -61,7 +62,7 @@ export interface StandingsPoints {
 }
 
 export interface WalkoverRules {
-  /** 부전승 세트 점수. null이면 그 경기의 세트 목표 점수(개인 11, 팀 31)를 쓴다 → 11:0 × 이겨야 하는 세트 수 */
+  /** 부전승 세트 점수. null(저장 값 0)이면 그 경기의 세트 목표 점수(개인 11, 팀 31)를 쓴다 → 11:0 × 이겨야 하는 세트 수 */
   setScore: number | null;
   /** 상대가 없는 BYE도 부전승(점수 기록 + 집계)으로 본다 */
   byeCountsAsWalkover: boolean;
@@ -119,14 +120,46 @@ export interface QualificationRules {
   avoidSameGroupFirstRound: boolean;
 }
 
+/**
+ * 라운드별 점수 규칙 (예: 4강부터 5세트제). 본선 토너먼트 경기에만 적용된다
+ * (라운드 이름이 "N강"/"결승"/"3/4위"인 경기). fromRound는 그 라운드의 인원: 4 = 4강, 2 = 결승.
+ * 3/4위 결정전은 결승과 같은 라운드(2)로 본다.
+ */
+export interface RoundScoringRule {
+  fromRound: number;
+  individual?: Partial<ScoringRuleSet>;
+  team?: Partial<ScoringRuleSet>;
+}
+
+/**
+ * 경기 포기(기권) 처리 (IBSA 구분)
+ * - keep_played: 경기 포기 — 이미 얻은 점수·세트는 남기고, 진행 중 세트는 상대에게, 남은 세트는 0:목표 점수.
+ * - as_walkover: 규정 불이행 패처럼 처리 — 얻은 점수를 지우고 모든 세트를 부전승 점수로 기록.
+ * - as_recorded: 기록된 점수를 그대로 두고 기권한 쪽의 패로만 처리.
+ */
+export type RetirementMode = 'keep_played' | 'as_walkover' | 'as_recorded';
+
+export interface RetirementRules {
+  mode: RetirementMode;
+}
+
+export interface ScheduleRules {
+  /** 선수 최소 휴식(분). 앞 경기 *종료*부터 다음 경기 *시작*까지로 잰다(시작~시작 아님, docs/05 B6). */
+  minRestMinutes: number;
+}
+
 export interface CompetitionRules {
   presetId: string;
   scoring: Record<MatchKind, ScoringRuleSet>;
+  /** 라운드별 점수 규칙. null이면 없음. */
+  roundScoring: RoundScoringRule | null;
   standingsPoints: StandingsPoints;
   walkover: WalkoverRules;
   tiebreak: TiebreakRules;
   finalRanking: FinalRankingRules;
   qualification: QualificationRules;
+  retirement: RetirementRules;
+  schedule: ScheduleRules;
   tiebreakDecisions: Record<string, TiebreakDecision>;
 }
 
@@ -134,11 +167,15 @@ export interface CompetitionRules {
 export interface CompetitionRulesInput {
   presetId?: string;
   scoring?: { individual?: Partial<ScoringRuleSet>; team?: Partial<ScoringRuleSet> };
+  /** fromRound 0 = 상위 단계의 라운드별 규칙을 끈다 (Firebase는 null을 저장하지 못하므로) */
+  roundScoring?: RoundScoringRule;
   standingsPoints?: Partial<StandingsPoints>;
   walkover?: Partial<WalkoverRules>;
   tiebreak?: Partial<TiebreakRules>;
   finalRanking?: Partial<FinalRankingRules>;
   qualification?: Partial<QualificationRules>;
+  retirement?: Partial<RetirementRules>;
+  schedule?: Partial<ScheduleRules>;
   tiebreakDecisions?: Record<string, TiebreakDecision>;
 }
 
@@ -160,6 +197,9 @@ export interface MatchScoringLike {
   type?: unknown;
   stageId?: unknown;
   appliedScoringRules?: unknown;
+  /** 라운드 이름 ("8강", "4강", "결승", "3/4위 결정전"): 라운드별 점수 규칙에 쓴다 */
+  roundLabel?: unknown;
+  bracketRound?: unknown;
 }
 
 // ===== 기본값 =====
@@ -176,11 +216,14 @@ export const DEFAULT_TIEBREAK_CRITERIA: TiebreakCriterion[] = ['points', 'head_t
 export const DEFAULT_COMPETITION_RULES: CompetitionRules = {
   presetId: 'ibsa',
   scoring: { individual: DEFAULT_INDIVIDUAL_SCORING, team: DEFAULT_TEAM_SCORING },
+  roundScoring: null,
   standingsPoints: { win: 1, draw: 0, loss: 0, walkoverWin: 1, forfeitLoss: 0 },
   walkover: { setScore: null, byeCountsAsWalkover: true, countInStandings: true, countInPlayerStats: true },
   tiebreak: { criteria: DEFAULT_TIEBREAK_CRITERIA, headToHeadMode: 'recursive', unresolved: 'admin_decision' },
   finalRanking: { thirdPlace: 'match', fifthToEighth: 'joint', lowerPlaces: 'joint', placementMatches: true, rankingUpTo: 0 },
   qualification: { perGroup: 2, wildcards: 0, avoidSameGroupFirstRound: true },
+  retirement: { mode: 'keep_played' },
+  schedule: { minRestMinutes: 30 },
   tiebreakDecisions: {},
 };
 
@@ -201,7 +244,12 @@ export const RULES_PRESETS: Record<string, RulesPreset> = {
       finalRanking: { thirdPlace: 'joint', fifthToEighth: 'joint', lowerPlaces: 'joint', placementMatches: false },
     },
   },
+  // 빈 설정에서 시작: 프리셋 값 없이 기본값만 채운 상태에서 관리자가 모든 항목을 직접 정한다
+  custom: { id: 'custom', labelKey: 'common.competitionRules.presets.custom', rules: {} },
 };
+
+/** 화면에 보여 줄 프리셋 순서 */
+export const RULES_PRESET_ORDER: readonly string[] = ['ibsa', 'simple', 'custom'];
 
 // ===== 접근자 =====
 
@@ -264,6 +312,21 @@ function mergeScoringPartial(base: ScoringRuleSet, part: unknown): ScoringRuleSe
   return full ?? base;
 }
 
+function isPowerOfTwo(n: number): boolean {
+  return Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0;
+}
+
+/** 라운드별 규칙의 부분 점수 규칙: 양수 숫자 필드만 남긴다. 비면 null. */
+function cleanScoringPartial(v: unknown): Partial<ScoringRuleSet> | null {
+  if (!isObject(v)) return null;
+  const out: Partial<ScoringRuleSet> = {};
+  for (const k of ['winScore', 'setsToWin', 'maxSets', 'minLead', 'deuceCap', 'timeLimitSeconds'] as const) {
+    const n = posNum(v[k]);
+    if (n !== undefined) out[k] = n;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 function stripUndefined(o: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null) out[k] = v;
@@ -305,12 +368,27 @@ export function applyRulesLayer(base: CompetitionRules, layer: unknown): Competi
     tiebreak: { ...base.tiebreak },
     finalRanking: { ...base.finalRanking },
     qualification: { ...base.qualification },
+    retirement: { ...base.retirement },
+    schedule: { ...base.schedule },
     tiebreakDecisions: { ...base.tiebreakDecisions },
   };
   if (typeof layer.presetId === 'string') out.presetId = layer.presetId;
   if (isObject(layer.scoring)) {
     out.scoring.individual = mergeScoringPartial(out.scoring.individual, layer.scoring.individual);
     out.scoring.team = mergeScoringPartial(out.scoring.team, layer.scoring.team);
+  }
+  if (isObject(layer.roundScoring)) {
+    const rs = layer.roundScoring;
+    const from = finiteNum(rs.fromRound);
+    if (from === 0) out.roundScoring = null;
+    else if (from !== undefined && from >= 2 && isPowerOfTwo(from)) {
+      const rule: RoundScoringRule = { fromRound: from };
+      const ind = cleanScoringPartial(rs.individual);
+      const team = cleanScoringPartial(rs.team);
+      if (ind) rule.individual = ind;
+      if (team) rule.team = team;
+      out.roundScoring = rule;
+    }
   }
   if (isObject(layer.standingsPoints)) {
     const sp = layer.standingsPoints;
@@ -321,7 +399,8 @@ export function applyRulesLayer(base: CompetitionRules, layer: unknown): Competi
   }
   if (isObject(layer.walkover)) {
     const w = layer.walkover;
-    if (w.setScore === null) out.walkover.setScore = null;
+    // 0 = 세트 목표 점수 사용 (Firebase는 null을 저장하지 못하므로 스테이지에서 상위 값을 끌 때 쓴다)
+    if (w.setScore === null || w.setScore === 0) out.walkover.setScore = null;
     else if (posNum(w.setScore) !== undefined) out.walkover.setScore = posNum(w.setScore)!;
     out.walkover.byeCountsAsWalkover = pickBool(w.byeCountsAsWalkover, out.walkover.byeCountsAsWalkover);
     out.walkover.countInStandings = pickBool(w.countInStandings, out.walkover.countInStandings);
@@ -351,6 +430,13 @@ export function applyRulesLayer(base: CompetitionRules, layer: unknown): Competi
     const wc = finiteNum(q.wildcards);
     if (wc !== undefined && wc >= 0) out.qualification.wildcards = Math.floor(wc);
     out.qualification.avoidSameGroupFirstRound = pickBool(q.avoidSameGroupFirstRound, out.qualification.avoidSameGroupFirstRound);
+  }
+  if (isObject(layer.retirement)) {
+    out.retirement.mode = pickEnum(layer.retirement.mode, ['keep_played', 'as_walkover', 'as_recorded'] as const, out.retirement.mode);
+  }
+  if (isObject(layer.schedule)) {
+    const rest = finiteNum(layer.schedule.minRestMinutes);
+    if (rest !== undefined && rest >= 0) out.schedule.minRestMinutes = rest;
   }
   if (isObject(layer.tiebreakDecisions)) {
     for (const [key, d] of Object.entries(layer.tiebreakDecisions)) {
@@ -385,6 +471,8 @@ function legacyTournamentLayer(t: TournamentLike): CompetitionRulesInput {
   if (rmc) {
     layer.finalRanking = {};
     if (typeof rmc.thirdPlace === 'boolean') layer.finalRanking.thirdPlace = rmc.thirdPlace ? 'match' : 'joint';
+    // 5~8위 결정전을 만들기로 했으면 그 결과로 순위를 정한다 (프리셋의 '순위결정전 없음'보다 대회 구조가 우선)
+    if (rmc.fifthToEighth === true) layer.finalRanking.placementMatches = true;
     const upTo = finiteNum(rmc.rankingUpTo);
     if (upTo !== undefined && upTo >= 0) layer.finalRanking.rankingUpTo = upTo;
   }
@@ -403,6 +491,16 @@ function legacyTournamentLayer(t: TournamentLike): CompetitionRulesInput {
     const wc = finiteNum(fc.wildcardCount);
     if (wc !== undefined && wc >= 0) layer.qualification.wildcards = wc;
     if (typeof fc.avoidSameGroup === 'boolean') layer.qualification.avoidSameGroupFirstRound = fc.avoidSameGroup;
+    // 위저드·챗봇의 라운드별 세트 수 (finalsConfig.roundScoringOverride = { fromRound, scoringRules }).
+    // 세트 수만 바꾸는 설정이다: 목표 점수 등 나머지는 그 경기의 규칙을 따른다.
+    const rso = isObject(fc.roundScoringOverride) ? fc.roundScoringOverride : null;
+    const rsoFrom = posNum(rso?.fromRound);
+    const rsoRules = cleanScoringPartial(rso?.scoringRules);
+    if (rsoFrom && rsoRules?.setsToWin) {
+      const part: Partial<ScoringRuleSet> = { setsToWin: rsoRules.setsToWin };
+      if (rsoRules.maxSets) part.maxSets = rsoRules.maxSets;
+      layer.roundScoring = { fromRound: rsoFrom, individual: part, team: part };
+    }
   }
   const legacyCriteria = criteriaFromLegacy(t.tiebreakerRules);
   if (legacyCriteria) layer.tiebreak = { criteria: legacyCriteria };
@@ -455,7 +553,30 @@ export function resolveCompetitionRules(tournament: TournamentLike | null | unde
 export function resolveMatchScoring(match: MatchScoringLike, tournament: TournamentLike | null | undefined): ScoringRuleSet {
   const applied = scoringFrom(match.appliedScoringRules);
   if (applied) return applied;
-  return resolveCompetitionRules(tournament, match.stageId).scoring[matchKindOf(match.type)];
+  const rules = resolveCompetitionRules(tournament, match.stageId);
+  const kind = matchKindOf(match.type);
+  const base = rules.scoring[kind];
+  const size = matchRoundSize(match);
+  if (rules.roundScoring && size !== null && size <= rules.roundScoring.fromRound) {
+    return mergeScoringPartial(base, rules.roundScoring[kind]);
+  }
+  return base;
+}
+
+/**
+ * 본선 토너먼트 경기의 라운드 인원 (8강 = 8, 4강 = 4, 결승 = 2, 3/4위 결정전 = 2).
+ * 리그·순위결정전 리그 등 토너먼트 라운드가 아니면 null.
+ */
+export function matchRoundSize(match: Pick<MatchScoringLike, 'roundLabel' | 'bracketRound'>): number | null {
+  for (const raw of [match.bracketRound, match.roundLabel]) {
+    if (typeof raw !== 'string') continue;
+    const label = raw.trim();
+    if (label === '결승') return 2;
+    if (label.startsWith('3/4위')) return 2;
+    const m = /^(\d+)강$/.exec(label);
+    if (m) return Number(m[1]);
+  }
+  return null;
 }
 
 /** 세트 승자 (규칙의 목표 점수·점수 차·듀스 캡). 0:0 등 끝나지 않은 세트는 null. */

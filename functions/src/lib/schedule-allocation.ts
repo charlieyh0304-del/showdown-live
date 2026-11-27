@@ -191,6 +191,9 @@ export function allocateSchedule(
       court.time = courtEndTime;
     }
 
+    // TODO(B6, docs/05·06): 휴식을 경기 *시작* 시각부터 재고 있다(시작~시작). 규칙 단일 설정원의
+    // rules.schedule.minRestMinutes(기본 30분, 스테이지별 덮어쓰기)는 앞 경기 *종료*부터 다음 경기 시작까지다.
+    // 스케줄 엔진 마일스톤(M4a)에서 resolveCompetitionRules(..).schedule.minRestMinutes와 경기 예상 종료 시각으로 바꾼다.
     const playerEndTime = bestTime + playerRest;
     const playerEnd = playerEndTime >= dayEnd
       ? { date: nextDate(bestDate), time: nextDayStartMin }

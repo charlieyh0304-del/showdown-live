@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { push, update, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { checkMatchWinner, checkSetWinner, getEffectiveScoringRules } from '@shared/utils/scoring';
-import { byeSetsFactory, computeFinalsSeeding, walkoverSetsFor } from '@shared/utils/competition';
+import { byeSetsFactory, computeFinalsSeeding, retirementSetsFor, walkoverSetsFor } from '@shared/utils/competition';
 import { showSuccess, showError } from '@shared/utils/toast';
 import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, toFirebaseValue, type WriteResult } from '@shared/utils/dataWrites';
 import { buildSingleEliminationSkeleton, thirdPlaceStageId } from '@shared/utils/bracketSkeleton';
 import { resolveCompetitionRules } from '@shared/rules/competitionRules';
+import { retirementMatchFlags } from '@shared/rules/walkover';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import TieDecisionPanel from './TieDecisionPanel';
 import type { Match, MatchUpdate, Team, Player, MatchStatus, SetScore, ScoreHistoryEntry, Tournament } from '@shared/types';
@@ -64,6 +65,8 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
   const [walkoverWinnerId, setWalkoverWinnerId] = useState('');
   const [walkoverReason, setWalkoverReason] = useState('');
   const [walkoverSaving, setWalkoverSaving] = useState(false);
+  /** 결과 종류: forfeit = 규정 불이행 패(부전승), retired = 경기 포기(얻은 점수 유지) */
+  const [walkoverKind, setWalkoverKind] = useState<'forfeit' | 'retired'>('forfeit');
 
   const filtered = useMemo(() => {
     if (filter === 'all') return matches;
@@ -341,12 +344,26 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
     setWalkoverMatch(match);
     setWalkoverWinnerId('');
     setWalkoverReason('');
+    setWalkoverKind('forfeit');
   };
 
   const closeWalkoverModal = () => {
     setWalkoverMatch(null);
     setWalkoverWinnerId('');
     setWalkoverReason('');
+    setWalkoverKind('forfeit');
+  };
+
+  /** 선택한 결과 종류로 기록될 세트 */
+  const walkoverResultSets = (m: Match, winnerId: string): SetScore[] => {
+    const p1Id = m.player1Id || m.team1Id || 'player1';
+    const p2Id = m.player2Id || m.team2Id || 'player2';
+    const isP1Winner = winnerId === p1Id;
+    if (walkoverKind === 'retired') {
+      return retirementSetsFor(m, tournament, isP1Winner ? 2 : 1, winnerId, isP1Winner ? p2Id : p1Id);
+    }
+    // 부전승 = 대회 규칙의 부전승 점수 × 이겨야 하는 세트 수 (기본 11:0, 3세트제 → 2세트, 팀 31:0)
+    return walkoverSetsFor(m, tournament, isP1Winner ? 1 : 2, winnerId);
   };
 
   const handleSaveWalkover = async () => {
@@ -357,8 +374,8 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
         time: new Date().toISOString(),
         scoringPlayer: '',
         actionPlayer: 'admin',
-        actionType: 'walkover',
-        actionLabel: `${t('admin.tournamentDetail.statusTab.walkoverBadge')}: ${walkoverReason.trim()}`,
+        actionType: walkoverKind === 'retired' ? 'retired' : 'walkover',
+        actionLabel: `${walkoverKind === 'retired' ? t('admin.tournamentDetail.walkoverModal.resultRetired') : t('admin.tournamentDetail.statusTab.walkoverBadge')}: ${walkoverReason.trim()}`,
         points: 0,
         set: 0,
         server: '',
@@ -369,16 +386,19 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
 
       const existingHistory = toArray(walkoverMatch.scoreHistory);
 
-      // 부전승 = 대회 규칙의 부전승 점수 × 이겨야 하는 세트 수 (기본 11:0, 3세트제 → 2세트, 팀 31:0)
-      const isP1Winner = walkoverWinnerId === (walkoverMatch.player1Id || walkoverMatch.team1Id || 'player1');
-      const walkoverSets = walkoverSetsFor(walkoverMatch, tournament, isP1Winner ? 1 : 2, walkoverWinnerId);
+      const resultSets = walkoverResultSets(walkoverMatch, walkoverWinnerId);
+      const reason = walkoverReason.trim();
+      // 경기 포기: 대회 규칙의 처리 방식을 따른다. '규정 불이행 패처럼'이면 부전승으로도 표시해 부전승 규칙으로 집계하고,
+      // 그 밖에는 실제 경기로 집계한다(부전승 표시를 지우고 기권 표시만 남긴다).
+      const flags = walkoverKind === 'retired'
+        ? retirementMatchFlags(resolveCompetitionRules(tournament, walkoverMatch.stageId), reason)
+        : { walkover: true as const, walkoverReason: reason, retired: null, retiredReason: null };
 
       const result = await updateMatch(walkoverMatch.id, {
         status: 'completed',
         winnerId: walkoverWinnerId,
-        walkover: true,
-        walkoverReason: walkoverReason.trim(),
-        sets: walkoverSets,
+        ...flags,
+        sets: resultSets,
         scoreHistory: [...existingHistory, historyEntry],
       });
 
@@ -388,7 +408,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
         showError(t('admin.tournamentDetail.statusTab.walkoverError'));
         return;
       }
-      notifyWriteOutcome(outcome, t, t('admin.tournamentDetail.statusTab.walkoverProcessed'));
+      notifyWriteOutcome(outcome, t, t(walkoverKind === 'retired' ? 'admin.tournamentDetail.statusTab.retiredProcessed' : 'admin.tournamentDetail.statusTab.walkoverProcessed'));
       closeWalkoverModal();
     } catch (err) {
       console.error('부전승 처리 오류:', err);
@@ -598,9 +618,15 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
                 </div>
               </div>
 
-              {match.status === 'completed' && match.walkover && match.walkoverReason && (
+              {match.status === 'completed' && match.walkover && match.walkoverReason && !match.retired && (
                 <div className="text-sm text-orange-300 mt-1">
                   {t('admin.tournamentDetail.statusTab.walkoverReason', { reason: match.walkoverReason })}
+                </div>
+              )}
+              {match.status === 'completed' && match.retired && (
+                <div className="text-sm text-orange-300 mt-1">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-700 text-white mr-2">{t('admin.tournamentDetail.statusTab.retiredBadge')}</span>
+                  {match.retiredReason && t('admin.tournamentDetail.statusTab.retiredReason', { reason: match.retiredReason })}
                 </div>
               )}
 
@@ -781,6 +807,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
                       <button
                         className={`btn flex-1 ${walkoverWinnerId === p1Id ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                         onClick={() => setWalkoverWinnerId(p1Id)}
+                        aria-pressed={walkoverWinnerId === p1Id}
                         aria-label={t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p1Name })}
                       >
                         {t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p1Name })}
@@ -788,6 +815,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
                       <button
                         className={`btn flex-1 ${walkoverWinnerId === p2Id ? 'btn-primary' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
                         onClick={() => setWalkoverWinnerId(p2Id)}
+                        aria-pressed={walkoverWinnerId === p2Id}
                         aria-label={t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p2Name })}
                       >
                         {t('admin.tournamentDetail.walkoverModal.winnerButton', { name: p2Name })}
@@ -798,9 +826,38 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
               </div>
             </div>
 
+            <fieldset className="mb-4 space-y-2">
+              <legend className="block text-sm font-semibold mb-1">{t('admin.tournamentDetail.walkoverModal.resultLegend')}</legend>
+              {(['forfeit', 'retired'] as const).map(kind => (
+                <label key={kind} className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="walkover-result-kind"
+                    className="mt-1 w-5 h-5"
+                    value={kind}
+                    checked={walkoverKind === kind}
+                    onChange={() => setWalkoverKind(kind)}
+                    aria-describedby={`walkover-kind-${kind}-help`}
+                  />
+                  <span>
+                    <span className="font-semibold block">{t(kind === 'forfeit' ? 'admin.tournamentDetail.walkoverModal.resultForfeit' : 'admin.tournamentDetail.walkoverModal.resultRetired')}</span>
+                    <span id={`walkover-kind-${kind}-help`} className="text-gray-400 text-xs">{t(kind === 'forfeit' ? 'admin.tournamentDetail.walkoverModal.resultForfeitHelp' : 'admin.tournamentDetail.walkoverModal.resultRetiredHelp')}</span>
+                  </span>
+                </label>
+              ))}
+              {walkoverWinnerId && (
+                <p className="text-sm text-cyan-300" aria-live="polite">
+                  {t('admin.tournamentDetail.walkoverModal.retiredPreview', {
+                    sets: walkoverResultSets(walkoverMatch, walkoverWinnerId).map(s => `${s.player1Score}:${s.player2Score}`).join(', '),
+                  })}
+                </p>
+              )}
+            </fieldset>
+
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-1">{t('admin.tournamentDetail.walkoverModal.reasonLabel')}</label>
+              <label htmlFor="walkover-reason" className="block text-sm font-semibold mb-1">{t('admin.tournamentDetail.walkoverModal.reasonLabel')}</label>
               <input
+                id="walkover-reason"
                 type="text"
                 className="input w-full"
                 value={walkoverReason}

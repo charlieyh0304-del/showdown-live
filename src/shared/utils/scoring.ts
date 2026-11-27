@@ -226,7 +226,7 @@ export function createScoreHistoryEntry(opts: {
 // 대회 규칙 단일 설정원(shared/rules/competitionRules.ts resolveMatchScoring)을 그대로 쓴다:
 // match.appliedScoringRules > stage(rules/scoringRules) > tournament(rules/scoringRules) > 팀 31점·teamMatchSettings / gameConfig > 기본
 export function getEffectiveScoringRules(
-  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules'>,
+  match: Pick<Match, 'type' | 'stageId' | 'appliedScoringRules'> & Partial<Pick<Match, 'roundLabel' | 'bracketRound'>>,
   tournament: Tournament | null | undefined,
 ): ReturnType<typeof getEffectiveGameConfig> {
   const r = resolveMatchScoring(match, tournament);

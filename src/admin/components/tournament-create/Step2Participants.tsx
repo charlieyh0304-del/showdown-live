@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { Dispatch } from 'react';
 import NumberStepper from './NumberStepper';
-import { nearestBracketRoundKey } from '../../pages/TournamentCreate';
-import type { WizardState, Action } from '../../pages/TournamentCreate';
+import { effectiveOverrideFromRound, nearestBracketRoundKey, validStartRounds, type WizardState, type Action } from './wizardModel';
 
 interface Step2ParticipantsProps {
   state: WizardState;
@@ -201,14 +200,17 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
               </button>
               <button
                 role="radio"
-                aria-checked={state.finalsFormat === 'double_elimination'}
-                aria-label={`${t('admin.tournamentCreate.finals.doubleElimination')}${state.finalsFormat === 'double_elimination' ? `, ${t('common.accessibility.selected')}` : ''}`}
-                className={`btn py-3 ${state.finalsFormat === 'double_elimination' ? 'btn-primary' : 'bg-gray-700 text-white'}`}
-                onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsFormat', value: 'double_elimination' })}
+                aria-checked={false}
+                aria-disabled="true"
+                aria-describedby="manual-double-elim-note"
+                aria-label={t('admin.tournamentCreate.finals.doubleElimination')}
+                className="btn py-3 bg-gray-800 text-gray-500 cursor-not-allowed"
+                onClick={e => e.preventDefault()}
               >
                 {t('admin.tournamentCreate.finals.doubleElimination')}
               </button>
             </div>
+            <p id="manual-double-elim-note" className="text-gray-400 text-xs">{t('admin.tournamentCreate.finals.notSupportedYet')}</p>
             {state.hasGroupStage && (
               <p className="text-yellow-300 text-sm">
                 {t('admin.tournamentCreate.groupQualifying.finalsRoundInfo', { round: state.finalsStartRound, count: state.advancePerGroup * state.groupCount, unit: t('common.units.person') })}
@@ -218,14 +220,14 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
               <div>
                 <h4 className="text-sm font-semibold text-gray-400 mb-2">{t('admin.tournamentCreate.groupQualifying.finalsStartRoundLabel')}</h4>
                 <div className="grid grid-cols-4 gap-2">
-                  {[4, 8, 16, 32].filter(v => v <= state.participantCount).map(v => (
+                  {validStartRounds(state).map(v => (
                     <button
                       key={v}
                       className={`btn py-2 text-sm ${state.finalsStartRound === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                       onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: v })}
                       aria-pressed={state.finalsStartRound === v}
                     >
-                      {v === 4 ? t('admin.tournamentCreate.finals.round4') : v === 8 ? t('admin.tournamentCreate.finals.round8') : v === 16 ? t('admin.tournamentCreate.finals.round16') : t('admin.tournamentCreate.finals.round32')}
+                      {t(nearestBracketRoundKey(v))}
                     </button>
                   ))}
                 </div>
@@ -319,7 +321,7 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
                             <select
                               id="manual-round-from"
                               className="input bg-gray-600 text-white py-1 px-2 rounded"
-                              value={state.roundOverrideFromRound}
+                              value={effectiveOverrideFromRound(state) ?? availableRounds[0].value}
                               onChange={e => dispatch({ type: 'SET_FIELD', field: 'roundOverrideFromRound', value: Number(e.target.value) })}
                               aria-label={t('admin.tournamentCreate.matchRules.roundScoringOverride')}
                             >
@@ -340,7 +342,7 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
                             ariaLabel={t('admin.tournamentCreate.matchRules.overrideSets', { maxSets: state.roundOverrideMaxSets, setsToWin: state.roundOverrideSetsToWin })}
                           />
                           <p aria-live="polite" className="text-sm text-cyan-400">
-                            {t('admin.preview.setsPerRoundDetail', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: availableRounds.find(r => r.value === state.roundOverrideFromRound)?.label || '', overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
+                            {t('admin.preview.setsPerRoundDetail', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: availableRounds.find(r => r.value === effectiveOverrideFromRound(state))?.label || '', overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
                           </p>
                         </div>
                       )}
@@ -363,6 +365,7 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
               <button
                 role="switch"
                 aria-checked={state.thirdPlaceMatch}
+                aria-label={t('admin.tournamentCreate.rankingMatch.thirdPlace')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.thirdPlaceMatch ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'thirdPlaceMatch', value: !state.thirdPlaceMatch })}
               >
@@ -376,6 +379,7 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
               <button
                 role="switch"
                 aria-checked={state.fifthToEighth}
+                aria-label={t('admin.tournamentCreate.rankingMatch.fifthToEighth')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.fifthToEighth ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'fifthToEighth', value: !state.fifthToEighth })}
               >
@@ -387,6 +391,7 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
                 {(['simple', 'full', 'round_robin'] as const).map(fmt => (
                   <button
                     key={fmt}
+                    aria-pressed={state.fifthToEighthFormat === fmt}
                     className={`btn py-1 px-3 text-sm ${state.fifthToEighthFormat === fmt ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                     onClick={() => dispatch({ type: 'SET_FIELD', field: 'fifthToEighthFormat', value: fmt })}
                   >
@@ -402,6 +407,7 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
               <button
                 role="switch"
                 aria-checked={state.classificationGroups}
+                aria-label={t('admin.tournamentCreate.rankingMatch.classification')}
                 className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.classificationGroups ? 'bg-green-600' : 'bg-gray-600'}`}
                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'classificationGroups', value: !state.classificationGroups })}
               >
@@ -424,10 +430,9 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
 
             {/* N위까지만 순위 산출 */}
             <div>
-              <label className="block font-semibold mb-1">{t('admin.tournamentCreate.rankingMatch.rankingUpTo')}</label>
               <div className="flex items-center gap-2">
                 <NumberStepper
-                  label=""
+                  label={t('admin.tournamentCreate.rankingMatch.rankingUpTo')}
                   value={state.rankingUpTo}
                   min={0}
                   max={state.participantCount}
@@ -497,29 +502,8 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
               );
             })()}
 
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-lg font-semibold">{t('admin.tournamentCreate.groupQualifying.topSeedToggle')}</span>
-              <button
-                role="switch"
-                aria-checked={state.useTopSeed}
-                aria-label={t('admin.tournamentCreate.groupQualifying.topSeedToggle')}
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${state.useTopSeed ? 'bg-green-600' : 'bg-gray-600'}`}
-                onClick={() => dispatch({ type: 'SET_FIELD', field: 'useTopSeed', value: !state.useTopSeed })}
-              >
-                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${state.useTopSeed ? 'translate-x-7' : 'translate-x-1'}`} />
-              </button>
-            </label>
-
-            {state.useTopSeed && (
-              <NumberStepper
-                label={t('admin.tournamentCreate.groupQualifying.seedCount')}
-                value={state.seedCount}
-                min={1}
-                max={Math.min(state.participantCount, state.groupCount * 2)}
-                onChange={v => dispatch({ type: 'SET_FIELD', field: 'seedCount', value: v })}
-                ariaLabel={t('admin.tournamentCreate.groupQualifying.seedCount')}
-              />
-            )}
+            {/* 시드는 참가자 등록 후 '참가자' 탭에서 지정한다 (위저드의 시드 스위치는 저장되지 않았다: B15) */}
+            <p className="text-gray-300 text-sm bg-gray-800 rounded p-3" role="note">{t('admin.tournamentCreate.groupQualifying.seedNote')}</p>
 
             {(() => {
               const effectiveCount = state.type === 'randomTeamLeague'
@@ -571,14 +555,14 @@ export default function Step2Participants({ state, dispatch }: Step2Participants
                         <div className="mt-4">
                           <h3 className="text-lg font-semibold mb-2">{t('admin.tournamentCreate.groupQualifying.finalsStartRoundLabel')}</h3>
                           <div className="grid grid-cols-4 gap-2">
-                            {[4, 8, 16, 32].filter(v => v >= directAdvance).map(v => (
+                            {validStartRounds(state).map(v => (
                               <button
                                 key={v}
                                 className={`btn py-3 ${state.finalsStartRound === v ? 'btn-primary' : 'bg-gray-700 text-white'}`}
                                 onClick={() => dispatch({ type: 'SET_FIELD', field: 'finalsStartRound', value: v })}
                                 aria-pressed={state.finalsStartRound === v}
                               >
-                                {v === 4 ? t('admin.tournamentCreate.finals.round4') : v === 8 ? t('admin.tournamentCreate.finals.round8') : v === 16 ? t('admin.tournamentCreate.finals.round16') : t('admin.tournamentCreate.finals.round32')}
+                                {t(nearestBracketRoundKey(v))}
                               </button>
                             ))}
                           </div>

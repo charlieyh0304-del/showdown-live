@@ -21,11 +21,12 @@ import BracketTab from '../components/tournament-detail/BracketTab';
 import ScheduleTab from '../components/tournament-detail/ScheduleTab';
 import StatusTab from '../components/tournament-detail/StatusTab';
 import RankingTab from '../components/tournament-detail/RankingTab';
+import RulesTab from '../components/tournament-detail/RulesTab';
 import AdvancementConflictsPanel from '../components/tournament-detail/AdvancementConflictsPanel';
 
 import type { Match } from '@shared/types';
 
-type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking';
+type TabKey = 'players' | 'bracket' | 'schedule' | 'status' | 'ranking' | 'rules';
 
 const TAB_KEYS: { key: TabKey; labelKey: string }[] = [
   { key: 'players', labelKey: 'admin.tournamentDetail.tabs.players' },
@@ -33,6 +34,7 @@ const TAB_KEYS: { key: TabKey; labelKey: string }[] = [
   { key: 'schedule', labelKey: 'admin.tournamentDetail.tabs.schedule' },
   { key: 'status', labelKey: 'admin.tournamentDetail.tabs.status' },
   { key: 'ranking', labelKey: 'admin.tournamentDetail.tabs.ranking' },
+  { key: 'rules', labelKey: 'admin.tournamentDetail.tabs.rules' },
 ];
 
 export default function TournamentDetail() {
@@ -482,6 +484,13 @@ export default function TournamentDetail() {
             tournament={tournament}
             matches={matches}
             isTeamType={isTeamType}
+          />
+        )}
+        {activeTab === 'rules' && (
+          <RulesTab
+            tournament={tournament}
+            matches={matches}
+            updateTournament={updateTournament}
           />
         )}
       </div>

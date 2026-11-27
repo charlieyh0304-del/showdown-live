@@ -2,10 +2,10 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
-import { countSetWins, getEffectiveGameConfig, getMaxServes } from '@shared/utils/scoring';
+import { countSetWins, getEffectiveScoringRules, getMaxServes } from '@shared/utils/scoring';
 import { parseTimeDisplay } from '@shared/utils/locale';
 import { useWhistle } from '@shared/hooks/useWhistle';
-import type { ScoreHistoryEntry } from '@shared/types';
+import type { ScoreHistoryEntry, Tournament } from '@shared/types';
 
 export default function LiveMatchView() {
   const { tournamentId, matchId } = useParams<{ tournamentId: string; matchId: string }>();
@@ -198,7 +198,7 @@ export default function LiveMatchView() {
       {tournament && <p style={{ color: '#d1d5db', marginBottom: '1rem', textAlign: 'center' }}>{tournament.name}</p>}
 
       {match.type === 'individual' ? (
-        <IndividualMatchDetail match={match} gameConfig={tournament?.gameConfig} />
+        <IndividualMatchDetail match={match} tournament={tournament} />
       ) : (
         <TeamMatchDetail match={match} />
       )}
@@ -447,17 +447,18 @@ function HistoryBySet({ history, sets, order }: {
 
 // ===== 개인전 상세 =====
 function IndividualMatchDetail({
-  match, gameConfig,
+  match, tournament,
 }: {
   match: NonNullable<ReturnType<typeof useMatch>['match']>;
-  gameConfig?: { winScore: number; setsToWin: number };
+  tournament: Tournament | null | undefined;
 }) {
   const { t } = useTranslation();
   const sets = Array.isArray(match.sets) ? match.sets : [];
   const currentSetIdx = match.currentSet ?? 0;
   const currentSet = currentSetIdx + 1; // 표시용 (1-indexed)
   const currentSetData = sets[currentSetIdx];
-  const effectiveConfig = gameConfig ? getEffectiveGameConfig(gameConfig) : undefined;
+  // 세트 승자는 그 경기의 유효 규칙(경기 → 스테이지 → 라운드별 → 대회 규칙)으로 판정한다 (심판 화면과 같은 값)
+  const effectiveConfig = getEffectiveScoringRules(match, tournament);
   const setWins = countSetWins(sets, effectiveConfig);
   const hasTimeout = match.activeTimeout != null;
 

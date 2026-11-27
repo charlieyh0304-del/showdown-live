@@ -380,6 +380,7 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
         court.date = bestDate;
         court.timeMinutes = courtEndTime >= dayEndMinutes ? (court.date = addDays(bestDate, 1), nextDayStart) : courtEndTime;
 
+        // TODO(B6): 시작~시작으로 휴식을 잰다. rules.schedule.minRestMinutes(종료~시작, 기본 30분)로 바꾸는 작업은 M4a/M7.
         const playerEndTime = bestTime + restInterval;
         const playerEnd = playerEndTime >= dayEndMinutes ? { date: addDays(bestDate, 1), time: nextDayStart } : { date: bestDate, time: playerEndTime };
         for (const pid of playerIds) {

@@ -20,16 +20,20 @@ export interface BuildStagesInput {
   finalsScoringRules: ScoringRules | null;
   finalsMatchRules: MatchRules | null;
   rankingMatch: RankingMatchConfig;
+  /** 스테이지 ID에 쓰는 시각 (기본 Date.now()) */
+  now?: number;
+  /** 스테이지 ID를 직접 정한다 (마법사 미리보기·규칙 편집기용) */
+  stageIds?: Partial<Record<'qualifying' | 'finals' | 'ranking_match', string>>;
 }
 
 export function buildStagesFromWizard(input: BuildStagesInput): TournamentStage[] {
   const stages: TournamentStage[] = [];
   let order = 0;
-  const now = Date.now();
+  const now = input.now ?? Date.now();
 
   if (input.hasGroupStage) {
     stages.push({
-      id: `stage_qualifying_${now}`,
+      id: input.stageIds?.qualifying ?? `stage_qualifying_${now}`,
       name: input.groupCount > 1 ? '조별 예선' : '예선 리그',
       order: order++,
       type: 'qualifying',
@@ -43,7 +47,7 @@ export function buildStagesFromWizard(input: BuildStagesInput): TournamentStage[
 
   if (input.hasFinalsStage) {
     stages.push({
-      id: `stage_finals_${now + 1}`,
+      id: input.stageIds?.finals ?? `stage_finals_${now + 1}`,
       name: '본선 토너먼트',
       order: order++,
       type: 'finals',
@@ -56,7 +60,7 @@ export function buildStagesFromWizard(input: BuildStagesInput): TournamentStage[
 
     if (input.rankingMatch.enabled) {
       stages.push({
-        id: `stage_ranking_${now + 2}`,
+        id: input.stageIds?.ranking_match ?? `stage_ranking_${now + 2}`,
         name: '순위결정전',
         order: order++,
         type: 'ranking_match',

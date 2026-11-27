@@ -318,6 +318,7 @@ export type ScoreActionType =
   | 'substitution'      // 선수 교체
   | 'correction'        // 점수 수정 (관리자)
   | 'walkover'          // 부전승
+  | 'retired'           // 경기 포기(기권): 얻은 점수 유지
   | 'dead_ball'         // 데드볼 (재서브)
   | 'serve_miss'        // 서브 미스 (점수 없이 서브 넘김)
   | 'coin_toss'         // 동전던지기
@@ -457,6 +458,10 @@ export interface Match {
   walkover?: boolean;
   /** 부전승 사유. BYE는 'bye', 기권은 사람이 쓴 사유 */
   walkoverReason?: string;
+  /** 경기 포기(기권, IBSA giving up)로 끝난 경기. 세트는 shared/rules/walkover buildRetirementSets로 기록한다. */
+  retired?: boolean;
+  /** 경기 포기 사유 */
+  retiredReason?: string;
   // 진출 링크 (서버·클라이언트 공통 표준): 이 경기의 1/2번 슬롯을 채울 상위 경기 ID.
   // sourceType은 두 슬롯 모두에 적용된다: 'winner'(기본) = 승자, 'loser' = 패자(3/4위전).
   sourceMatch1?: string;

@@ -1,64 +1,15 @@
 import { useTranslation } from 'react-i18next';
-import type {
-  TournamentType,
-  BracketFormatType,
-  ScoringRules,
-  MatchRules,
-  TeamRules,
-  RankingMatchConfig,
-} from '@shared/types';
+import type { TournamentType, BracketFormatType, MatchRules } from '@shared/types';
 import { calculateMatchCount } from '@shared/utils/tournament';
-
-// ===== 위자드 상태 타입 =====
-
-export interface TournamentWizardState {
-  step: 1 | 2 | 3 | 4;
-  // Step 1: 기본 정보
-  name: string;
-  date: string;
-  type: TournamentType;
-  presetId: string | null;
-  // Step 2: 참가자
-  tournamentMode: 'full_league_all' | 'group_tournament' | 'direct_tournament' | 'manual';
-  participantCount: number;
-  participantNames: string[];
-  hasGroupStage: boolean;
-  groupCount: number;
-  qualifyingFormat: 'round_robin' | 'group_round_robin';
-  qualifyingScoringRules: ScoringRules;
-  qualifyingMatchRules: MatchRules;
-  advancePerGroup: number;
-  // Step 3: 본선/순위결정전 설정 (was Step 4)
-  hasFinalsStage: boolean;
-  finalsFormat: 'single_elimination' | 'double_elimination';
-  advanceCount: number;
-  startingRound: number;
-  seedMethod: 'ranking' | 'manual' | 'custom';
-  finalsScoringRules: ScoringRules;
-  finalsMatchRules: MatchRules;
-  hasThirdPlaceMatch: boolean;
-  rankingMatch: RankingMatchConfig;
-  // 공통
-  scoringRules: ScoringRules;
-  matchRules: MatchRules;
-  teamRules: TeamRules;
-  formatType: BracketFormatType;
-  useCustomRules: boolean;
-  // 대진 편성
-  bracketArrangement: 'cross_group' | 'sequential' | 'custom';
-  hasRoundScoringOverride?: boolean;
-  roundOverrideFromRound?: number;
-  roundOverrideSetsToWin?: number;
-  roundOverrideMaxSets?: number;
-  customPairings?: Array<{ position: number; slot1: string; slot2: string }>;
-}
-
-export type WizardAction =
-  | { type: 'SET_FIELD'; field: string; value: unknown }
-  | { type: 'APPLY_PRESET'; presetId: string }
-  | { type: 'NEXT_STEP' }
-  | { type: 'PREV_STEP' }
-  | { type: 'GO_TO_STEP'; step: 1 | 2 | 3 | 4 };
+import {
+  RULES_PRESETS,
+  matchKindOf,
+  resolveCompetitionRules,
+  resolveMatchScoring,
+  type ScoringRuleSet,
+} from '@shared/rules/competitionRules';
+import { overriddenPaths, draftFromTournament } from '../rules/rulesEditorModel';
+import { effectiveParticipantCount, type Action, type NewTournament, type WizardState } from './wizardModel';
 
 // ===== 헬퍼 =====
 
@@ -78,9 +29,12 @@ function getStartingRoundLabel(round: number, t: (key: string) => string): strin
 // ===== 컴포넌트 =====
 
 interface WizardStep5Props {
-  state: TournamentWizardState;
-  dispatch: (action: WizardAction) => void;
+  state: WizardState;
+  /** 저장될 대회 문서 (buildTournamentFromWizard). 미리보기는 이 값에서 읽는다(B15 왕복 보장). */
+  doc: NewTournament;
+  dispatch: (action: Action) => void;
   onSubmit: () => void;
+  saving: boolean;
 }
 
 function SectionHeader({
@@ -90,8 +44,8 @@ function SectionHeader({
   t,
 }: {
   title: string;
-  step: 1 | 2 | 3 | 4;
-  dispatch: React.Dispatch<WizardAction>;
+  step: number;
+  dispatch: (action: Action) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
@@ -117,16 +71,32 @@ function SummaryRow({ label, value }: { label: string; value: string | number })
   );
 }
 
-export default function WizardStep5Preview({ state, dispatch, onSubmit }: WizardStep5Props) {
+export default function WizardStep5Preview({ state, doc, dispatch, onSubmit, saving }: WizardStep5Props) {
   const { t } = useTranslation();
+  const stages = doc.stages ?? [];
+  const qualStage = stages.find(s => s.type === 'qualifying');
+  const finalsStage = stages.find(s => s.type === 'finals');
+  const hasGroupStage = !!qualStage;
+  const hasFinalsStage = !!finalsStage;
   // 풀리그 단독 형식: 조별 예선 없이 라운드로빈만 진행
-  const isRoundRobinOnly = state.tournamentMode === 'full_league_all' || (state.formatType === 'round_robin' && !state.hasGroupStage);
+  const isRoundRobinOnly = !hasGroupStage && !hasFinalsStage && doc.formatType === 'round_robin';
+  const finalsConfig = doc.finalsConfig;
+  const rankingMatch = doc.rankingMatchConfig ?? state.rankingMatch;
+  const startingRound = finalsConfig?.startingRound ?? state.finalsStartRound;
+  const advanceCount = finalsConfig?.advanceCount ?? state.advanceCount;
+  const kind = matchKindOf(doc.type);
+  const tournamentRules = resolveCompetitionRules(doc);
+  const finalsRules = finalsStage ? resolveCompetitionRules(doc, finalsStage.id) : tournamentRules;
+  // 진출 인원·와일드카드는 본선 생성기처럼 예선 스테이지 규칙에서 읽는다 (같은 조 회피는 본선 스테이지)
+  const qualRules = qualStage ? resolveCompetitionRules(doc, qualStage.id) : tournamentRules;
+  // 경기 점수 규칙은 저장될 문서에서 규칙 해석기로 읽는다 (심판 화면·순위 계산과 같은 값)
+  const qualScoring = resolveMatchScoring({ type: kind, stageId: qualStage?.id }, doc);
+  const finalsScoring = resolveMatchScoring({ type: kind, stageId: finalsStage?.id, roundLabel: `${startingRound}강` }, doc);
+  const leagueScoring = resolveMatchScoring({ type: kind }, doc);
 
   // 팀전에서 실제 경기 참여 단위 수 계산
   const isTeamType = state.type === 'team' || state.type === 'randomTeamLeague';
-  const effectiveCount = state.type === 'randomTeamLeague'
-    ? Math.floor(state.participantCount / (state.teamRules?.teamSize ?? 3))
-    : state.participantCount;
+  const effectiveCount = effectiveParticipantCount(state);
   const unitLabel = isTeamType ? t('common.units.team') : t('common.units.person');
 
   // Helper functions using t()
@@ -159,10 +129,8 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
     }
   };
 
-  const formatScoringRules = (rules: ScoringRules): string => {
-    return rules.deuceEnabled
-      ? t('admin.preview.scoringRulesWithDeuce', { winScore: rules.winScore, setsToWin: rules.setsToWin, maxSets: rules.maxSets, minLead: rules.minLead })
-      : t('admin.preview.scoringRulesSummary', { winScore: rules.winScore, setsToWin: rules.setsToWin, maxSets: rules.maxSets, minLead: rules.minLead });
+  const formatScoringRules = (rules: ScoringRuleSet): string => {
+    return t('admin.preview.scoringRulesSummary', { winScore: rules.winScore, setsToWin: rules.setsToWin, maxSets: rules.maxSets, minLead: rules.minLead });
   };
 
   const formatMatchRules = (rules: MatchRules): string => {
@@ -171,13 +139,27 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
 
   const matchCounts = calculateMatchCount(
     effectiveCount,
-    state.hasGroupStage,
+    hasGroupStage,
     state.groupCount,
-    state.hasFinalsStage,
-    state.advanceCount,
-    state.rankingMatch,
-    state.startingRound,
+    hasFinalsStage,
+    advanceCount,
+    rankingMatch,
+    hasFinalsStage ? startingRound : undefined,
   );
+
+  // 경기 규칙 요약
+  const criterionName = (c: string) => t(`admin.rulesEditor.tiebreak.criteria.${c}`);
+  const lastKey = tournamentRules.tiebreak.unresolved === 'lot' ? 'lastLot' : tournamentRules.tiebreak.unresolved === 'playoff' ? 'lastPlayoff' : 'lastAdmin';
+  const tiebreakText = t('admin.rulesEditor.tiebreak.preview', {
+    order: tournamentRules.tiebreak.criteria.map(criterionName).join(t('admin.rulesEditor.tiebreak.joiner')),
+    last: t(`admin.rulesEditor.tiebreak.${lastKey}`),
+  });
+  const docDraft = draftFromTournament(doc);
+  const stageName = (type?: string) => (type === 'qualifying' ? t('admin.rulesEditor.wizard.stageQualifying') : type === 'finals' ? t('admin.rulesEditor.wizard.stageFinals') : t('admin.rulesEditor.wizard.stageRanking'));
+  const stageOverrides = stages
+    .map(s => ({ name: stageName(s.type), count: overriddenPaths(doc, docDraft, s.id).length }))
+    .filter(x => x.count > 0);
+  const presetLabel = RULES_PRESETS[tournamentRules.presetId] ? t(RULES_PRESETS[tournamentRules.presetId].labelKey) : tournamentRules.presetId;
 
   const perGroup = state.groupCount > 0
     ? Math.ceil(effectiveCount / state.groupCount)
@@ -212,7 +194,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       <section className="card p-5" aria-label={t('admin.preview.structure')}>
         <h3 className="text-lg font-bold text-yellow-400 mb-4">{t('admin.preview.structure')}</h3>
         <div className="flex items-center gap-2 overflow-x-auto pb-2" role="list" aria-label={t('admin.preview.stageFlow')}>
-          {state.hasGroupStage && (
+          {hasGroupStage && (
             <>
               <div
                 className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
@@ -233,13 +215,13 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                   </div>
                 )}
               </div>
-              {state.hasFinalsStage && (
+              {hasFinalsStage && (
                 <div className="text-2xl text-gray-400 flex-shrink-0" aria-hidden="true">→</div>
               )}
             </>
           )}
 
-          {state.hasFinalsStage && !isRoundRobinOnly && (
+          {hasFinalsStage && !isRoundRobinOnly && (
             <>
               <div
                 className="flex-shrink-0 rounded-lg border-2 border-yellow-500 bg-gray-800 p-3 text-center min-w-[140px]"
@@ -247,14 +229,14 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
               >
                 <div className="text-sm text-yellow-400 font-semibold">{state.tournamentMode === 'manual' ? t('admin.preview.finalsManual') : t('admin.preview.finals')}</div>
                 <div className="text-white font-bold mt-1">
-                  {getStartingRoundLabel(state.startingRound, t)} {t('admin.preview.tournament')}
+                  {getStartingRoundLabel(startingRound, t)} {t('admin.preview.tournament')}
                 </div>
                 <div className="text-gray-400 text-sm mt-1">
-                  {t('admin.preview.advance', { count: state.advanceCount, unit: unitLabel })}
+                  {t('admin.preview.advance', { count: advanceCount, unit: unitLabel })}
                 </div>
               </div>
 
-              {state.rankingMatch.enabled && (
+              {rankingMatch.enabled && (
                 <>
                   <div className="text-2xl text-gray-400 flex-shrink-0" aria-hidden="true">→</div>
                   <div
@@ -263,14 +245,14 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
                   >
                     <div className="text-sm text-orange-400 font-semibold">{t('admin.preview.rankingMatchSection')}</div>
                     <div className="text-white font-bold mt-1">
-                      {state.rankingMatch.thirdPlace && state.rankingMatch.fifthToEighth
+                      {rankingMatch.thirdPlace && rankingMatch.fifthToEighth
                         ? t('admin.preview.rankThirdEighth')
-                        : state.rankingMatch.thirdPlace
+                        : rankingMatch.thirdPlace
                           ? t('admin.preview.rankThirdFourth')
                           : t('admin.preview.rankingGeneral')}
                     </div>
                     <div className="text-gray-400 text-sm mt-1">
-                      {(state.rankingMatch.thirdPlace ? 2 : 0) + (state.rankingMatch.fifthToEighth ? 4 : 0)}{unitLabel}
+                      {(rankingMatch.thirdPlace ? 2 : 0) + (rankingMatch.fifthToEighth ? 4 : 0)}{unitLabel}
                     </div>
                   </div>
                 </>
@@ -289,7 +271,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             </div>
           )}
 
-          {!state.hasGroupStage && !state.hasFinalsStage && !isRoundRobinOnly && (
+          {!hasGroupStage && !hasFinalsStage && !isRoundRobinOnly && (
             <div
               className="flex-shrink-0 rounded-lg border-2 border-cyan-500 bg-gray-800 p-3 text-center min-w-[140px]"
               role="listitem"
@@ -303,7 +285,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       </section>
 
       {/* 3. 예선 설정 요약 */}
-      {state.hasGroupStage && (
+      {hasGroupStage && (
         <section className="card p-5" aria-label={t('admin.preview.qualifyingSettings')}>
           <SectionHeader title={t('admin.preview.qualifyingSettings')} step={2} dispatch={dispatch} t={t} />
           <dl>
@@ -318,7 +300,7 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
             {state.tournamentMode === 'manual' && (
               <SummaryRow label={t('admin.preview.groupArrangement')} value={t('admin.preview.manualAssignment')} />
             )}
-            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(state.qualifyingScoringRules)} />
+            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(qualScoring)} />
             <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(state.qualifyingMatchRules)} />
             <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.qualifying}${t('common.units.match')}`} />
           </dl>
@@ -326,40 +308,46 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       )}
 
       {/* 4. 본선 설정 요약 */}
-      {state.hasFinalsStage && !isRoundRobinOnly && (
+      {hasFinalsStage && !isRoundRobinOnly && (
         <section className="card p-5" aria-label={t('admin.preview.finalsSettings')}>
           <SectionHeader title={t('admin.preview.finalsSettings')} step={3} dispatch={dispatch} t={t} />
           <dl>
             <SummaryRow
               label={t('admin.preview.format')}
-              value={state.finalsFormat === 'single_elimination' ? t('admin.tournamentCreate.finals.singleElimination') : t('admin.tournamentCreate.finals.doubleElimination')}
+              value={finalsConfig?.format === 'double_elimination' ? t('admin.tournamentCreate.finals.doubleElimination') : t('admin.tournamentCreate.finals.singleElimination')}
             />
-            <SummaryRow label={t('admin.preview.start')} value={getStartingRoundLabel(state.startingRound, t)} />
-            <SummaryRow label={t('admin.preview.arrangementMethod')} value={state.tournamentMode === 'manual' ? t('admin.preview.manualAssignment') : getSeedMethodLabel(state.seedMethod)} />
-            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(state.finalsScoringRules)} />
+            <SummaryRow label={t('admin.preview.start')} value={getStartingRoundLabel(startingRound, t)} />
+            <SummaryRow label={t('admin.preview.arrangementMethod')} value={state.tournamentMode === 'manual' ? t('admin.preview.manualAssignment') : getSeedMethodLabel(finalsConfig?.seedMethod ?? state.seedMethod)} />
+            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(finalsScoring)} />
             <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(state.finalsMatchRules)} />
-            <SummaryRow label={t('admin.preview.bracketArrangement')} value={getBracketArrangementLabel(state.bracketArrangement)} />
-            {state.hasRoundScoringOverride && state.roundOverrideFromRound && state.roundOverrideSetsToWin && state.roundOverrideMaxSets && (
-              <div
-                className="flex justify-between py-1.5 border-b border-gray-700"
-                aria-label={t('admin.preview.setsPerRoundAriaLabel', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: getStartingRoundLabel(state.roundOverrideFromRound, t), overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
-              >
-                <dt className="text-gray-400">{t('admin.preview.setsPerRound')}</dt>
-                <dd className="font-semibold text-white text-right">
-                  {t('admin.preview.setsPerRoundDetail', { maxSets: state.finalsScoringRules.maxSets, setsToWin: state.finalsScoringRules.setsToWin, fromRound: getStartingRoundLabel(state.roundOverrideFromRound, t), overrideMaxSets: state.roundOverrideMaxSets, overrideSetsToWin: state.roundOverrideSetsToWin })}
-                </dd>
-              </div>
+            <SummaryRow label={t('admin.preview.bracketArrangement')} value={getBracketArrangementLabel(finalsConfig?.bracketArrangement ?? state.bracketArrangement)} />
+            {hasGroupStage && (
+              <>
+                <SummaryRow label={t('admin.rulesEditor.qualification.perGroup')} value={`${qualRules.qualification.perGroup}${unitLabel}`} />
+                <SummaryRow label={t('admin.rulesEditor.qualification.wildcards')} value={`${qualRules.qualification.wildcards}${unitLabel}`} />
+                <SummaryRow label={t('admin.rulesEditor.qualification.avoidSameGroup')} value={finalsRules.qualification.avoidSameGroupFirstRound ? t('admin.preview.exists') : t('admin.preview.none')} />
+              </>
             )}
-            <SummaryRow label={t('admin.preview.thirdPlaceMatch')} value={state.hasThirdPlaceMatch ? t('admin.preview.exists') : t('admin.preview.none')} />
+            {finalsRules.roundScoring && (
+              <SummaryRow
+                label={t('admin.preview.setsPerRound')}
+                value={(() => {
+                  const r = finalsRules.roundScoring;
+                  const win = r[kind]?.setsToWin ?? finalsScoring.setsToWin;
+                  return t('admin.rulesEditor.scoring.round.summary', { round: t(`admin.rulesEditor.rounds.r${r.fromRound}`), max: r[kind]?.maxSets ?? win * 2 - 1, win });
+                })()}
+              />
+            )}
+            <SummaryRow label={t('admin.preview.thirdPlaceMatch')} value={finalsRules.finalRanking.thirdPlace === 'match' ? t('admin.preview.exists') : t('admin.preview.none')} />
             <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.finals}${t('common.units.match')}`} />
           </dl>
 
           {/* 커스텀 대진 목록 */}
-          {state.customPairings && state.customPairings.length > 0 && (
+          {finalsConfig?.customBracketPairings && finalsConfig.customBracketPairings.length > 0 && (
             <div className="mt-4">
               <h4 className="text-sm font-semibold text-gray-400 mb-2">{t('admin.preview.customPairings')}</h4>
               <ul role="list" className="space-y-1">
-                {state.customPairings.map((pairing) => (
+                {finalsConfig.customBracketPairings.map((pairing) => (
                   <li key={pairing.position} className="text-sm text-white">
                     {t('admin.preview.matchNumber', { position: pairing.position })}: {pairing.slot1} vs {pairing.slot2}
                   </li>
@@ -377,43 +365,74 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
           <dl>
             <SummaryRow label={t('admin.preview.format')} value={t('admin.preview.fullLeagueRoundRobin')} />
             <SummaryRow label={isTeamType ? t('admin.preview.teamCount') : t('admin.preview.participantCount')} value={`${effectiveCount}${unitLabel}`} />
-            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(state.finalsScoringRules)} />
-            <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(state.finalsMatchRules)} />
+            <SummaryRow label={t('admin.preview.matchRules')} value={formatScoringRules(leagueScoring)} />
+            <SummaryRow label={t('admin.preview.timeoutRules')} value={formatMatchRules(doc.matchRules ?? state.qualifyingMatchRules)} />
             <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.total}${t('common.units.match')}`} />
           </dl>
         </section>
       )}
 
       {/* 5. 순위결정전 요약 */}
-      {state.hasFinalsStage && !isRoundRobinOnly && state.rankingMatch.enabled && (
+      {hasFinalsStage && !isRoundRobinOnly && rankingMatch.enabled && (
         <section className="card p-5" aria-label={t('admin.preview.rankingSettings')}>
           <SectionHeader title={t('admin.preview.rankingMatchSection')} step={3} dispatch={dispatch} t={t} />
           <dl>
             <SummaryRow
               label={t('admin.preview.rankRange')}
               value={
-                state.rankingMatch.thirdPlace && state.rankingMatch.fifthToEighth
+                rankingMatch.thirdPlace && rankingMatch.fifthToEighth
                   ? t('admin.preview.rank3to8')
-                  : state.rankingMatch.thirdPlace
+                  : rankingMatch.thirdPlace
                     ? t('admin.preview.rank3to4')
                     : t('admin.preview.rankGeneral')
               }
             />
-            <SummaryRow label={t('admin.preview.thirdFourthMatch')} value={state.rankingMatch.thirdPlace ? t('admin.preview.proceed') : t('admin.preview.notProceed')} />
+            <SummaryRow label={t('admin.preview.thirdFourthMatch')} value={rankingMatch.thirdPlace ? t('admin.preview.proceed') : t('admin.preview.notProceed')} />
             <SummaryRow label={t('admin.preview.fifthEighthMatch')} value={
-              state.rankingMatch.fifthToEighth
-                ? state.rankingMatch.fifthToEighthFormat === 'simple' ? t('admin.preview.simplified')
-                  : state.rankingMatch.fifthToEighthFormat === 'full' ? t('admin.preview.crossMatch')
+              rankingMatch.fifthToEighth
+                ? rankingMatch.fifthToEighthFormat === 'simple' ? t('admin.preview.simplified')
+                  : rankingMatch.fifthToEighthFormat === 'full' ? t('admin.preview.crossMatch')
                   : t('admin.preview.fullLeagueMatch')
                 : t('admin.preview.notProceed')
             } />
-            {state.rankingMatch.classificationGroups && (
-              <SummaryRow label={t('admin.preview.lowerRankGroup')} value={t('admin.preview.lowerRankGroupLabel', { size: state.rankingMatch.classificationGroupSize, unit: unitLabel })} />
+            {rankingMatch.classificationGroups && (
+              <SummaryRow label={t('admin.preview.lowerRankGroup')} value={t('admin.preview.lowerRankGroupLabel', { size: rankingMatch.classificationGroupSize, unit: unitLabel })} />
             )}
             <SummaryRow label={t('admin.preview.expectedMatches')} value={`${matchCounts.ranking}${t('common.units.match')}`} />
           </dl>
         </section>
       )}
+
+      {/* 5-1. 경기 규칙 요약 (저장될 규칙) */}
+      <section className="card p-5" aria-label={t('admin.rulesEditor.title')}>
+        <SectionHeader title={t('admin.rulesEditor.title')} step={4} dispatch={dispatch} t={t} />
+        <dl>
+          <SummaryRow label={t('admin.rulesEditor.summary.preset')} value={presetLabel} />
+          <SummaryRow label={t('admin.rulesEditor.summary.tiebreak')} value={tiebreakText} />
+          <SummaryRow label={t('admin.rulesEditor.summary.standings')} value={t('admin.rulesEditor.summary.standingsValue', { ...tournamentRules.standingsPoints })} />
+          <SummaryRow
+            label={t('admin.rulesEditor.summary.walkover')}
+            value={tournamentRules.walkover.setScore === null ? t('admin.rulesEditor.summary.walkoverTarget') : t('admin.rulesEditor.summary.walkoverValue', { score: tournamentRules.walkover.setScore })}
+          />
+          <SummaryRow
+            label={t('admin.rulesEditor.summary.retirement')}
+            value={t(tournamentRules.retirement.mode === 'keep_played' ? 'admin.rulesEditor.walkover.retirementKeep' : tournamentRules.retirement.mode === 'as_walkover' ? 'admin.rulesEditor.walkover.retirementVoid' : 'admin.rulesEditor.walkover.retirementRecorded')}
+          />
+          {hasFinalsStage && (
+            <SummaryRow
+              label={t('admin.rulesEditor.summary.thirdPlace')}
+              value={finalsRules.finalRanking.thirdPlace === 'match' ? t('admin.rulesEditor.finalRanking.thirdMatch') : t('admin.rulesEditor.finalRanking.thirdJoint')}
+            />
+          )}
+          <SummaryRow label={t('admin.rulesEditor.summary.rest')} value={t('admin.rulesEditor.summary.restValue', { min: tournamentRules.schedule.minRestMinutes })} />
+          {stageOverrides.length > 0 && (
+            <SummaryRow
+              label={t('admin.rulesEditor.summary.stageOverrides')}
+              value={stageOverrides.map(o => t('admin.rulesEditor.summary.stageOverridesValue', o)).join(', ')}
+            />
+          )}
+        </dl>
+      </section>
 
       {/* 6. 총 예상 경기 수 */}
       <section className="card p-5 bg-gray-800 border-2 border-yellow-500" aria-label={t('admin.preview.totalExpectedMatches')}>
@@ -421,10 +440,10 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
           <h3 className="text-xl font-bold text-yellow-400">{t('admin.preview.totalExpectedMatches')}</h3>
           <span className="text-3xl font-bold text-white">{matchCounts.total}{t('common.units.match')}</span>
         </div>
-        {(state.hasGroupStage || state.hasFinalsStage) && !isRoundRobinOnly && (
+        {(hasGroupStage || hasFinalsStage) && !isRoundRobinOnly && (
           <div className="flex gap-4 mt-2 text-sm text-gray-400">
-            {state.hasGroupStage && <span>{t('admin.preview.qualifyingCount', { count: matchCounts.qualifying })}</span>}
-            {state.hasFinalsStage && <span>{t('admin.preview.finalsCount', { count: matchCounts.finals })}</span>}
+            {hasGroupStage && <span>{t('admin.preview.qualifyingCount', { count: matchCounts.qualifying })}</span>}
+            {hasFinalsStage && <span>{t('admin.preview.finalsCount', { count: matchCounts.finals })}</span>}
             {matchCounts.ranking > 0 && <span>{t('admin.preview.rankingCount', { count: matchCounts.ranking })}</span>}
           </div>
         )}
@@ -458,9 +477,10 @@ export default function WizardStep5Preview({ state, dispatch, onSubmit }: Wizard
       <button
         className="btn btn-success btn-large w-full text-xl py-4"
         onClick={onSubmit}
+        disabled={saving}
         aria-label={t('admin.preview.createTournament')}
       >
-        {t('admin.preview.createTournament')}
+        {saving ? t('common.creating') : t('admin.preview.createTournament')}
       </button>
     </div>
   );
