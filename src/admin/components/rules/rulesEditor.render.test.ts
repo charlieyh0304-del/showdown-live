@@ -1,4 +1,12 @@
-import { it, expect } from 'vitest';
+import { it, expect, vi } from 'vitest';
+
+// CI에는 Firebase 환경변수가 없다. 이 테스트는 화면 렌더만 보므로 Firebase 초기화를 대체한다.
+vi.mock('../../../shared/config/firebase', () => ({
+  database: {},
+  auth: { currentUser: null },
+  authReady: Promise.resolve(),
+  default: {},
+}));
 import { createElement as h } from 'react';
 import { renderToString } from 'react-dom/server';
 import CompetitionRulesEditor from './CompetitionRulesEditor';
