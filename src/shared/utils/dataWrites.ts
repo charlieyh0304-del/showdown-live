@@ -76,6 +76,16 @@ export function matchStageKey(match: { stageId?: string | null }): string {
  */
 export type StageReplaceScope = readonly string[] | 'all';
 
+/** setMatchesBulk 옵션 */
+export interface MatchesBulkOptions {
+  replaceStages: StageReplaceScope;
+  /**
+   * 새 경기의 키(newMatches와 같은 순서). 경기끼리 sourceMatch1/2로 서로를 참조해야 할 때
+   * 미리 만든 키를 넘긴다. 없으면 push 키를 새로 만든다.
+   */
+  keys?: readonly string[];
+}
+
 /**
  * setMatchesBulk용 multi-path update(matches/{tid} 기준 상대 경로)를 만든다.
  * - 새 경기를 newKey 위치에 추가한다.

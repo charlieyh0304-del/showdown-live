@@ -226,6 +226,14 @@ export function calculateWildcard(
 
 // ===== 경기 수 계산 =====
 
+/**
+ * 경기 수 상한(calculateMatchCount)과 비교할 실제 경기 수. BYE(부전승) 경기는 치르지 않으므로 뺀다.
+ * (본선 골격은 대진 크기를 맞추려고 BYE 슬롯 경기를 함께 만든다.)
+ */
+export function countPlayableMatches(matches: readonly { bye?: boolean; isBye?: boolean }[]): number {
+  return matches.filter(m => m.bye !== true && m.isBye !== true).length;
+}
+
 export function calculateMatchCount(
   participantCount: number,
   hasGroupStage: boolean,
@@ -263,20 +271,22 @@ export function calculateMatchCount(
     }
   }
 
+  // 본선 참가 인원: finalsStartRound가 있으면 그것 사용, 없으면 advanceCount 또는 participantCount
+  const finalsParticipants = finalsStartRound
+    ? finalsStartRound
+    : hasGroupStage
+      ? advanceCount
+      : participantCount;
   if (hasFinalsStage) {
-    // 본선 참가 인원: finalsStartRound가 있으면 그것 사용, 없으면 advanceCount 또는 participantCount
-    const finalsParticipants = finalsStartRound
-      ? finalsStartRound
-      : hasGroupStage
-        ? advanceCount
-        : participantCount;
-    // 싱글 엘리미네이션: N-1 경기 (BYE 포함 시에도 동일)
+    // 싱글 엘리미네이션: N-1 경기 (BYE 경기는 치르지 않으므로 세지 않는다. countPlayableMatches 참고)
     finals = Math.max(0, finalsParticipants - 1);
   }
 
+  // 3/4위 결정전: 1경기. 위저드의 3/4위전 설정은 순위결정전 사용 여부와 따로 켜고 끄므로
+  // enabled와 상관없이 센다(본선 생성도 thirdPlace만 보고 3/4위전을 만든다). 4강이 있어야(3명 이상) 생긴다.
+  if (hasFinalsStage && rankingMatch.thirdPlace && finalsParticipants >= 3) ranking += 1;
+
   if (hasFinalsStage && rankingMatch.enabled) {
-    // 3/4위 결정전: 1경기
-    if (rankingMatch.thirdPlace) ranking += 1;
 
     // 5~8위 결정전
     if (rankingMatch.fifthToEighth) {

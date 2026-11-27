@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
 import { showWarning, showSuccess } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
-import { buildGroupAssignment, calculateMatchCount } from '@shared/utils/tournament';
-import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, replaceStagesFor, type StageReplaceScope, type WriteResult } from '@shared/utils/dataWrites';
+import { buildGroupAssignment, calculateMatchCount, countPlayableMatches } from '@shared/utils/tournament';
+import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, replaceStagesFor, type MatchesBulkOptions, type WriteResult } from '@shared/utils/dataWrites';
 import type { Match, MatchUpdate, Team, Player, StageGroup, Tournament } from '@shared/types';
 import GroupAssignmentSection from './GroupAssignmentSection';
 import FinalsSection from './FinalsSection';
@@ -24,7 +24,7 @@ export interface BracketTabProps {
   matches: Match[];
   tournamentPlayers: Player[];
   teams: Team[];
-  setMatchesBulk: (matches: Omit<Match, 'id'>[], options: { replaceStages: StageReplaceScope }) => Promise<string[] | void>;
+  setMatchesBulk: (matches: Omit<Match, 'id'>[], options: MatchesBulkOptions) => Promise<string[] | void>;
   updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
   addMatch: (match: Omit<Match, 'id'>) => Promise<string | null>;
   deleteMatch: (matchId: string) => Promise<void>;
@@ -278,11 +278,13 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       }
 
       // 설정된 최대 경기 수 초과 검증
+      // (BYE 경기는 치르지 않으므로 세지 않는다)
       const maxAllowed = expectedMatchCount.total;
-      const totalAfterCreate = matches.length + newMatches.length;
+      const currentCount = countPlayableMatches(matches);
+      const totalAfterCreate = currentCount + newMatches.length;
       if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
         showWarning(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
-          max: maxAllowed, current: matches.length, newCount: newMatches.length, total: totalAfterCreate,
+          max: maxAllowed, current: currentCount, newCount: newMatches.length, total: totalAfterCreate,
         }));
         setGenerating(false);
         return;
@@ -342,10 +344,12 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
     }
 
     // 경기 수 초과 검증
+    // (BYE 경기는 치르지 않으므로 세지 않는다)
     const maxAllowed = expectedMatchCount.total;
-    if (maxAllowed > 0 && matches.length + 1 > maxAllowed) {
+    const currentCount = countPlayableMatches(matches);
+    if (maxAllowed > 0 && currentCount + 1 > maxAllowed) {
       showWarning(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
-        max: maxAllowed, current: matches.length, newCount: 1, total: matches.length + 1,
+        max: maxAllowed, current: currentCount, newCount: 1, total: currentCount + 1,
       }));
       return;
     }
@@ -426,6 +430,7 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
       const t1 = teams.find(t => t.id === editPlayer1);
       const t2 = teams.find(t => t.id === editPlayer2);
       if (!t1 || !t2) return;
+      // 진출 링크로 채워진 팀전 경기는 player{N}*에도 같은 팀이 들어 있으므로 함께 바꾼다 (남은 옛 팀이 표시/진출되지 않게)
       result = await updateMatch(editingMatchId, {
         team1Id: t1.id,
         team2Id: t2.id,
@@ -433,6 +438,10 @@ export default function BracketTab({ tournament, matches, tournamentPlayers, tea
         team2Name: t2.name,
         team1: t1,
         team2: t2,
+        player1Id: t1.id,
+        player2Id: t2.id,
+        player1Name: t1.name,
+        player2Name: t2.name,
       });
     } else {
       const p1 = tournamentPlayers.find(p => p.id === editPlayer1);

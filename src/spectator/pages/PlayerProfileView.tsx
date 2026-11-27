@@ -27,9 +27,10 @@ export default function PlayerProfileView() {
     );
   }, [matches, decodedName]);
 
+  // BYE(부전승 슬롯)와 자동 부전승 경기는 실제로 치른 경기가 아니므로 결과 목록과 전적에서 뺀다
   const completedMatches = useMemo(() => {
     return playerMatches
-      .filter(m => m.status === 'completed')
+      .filter(m => m.status === 'completed' && !m.bye && !m.isBye && !m.autoWalkover)
       .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
   }, [playerMatches]);
 

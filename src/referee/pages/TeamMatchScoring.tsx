@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { hasUndecidedParticipant } from '@shared/utils/bracketSkeleton';
 import { useTeamMatchScoring } from '../hooks/useTeamMatchScoring';
 import TimerModal from '../components/TimerModal';
 import ScoreHistoryView from '@shared/components/ScoreHistoryView';
@@ -58,6 +59,17 @@ export default function TeamMatchScoring() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <p className="text-2xl text-red-400">{t('spectator.liveMatch.notFound')}</p>
+        <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
+      </div>
+    );
+  }
+
+  // ===== NOT READY: 앞 경기 결과 대기 중 (빈 슬롯/BYE) — 시작할 수 없음 =====
+  if (match.status === 'pending' && hasUndecidedParticipant(match)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4 text-center" role="alert">
+        <h1 className="text-2xl font-bold text-orange-300">{t('referee.home.awaitingParticipantsTitle')}</h1>
+        <p className="text-lg text-gray-300">{t('referee.home.awaitingParticipantsBody')}</p>
         <button className="btn btn-primary btn-large" onClick={() => navigate('/referee/games')}>{t('referee.home.title')}</button>
       </div>
     );

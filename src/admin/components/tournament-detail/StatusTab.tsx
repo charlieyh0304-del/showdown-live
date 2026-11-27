@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { push, set, ref } from 'firebase/database';
+import { push, update, ref } from 'firebase/database';
 import { database } from '@shared/config/firebase';
 import { createEmptySet, checkMatchWinner, checkSetWinner, getEffectiveGameConfig } from '@shared/utils/scoring';
 import { showSuccess, showError } from '@shared/utils/toast';
-import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, type WriteResult } from '@shared/utils/dataWrites';
+import { combineWriteResults, notifyWriteOutcome, notifyTournamentWrite, toFirebaseValue, type WriteResult } from '@shared/utils/dataWrites';
+import { buildFirstRoundSlots, buildSingleEliminationSkeleton, thirdPlaceStageId } from '@shared/utils/bracketSkeleton';
 import PdfDownloadButton from '@shared/components/PdfDownloadButton';
 import type { Match, MatchUpdate, Team, Player, MatchStatus, SetScore, ScoreHistoryEntry, Tournament } from '@shared/types';
 
@@ -49,6 +50,9 @@ export interface StatusTabProps {
 export default function StatusTab({ tournament, matches, updateTournament, updateMatch, isTeamType, tournamentPlayers, teams }: StatusTabProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<'all' | MatchStatus>('all');
+  // 본선 생성 중복 실행 방지 (연타 시 상태 갱신 전에도 막도록 ref도 함께 쓴다)
+  const [creatingFinals, setCreatingFinals] = useState(false);
+  const creatingFinalsRef = useRef(false);
   const [correctionMatch, setCorrectionMatch] = useState<Match | null>(null);
   const [correctionSets, setCorrectionSets] = useState<SetScore[]>([]);
   const [correctionReason, setCorrectionReason] = useState('');
@@ -151,6 +155,25 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
   }, [updateTournament, t]);
 
   const handleAdvanceToFinals = async () => {
+    if (creatingFinalsRef.current) return;
+    const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id || 'finals';
+    // 이미 본선(또는 3/4위전) 경기가 있으면 다시 만들지 않는다: 링크된 대진 전체가 중복된다
+    const existingFinals = matches.filter(m => m.stageId === finalsStageId || m.stageId === thirdPlaceStageId(finalsStageId)).length;
+    if (existingFinals > 0) {
+      showError(t('admin.tournamentDetail.bracketTab.finalsDuplicateBlocked', { count: existingFinals }));
+      return;
+    }
+    creatingFinalsRef.current = true;
+    setCreatingFinals(true);
+    try {
+      await createFinalsBracket(finalsStageId);
+    } finally {
+      creatingFinalsRef.current = false;
+      setCreatingFinals(false);
+    }
+  };
+
+  const createFinalsBracket = async (finalsStageId: string) => {
     // 1. 조별 순위 계산
     const qualifyingMatches = matches.filter(m => m.groupId);
     const groupMap = new Map<string, typeof matches>();
@@ -192,53 +215,38 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
       sorted.slice(0, advancePerGroup).forEach(([id]) => advancedIds.push(id));
     });
 
-    // 2. 본선 Match 생성 (싱글엘리미네이션)
+    // 2. 본선 Match 생성 (싱글엘리미네이션 전체 골격: 1라운드 ~ 결승 + 3/4위전, 진출 링크 포함)
     const idToName = new Map<string, string>();
     tournamentPlayers.forEach(p => idToName.set(p.id, p.name));
     teams.forEach(t => idToName.set(t.id, t.name));
 
-    const finalsStageId = toArray(tournament.stages).find(s => s.type === 'finals')?.id || 'finals';
-
-    let bracketSize = 4;
-    while (bracketSize < advancedIds.length) bracketSize *= 2;
-
-    const finalsMatches: Omit<Match, 'id'>[] = [];
-    for (let i = 0; i < advancedIds.length; i += 2) {
-      if (i + 1 >= advancedIds.length) break;
-      const p1 = advancedIds[i];
-      const p2 = advancedIds[i + 1];
-      const roundLabel = bracketSize >= 16 ? t('admin.tournamentDetail.rankingTab.roundLabel16') : bracketSize >= 8 ? t('admin.tournamentDetail.rankingTab.roundLabel8') : t('admin.tournamentDetail.rankingTab.roundLabel4');
-
-      finalsMatches.push({
-        tournamentId: tournament.id,
-        type: isTeamType ? 'team' : 'individual',
-        status: 'pending',
-        round: 1,
-        stageId: finalsStageId,
-        roundLabel,
-        ...(isTeamType ? {
-          team1Id: p1, team2Id: p2,
-          team1Name: idToName.get(p1) || p1,
-          team2Name: idToName.get(p2) || p2,
-        } : {
-          player1Id: p1, player2Id: p2,
-          player1Name: idToName.get(p1) || p1,
-          player2Name: idToName.get(p2) || p2,
-        }),
-        sets: [],
-        currentSet: 0,
-        player1Timeouts: 0,
-        player2Timeouts: 0,
-        winnerId: null,
-        createdAt: Date.now(),
-      });
+    if (advancedIds.length < 2) {
+      showError(t(isTeamType ? 'admin.tournamentDetail.bracketTab.needMoreTeams' : 'admin.tournamentDetail.bracketTab.needMorePlayers'));
+      return;
     }
 
-    // Firebase에 본선 경기 추가
-    for (const match of finalsMatches) {
-      const matchRef = push(ref(database, `matches/${tournament.id}`));
-      await set(matchRef, match);
-    }
+    const matchesPath = `matches/${tournament.id}`;
+
+    // 1라운드는 기존처럼 진출 순서대로 둘씩 짝짓고, 2의 거듭제곱이 아니면 남는 선수는 BYE(부전승)로 둔다
+    const entries = buildSingleEliminationSkeleton({
+      tournamentId: tournament.id,
+      stageId: finalsStageId,
+      matchType: isTeamType ? 'team' : 'individual',
+      slots: buildFirstRoundSlots(advancedIds.length, advancedIds.map(id => ({ id, name: idToName.get(id) || id }))),
+      thirdPlace: tournament.rankingMatchConfig?.thirdPlace === true,
+      makeKey: () => push(ref(database, matchesPath)).key!,
+      now: Date.now(),
+      labels: {
+        undecided: t('admin.tournamentDetail.bracketTab.undecided'),
+        bye: t('admin.tournamentDetail.bracketTab.byeSlot'),
+      },
+    });
+    const finalsMatches = entries.filter(e => !e.match.bye);
+
+    // Firebase에 본선 경기를 한 번에 추가 (링크된 경기가 일부만 저장되지 않도록 multi-path update)
+    const bulk: Record<string, unknown> = {};
+    for (const { key, match } of entries) bulk[key] = toFirebaseValue(match);
+    await update(ref(database, matchesPath), bulk);
 
     // 단계 전환이 저장되지 않았으면 성공 알림을 띄우지 않는다 (경기는 이미 생성됨을 알림)
     if (await updateTournament({ currentStageId: finalsStageId }) === false) {
@@ -490,7 +498,7 @@ export default function StatusTab({ tournament, matches, updateTournament, updat
                   <div className="mt-3 space-y-2">
                     <p className="text-green-400 text-sm font-semibold">{t('admin.tournamentDetail.statusTab.qualifyingDone')}</p>
                     {tournament.type !== 'randomTeamLeague' && (
-                      <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} aria-label={t('admin.tournamentDetail.statusTab.createFinalsBracket')}>
+                      <button className="btn btn-success w-full" onClick={handleAdvanceToFinals} disabled={creatingFinals} aria-busy={creatingFinals} aria-label={t('admin.tournamentDetail.statusTab.createFinalsBracket')}>
                         {t('admin.tournamentDetail.statusTab.createFinalsBracket')}
                       </button>
                     )}

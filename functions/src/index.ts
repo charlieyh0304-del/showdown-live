@@ -8,6 +8,8 @@ const db = admin.database();
 
 export { chatbot } from "./chatbot";
 export { verifyAdminPin, verifyRefereePin } from "./handlers/auth";
+// 실경기 승자/패자 자동 진출 (푸시 알림 onMatchChange와 별개 함수)
+export { advanceOnMatchResult } from "./triggers/advance-on-match-result";
 
 setGlobalOptions({ region: "us-central1" });
 

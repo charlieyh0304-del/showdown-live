@@ -1,7 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { createEmptySet } from '@shared/utils/scoring';
 import { showWarning } from '@shared/utils/toast';
-import { combineWriteResults, notifyWriteOutcome, replaceStagesFor, type StageReplaceScope, type WriteResult } from '@shared/utils/dataWrites';
+import { combineWriteResults, notifyWriteOutcome, replaceStagesFor, type MatchesBulkOptions, type WriteResult } from '@shared/utils/dataWrites';
+import { buildFirstRoundSlots, buildSingleEliminationSkeleton, nextPowerOfTwo } from '@shared/utils/bracketSkeleton';
+import { newMatchKey } from '@shared/hooks/useFirebase';
+import { countPlayableMatches } from '@shared/utils/tournament';
 import type { Match, MatchUpdate, Team, Player, Tournament } from '@shared/types';
 
 // Firebase can return arrays as objects with numeric keys; ensure we always get an array
@@ -10,6 +13,21 @@ function toArray<T>(val: T[] | Record<string, T> | undefined | null): T[] {
   if (Array.isArray(val)) return val;
   if (typeof val === 'object') return Object.values(val);
   return [];
+}
+
+/** 이전 경기 결과로 채워지는 경기(진출 링크가 있음): 수동 편성 대상이 아니다 */
+function hasSourceLinks(m: Match): boolean {
+  return !!(m.sourceMatch1 || m.sourceMatch2 || m.sourceMatch1Id || m.sourceMatch2Id);
+}
+
+/** BYE(부전승) 경기 */
+function isByeMatch(m: Match): boolean {
+  return m.bye === true || m.isBye === true;
+}
+
+/** BYE 경기에서 실제 선수가 들어가는 쪽 (서버 생성 BYE는 'BYE' ID의 반대쪽, 클라이언트 생성은 항상 1번) */
+function byeRealSide(m: Match): 'player1' | 'player2' {
+  return (m.player1Id || m.team1Id) === 'BYE' ? 'player2' : 'player1';
 }
 
 /** Compute group rankings from qualifying matches */
@@ -59,7 +77,7 @@ export interface FinalsSectionProps {
   isTeamType: boolean;
   isManualMode: boolean;
   expectedMatchCount: { total: number };
-  setMatchesBulk: (matches: Omit<Match, 'id'>[], options: { replaceStages: StageReplaceScope }) => Promise<string[] | void>;
+  setMatchesBulk: (matches: Omit<Match, 'id'>[], options: MatchesBulkOptions) => Promise<string[] | void>;
   updateMatch: (matchId: string, data: MatchUpdate) => Promise<WriteResult>;
 }
 
@@ -102,11 +120,20 @@ export default function FinalsSection({
   const advancePerGroup = typeof fc?.advancePerGroup === 'number' ? fc.advancePerGroup : 2;
   const totalAdvance = finalsStage.advanceCount || advancePerGroup * (tournament.qualifyingConfig?.groupCount || 2);
 
+  // 3/4위전 사용 여부 (대회 생성 위저드의 3/4위 결정전 설정)
+  const includeThirdPlace = tournament.rankingMatchConfig?.thirdPlace === true;
+
   // --- Finals Creation (no finals matches yet) ---
   if (finalsMatches.length === 0) {
     const hasQualifyingMatches = qualifyingMatches.length > 0;
-    let matchCount = Math.floor(totalAdvance / 2);
-    if (matchCount < 1) matchCount = 1;
+    // 전체 싱글 엘리미네이션 골격: 대진 크기 = 진출 인원 이상인 최소 2의 거듭제곱
+    const entrantCount = Math.max(2, totalAdvance);
+    const bracketSize = nextPowerOfTwo(entrantCount);
+    const hasThirdPlaceMatch = includeThirdPlace && bracketSize >= 4;
+    // 실제로 치르는 본선 경기 수 (BYE 제외): N-1 (+3/4위전)
+    const matchCount = entrantCount - 1 + (hasThirdPlaceMatch ? 1 : 0);
+    // 생성되는 슬롯 수 (BYE 경기 포함)
+    const slotCount = bracketSize - 1 + (hasThirdPlaceMatch ? 1 : 0);
 
     const completedCount = qualifyingMatches.filter(m => m.status === 'completed').length;
     const totalCount = qualifyingMatches.length;
@@ -153,12 +180,14 @@ export default function FinalsSection({
               className="btn btn-accent w-full"
               onClick={async () => {
                 // 본선 대진 경기 수 초과 검증
+                // (실제로 치르는 경기만 센다: BYE 슬롯 경기는 빼고 3/4위전은 넣는다. calculateMatchCount와 같은 기준)
                 const maxAllowed = expectedMatchCount.total;
-                const totalAfterCreate = matches.length + matchCount;
+                const currentCount = countPlayableMatches(matches);
+                const totalAfterCreate = currentCount + matchCount;
                 if (maxAllowed > 0 && totalAfterCreate > maxAllowed) {
                   showWarning(t('admin.tournamentDetail.bracketTab.matchCountExceeded', {
-                    max: maxAllowed, current: matches.length, newCount: matchCount, total: totalAfterCreate,
-                    defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${matches.length}경기 + 새로 ${matchCount}경기 = ${totalAfterCreate}경기\n대진 생성이 취소되었습니다.`,
+                    max: maxAllowed, current: currentCount, newCount: matchCount, total: totalAfterCreate,
+                    defaultValue: `설정된 최대 경기 수(${maxAllowed}경기)를 초과합니다.\n현재 ${currentCount}경기 + 새로 ${matchCount}경기 = ${totalAfterCreate}경기\n대진 생성이 취소되었습니다.`,
                   }));
                   return;
                 }
@@ -171,35 +200,30 @@ export default function FinalsSection({
                   return;
                 }
                 const now = Date.now(); // eslint-disable-line react-hooks/purity
-                const newMatches: Omit<Match, 'id'>[] = [];
-                for (let i = 0; i < matchCount; i++) {
-                  newMatches.push({
-                    tournamentId: tournament.id,
-                    type: isTeamType ? 'team' : 'individual',
-                    status: 'pending',
-                    round: 1,
-                    bracketPosition: i,
-                    stageId: finalsStage.id,
-                    player1Id: '',
-                    player2Id: '',
-                    player1Name: t('admin.tournamentDetail.bracketTab.undecided'),
-                    player2Name: t('admin.tournamentDetail.bracketTab.undecided'),
-                    sets: [createEmptySet()],
-                    currentSet: 0,
-                    player1Timeouts: 0,
-                    player2Timeouts: 0,
-                    winnerId: null,
-                    createdAt: now + i,
-                  });
-                }
-                // 본선 스테이지만 교체 범위로 지정: 대기 중인 예선 경기는 보존된다
-                await setMatchesBulk(newMatches, { replaceStages: replaceStagesFor(newMatches) });
+                // 1라운드는 빈 슬롯(이후 수동 편성), 2라운드~결승과 3/4위전은 진출 링크로 연결
+                const entries = buildSingleEliminationSkeleton({
+                  tournamentId: tournament.id,
+                  stageId: finalsStage.id,
+                  matchType: isTeamType ? 'team' : 'individual',
+                  slots: buildFirstRoundSlots(entrantCount),
+                  thirdPlace: includeThirdPlace,
+                  makeKey: () => newMatchKey(tournament.id),
+                  now,
+                  labels: {
+                    undecided: t('admin.tournamentDetail.bracketTab.undecided'),
+                    bye: t('admin.tournamentDetail.bracketTab.byeSlot'),
+                  },
+                });
+                const newMatches = entries.map(e => e.match);
+                // 본선(및 3/4위전) 스테이지만 교체 범위로 지정: 대기 중인 예선 경기는 보존된다
+                await setMatchesBulk(newMatches, { replaceStages: replaceStagesFor(newMatches), keys: entries.map(e => e.key) });
               }}
               aria-label={t('admin.tournamentDetail.bracketTab.createFinalsSlotsAriaLabel')}
             >
-              {t('admin.tournamentDetail.bracketTab.createFinalsSlots', { count: matchCount })}
+              {t('admin.tournamentDetail.bracketTab.createFinalsSlots', { count: slotCount })}
             </button>
             <p className="text-gray-400 text-xs">{t('admin.tournamentDetail.bracketTab.createFinalsSlotsHint')}</p>
+            <p className="text-gray-400 text-xs">{t('admin.tournamentDetail.bracketTab.autoAdvanceHint')}</p>
           </>
         )}
       </div>
@@ -207,13 +231,16 @@ export default function FinalsSection({
   }
 
   // --- Finals Arrangement (finals matches exist) ---
+  // 수동 편성 대상: 진출 링크가 없는 경기(1라운드). 링크가 있는 경기는 앞 경기 결과로 자동으로 채워진다.
+  const arrangeableMatches = finalsMatches.filter(m => !hasSourceLinks(m));
+  const hasLinkedMatches = arrangeableMatches.length < finalsMatches.length;
   // All advanced player IDs from finals matches
   const advancedIds = new Set<string>();
-  finalsMatches.forEach(m => {
+  arrangeableMatches.forEach(m => {
     const p1 = isTeamType ? m.team1Id : m.player1Id;
     const p2 = isTeamType ? m.team2Id : m.player2Id;
-    if (p1) advancedIds.add(p1);
-    if (p2) advancedIds.add(p2);
+    if (p1 && p1 !== 'BYE') advancedIds.add(p1);
+    if (p2 && p2 !== 'BYE') advancedIds.add(p2);
   });
   const advancedList = Array.from(advancedIds);
 
@@ -223,6 +250,25 @@ export default function FinalsSection({
     if (info) return `${info.groupName} ${info.rank}${t('admin.tournamentDetail.bracketTab.rankSuffix')}: ${name}`;
     return name;
   };
+
+  const slotData = (slot: 'player1' | 'player2', newId: string): MatchUpdate => {
+    const name = idToName.get(newId) || newId;
+    const player: MatchUpdate = slot === 'player1' ? { player1Id: newId, player1Name: name } : { player2Id: newId, player2Name: name };
+    // 팀전 본선 골격은 team{N}*와 player{N}*를 함께 갖는다: 둘 다 바꿔야 옛 값이 표시/진출되지 않는다
+    if (!isTeamType) return player;
+    return { ...player, ...(slot === 'player1' ? { team1Id: newId, team1Name: name } : { team2Id: newId, team2Name: name }) };
+  };
+
+  /**
+   * BYE 경기에 실제 선수를 배정하면 바로 부전승 완료로 표시한다(가짜 점수 없음).
+   * 완료로 바뀌면 서버 진출 트리거가 다음 라운드에 그 선수를 채운다. 선수를 비우면 다시 대기로 돌린다.
+   */
+  const byeSlotData = (m: Match, newId: string): MatchUpdate => ({
+    ...slotData(byeRealSide(m), newId),
+    status: newId ? 'completed' : 'pending',
+    winnerId: newId || null,
+    sets: newId ? [] : [createEmptySet()],
+  });
 
   const applyArrangement = async (mode: 'cross' | 'sequential') => {
     const withInfo = advancedList.map(id => ({ id, ...(groupRankings.get(id) || { groupId: '', groupName: '', rank: 0 }) }));
@@ -243,8 +289,8 @@ export default function FinalsSection({
         if (gA[0] && gB[1]) pairs.push([gA[0].id, gB[1].id]);
         if (gB[0] && gA[1]) pairs.push([gB[0].id, gA[1].id]);
         for (let k = 2; k < Math.max(gA.length, gB.length); k++) {
+          // 짝이 없는 선수는 자기 자신과 짝짓지 않는다 (아래에서 BYE 자리 또는 남은 선수끼리 배치)
           if (gA[k] && gB[k]) pairs.push([gA[k].id, gB[k].id]);
-          else if (gA[k]) pairs.push([gA[k].id, gA[k].id]);
         }
       }
     } else if (mode === 'sequential') {
@@ -256,33 +302,51 @@ export default function FinalsSection({
       });
     }
 
-    const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+    // 한 선수가 두 번 배치되거나 자기 자신과 대전하지 않도록 정리
+    const placed = new Set<string>();
+    const cleanPairs = pairs.filter(([a, b]) => {
+      if (a === b || placed.has(a) || placed.has(b)) return false;
+      placed.add(a);
+      placed.add(b);
+      return true;
+    });
+    const sorted = [...arrangeableMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+    const realSlots = sorted.filter(m => !isByeMatch(m));
+    const byeSlots = sorted.filter(m => isByeMatch(m));
+    const usedPairs = cleanPairs.slice(0, realSlots.length);
+    const usedIds = new Set(usedPairs.flat());
+    // 짝을 못 지은 선수: 먼저 BYE 자리에, 그래도 남으면 남은 실제 경기에 둘씩
+    const leftovers = advancedList.filter(id => !usedIds.has(id));
+
+    const pairData = (p1: string, p2: string): MatchUpdate => ({ ...slotData('player1', p1), ...slotData('player2', p2) });
     const results: WriteResult[] = [];
-    for (let i = 0; i < Math.min(pairs.length, sortedFinals.length); i++) {
-      const [p1, p2] = pairs[i];
-      const matchData: Partial<Match> = isTeamType ? {
-        team1Id: p1, team2Id: p2,
-        team1Name: idToName.get(p1) || p1,
-        team2Name: idToName.get(p2) || p2,
-      } : {
-        player1Id: p1, player2Id: p2,
-        player1Name: idToName.get(p1) || p1,
-        player2Name: idToName.get(p2) || p2,
-      };
-      results.push(await updateMatch(sortedFinals[i].id, matchData));
+    for (let i = 0; i < usedPairs.length; i++) {
+      results.push(await updateMatch(realSlots[i].id, pairData(usedPairs[i][0], usedPairs[i][1])));
+    }
+    for (const byeMatch of byeSlots) {
+      const id = leftovers.shift();
+      if (!id) break;
+      results.push(await updateMatch(byeMatch.id, byeSlotData(byeMatch, id)));
+    }
+    for (let i = usedPairs.length; i < realSlots.length && leftovers.length >= 2; i++) {
+      const p1 = leftovers.shift()!;
+      const p2 = leftovers.shift()!;
+      results.push(await updateMatch(realSlots[i].id, pairData(p1, p2)));
     }
     notifyWriteOutcome(combineWriteResults(results), t, t('admin.tournamentDetail.bracketTab.finalsArranged'));
   };
 
-  const handleSlotChange = async (matchId: string, slot: 'player1' | 'player2', newId: string) => {
-    const name = idToName.get(newId) || newId;
-    const matchData: Partial<Match> = isTeamType
-      ? (slot === 'player1' ? { team1Id: newId, team1Name: name } : { team2Id: newId, team2Name: name })
-      : (slot === 'player1' ? { player1Id: newId, player1Name: name } : { player2Id: newId, player2Name: name });
-    notifyWriteOutcome(combineWriteResults([await updateMatch(matchId, matchData)]), t);
+  const handleSlotChange = async (match: Match, slot: 'player1' | 'player2', newId: string) => {
+    const matchData = isByeMatch(match) ? byeSlotData(match, newId) : slotData(slot, newId);
+    notifyWriteOutcome(combineWriteResults([await updateMatch(match.id, matchData)]), t);
   };
 
-  const sortedFinals = [...finalsMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
+  const sideSummary = (pid: string | undefined, isByeSide: boolean) => {
+    if (isByeSide) return t('admin.tournamentDetail.bracketTab.byeSlot');
+    return pid && pid !== 'BYE' ? getLabel(pid) : t('admin.tournamentDetail.bracketTab.undecided');
+  };
+
+  const sortedFinals = [...arrangeableMatches].sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0) || a.createdAt - b.createdAt);
 
   // Build group+rank based options for manual arrangement
   const groupNames = [...new Set(Array.from(groupRankings.values()).map(v => v.groupName))].sort();
@@ -316,11 +380,21 @@ export default function FinalsSection({
       {/* Manual arrangement: group+rank selectors per match */}
       <div className="space-y-2">
         <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.arrangementSelectHint')}</p>
+        {hasLinkedMatches && (
+          <p className="text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.autoAdvanceHint')}</p>
+        )}
         {sortedFinals.map((m, i) => {
           const p1Id = isTeamType ? m.team1Id : m.player1Id;
           const p2Id = isTeamType ? m.team2Id : m.player2Id;
           const p1Info = p1Id ? groupRankings.get(p1Id) : null;
           const p2Info = p2Id ? groupRankings.get(p2Id) : null;
+          // BYE 경기는 실제로 치르지 않으므로 완료 표시가 돼 있어도 다시 배정할 수 있다
+          const isBye = isByeMatch(m);
+          const locked = m.status !== 'pending' && !isBye;
+          const realSide = isBye ? byeRealSide(m) : null;
+          const byeLabel = (
+            <span className="flex-1 min-w-36 text-gray-400 text-sm">{t('admin.tournamentDetail.bracketTab.byeSlot')}</span>
+          );
 
           const makeGroupRankSelector = (slot: 'player1' | 'player2', _currentId: string | undefined, currentInfo: typeof p1Info) => {
             const groupVal = currentInfo?.groupName || '';
@@ -335,9 +409,9 @@ export default function FinalsSection({
                     const newGroup = e.target.value;
                     const r = rankVal || 1;
                     const pid = findByGroupRank(newGroup, r);
-                    if (pid) handleSlotChange(m.id, slot, pid);
+                    if (pid) handleSlotChange(m, slot, pid);
                   }}
-                  disabled={m.status !== 'pending'}
+                  disabled={locked}
                   aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' ' + (slot === 'player1' ? 'P1' : 'P2') + ' group'}
                 >
                   <option value="">{t('admin.tournamentDetail.bracketTab.groupSelectPlaceholder')}</option>
@@ -353,10 +427,10 @@ export default function FinalsSection({
                     const g = groupVal;
                     if (g) {
                       const pid = findByGroupRank(g, newRank);
-                      if (pid) handleSlotChange(m.id, slot, pid);
+                      if (pid) handleSlotChange(m, slot, pid);
                     }
                   }}
-                  disabled={m.status !== 'pending' || !groupVal}
+                  disabled={locked || !groupVal}
                   aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' ' + (slot === 'player1' ? 'P1' : 'P2') + ' rank'}
                 >
                   <option value="">{t('admin.tournamentDetail.bracketTab.rankSelectPlaceholder')}</option>
@@ -379,47 +453,47 @@ export default function FinalsSection({
                 <span className="text-gray-400 text-sm font-mono w-16">{t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 })}</span>
                 {groupNames.length > 0 ? (
                   <>
-                    {makeGroupRankSelector('player1', p1Id, p1Info)}
+                    {realSide === 'player2' ? byeLabel : makeGroupRankSelector('player1', p1Id, p1Info)}
                     <span className="text-gray-400 font-bold">vs</span>
-                    {makeGroupRankSelector('player2', p2Id, p2Info)}
+                    {realSide === 'player1' ? byeLabel : makeGroupRankSelector('player2', p2Id, p2Info)}
                   </>
                 ) : (
                   <>
-                    <select
+                    {realSide === 'player2' ? byeLabel : <select
                       className="input flex-1 min-w-36"
                       value={p1Id || ''}
-                      onChange={e => handleSlotChange(m.id, 'player1', e.target.value)}
-                      disabled={m.status !== 'pending'}
+                      onChange={e => handleSlotChange(m, 'player1', e.target.value)}
+                      disabled={locked}
                       aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' P1'}
                     >
                       <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                       {advancedList.map(pid => (
                         <option key={pid} value={pid}>{getLabel(pid)}</option>
                       ))}
-                    </select>
+                    </select>}
                     <span className="text-gray-400 font-bold">vs</span>
-                    <select
+                    {realSide === 'player1' ? byeLabel : <select
                       className="input flex-1 min-w-36"
                       value={p2Id || ''}
-                      onChange={e => handleSlotChange(m.id, 'player2', e.target.value)}
-                      disabled={m.status !== 'pending'}
+                      onChange={e => handleSlotChange(m, 'player2', e.target.value)}
+                      disabled={locked}
                       aria-label={t('admin.tournamentDetail.bracketTab.matchNumber', { num: i + 1 }) + ' P2'}
                     >
                       <option value="">{t('admin.tournamentDetail.bracketTab.selectPlaceholder')}</option>
                       {advancedList.map(pid => (
                         <option key={pid} value={pid}>{getLabel(pid)}</option>
                       ))}
-                    </select>
+                    </select>}
                   </>
                 )}
               </div>
               {/* Show current assignment summary */}
               {(p1Id || p2Id) && (
                 <div className="text-xs text-gray-400 ml-16">
-                  {p1Id ? getLabel(p1Id) : t('admin.tournamentDetail.bracketTab.undecided')} vs {p2Id ? getLabel(p2Id) : t('admin.tournamentDetail.bracketTab.undecided')}
+                  {sideSummary(p1Id, realSide === 'player2')} vs {sideSummary(p2Id, realSide === 'player1')}
                 </div>
               )}
-              {m.status !== 'pending' && (
+              {locked && (
                 <span className="text-xs text-orange-400 ml-16">{t('admin.tournamentDetail.bracketTab.inProgressCannotChange')}</span>
               )}
             </div>

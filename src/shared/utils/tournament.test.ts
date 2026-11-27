@@ -6,6 +6,7 @@ import {
   generateSingleEliminationBracket,
   calculateWildcard,
   calculateMatchCount,
+  countPlayableMatches,
 } from './tournament';
 
 describe('mapToLegacyFormat', () => {
@@ -201,6 +202,17 @@ describe('calculateMatchCount', () => {
     expect(result.ranking).toBe(1);
   });
 
+  it('3rd place counts even when other ranking matches are off (wizard toggles are independent)', () => {
+    const result = calculateMatchCount(8, true, 2, true, 4, { ...noRanking, enabled: false, thirdPlace: true });
+    expect(result.ranking).toBe(1);
+    expect(result.total).toBe(16); // 12 + 3 + 1
+  });
+
+  it('no 3rd place match with only 2 finalists', () => {
+    const result = calculateMatchCount(8, true, 2, true, 2, { ...noRanking, thirdPlace: true });
+    expect(result.ranking).toBe(0);
+  });
+
   it('ranking match: 5-8th simple adds 2', () => {
     const result = calculateMatchCount(8, true, 2, true, 4, {
       ...noRanking, enabled: true, fifthToEighth: true, fifthToEighthFormat: 'simple',
@@ -212,5 +224,11 @@ describe('calculateMatchCount', () => {
     // 7 players, 2 groups → 4 + 3 → 6 + 3 = 9
     const result = calculateMatchCount(7, true, 2, false, 0, noRanking);
     expect(result.qualifying).toBe(9);
+  });
+});
+
+describe('countPlayableMatches', () => {
+  it('BYE 경기(bye/isBye)는 세지 않는다', () => {
+    expect(countPlayableMatches([{}, { bye: true }, { isBye: true }, { bye: false }])).toBe(2);
   });
 });

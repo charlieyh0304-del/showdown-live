@@ -5,6 +5,7 @@
  * - 예선 완료 시 결승 자동 생성/시뮬레이션 지원 (executeTool 콜백)
  */
 import { db, asString, asNumber, asBoolean } from "../db-helpers";
+import { resolveScoringRules, sweepAdvancement, type MatchData as AdvMatchData } from "../lib/advancement";
 
 type ExecuteTool = (name: string, input: Record<string, unknown>) => Promise<string>;
 
@@ -35,19 +36,19 @@ function getSideName(match: MatchData, side: 1 | 2, isTeam: boolean): string {
 }
 
 /**
- * 완료된 매치에서 승자/패자 id와 name을 추출.
- * BYE 승자 자동 전파 로직에서 사용.
+ * sourceMatch1/2 링크로 다음 경기에 승자/패자를 배치하는 multi-path update.
+ * 실경기 트리거(advanceOnMatchResult)와 같은 lib/advancement 로직을 쓴다:
+ * BYE는 패자 슬롯(3/4위전)에 들어가지 않고, 관리자가 직접 넣은 슬롯은 덮어쓰지 않는다.
  */
-function extractWinnerLoser(srcM: MatchData): {
-  wId: string; wName: string; lId: string; lName: string;
-} {
-  const wId = asString(srcM.winnerId);
-  const p1Id = getSideId(srcM, 1);
-  const p1Name = asString(srcM.player1Name) || asString(srcM.team1Name);
-  const p2Id = getSideId(srcM, 2);
-  const p2Name = asString(srcM.player2Name) || asString(srcM.team2Name);
-  if (wId === p1Id) return { wId, wName: p1Name, lId: p2Id, lName: p2Name };
-  return { wId, wName: p2Name, lId: p1Id, lName: p1Name };
+function buildAdvanceBulk(
+  tid: string, allM: Record<string, AdvMatchData>, tourData: Record<string, unknown>,
+): { bulk: Record<string, unknown>; count: number } {
+  const patches = sweepAdvancement(allM, m => resolveScoringRules(m, tourData));
+  const bulk: Record<string, unknown> = {};
+  for (const [nextId, patch] of Object.entries(patches)) {
+    for (const [field, value] of Object.entries(patch)) bulk[`matches/${tid}/${nextId}/${field}`] = value;
+  }
+  return { bulk, count: Object.keys(patches).length };
 }
 
 export async function simulateMatches(input: Record<string, unknown>, executeTool: ExecuteTool): Promise<string> {
@@ -97,38 +98,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
     // 시뮬레이션할 경기가 없어도 BYE 경기 승자 전파 시도
     const byeSnap = await db.ref(`matches/${tid}`).once("value");
     if (byeSnap.exists()) {
-      const allByeM = byeSnap.val() as Record<string, Record<string, unknown>>;
-      const advanceBulk: Record<string, unknown> = {};
-      let advanceCount = 0;
-      for (const [nextId, nextMatch] of Object.entries(allByeM)) {
-        if (nextMatch.status !== "pending") continue;
-        const src1 = asString(nextMatch.sourceMatch1) || undefined;
-        const src2 = asString(nextMatch.sourceMatch2) || undefined;
-        if (!src1 && !src2) continue;
-        const isLoser = nextMatch.sourceType === "loser";
-        let changed = false;
-        if (src1 && allByeM[src1]?.status === "completed" && (!nextMatch.player1Id || nextMatch.player1Id === "")) {
-          const { wId, wName, lId, lName } = extractWinnerLoser(allByeM[src1]);
-          const useId = isLoser ? lId : wId;
-          const useName = isLoser ? lName : wName;
-          advanceBulk[`matches/${tid}/${nextId}/player1Id`] = useId;
-          advanceBulk[`matches/${tid}/${nextId}/player1Name`] = useName;
-          advanceBulk[`matches/${tid}/${nextId}/team1Id`] = useId;
-          advanceBulk[`matches/${tid}/${nextId}/team1Name`] = useName;
-          changed = true;
-        }
-        if (src2 && allByeM[src2]?.status === "completed" && (!nextMatch.player2Id || nextMatch.player2Id === "")) {
-          const { wId, wName, lId, lName } = extractWinnerLoser(allByeM[src2]);
-          const useId = isLoser ? lId : wId;
-          const useName = isLoser ? lName : wName;
-          advanceBulk[`matches/${tid}/${nextId}/player2Id`] = useId;
-          advanceBulk[`matches/${tid}/${nextId}/player2Name`] = useName;
-          advanceBulk[`matches/${tid}/${nextId}/team2Id`] = useId;
-          advanceBulk[`matches/${tid}/${nextId}/team2Name`] = useName;
-          changed = true;
-        }
-        if (changed) advanceCount++;
-      }
+      const { bulk: advanceBulk, count: advanceCount } = buildAdvanceBulk(tid, byeSnap.val() as Record<string, AdvMatchData>, tourData);
       if (Object.keys(advanceBulk).length > 0) {
         await db.ref().update(advanceBulk);
         return JSON.stringify({ success: true, count: 0, message: `BYE 승자 ${advanceCount}건 전파 완료` });
@@ -508,41 +478,7 @@ export async function simulateMatches(input: Record<string, unknown>, executeToo
   // 승자 자동 진출: sourceMatch1/2를 참조하는 다음 라운드 경기에 승자 배치
   const refreshSnap = await db.ref(`matches/${tid}`).once("value");
   if (refreshSnap.exists()) {
-    const advanceBulk: Record<string, unknown> = {};
-    let advanceCount = 0;
-    const allM = refreshSnap.val() as Record<string, Record<string, unknown>>;
-
-    for (const [nextId, nextMatch] of Object.entries(allM)) {
-      if (nextMatch.status !== "pending") continue;
-      const src1 = asString(nextMatch.sourceMatch1) || undefined;
-      const src2 = asString(nextMatch.sourceMatch2) || undefined;
-      if (!src1 && !src2) continue;
-
-      const isLoser = nextMatch.sourceType === "loser";
-      let changed = false;
-
-      if (src1 && allM[src1]?.status === "completed" && (!nextMatch.player1Id || nextMatch.player1Id === "")) {
-        const { wId, wName, lId, lName } = extractWinnerLoser(allM[src1]);
-        const useId = isLoser ? lId : wId;
-        const useName = isLoser ? lName : wName;
-        advanceBulk[`matches/${tid}/${nextId}/player1Id`] = useId;
-        advanceBulk[`matches/${tid}/${nextId}/player1Name`] = useName;
-        advanceBulk[`matches/${tid}/${nextId}/team1Id`] = useId;
-        advanceBulk[`matches/${tid}/${nextId}/team1Name`] = useName;
-        changed = true;
-      }
-      if (src2 && allM[src2]?.status === "completed" && (!nextMatch.player2Id || nextMatch.player2Id === "")) {
-        const { wId, wName, lId, lName } = extractWinnerLoser(allM[src2]);
-        const useId = isLoser ? lId : wId;
-        const useName = isLoser ? lName : wName;
-        advanceBulk[`matches/${tid}/${nextId}/player2Id`] = useId;
-        advanceBulk[`matches/${tid}/${nextId}/player2Name`] = useName;
-        advanceBulk[`matches/${tid}/${nextId}/team2Id`] = useId;
-        advanceBulk[`matches/${tid}/${nextId}/team2Name`] = useName;
-        changed = true;
-      }
-      if (changed) advanceCount++;
-    }
+    const { bulk: advanceBulk, count: advanceCount } = buildAdvanceBulk(tid, refreshSnap.val() as Record<string, AdvMatchData>, tourData);
 
     if (Object.keys(advanceBulk).length > 0) {
       await db.ref().update(advanceBulk);

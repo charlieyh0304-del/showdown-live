@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@shared/hooks/useAuth';
 import { useMatches } from '@shared/hooks/useFirebase';
+import { hasUndecidedParticipant } from '@shared/utils/bracketSkeleton';
 import type { Match, MatchStatus } from '@shared/types';
 
 const STATUS_COLORS: Record<MatchStatus, string> = {
@@ -195,14 +196,20 @@ export default function RefereeHome() {
         <div className="flex flex-col gap-3" role="list" aria-label={`${t('referee.home.title')} (${currentList.length})`}>
           {currentList.map((match, matchIdx) => {
             const score = getCurrentScore(match);
+            // 앞 경기 결과를 기다리는 경기(빈 슬롯/BYE)는 시작할 수 없다.
+            // disabled 대신 aria-disabled로 두어 스크린리더 사용자도 목록에서 찾고 이유를 들을 수 있게 한다.
+            const notReady = match.status === 'pending' && hasUndecidedParticipant(match);
+            const notReadyId = `match-not-ready-${match.id}`;
             return (
               <button
                 key={match.id}
                 role="listitem"
                 aria-setsize={currentList.length}
                 aria-posinset={matchIdx + 1}
-                className="card w-full text-left hover:border-yellow-400 transition-colors cursor-pointer"
-                onClick={() => handleMatchClick(match)}
+                aria-disabled={notReady || undefined}
+                aria-describedby={notReady ? notReadyId : undefined}
+                className={`card w-full text-left transition-colors ${notReady ? 'opacity-70 cursor-not-allowed' : 'hover:border-yellow-400 cursor-pointer'}`}
+                onClick={() => { if (!notReady) handleMatchClick(match); }}
                 aria-label={`${getMatchLabel(match)}, ${STATUS_LABELS[match.status]}${match.courtName ? `, ${t('referee.home.court')} ${match.courtName}` : ''}${match.scheduledTime ? `, ${match.scheduledTime}` : ''}`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -229,6 +236,11 @@ export default function RefereeHome() {
                   <div className="mt-2 text-2xl font-bold text-cyan-400" aria-live="polite">
                     {score}
                   </div>
+                )}
+                {notReady && (
+                  <p id={notReadyId} className="mt-2 text-sm font-bold text-orange-300">
+                    {t('referee.home.awaitingParticipants')}
+                  </p>
                 )}
               </button>
             );

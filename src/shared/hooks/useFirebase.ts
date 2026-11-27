@@ -12,9 +12,14 @@ import {
   scheduleSlotKey,
   toFirebaseValue,
   writeOrQueue,
-  type StageReplaceScope,
+  type MatchesBulkOptions,
   type WriteResult,
 } from '../utils/dataWrites';
+
+/** matches/{tid} 아래에 쓸 새 경기 키 (쓰기 없음, 오프라인에서도 동작) */
+export function newMatchKey(tournamentId: string): string {
+  return push(ref(database, `matches/${tournamentId}`)).key!;
+}
 
 // ===== Write rate limiter =====
 // Prevents rapid writes from overwhelming Firebase (max 10 writes/sec per path)
@@ -526,12 +531,12 @@ export function useMatches(tournamentId: string | null, limit?: number) {
    */
   const setMatchesBulk = useCallback(async (
     newMatches: Omit<Match, 'id'>[],
-    options: { replaceStages: StageReplaceScope },
+    options: MatchesBulkOptions,
   ): Promise<string[]> => {
     if (!tournamentId) return [];
     const basePath = `matches/${tournamentId}`;
-    // New matches keyed by push IDs
-    const entries = newMatches.map(match => ({ key: push(ref(database, basePath)).key!, match }));
+    // New matches keyed by push IDs (or caller-provided keys when matches link to each other)
+    const entries = newMatches.map((match, i) => ({ key: options.keys?.[i] || push(ref(database, basePath)).key!, match }));
     const existingSnap = await get(ref(database, basePath));
     const existingData = existingSnap.val() as Record<string, Partial<Match>> | null;
     const updates = buildMatchesBulkUpdate(existingData, entries, options.replaceStages);

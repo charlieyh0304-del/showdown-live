@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calculateMatchCount } from '@shared/utils/tournament';
+import { calculateMatchCount, countPlayableMatches } from '@shared/utils/tournament';
 import { showWarning } from '@shared/utils/toast';
 import { showConfirm } from '@shared/utils/confirm';
 import { CLEARED_SCHEDULE_FIELDS, buildManualScheduleUpdate, combineWriteResults, notifyWriteOutcome, scheduleKeepMatchIds, type WriteResult } from '@shared/utils/dataWrites';
@@ -230,10 +230,12 @@ export default function ScheduleTab({ tournament, matches, courts: allCourts, re
     if (courts.length === 0 || matches.length === 0) return;
 
     // 경기 수 초과 검증
+    // BYE(부전승) 경기는 치르지 않으므로 세지 않는다
     const maxAllowed = expectedMatchCount.total;
-    if (maxAllowed > 0 && matches.length > maxAllowed) {
+    const playableCount = countPlayableMatches(matches);
+    if (maxAllowed > 0 && playableCount > maxAllowed) {
       showWarning(t('admin.tournamentDetail.scheduleTab.matchCountExceeded', {
-        max: maxAllowed, current: matches.length,
+        max: maxAllowed, current: playableCount,
       }));
       return;
     }

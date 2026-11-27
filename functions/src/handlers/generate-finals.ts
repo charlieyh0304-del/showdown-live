@@ -214,6 +214,7 @@ export async function generateFinals(input: Record<string, unknown>): Promise<st
         winnerId: null, createdAt: now2 + mc,
         sourceMatch1: roundMatchKeys[roundMatchKeys.length - 1][i * 2],
         sourceMatch2: roundMatchKeys[roundMatchKeys.length - 1][i * 2 + 1],
+        sourceType: "winner",
       };
       summary.push(`  ${i + 1}. ${prevRName} 승자${i * 2 + 1} vs ${prevRName} 승자${i * 2 + 2}`);
       rKeys.push(mKey);

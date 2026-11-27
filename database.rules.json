@@ -105,6 +105,10 @@
       ".read": true,
       ".write": "auth != null"
     },
+    "advancementConflicts": {
+      ".read": "auth.token.role === 'admin'",
+      "$tournamentId": { ".write": "auth.token.role === 'admin'" }
+    },
     "auth": {
       "rateLimits": {
         ".read": false,

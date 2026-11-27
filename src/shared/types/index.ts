@@ -429,11 +429,35 @@ export interface Match {
   bye?: boolean;
   walkover?: boolean;
   walkoverReason?: string;
+  // 진출 링크 (서버·클라이언트 공통 표준): 이 경기의 1/2번 슬롯을 채울 상위 경기 ID.
+  // sourceType은 두 슬롯 모두에 적용된다: 'winner'(기본) = 승자, 'loser' = 패자(3/4위전).
+  sourceMatch1?: string;
+  sourceMatch2?: string;
+  sourceType?: 'winner' | 'loser';
+  /** @deprecated 구 클라이언트 필드. 읽기 호환용으로만 남긴다 (새 코드는 sourceMatch1/2 사용) */
   sourceMatch1Id?: string;
+  /** @deprecated 구 클라이언트 필드. 읽기 호환용으로만 남긴다 (새 코드는 sourceMatch1/2 사용) */
   sourceMatch2Id?: string;
+  /** 서버 생성 BYE 경기 표시 (클라이언트의 bye와 같은 의미) */
+  isBye?: boolean;
+  /** 진출 트리거가 채운 슬롯의 출처 기록. 관리자 수동 편집과 구분하는 데 쓴다. */
+  player1Source?: AdvancementSlotSource;
+  player2Source?: AdvancementSlotSource;
+  /** 진출 트리거가 만든 자동 부전승(한쪽이 BYE로 영구히 빈 경기) */
+  autoWalkover?: boolean;
   appliedScoringRules?: ScoringRules;
   createdAt: number;
   updatedAt?: number;
+}
+
+/** 진출 트리거(functions/src/lib/advancement.ts)가 하위 경기 슬롯에 남기는 출처 기록 */
+export interface AdvancementSlotSource {
+  matchId: string;
+  outcome: 'winner' | 'loser';
+  id: string;
+  name: string;
+  /** 처음 채우기 전 슬롯의 표시 이름. 결과가 취소되면 복원된다. */
+  prevName: string;
 }
 
 /**
