@@ -1,5 +1,3 @@
-import { isVoiceEnabled } from './voicePreference';
-
 /**
  * Returns the current locale string based on language setting.
  * Used for toLocaleTimeString, toLocaleDateString, etc.
@@ -31,44 +29,6 @@ export function formatDate(date?: Date): string {
 export function formatDateTime(date?: Date): string {
   const d = date || new Date();
   return d.toLocaleString(getLocale());
-}
-
-/**
- * Pre-warm speechSynthesis on user gesture.
- * Mobile browsers require speechSynthesis.speak() to be first called from a user gesture.
- * Call this from button click handlers (timer start, match start, etc.)
- */
-let speechPreWarmed = false;
-export function preWarmSpeech() {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  if (speechPreWarmed) return;
-  // Speak a silent utterance to unlock speechSynthesis on mobile
-  const utterance = new SpeechSynthesisUtterance('');
-  utterance.volume = 0;
-  utterance.lang = getLocale();
-  window.speechSynthesis.speak(utterance);
-  speechPreWarmed = true;
-}
-
-/** TTS helper: speak text using Web Speech API (iOS/Android compatible). 음성 안내 설정이 꺼져 있으면(기본) 아무것도 하지 않는다. */
-export function speak(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  if (!isVoiceEnabled()) return;
-  window.speechSynthesis.cancel();
-  const doSpeak = () => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = getLocale();
-    utterance.rate = 1.2;
-    utterance.volume = 1;
-    window.speechSynthesis.speak(utterance);
-  };
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (isIOS) {
-    // iOS Safari requires a short delay after cancel() before speak() works
-    setTimeout(doSpeak, 100);
-  } else {
-    doSpeak();
-  }
 }
 
 /** Parse a time string that may be in Korean or English locale format */

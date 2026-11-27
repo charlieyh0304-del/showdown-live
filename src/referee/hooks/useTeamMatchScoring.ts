@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { speak, preWarmSpeech, formatTime } from '@shared/utils/locale';
+import { formatTime } from '@shared/utils/locale';
 import { useMatch, useTournament } from '@shared/hooks/useFirebase';
 import {
   createEmptySet,
@@ -118,7 +118,6 @@ export function useTeamMatchScoring(
         playWarningBeep();
         setLastAction(`⚠️ 30${t('common.time.seconds')}`);
         setAnnouncement(`30${t('common.time.seconds')}`);
-        speak(`30${t('common.time.seconds')}`);
       }
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning]);
@@ -164,7 +163,6 @@ export function useTeamMatchScoring(
     const msg = t('referee.scoring.conflictError');
     setLastAction(`⚠️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
   }, [t]);
 
   const team1Name = match?.team1Name ?? t('referee.home.team1Default');
@@ -172,7 +170,6 @@ export function useTeamMatchScoring(
 
   const handleStartMatch = useCallback(async (tossWinnerVal: 'team1' | 'team2', choice: 'serve' | 'receive') => {
     if (!match) return;
-    preWarmSpeech();
 
     const firstServe = choice === 'serve'
       ? (tossWinnerVal === 'team1' ? 'player1' : 'player2')
@@ -381,7 +378,6 @@ export function useTeamMatchScoring(
     const clockPatch: Record<string, unknown> = matchClock.enabled && rawClock && !rawClock.started && !rawClock.expired
       ? { clock: startClock(rawClock, { autoPause: null, inProgress: true }, serverNow()) }
       : {};
-    if (clockPatch.clock) speak(t('common.matchClock.autoStarted'));
 
     const scoreAfter = { player1: cs.player1Score, player2: cs.player2Score };
 
@@ -472,7 +468,6 @@ export function useTeamMatchScoring(
       const gMsg = t('common.matchClock.goldenWin', { name: gName, p1: cs.player1Score, p2: cs.player2Score });
       setLastAction(`🏆 ${gMsg}`);
       setAnnouncement(gMsg);
-      speak(gMsg);
     }
     if (setEnd?.kind === 'completed') {
       const ok1 = await updateMatch({
@@ -577,7 +572,6 @@ export function useTeamMatchScoring(
       const msg = t('common.matchClock.expiredTie');
       setLastAction(`⏱️ ${msg}`);
       setAnnouncement(msg);
-      speak(msg);
       return;
     }
     const ci = match.currentSet ?? 0;
@@ -599,7 +593,6 @@ export function useTeamMatchScoring(
       : t('common.matchClock.expiredSetWin', { name: winnerName, num: ci + 1, p1: cs.player1Score, p2: cs.player2Score });
     setLastAction(`⏱️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
     if (setEnd?.kind === 'next_set') setPendingSideChange(true);
     if (tournamentId) autoBackupToLocal(tournamentId);
   }, [match, rules, matchClock.cfg, updateMatch, writeSetEnd, longWhistle, notifyUpdateFailed, tournamentId, t]);
@@ -619,7 +612,6 @@ export function useTeamMatchScoring(
     shortWhistle();
     setLastAction(`⏱️ ${label}`);
     setAnnouncement(label);
-    speak(label);
   }, [match, matchClock.cfg.goldenGoalMode, updateMatch, notifyUpdateFailed, shortWhistle, t]);
 
   const handleUndo = useCallback(async () => {
@@ -634,7 +626,6 @@ export function useTeamMatchScoring(
       const msgB = t('common.matchClock.undoBlocked');
       setLastAction(`⚠️ ${msgB}`);
       setAnnouncement(msgB);
-      speak(msgB);
       return;
     }
     // 세트 전환 직후라면 새 세트를 지우고 이전 세트의 마지막 득점을 되돌린다

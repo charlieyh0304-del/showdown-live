@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { speak, preWarmSpeech } from '@shared/utils/locale';
 import { usePracticeMatch, loadSavedPracticeMatch } from '../../hooks/usePracticeMatch';
 import { usePracticeHistory } from '../../hooks/usePracticeHistory';
 import {
@@ -112,7 +111,6 @@ export default function PracticeScoring() {
   const showWarning = useCallback((msg: string) => {
     playWarningBeep();
     setTimerWarningText(msg);
-    speak(msg);
     if (warningClearRef.current) clearTimeout(warningClearRef.current);
     warningClearRef.current = setTimeout(() => setTimerWarningText(''), 3000);
   }, []);
@@ -688,7 +686,6 @@ export default function PracticeScoring() {
 
   // Helper: start match with full history entries (matching real match mode)
   const handleStartPracticeMatch = useCallback((firstServe: 'player1' | 'player2', withWarmup: boolean) => {
-    preWarmSpeech();
     const winnerName = tossWinner === 'player1' ? p1Name : p2Name;
     const choiceLabel = firstServe === (tossWinner ?? 'player1') ? t('referee.scoring.serveChoice') : t('referee.scoring.receiveChoice');
     const serverName = firstServe === 'player1' ? p1Name : p2Name;

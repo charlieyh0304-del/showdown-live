@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAccessibility } from '../hooks/useAccessibility';
 import { COLOR_MODES, FONT_SCALES, effectiveReduceMotion, type ColorMode } from '../utils/a11ySettings';
-import { isVoiceEnabled, setVoiceEnabled } from '../utils/voicePreference';
 
 const K = 'common.accessibility';
 
@@ -27,7 +26,6 @@ export default function AccessibilityMenu({ initialOpen = false }: { initialOpen
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // 음성 안내 켜기·끄기는 없앴다(소유자 결정). 예전에 켜 둔 기기가 끌 방법 없이 계속 말하지 않도록 한 번 끈다.
-  useEffect(() => { if (isVoiceEnabled()) setVoiceEnabled(false); }, []);
 
   // Escape로 닫고 버튼으로 초점 복귀, 창 안에서 Tab 순환
   useEffect(() => {

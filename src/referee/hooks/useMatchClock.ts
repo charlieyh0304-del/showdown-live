@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { speak } from '@shared/utils/locale';
 import { vibrate } from '@shared/utils/haptic';
 import { serverNow, useServerNow } from '@shared/utils/serverTime';
 import type { ScoringRuleSet } from '@shared/rules/competitionRules';
@@ -53,7 +52,6 @@ export function useMatchClock({ match, rules, autoPause, updateMatch, setLastAct
   const notify = useCallback((msg: string, pattern: number | number[]) => {
     setLastAction(`⏱️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
     vibrate(pattern);
     playWarningBeep();
   }, [setLastAction, setAnnouncement]);
@@ -108,7 +106,6 @@ export function useMatchClock({ match, rules, autoPause, updateMatch, setLastAct
     const msg = t('common.matchClock.startedMsg', { time: formatClock(Math.ceil(remainingMs / 1000)) });
     setLastAction(`⏱️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
   }, [clock, ctx, remainingMs, t, write, setLastAction, setAnnouncement]);
 
   const pause = useCallback((note?: string) => {
@@ -117,7 +114,6 @@ export function useMatchClock({ match, rules, autoPause, updateMatch, setLastAct
     const msg = t('common.matchClock.pausedMsg');
     setLastAction(`⏸️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
   }, [clock, t, write, setLastAction, setAnnouncement]);
 
   const resume = useCallback(() => {
@@ -126,7 +122,6 @@ export function useMatchClock({ match, rules, autoPause, updateMatch, setLastAct
     const msg = t('common.matchClock.resumedMsg');
     setLastAction(`▶️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
   }, [clock, ctx, t, write, setLastAction, setAnnouncement]);
 
   return {

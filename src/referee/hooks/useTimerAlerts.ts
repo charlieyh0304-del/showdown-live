@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { speak } from '@shared/utils/locale';
 import { playWarningBeep } from './useCountdownTimer';
 
 interface TimerAlertsDeps {
@@ -38,7 +37,6 @@ export function useTimerAlerts({
       playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.fifteenSecondsLeft')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [timeoutTimer.seconds, timeoutTimer.isRunning, activeTimeout]);
 
@@ -54,7 +52,6 @@ export function useTimerAlerts({
       playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.sideChangeFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.fifteenSecondsLeft'));
-      speak(t('referee.scoring.fifteenSecondsLeft'));
     }
   }, [sideChangeTimer.seconds, sideChangeTimer.isRunning, sideChangeStartTime]);
 }

@@ -19,7 +19,7 @@ import { applyGoldenPoint, clockFrom, matchDecidedBy, startClock, stripTimeDecis
 import { useMatchClock } from './useMatchClock';
 import { clockAutoPauseReason, nextSetClockPatch, pendingTimeExpirySetEnd, planGoldenCoinToss, planTimeExpiry } from './timeLimitModel';
 import { serverNow } from '@shared/utils/serverTime';
-import { formatTime, speak, preWarmSpeech } from '@shared/utils/locale';
+import { formatTime } from '@shared/utils/locale';
 import { useNavigationGuard } from '@shared/hooks/useNavigationGuard';
 import type { ScoreActionType, ScoreHistoryEntry, SetScore } from '@shared/types';
 import { autoBackupDebounced, autoBackupToLocal } from '@shared/utils/backup';
@@ -56,7 +56,6 @@ export function useIndividualScoring(
     const msg = t('referee.scoring.conflictError');
     setLastAction(`⚠️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
   }, [t]);
 
   const [showHistory, setShowHistory] = useState(false);
@@ -135,7 +134,6 @@ export function useIndividualScoring(
       playWarningBeep();
       setLastAction(`⚠️ ${t('referee.scoring.warmupFifteenSeconds')}`);
       setAnnouncement(t('referee.scoring.warmupFifteenSeconds'));
-      speak(t('referee.scoring.warmupFifteenSeconds'));
     }
   }, [warmupTimer.seconds, warmupTimer.isRunning, match?.warmupStartTime]);
 
@@ -200,7 +198,6 @@ export function useIndividualScoring(
 
   const handleStartMatch = useCallback(async (firstServe: 'player1' | 'player2', withWarmup = false) => {
     if (!match) return;
-    preWarmSpeech();
     const p1Name = match.player1Name ?? t('referee.home.player1Default');
     const p2Name = match.player2Name ?? t('referee.home.player2Default');
     const winnerName = tossWinner === 'player1' ? p1Name : p2Name;
@@ -404,7 +401,6 @@ export function useIndividualScoring(
       const msg = t('common.matchClock.scoringBlockedExpired');
       setLastAction(`⚠️ ${msg}`);
       setAnnouncement(msg);
-      speak(msg);
       return;
     }
 
@@ -483,7 +479,6 @@ export function useIndividualScoring(
       `${pName} ${points}${t('common.units.point')}. ${t('common.matchHistory.score')} ${serverScore} : ${receiverScore}. ${nextServerName} ${t('common.matchHistory.serve')} ${nextCount + 1}/${maxServes}`
     );
 
-    if (clockPatch.clock) speak(t('common.matchClock.autoStarted'));
 
     // Set winner check with confirmation dialog
     const setWinner = golden ? (goldenDecisive ? scoringPlayer : null) : setWinnerByRules(cs.player1Score, cs.player2Score, rules);
@@ -514,7 +509,7 @@ export function useIndividualScoring(
         const setWinsCalc = setWinsByRules(sets, rules);
         const goldenText = goldenDecisive ? t('common.matchClock.goldenWin', { name: setWinnerName, p1: cs.player1Score, p2: cs.player2Score }) : '';
         const goldenLine = goldenText ? `${goldenText}\n` : '';
-        if (goldenText) { setAnnouncement(goldenText); speak(goldenText); }
+        if (goldenText) { setAnnouncement(goldenText); }
 
         if (matchWinner) {
           setSetEndMessage(`${goldenLine}🏆 ${setWinnerName}!\n${t('common.matchHistory.score')}: ${winScore} - ${loseScore}\n${t('common.units.set')}: ${setWinsCalc.player1}:${setWinsCalc.player2}`);
@@ -596,7 +591,6 @@ export function useIndividualScoring(
       const msg = t('common.matchClock.expiredTie');
       setLastAction(`⏱️ ${msg}`);
       setAnnouncement(msg);
-      speak(msg);
       return;
     }
     // 세트(경기) 결정: 세트 종료 확인 창에서 확인하면 다음 세트/경기 완료 (시간 만료는 되돌리지 않는다).
@@ -608,7 +602,6 @@ export function useIndividualScoring(
     openTimeExpirySetEnd(ci, msg, !!plan.matchWinner);
     setLastAction(`⏱️ ${msg}`);
     setAnnouncement(msg);
-    speak(msg);
   }, [match, rules, matchClock.cfg, updateMatch, longWhistle, notifyUpdateFailed, timeExpiryMessage, openTimeExpirySetEnd, t]);
   useEffect(() => { onExpireRef.current = () => { void handleTimeExpiry(); }; }, [handleTimeExpiry]);
 
@@ -645,7 +638,6 @@ export function useIndividualScoring(
     shortWhistle();
     setLastAction(`⏱️ ${label}`);
     setAnnouncement(label);
-    speak(label);
   }, [match, matchClock.cfg.goldenGoalMode, updateMatch, notifyUpdateFailed, shortWhistle, t]);
 
   // Confirm set end
@@ -699,7 +691,6 @@ export function useIndividualScoring(
       const msgB = t('common.matchClock.undoBlocked');
       setLastAction(`⚠️ ${msgB}`);
       setAnnouncement(msgB);
-      speak(msgB);
       return;
     }
     const sets = [...(match.sets ?? []).map(s => ({ ...s }))];
